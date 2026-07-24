@@ -22,7 +22,13 @@ class DashboardTest extends TestCase
         $this->actingAs($user);
 
         $response = $this->get(route('dashboard'));
-        $response->assertOk();
+        $response
+            ->assertOk()
+            ->assertSee('GN-System')
+            ->assertSee('当前展示为演示数据')
+            ->assertSee('月度营收与订单趋势')
+            ->assertSee('客户生命周期概览')
+            ->assertSee('最近客户记录');
     }
 
     public function test_super_admin_without_two_factor_is_redirected_to_security_settings(): void
@@ -40,6 +46,9 @@ class DashboardTest extends TestCase
 
         $response = $this->actingAs($user)->get(route('dashboard'));
 
-        $response->assertOk();
+        $response
+            ->assertOk()
+            ->assertSee('GN-System')
+            ->assertSee('本月月结进度');
     }
 }

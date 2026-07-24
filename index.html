@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>美联医美 · CRM 管理系统</title>
+<style>
+  /* ============ 设计系统 ============ */
+  :root {
+    --primary: #14B8A6;
+    --primary-soft: #E0F7F4;
+    --primary-ink: #0F766E;
+    --green: #10B981; --green-soft: #ECFDF5; --green-ink: #047857;
+    --blue: #3B82F6; --blue-soft: #EFF6FF; --blue-ink: #1D4ED8;
+    --purple: #8B5CF6; --purple-soft: #F5F3FF; --purple-ink: #6D28D9;
+    --amber: #F59E0B; --amber-soft: #FFFBEB; --amber-ink: #B45309;
+    --red: #EF4444; --red-soft: #FEF2F2;
+    --ink: #1F2937; --ink-2: #374151; --muted: #6B7280; --muted-2: #9CA3AF;
+    --bg: #F4F6F8; --sidebar: #F8FAFB; --surface: #FFFFFF;
+    --line: #E5E7EB; --line-soft: #F3F4F6;
+    --radius: 10px; --radius-lg: 12px;
+    --shadow: 0 1px 2px rgba(17,24,39,.04), 0 2px 8px rgba(17,24,39,.04);
+    --shadow-hover: 0 4px 12px rgba(17,24,39,.08), 0 8px 24px rgba(17,24,39,.06);
+    --sidebar-w: 232px; --topbar-h: 60px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+    background: var(--bg); color: var(--ink); line-height: 1.55; font-size: 14px;
+    display: flex; min-height: 100vh;
+  }
+  .mono { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+
+  /* ============ 侧边栏 ============ */
+  .sidebar {
+    width: var(--sidebar-w); flex-shrink: 0; background: var(--sidebar);
+    border-right: 1px solid var(--line); display: flex; flex-direction: column;
+    position: sticky; top: 0; height: 100vh; z-index: 40;
+  }
+  .brand { padding: 18px 18px 16px; border-bottom: 1px solid var(--line-soft); display: flex; align-items: center; gap: 12px; }
+  .brand-logo {
+    width: 38px; height: 38px; border-radius: 10px; flex-shrink: 0;
+    background: linear-gradient(135deg, var(--primary), #0EA5E9);
+    color: #fff; display: grid; place-items: center; font-size: 22px; font-weight: 700;
+    box-shadow: 0 4px 12px rgba(20,184,166,.25);
+  }
+  .brand-name { font-weight: 700; font-size: 15px; letter-spacing: .3px; }
+  .brand-sub { font-size: 11px; color: var(--muted); margin-top: 2px; letter-spacing: .5px; }
+
+  .nav { flex: 1; padding: 12px 12px 0; overflow-y: auto; }
+  .nav-item {
+    display: flex; align-items: center; gap: 11px; padding: 10px 12px; border-radius: 9px;
+    color: var(--ink-2); cursor: pointer; font-size: 14px; margin-bottom: 2px;
+    transition: background .18s, color .18s; user-select: none; position: relative;
+  }
+  .nav-item:hover { background: var(--line-soft); }
+  .nav-item.active { background: var(--primary-soft); color: var(--primary-ink); font-weight: 600; }
+  .nav-item .ico { width: 18px; height: 18px; flex-shrink: 0; color: var(--primary); display: grid; place-items: center; font-size: 16px; }
+  .nav-item:not(.active) .ico { color: var(--muted); }
+  .nav-item.active::before { content:''; position:absolute; left:-12px; top:50%; transform:translateY(-50%); width:3px; height:20px; background:var(--primary); border-radius:0 3px 3px 0; }
+
+  .sidebar-footer { padding: 14px; }
+  .security-card { background: linear-gradient(135deg, #F0FDFA, #ECFEFF); border: 1px solid #CCFBF1; border-radius: 10px; padding: 12px; }
+  .security-card .head { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--primary-ink); }
+  .security-card .head i { font-size: 14px; }
+  .security-card .desc { font-size: 11.5px; color: var(--muted); margin-top: 6px; line-height: 1.5; }
+  .security-card .more { font-size: 12px; color: var(--primary); margin-top: 8px; display: inline-block; cursor: pointer; }
+
+  /* ============ 主区 ============ */
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  .topbar {
+    height: var(--topbar-h); background: var(--surface); border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; gap: 14px; padding: 0 22px; position: sticky; top: 0; z-index: 30;
+  }
+  .topbar .menu-btn { background: none; border: none; cursor: pointer; color: var(--muted); font-size: 20px; padding: 4px 8px; border-radius: 8px; }
+  .topbar .menu-btn:hover { background: var(--line-soft); color: var(--ink); }
+  .topbar .title { font-size: 16px; font-weight: 600; }
+  .topbar .spacer { flex: 1; }
+  .topbar .search { display: flex; align-items: center; gap: 8px; background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; min-width: 240px; color: var(--muted); font-size: 13px; }
+  .topbar .search input { border: none; background: none; outline: none; flex: 1; color: var(--ink); font-size: 13px; }
+  .topbar .search .kbd { font-size: 11px; color: var(--muted-2); border: 1px solid var(--line); padding: 1px 5px; border-radius: 3px; }
+
+  .date-range { display: flex; align-items: center; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 12px; font-size: 13px; color: var(--ink-2); cursor: pointer; }
+  .date-range:hover { border-color: var(--primary); }
+  .date-range .dash { color: var(--muted); }
+
+  .bell-btn { position: relative; background: none; border: 1px solid var(--line); border-radius: 8px; width: 36px; height: 36px; display: grid; place-items: center; cursor: pointer; color: var(--ink-2); font-size: 16px; }
+  .bell-btn:hover { border-color: var(--primary); color: var(--primary); }
+  .bell-badge { position: absolute; top: -4px; right: -4px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: var(--red); color: #fff; font-size: 11px; font-weight: 600; display: grid; place-items: center; border: 2px solid var(--surface); }
+  .user-pill { display: flex; align-items: center; gap: 10px; padding: 4px 8px; border-radius: 8px; cursor: pointer; }
+  .user-pill:hover { background: var(--line-soft); }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg,#14B8A6,#0EA5E9); color: #fff; display: grid; place-items: center; font-weight: 600; font-size: 13px; flex-shrink: 0; }
+  .user-name { font-size: 13px; font-weight: 600; color: var(--ink); }
+  .user-role { font-size: 11px; color: var(--muted); }
+
+  /* ============ 内容区 ============ */
+  .content { padding: 20px 22px 24px; flex: 1; }
+  .metric-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 14px; margin-bottom: 16px; }
+  .metric { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 16px 18px; box-shadow: var(--shadow); transition: transform .2s, box-shadow .2s; position: relative; overflow: hidden; }
+  .metric:hover { transform: translateY(-2px); box-shadow: var(--shadow-hover); }
+  .metric .head { display: flex; align-items: center; gap: 6px; }
+  .metric .label { font-size: 13px; color: var(--muted); }
+  .metric .info { font-size: 12px; color: var(--muted-2); cursor: help; }
+  .metric .badge { position: absolute; top: 16px; right: 16px; width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; font-size: 16px; }
+  .metric .badge.teal { background: var(--primary-soft); color: var(--primary); }
+  .metric .badge.amber { background: var(--amber-soft); color: var(--amber); }
+  .metric .badge.blue { background: var(--blue-soft); color: var(--blue); }
+  .metric .badge.green { background: var(--green-soft); color: var(--green); }
+  .metric .value { font-size: 26px; font-weight: 700; color: var(--ink); margin-top: 10px; letter-spacing: -.5px; }
+  .metric .delta { font-size: 12px; margin-top: 6px; color: var(--muted); display: inline-flex; align-items: center; gap: 4px; }
+  .metric .delta .arr { font-weight: 700; font-size: 13px; }
+  .delta.up .arr { color: var(--red); }
+  .delta.down .arr { color: var(--green); }
+  .metric .spark { position: absolute; bottom: 0; right: 0; width: 110px; height: 32px; opacity: .55; }
+
+  .row { display: grid; gap: 16px; margin-bottom: 16px; }
+  .row-3 { grid-template-columns: repeat(3, 1fr); }
+  .row-2-1 { grid-template-columns: 2fr 1fr; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow); padding: 16px 18px; }
+  .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .card-title { font-size: 14.5px; font-weight: 600; color: var(--ink); }
+  .card-link { font-size: 12px; color: var(--muted); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+  .card-link:hover { color: var(--primary); }
+
+  .chart-tabs { display: inline-flex; background: var(--bg); border-radius: 8px; padding: 3px; gap: 2px; }
+  .chart-tab { padding: 4px 12px; border-radius: 6px; font-size: 12.5px; cursor: pointer; color: var(--muted); border: none; background: none; }
+  .chart-tab.active { background: var(--surface); color: var(--primary-ink); font-weight: 600; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
+  .legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin-top: 6px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+  .chart-box { width: 100%; height: 220px; margin-top: 8px; }
+
+  .rank-list { display: flex; flex-direction: column; gap: 4px; }
+  .rank-item { display: grid; grid-template-columns: 22px 28px 1fr auto; gap: 10px; align-items: center; padding: 10px 4px; border-radius: 6px; transition: background .15s; }
+  .rank-item:hover { background: var(--line-soft); }
+  .rank-num { font-size: 13px; color: var(--muted-2); font-weight: 600; text-align: center; }
+  .rank-num.top { color: var(--amber); }
+  .rank-logo { width: 24px; height: 24px; border-radius: 6px; background: var(--primary-soft); color: var(--primary); display: grid; place-items: center; font-size: 13px; font-weight: 700; }
+  .rank-logo.l2 { background: var(--blue-soft); color: var(--blue); }
+  .rank-logo.l3 { background: var(--amber-soft); color: var(--amber); }
+  .rank-name { font-size: 13px; font-weight: 500; }
+  .rank-bar-wrap { height: 4px; background: var(--line-soft); border-radius: 2px; margin-top: 4px; overflow: hidden; }
+  .rank-bar { height: 100%; background: linear-gradient(90deg, var(--primary), #0EA5E9); border-radius: 2px; }
+  .rank-amt { font-size: 13px; font-weight: 600; color: var(--ink); text-align: right; }
+  .rank-pct { font-size: 11.5px; color: var(--muted); text-align: right; }
+
+  .funnel { display: flex; flex-direction: column; gap: 8px; padding-top: 4px; }
+  .funnel-row { display: grid; grid-template-columns: 28px 1fr 60px 50px; align-items: center; gap: 10px; padding: 6px 0; }
+  .funnel-ico { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; font-size: 13px; }
+  .funnel-ico.l1 { background: var(--primary-soft); color: var(--primary); }
+  .funnel-ico.l2 { background: var(--blue-soft); color: var(--blue); }
+  .funnel-ico.l3 { background: var(--purple-soft); color: var(--purple); }
+  .funnel-ico.l4 { background: var(--amber-soft); color: var(--amber); }
+  .funnel-ico.l5 { background: var(--green-soft); color: var(--green); }
+  .funnel-bar-wrap { height: 22px; background: var(--line-soft); border-radius: 4px; position: relative; overflow: hidden; }
+  .funnel-bar { height: 100%; border-radius: 4px; display: flex; align-items: center; padding-left: 10px; color: var(--primary-ink); font-size: 12.5px; font-weight: 600; transition: width .6s ease; }
+  .funnel-num { font-size: 14px; font-weight: 700; text-align: right; color: var(--ink); }
+  .funnel-pct { font-size: 11px; color: var(--muted); text-align: right; }
+  .overall-conv { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; margin-top: 6px; border-top: 1px dashed var(--line); font-size: 12px; color: var(--muted); }
+  .overall-conv b { color: var(--primary); font-size: 14px; }
+
+  .task { display: grid; grid-template-columns: 56px 28px 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px dashed var(--line-soft); }
+  .task:last-child { border-bottom: none; }
+  .task-time { font-size: 12px; color: var(--muted); font-weight: 500; }
+  .task-avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg,#F59E0B,#EF4444); color: #fff; display: grid; place-items: center; font-size: 12px; font-weight: 600; }
+  .task-title { font-size: 13px; font-weight: 500; color: var(--ink); }
+  .task-actions { display: flex; align-items: center; gap: 8px; }
+  .pill { font-size: 11.5px; padding: 3px 8px; border-radius: 4px; font-weight: 500; white-space: nowrap; }
+  .pill.green { background: var(--green-soft); color: var(--green-ink); }
+  .pill.blue { background: var(--blue-soft); color: var(--blue-ink); }
+  .pill.amber { background: var(--amber-soft); color: var(--amber-ink); }
+  .pill.purple { background: var(--purple-soft); color: var(--purple-ink); }
+  .pill.gray { background: var(--line-soft); color: var(--muted); }
+  .pill.red { background: var(--red-soft); color: var(--red); }
+  .pill.teal { background: var(--primary-soft); color: var(--primary-ink); }
+
+  .tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .tbl th { text-align: left; padding: 8px 10px; font-weight: 500; color: var(--muted); border-bottom: 1px solid var(--line); white-space: nowrap; cursor: pointer; }
+  th:hover { color: var(--ink); }
+  .tbl td { padding: 10px 10px; border-bottom: 1px solid var(--line-soft); white-space: nowrap; }
+  .tbl tr:last-child td { border-bottom: none; }
+  .tbl tr { transition: background .15s; }
+  .tbl tbody tr:hover { background: var(--bg); }
+  .tbl .id { color: var(--primary-ink); font-weight: 600; }
+
+  .settle { display: grid; grid-template-columns: 140px 1fr; gap: 18px; align-items: center; }
+  .ring { position: relative; width: 130px; height: 130px; }
+  .ring svg { transform: rotate(-90deg); }
+  .ring-text { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; }
+  .ring-pct { font-size: 30px; font-weight: 700; color: var(--primary); letter-spacing: -.5px; }
+  .ring-sub { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+  .settle-list { display: flex; flex-direction: column; gap: 10px; }
+  .settle-row { display: flex; justify-content: space-between; align-items: center; font-size: 13px; }
+  .settle-row .lbl { color: var(--muted); }
+  .settle-row .val { font-weight: 600; color: var(--ink); }
+  .settle-foot { display: flex; justify-content: space-between; align-items: center; padding-top: 12px; margin-top: 8px; border-top: 1px dashed var(--line); font-size: 12px; color: var(--muted); }
+
+  .footer { display: flex; align-items: center; justify-content: space-between; padding: 14px 22px; font-size: 12px; color: var(--muted); }
+  .status-legend { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+  .status-legend .item { display: inline-flex; align-items: center; gap: 5px; }
+  .status-legend .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+
+  .scrim { display: none; }
+  @media (max-width: 1279px) { .metric-row { grid-template-columns: repeat(3,1fr); } .row-3, .row-2-1 { grid-template-columns: 1fr 1fr; } .topbar .search { display: none; } }
+  @media (max-width: 1023px) { .sidebar { position: fixed; left: 0; top: 0; transform: translateX(-100%); box-shadow: var(--shadow-hover); transition: transform .3s; } .sidebar.open { transform: none; } .scrim.show { display: block; position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 35; } .row-3, .row-2-1 { grid-template-columns: 1fr; } }
+  @media (max-width: 767px) { .metric-row { grid-template-columns: repeat(2,1fr); } .topbar .title { display: none; } .content { padding: 16px; } .settle { grid-template-columns: 1fr; } .ring { margin: 0 auto; } }
+</style>
+</head>
+<body>
+
+<!-- ============ 侧边栏 ============ -->
+<aside class="sidebar" id="sidebar">
+  <div class="brand">
+    <div class="brand-logo">✚</div>
+    <div>
+      <div class="brand-name">美联医美</div>
+      <div class="brand-sub">专业 · 安全 · 信赖</div>
+    </div>
+  </div>
+  <nav class="nav">
+    <div class="nav-item active"><span class="ico">⌂</span>总览</div>
+    <div class="nav-item"><span class="ico">👥</span>客户管理</div>
+    <div class="nav-item"><span class="ico">🤝</span>代理商</div>
+    <div class="nav-item"><span class="ico">📋</span>订单</div>
+    <div class="nav-item"><span class="ico">💰</span>月结中心</div>
+    <div class="nav-item"><span class="ico">🔔</span>主动提醒</div>
+    <div class="nav-item"><span class="ico">🔍</span>多维查询</div>
+    <div class="nav-item"><span class="ico">📊</span>数据看板</div>
+    <div class="nav-item"><span class="ico">⚙</span>配置中心</div>
+  </nav>
+  <div class="sidebar-footer">
+    <div class="security-card">
+      <div class="head"><i>🛡</i>数据安全</div>
+      <div class="desc">已通过安全级安全认证</div>
+      <div class="more">查看详情 ›</div>
+    </div>
+  </div>
+</aside>
+<div class="scrim" id="scrim"></div>
+
+<!-- ============ 主区 ============ -->
+<div class="main">
+  <header class="topbar">
+    <button class="menu-btn" id="hamburger">☰</button>
+    <span class="title">CRM 管理系统</span>
+    <span class="spacer"></span>
+    <div class="search">🔍 <input placeholder="搜索客户、订单、代理商、手机号等"> <span class="kbd">⌘K</span></div>
+    <div class="date-range"><span>2025-05-01</span><span class="dash">~</span><span>2025-05-31</span><span style="color:var(--muted)">📅</span></div>
+    <button class="bell-btn" title="消息">🔔<span class="bell-badge">11</span></button>
+    <div class="user-pill"><div class="avatar">张</div><div><div class="user-name">张佳怡</div><div class="user-role">运营主管</div></div><span style="color:var(--muted)">▾</span></div>
+  </header>
+
+  <main class="content">
+
+    <!-- 5 张指标卡 -->
+    <div class="metric-row">
+      <div class="metric">
+        <div class="badge teal">💰</div>
+        <div class="head"><span class="label">本月营收</span><span class="info">ⓘ</span></div>
+        <div class="value mono">¥ 3,820,680</div>
+        <div class="delta up">较上月 <span class="arr">↑</span> 18.6%</div>
+        <svg class="spark" viewBox="0 0 110 32"><path d="M0,22 Q15,8 30,18 T60,12 T90,20 T110,8" stroke="#14B8A6" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+      </div>
+      <div class="metric">
+        <div class="badge teal">👤</div>
+        <div class="head"><span class="label">新增客户</span><span class="info">ⓘ</span></div>
+        <div class="value mono">286</div>
+        <div class="delta up">较上月 <span class="arr">↑</span> 12.3%</div>
+        <svg class="spark" viewBox="0 0 110 32"><path d="M0,20 Q15,14 30,16 T60,10 T90,14 T110,6" stroke="#14B8A6" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+      </div>
+      <div class="metric">
+        <div class="badge amber">🔔</div>
+        <div class="head"><span class="label">待跟进提醒</span><span class="info">ⓘ</span></div>
+        <div class="value mono">58</div>
+        <div class="delta down">较上月 <span class="arr">↓</span> 5.4%</div>
+        <svg class="spark" viewBox="0 0 110 32"><path d="M0,10 Q15,18 30,12 T60,22 T90,16 T110,24" stroke="#F59E0B" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+      </div>
+      <div class="metric">
+        <div class="badge teal">💼</div>
+        <div class="head"><span class="label">代理商结算额</span><span class="info">ⓘ</span></div>
+        <div class="value mono">¥ 1,256,300</div>
+        <div class="delta up">较上月 <span class="arr">↑</span> 9.7%</div>
+        <svg class="spark" viewBox="0 0 110 32"><path d="M0,24 Q15,16 30,20 T60,14 T90,18 T110,10" stroke="#14B8A6" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+      </div>
+      <div class="metric">
+        <div class="badge teal">📈</div>
+        <div class="head"><span class="label">复购率</span><span class="info">ⓘ</span></div>
+        <div class="value mono">32.7%</div>
+        <div class="delta up">较上月 <span class="arr">↑</span> 2.8bp</div>
+        <svg class="spark" viewBox="0 0 110 32"><path d="M0,18 Q15,14 30,12 T60,16 T90,10 T110,6" stroke="#8B5CF6" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+      </div>
+    </div>
+
+    <!-- 第二行：双轴图 + 排行榜 + 漏斗 -->
+    <div class="row row-2-1" style="grid-template-columns: 1.4fr 1fr 1fr;">
+      <div class="card">
+        <div class="card-head">
+          <div class="card-title">月度营收与订单趋势</div>
+          <div class="chart-tabs"><button class="chart-tab active">月度</button><button class="chart-tab">季度</button><button class="chart-tab">年度</button></div>
+        </div>
+        <div class="legend"><span><i style="background:var(--primary)"></i>营收（元）</span><span><i style="background:var(--blue);border-radius:50%"></i>订单数（单）</span></div>
+        <svg class="chart-box" viewBox="0 0 540 220" id="dualChart"></svg>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-title">代理商推广费排行</div><span class="card-link">查看全部 ›</span></div>
+        <div class="rank-list">
+          <div class="rank-item"><div class="rank-num top">1</div><div class="rank-logo">美</div><div><div class="rank-name">美之源医疗咨询</div><div class="rank-bar-wrap"><div class="rank-bar" style="width:95%"></div></div></div><div><div class="rank-amt mono">286,300</div><div class="rank-pct">22.8%</div></div></div>
+          <div class="rank-item"><div class="rank-num top">2</div><div class="rank-logo l2">颜</div><div><div class="rank-name">颜选国际医美</div><div class="rank-bar-wrap"><div class="rank-bar" style="width:75%"></div></div></div><div><div class="rank-amt mono">215,600</div><div class="rank-pct">17.2%</div></div></div>
+          <div class="rank-item"><div class="rank-num top">3</div><div class="rank-logo l3">皓</div><div><div class="rank-name">皓美生物科技</div><div class="rank-bar-wrap"><div class="rank-bar" style="width:64%"></div></div></div><div><div class="rank-amt mono">182,400</div><div class="rank-pct">14.5%</div></div></div>
+          <div class="rank-item"><div class="rank-num">4</div><div class="rank-logo">星</div><div><div class="rank-name">星耀医美咨询</div><div class="rank-bar-wrap"><div class="rank-bar" style="width:52%"></div></div></div><div><div class="rank-amt mono">148,900</div><div class="rank-pct">11.9%</div></div></div>
+          <div class="rank-item"><div class="rank-num">5</div><div class="rank-logo">悦</div><div><div class="rank-name">悦美汇管理咨询</div><div class="rank-bar-wrap"><div class="rank-bar" style="width:40%"></div></div></div><div><div class="rank-amt mono">112,700</div><div class="rank-pct">9.0%</div></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-title">客户生命周期概览</div></div>
+        <div class="funnel">
+          <div class="funnel-row"><div class="funnel-ico l1">📝</div><div class="funnel-bar-wrap"><div class="funnel-bar" style="width:100%;background:linear-gradient(90deg,var(--primary-soft),var(--primary))">建档</div></div><div class="funnel-num mono">1,856</div><div class="funnel-pct">100%</div></div>
+          <div class="funnel-row"><div class="funnel-ico l2">📅</div><div class="funnel-bar-wrap"><div class="funnel-bar" style="width:66.7%;background:linear-gradient(90deg,var(--blue-soft),var(--blue))">预约</div></div><div class="funnel-num mono">1,238</div><div class="funnel-pct">66.7%</div></div>
+          <div class="funnel-row"><div class="funnel-ico l3">🏥</div><div class="funnel-bar-wrap"><div class="funnel-bar" style="width:48%;background:linear-gradient(90deg,var(--purple-soft),var(--purple))">到院</div></div><div class="funnel-num mono">892</div><div class="funnel-pct">48.0%</div></div>
+          <div class="funnel-row"><div class="funnel-ico l4">📞</div><div class="funnel-bar-wrap"><div class="funnel-bar" style="width:33.1%;background:linear-gradient(90deg,var(--amber-soft),var(--amber))">回访</div></div><div class="funnel-num mono">614</div><div class="funnel-pct">33.1%</div></div>
+          <div class="funnel-row"><div class="funnel-ico l5">↻</div><div class="funnel-bar-wrap"><div class="funnel-bar" style="width:17.6%;background:linear-gradient(90deg,var(--green-soft),var(--green))">复购</div></div><div class="funnel-num mono">327</div><div class="funnel-pct">17.6%</div></div>
+        </div>
+        <div class="overall-conv"><span>整体转化率</span><b>17.6%</b></div>
+      </div>
+    </div>
+
+    <!-- 第三行：待办 + 最近客户 + 月结进度 -->
+    <div class="row row-3">
+      <div class="card">
+        <div class="card-head"><div class="card-title">今日待办提醒 <span class="pill red" style="margin-left:6px">4</span></div><span class="card-link">查看全部 ›</span></div>
+        <div class="task"><div class="task-time">09:30</div><div class="task-avatar">李</div><div class="task-title">李思雨 · 瑞蓝玻尿酸（术后回访）</div><div class="task-actions"><span class="pill teal">术后第7天</span></div></div>
+        <div class="task"><div class="task-time">10:00</div><div class="task-avatar">王</div><div class="task-title">王佳怡 · 热玛吉（效果跟进）</div><div class="task-actions"><span class="pill teal">术后第7天</span></div></div>
+        <div class="task"><div class="task-time">11:00</div><div class="task-avatar">张</div><div class="task-title">张紫涵 · 会员生日提醒（5月）</div><div class="task-actions"><span class="pill amber">生日提醒</span></div></div>
+        <div class="task"><div class="task-time">14:00</div><div class="task-avatar">陈</div><div class="task-title">陈雅婷 · 上次消费45天（复购窗口）</div><div class="task-actions"><span class="pill purple">复购窗口</span></div></div>
+        <div class="task"><div class="task-time">16:00</div><div class="task-avatar">刘</div><div class="task-title">刘子墨 · 未知客咨询回访</div><div class="task-actions"><span class="pill gray">新客跟进</span></div></div>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-title">最近客户记录</div><span class="card-link">查看全部 ›</span></div>
+        <table class="tbl">
+          <thead><tr><th>客户编号</th><th>姓名</th><th>代理商</th><th>当前状态</th><th>到店日期</th><th>跟进人</th></tr></thead>
+          <tbody>
+            <tr><td class="id mono">C250528001</td><td>李思雨</td><td>美之源医疗咨询</td><td><span class="pill green">已施术</span></td><td class="mono">2025-05-28</td><td>张佳怡</td></tr>
+            <tr><td class="id mono">C250527089</td><td>王佳怡</td><td>颜选国际医美</td><td><span class="pill blue">已预约</span></td><td class="mono">2025-05-30</td><td>刘畅</td></tr>
+            <tr><td class="id mono">C250526072</td><td>张紫涵</td><td>皓美生物科技</td><td><span class="pill green">合作中</span></td><td class="mono">2025-06-01</td><td>周婷</td></tr>
+            <tr><td class="id mono">C250525056</td><td>陈雅婷</td><td>星耀医美咨询</td><td><span class="pill purple">到院</span></td><td class="mono">2025-05-25</td><td>赵敏</td></tr>
+            <tr><td class="id mono">C250524033</td><td>刘子墨</td><td>悦美汇管理咨询</td><td><span class="pill gray">建档</span></td><td class="mono">2025-05-24</td><td>李想</td></tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="card">
+        <div class="card-head"><div class="card-title">本月月结进度</div><span class="card-link">查看明细 ›</span></div>
+        <div class="settle">
+          <div class="ring">
+            <svg viewBox="0 0 130 130" width="130" height="130">
+              <circle cx="65" cy="65" r="55" fill="none" stroke="#E5E7EB" stroke-width="10"/>
+              <circle cx="65" cy="65" r="55" fill="none" stroke="url(#ringGrad)" stroke-width="10" stroke-linecap="round" stroke-dasharray="345.6" stroke-dashoffset="76.0"/>
+              <defs><linearGradient id="ringGrad" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#14B8A6"/><stop offset="100%" stop-color="#0EA5E9"/></linearGradient></defs>
+            </svg>
+            <div class="ring-text"><div><div class="ring-pct mono">78%</div><div class="ring-sub">已完成</div></div></div>
+          </div>
+          <div class="settle-list">
+            <div class="settle-row"><span class="lbl">已结算金额</span><span class="val mono">¥ 1,256,300</span></div>
+            <div class="settle-row"><span class="lbl">待审核金额</span><span class="val mono">¥ 346,800</span></div>
+            <div class="settle-row"><span class="lbl">待结算金额</span><span class="val mono" style="color:var(--muted)">¥ 0</span></div>
+            <div class="settle-row"><span class="lbl">预计可结金额</span><span class="val mono" style="color:var(--primary)">¥ 1,603,100</span></div>
+          </div>
+        </div>
+        <div class="settle-foot"><span>结算周期：05.01 - 05.31</span><span>距月结截止：<b style="color:var(--primary)">2 天</b></span></div>
+      </div>
+    </div>
+
+  </main>
+
+  <footer class="footer">
+    <div class="status-legend">
+      <span style="color:var(--muted)">状态说明</span>
+      <span class="item"><span class="dot" style="background:var(--green)"></span>合作中</span>
+      <span class="item"><span class="dot" style="background:var(--blue)"></span>已预约</span>
+      <span class="item"><span class="dot" style="background:var(--purple)"></span>到院</span>
+      <span class="item"><span class="dot" style="background:var(--primary)"></span>已施术</span>
+      <span class="item"><span class="dot" style="background:var(--amber)"></span>已结算</span>
+      <span class="item"><span class="dot" style="background:var(--red)"></span>待审核</span>
+      <span class="item"><span class="dot" style="background:var(--muted-2)"></span>建档</span>
+    </div>
+    <div><span>数据更新于 2025-05-31 09:30:00</span></div>
+  </footer>
+</div>
+
+<script>
+/* 移动端抽屉 */
+const sidebar = document.getElementById('sidebar');
+const scrim = document.getElementById('scrim');
+document.getElementById('hamburger').onclick = () => { sidebar.classList.add('open'); scrim.classList.add('show'); };
+scrim.onclick = () => { sidebar.classList.remove('open'); scrim.classList.remove('show'); };
+
+/* 导航激活 */
+document.querySelectorAll('.nav-item').forEach(n => n.onclick = () => {
+  document.querySelectorAll('.nav-item').forEach(x => x.classList.remove('active'));
+  n.classList.add('active');
+});
+
+/* 双轴图：营收柱 + 订单折线 */
+(function drawDual(){
+  const svg = document.getElementById('dualChart');
+  const months = ['2024-12','2025-01','2025-02','2025-03','2025-04','2025-05'];
+  const revenue = [180, 220, 260, 290, 340, 428];
+  const orders  = [280, 320, 310, 380, 395, 480];
+  const W = 540, H = 220;
+  const padL = 38, padR = 38, padT = 16, padB = 28;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const maxR = 500, maxO = 500;
+  const bw = (innerW / months.length) * 0.42;
+  const bwGap = innerW / months.length;
+  const xc = i => padL + (i + 0.5) * bwGap;
+  const yR = v => padT + innerH - (v / maxR) * innerH;
+  const yO = v => padT + innerH - (v / maxO) * innerH;
+  let html = '';
+  [0, 100, 200, 300, 400, 500].forEach(v => {
+    const y = yR(v);
+    html += `<line x1="${padL}" y1="${y}" x2="${W-padR}" y2="${y}" stroke="#F3F4F6" stroke-dasharray="3 3"/>`;
+    html += `<text x="${padL-6}" y="${y+3}" text-anchor="end" font-size="10" fill="#9CA3AF">${v}</text>`;
+  });
+  revenue.forEach((v, i) => {
+    const x = xc(i) - bw/2, y = yR(v), h = padT + innerH - y;
+    html += `<rect x="${x}" y="${padT + innerH}" width="${bw}" height="0" rx="3" fill="#14B8A6"><animate attributeName="height" from="0" to="${h}" dur=".7s" begin="${i*0.06}s" fill="freeze"/><animate attributeName="y" from="${padT + innerH}" to="${y}" dur=".7s" begin="${i*0.06}s" fill="freeze"/></rect>`;
+  });
+  let path = '';
+  orders.forEach((v, i) => { path += (i?'L':'M') + xc(i) + ',' + yO(v) + ' '; });
+  html += `<path d="${path}" fill="none" stroke="#3B82F6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;
+  orders.forEach((v, i) => { html += `<circle cx="${xc(i)}" cy="${yO(v)}" r="3.5" fill="#fff" stroke="#3B82F6" stroke-width="2"/>`; });
+  months.forEach((m, i) => { html += `<text x="${xc(i)}" y="${H - 8}" text-anchor="middle" font-size="10.5" fill="#6B7280">${m}</text>`; });
+  svg.innerHTML = html;
+})();
+
+/* 漏斗宽度动画 */
+window.addEventListener('load', () => {
+  document.querySelectorAll('.funnel-bar').forEach((el, i) => {
+    const w = el.style.width; el.style.width = '0%';
+    setTimeout(() => { el.style.width = w; }, 200 + i * 80);
+  });
+});
+</script>
+</body>
+</html>

@@ -3,104 +3,141 @@
     <head>
         @include('partials.head')
     </head>
-    <body class="min-h-screen bg-white dark:bg-zinc-800">
-        <flux:sidebar sticky collapsible="mobile" class="border-e border-zinc-200 bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900">
-            <flux:sidebar.header>
-                <x-app-logo :sidebar="true" href="{{ route('dashboard') }}" wire:navigate />
-                <flux:sidebar.collapse class="lg:hidden" />
-            </flux:sidebar.header>
+    <body class="crm-body" x-data="{ sidebarOpen: false }" @keydown.escape.window="sidebarOpen = false">
+        <aside
+            class="crm-sidebar"
+            :class="{ 'is-open': sidebarOpen }"
+            aria-label="主导航"
+        >
+            <a href="{{ route('dashboard') }}" class="crm-brand" wire:navigate>
+                <span class="crm-brand-mark" aria-hidden="true">G</span>
+                <span>
+                    <strong>GN-System</strong>
+                    <small>专业 · 安全 · 高效</small>
+                </span>
+            </a>
 
-            <flux:sidebar.nav>
-                <flux:sidebar.group heading="工作台" class="grid">
-                    <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
-                        仪表盘
-                    </flux:sidebar.item>
-                </flux:sidebar.group>
+            <nav class="crm-nav">
+                <a href="{{ route('dashboard') }}" class="crm-nav-item {{ request()->routeIs('dashboard') ? 'is-active' : '' }}" wire:navigate>
+                    <flux:icon.home aria-hidden="true" />
+                    <span>总览</span>
+                </a>
 
-                <flux:sidebar.group heading="业务管理" class="grid">
-                    <flux:sidebar.item icon="users" href="#" aria-disabled="true" class="pointer-events-none opacity-50">客户管理</flux:sidebar.item>
-                    <flux:sidebar.item icon="building-office" href="#" aria-disabled="true" class="pointer-events-none opacity-50">代理商管理</flux:sidebar.item>
-                    <flux:sidebar.item icon="shopping-bag" href="#" aria-disabled="true" class="pointer-events-none opacity-50">订单管理</flux:sidebar.item>
-                    <flux:sidebar.item icon="banknotes" href="#" aria-disabled="true" class="pointer-events-none opacity-50">结算管理</flux:sidebar.item>
-                    <flux:sidebar.item icon="bell-alert" href="#" aria-disabled="true" class="pointer-events-none opacity-50">跟进提醒</flux:sidebar.item>
-                </flux:sidebar.group>
+                @foreach ([
+                    ['users', '客户管理'],
+                    ['building-office', '代理商'],
+                    ['clipboard-document-list', '订单'],
+                    ['banknotes', '月结中心'],
+                    ['bell-alert', '主动提醒'],
+                    ['magnifying-glass', '多维查询'],
+                    ['chart-bar', '数据看板'],
+                    ['cog-6-tooth', '配置中心'],
+                ] as [$icon, $label])
+                    <span class="crm-nav-item is-disabled" aria-disabled="true" title="功能将在后续阶段开放">
+                        <flux:icon :name="$icon" aria-hidden="true" />
+                        <span>{{ $label }}</span>
+                        <span class="crm-nav-lock">待开放</span>
+                    </span>
+                @endforeach
+            </nav>
 
-                <flux:sidebar.group heading="分析与系统" class="grid">
-                    <flux:sidebar.item icon="chart-bar" href="#" aria-disabled="true" class="pointer-events-none opacity-50">经营报表</flux:sidebar.item>
-                    @if(auth()->user()->is_super_admin)
-                        <flux:sidebar.item icon="cog-6-tooth" href="#" aria-disabled="true" class="pointer-events-none opacity-50">系统配置</flux:sidebar.item>
-                        <flux:sidebar.item icon="clipboard-document-list" href="#" aria-disabled="true" class="pointer-events-none opacity-50">审计日志</flux:sidebar.item>
-                    @endif
-                </flux:sidebar.group>
-            </flux:sidebar.nav>
+            <div class="crm-sidebar-footer">
+                <a href="{{ route('security.edit') }}" class="crm-security-card" wire:navigate>
+                    <span class="crm-security-title">
+                        <flux:icon.shield-check aria-hidden="true" />
+                        数据安全
+                    </span>
+                    <span>账户保护与登录安全</span>
+                    <strong>查看安全设置 <span aria-hidden="true">›</span></strong>
+                </a>
+            </div>
+        </aside>
 
-            <flux:spacer />
+        <button
+            type="button"
+            class="crm-scrim"
+            :class="{ 'is-visible': sidebarOpen }"
+            @click="sidebarOpen = false"
+            aria-label="关闭导航"
+        ></button>
 
-            <x-desktop-user-menu class="hidden lg:block" :name="auth()->user()->name" />
-        </flux:sidebar>
+        <div class="crm-shell">
+            <header class="crm-topbar">
+                <button
+                    type="button"
+                    class="crm-icon-button crm-menu-button"
+                    @click="sidebarOpen = true"
+                    aria-label="打开导航"
+                >
+                    <flux:icon.bars-3 />
+                </button>
 
-        <!-- Mobile User Menu -->
-        <flux:header class="lg:hidden">
-            <flux:sidebar.toggle class="lg:hidden" icon="bars-2" inset="left" />
+                <h1>{{ $title ?? 'CRM 管理系统' }}</h1>
+                <div class="crm-topbar-spacer"></div>
 
-            <flux:spacer />
+                <label class="crm-search">
+                    <flux:icon.magnifying-glass aria-hidden="true" />
+                    <span class="sr-only">全局搜索</span>
+                    <input type="search" placeholder="搜索客户、订单、代理商、手机号等" disabled>
+                    <kbd>⌘ K</kbd>
+                </label>
 
-            <flux:dropdown position="top" align="end">
-                <flux:profile
-                    :initials="auth()->user()->initials()"
-                    icon-trailing="chevron-down"
-                />
+                <button type="button" class="crm-date-range" disabled>
+                    <span>2025-05-01</span>
+                    <span>—</span>
+                    <span>2025-05-31</span>
+                    <flux:icon.calendar-days aria-hidden="true" />
+                </button>
 
-                <flux:menu>
-                    <flux:menu.radio.group>
-                        <div class="p-0 text-sm font-normal">
-                            <div class="flex items-center gap-2 px-1 py-1.5 text-start text-sm">
-                                <flux:avatar
-                                    :name="auth()->user()->name"
-                                    :initials="auth()->user()->initials()"
-                                />
+                <button type="button" class="crm-icon-button crm-notification-button" aria-label="通知，11 条未读" disabled>
+                    <flux:icon.bell aria-hidden="true" />
+                    <span>11</span>
+                </button>
 
-                                <div class="grid flex-1 text-start text-sm leading-tight">
-                                    <flux:heading class="truncate">{{ auth()->user()->name }}</flux:heading>
-                                    <flux:text class="truncate">{{ auth()->user()->email }}</flux:text>
-                                </div>
-                            </div>
+                <flux:dropdown position="bottom" align="end">
+                    <button type="button" class="crm-user-pill" data-test="sidebar-menu-button">
+                        <span class="crm-avatar">{{ auth()->user()->initials() }}</span>
+                        <span class="crm-user-copy">
+                            <strong>{{ auth()->user()->name }}</strong>
+                            <small>{{ auth()->user()->is_super_admin ? '超级管理员' : '内部用户' }}</small>
+                        </span>
+                        <flux:icon.chevron-down aria-hidden="true" />
+                    </button>
+
+                    <flux:menu>
+                        <div class="px-2 py-1.5">
+                            <div class="text-sm font-semibold">{{ auth()->user()->name }}</div>
+                            <div class="truncate text-xs text-zinc-500">{{ auth()->user()->email }}</div>
                         </div>
-                    </flux:menu.radio.group>
+                        <flux:menu.separator />
+                        <flux:menu.item :href="route('profile.edit')" icon="user-circle" wire:navigate>账户设置</flux:menu.item>
+                        <flux:menu.item :href="route('security.edit')" icon="shield-check" wire:navigate>安全设置</flux:menu.item>
+                        <flux:menu.item :href="route('appearance.edit')" icon="swatch" wire:navigate>外观设置</flux:menu.item>
+                        <flux:menu.separator />
+                        <form method="POST" action="{{ route('logout') }}" class="w-full">
+                            @csrf
+                            <flux:menu.item
+                                as="button"
+                                type="submit"
+                                icon="arrow-right-start-on-rectangle"
+                                class="w-full cursor-pointer"
+                                data-test="logout-button"
+                            >
+                                退出登录
+                            </flux:menu.item>
+                        </form>
+                    </flux:menu>
+                </flux:dropdown>
+            </header>
 
-                    <flux:menu.separator />
+            {{ $slot }}
 
-                    <flux:menu.radio.group>
-                        <flux:menu.item :href="route('profile.edit')" icon="cog" wire:navigate>
-                            账户设置
-                        </flux:menu.item>
-                    </flux:menu.radio.group>
-
-                    <flux:menu.separator />
-
-                    <form method="POST" action="{{ route('logout') }}" class="w-full">
-                        @csrf
-                        <flux:menu.item
-                            as="button"
-                            type="submit"
-                            icon="arrow-right-start-on-rectangle"
-                            class="w-full cursor-pointer"
-                            data-test="logout-button"
-                        >
-                            退出登录
-                        </flux:menu.item>
-                    </form>
-                </flux:menu>
-            </flux:dropdown>
-        </flux:header>
-
-        {{ $slot }}
-
-        @persist('toast')
-            <flux:toast.group>
-                <flux:toast />
-            </flux:toast.group>
-        @endpersist
+            @persist('toast')
+                <flux:toast.group>
+                    <flux:toast />
+                </flux:toast.group>
+            @endpersist
+        </div>
 
         @fluxScripts
     </body>

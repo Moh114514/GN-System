@@ -15,7 +15,12 @@ class AuthenticationTest extends TestCase
     {
         $response = $this->get(route('login'));
 
-        $response->assertOk();
+        $response
+            ->assertOk()
+            ->assertSee('GN-System')
+            ->assertSee('欢迎回来')
+            ->assertSee('登录系统')
+            ->assertSee('企业级数据安全保护');
     }
 
     public function test_users_can_authenticate_using_the_login_screen(): void

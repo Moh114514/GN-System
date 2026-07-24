@@ -1,54 +1,55 @@
 <x-layouts::auth :title="__('Log in')">
-    <div class="flex flex-col gap-6">
-        <x-auth-header :title="__('Log in to your account')" :description="__('Enter your email and password below to log in')" />
+    <div class="crm-login">
+        <header>
+            <span class="crm-login-eyebrow">CRM 管理系统</span>
+            <h1>欢迎回来</h1>
+            <p>请输入您的账户信息以继续访问工作台</p>
+        </header>
 
-        <!-- Session Status -->
         <x-auth-session-status class="text-center" :status="session('status')" />
 
-
-        <form method="POST" action="{{ route('login.store') }}" class="flex flex-col gap-6">
+        <form method="POST" action="{{ route('login.store') }}" class="crm-login-form">
             @csrf
 
-            <!-- Email Address -->
             <flux:input
                 name="email"
-                :label="__('Email address')"
+                label="邮箱地址"
                 :value="old('email')"
                 type="email"
                 required
                 autofocus
                 autocomplete="email"
-                placeholder="email@example.com"
+                placeholder="name@company.com"
+                icon="envelope"
             />
 
-            <!-- Password -->
             <div class="relative">
                 <flux:input
                     name="password"
-                    :label="__('Password')"
+                    label="密码"
                     type="password"
                     required
                     autocomplete="current-password"
-                    :placeholder="__('Password')"
+                    placeholder="请输入密码"
+                    icon="lock-closed"
                     viewable
                 />
 
                 @if (Route::has('password.request'))
                     <flux:link class="absolute top-0 text-sm end-0" :href="route('password.request')" wire:navigate>
-                        {{ __('Forgot your password?') }}
+                        忘记密码？
                     </flux:link>
                 @endif
             </div>
 
-            <!-- Remember Me -->
-            <flux:checkbox name="remember" :label="__('Remember me')" :checked="old('remember')" />
+            <flux:checkbox name="remember" label="记住我" :checked="old('remember')" />
 
-            <div class="flex items-center justify-end">
-                <flux:button variant="primary" type="submit" class="w-full" data-test="login-button">
-                    {{ __('Log in') }}
-                </flux:button>
-            </div>
+            <flux:button variant="primary" type="submit" class="crm-login-button" data-test="login-button">
+                登录系统
+                <flux:icon.arrow-right variant="micro" />
+            </flux:button>
         </form>
 
+        <p class="crm-login-help">仅限已授权的内部员工使用</p>
     </div>
 </x-layouts::auth>
