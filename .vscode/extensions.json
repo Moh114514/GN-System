@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "bmewburn.vscode-intelephense-client",
+    "bradlc.vscode-tailwindcss",
+    "dbaeumer.vscode-eslint",
+    "docker.docker",
+    "editorconfig.editorconfig",
+    "ms-azuretools.vscode-containers",
+    "onecentlin.laravel-blade"
+  ]
+}

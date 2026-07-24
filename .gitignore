@@ -1,0 +1,50 @@
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+auth.json
+
+# PHP / Laravel
+/vendor/
+/bootstrap/cache/*
+!/bootstrap/cache/.gitignore
+/storage/*.key
+/storage/app/private/
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/testing/*
+/storage/framework/views/*
+/storage/logs/*
+
+# JavaScript
+/node_modules/
+/public/build/
+/public/hot
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Testing and analysis
+/.phpunit.cache/
+/.phpunit.result.cache
+/coverage/
+/.phpstan.cache/
+
+# IDE and OS
+/.idea/
+/.fleet/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Docker runtime data
+/.docker-data/
+/docker/postgres/data/
+/docker/redis/data/
+
+# Temporary files
+*.log
+*.tmp
+*.swp
+*~
