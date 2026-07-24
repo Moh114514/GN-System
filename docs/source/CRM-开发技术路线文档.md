@@ -4,7 +4,7 @@
 > **适用模块**：客户管理系统（CRM）
 > **业务背景**：医美/医疗行业，需将现有 4 份 Excel（客户跟进表、代理商月结表等）迁移为 Web 系统，覆盖客户全生命周期、代理商结算、多维查询、数据看板与系统配置
 > **核心目标**：以标准化、可扩展、可维护为原则，把 7 个子任务拆解到 8 个交付阶段，配套完整的基础设施与工程化体系
-> **架构基线**：模块化单体（Modular Monolith）· Laravel 11 + Livewire 3 + FluxUI
+> **架构基线**：模块化单体（Modular Monolith）· Laravel 13 + Livewire 4 + Flux UI 2
 
 ---
 
@@ -56,7 +56,7 @@
 
 ## 2. 技术栈选型：完善与补充
 
-> 建议主线：**Laravel 11 + Livewire 3 + FluxUI + PostgreSQL（推荐）/ MySQL 8 + Redis + Docker**。
+> 建议主线：**Laravel 13 + Livewire 4 + Flux UI 2 + PostgreSQL（推荐）/ MySQL 8 + Redis + Docker**。
 > 架构形态：**模块化单体**（详见《CRM-系统架构设计.md》第 2 章）。
 
 ### 2.1 完善后的完整技术栈
@@ -78,8 +78,8 @@
 
 | 技术 | 版本 | 用途 | 选型理由 |
 |------|------|------|----------|
-| **FluxUI** | latest | UI 组件库 | 官方推荐、Light/Dark 主题 |
-| **Tailwind CSS** | 3.4+ | 样式 | 与 FluxUI 配套、utility-first |
+| **Flux UI** | 2.x | UI 组件库 | 官方 Starter Kit、Light/Dark/System 主题 |
+| **Tailwind CSS** | 4.x | 样式 | 与 Flux UI 配套、utility-first |
 | **Alpine.js** | 3.x | 前端轻交互 | Livewire 内置，无需独立安装 |
 | **ECharts** | 5.5+ | 图表 | to B/to C 双视角看板 |
 | **Livewire PowerGrid** | latest | 表格 | 多维查询结果展示 |
@@ -184,8 +184,8 @@
 
 | 维度 | 主线（推荐） | 备选 1 | 备选 2 |
 |------|--------------|--------|--------|
-| 后端 | Laravel 11 | Node.js (NestJS) | Java Spring Boot |
-| 前端 | Livewire 3 + FluxUI | Vue 3 + Element Plus | React + Ant Design Pro |
+| 后端 | Laravel 13 | Node.js (NestJS) | Java Spring Boot |
+| 前端 | Livewire 4 + Flux UI 2 | Vue 3 + Element Plus | React + Ant Design Pro |
 | 数据库 | PostgreSQL | MySQL 8 | — |
 | 图表 | ECharts | Recharts | D3.js |
 | 搜索（远期） | PostgreSQL 复合索引 | Meilisearch（超百万升级） | — |
@@ -233,7 +233,7 @@ app/Modules/Infra/Services/
 ### 3.2 任务 2：客户全生命周期管理（1 周）
 
 #### 技术选型
-- **Livewire 3 + FluxUI**：全生命周期 CRUD
+- **Livewire 4 + Flux UI 2**：全生命周期 CRUD
 - **spatie/laravel-model-states**：5 阶段 + 7 档状态机（**状态名称与流转规则可在后台配置，当前命名为系统默认值**，2026-07-24 修订）
 - **Laravel Events + Listeners**：状态变更触发副作用
 - **Spatie Activitylog**：状态流转审计
@@ -575,7 +575,7 @@ class MultiDimensionalSearch extends Component
 | 工作项 | 技术/工具 | 关键点 |
 |--------|-----------|--------|
 | Docker 化 | Docker Compose | nginx + php-fpm + redis + postgres 一键启动 |
-| Laravel 初始化 | Laravel 11 + Pint | 安装核心包，**模块化目录结构** `app/Modules/{Domain}/` |
+| Laravel 初始化 | Laravel 13 + Pint | 安装核心包，**模块化目录结构** `app/Modules/{Domain}/` |
 | Livewire + FluxUI | composer require | 配置 Light/Dark 主题 |
 | 认证脚手架 | Laravel Breeze + **两档权限中间件** | 超级管理员 / 普通内部用户（C3-4） |
 | CI/CD | GitHub Actions | PR 触发 Pest + PHPStan + Pint，main 触发部署 |
@@ -813,8 +813,8 @@ Phase 7 (测试+部署) ←────┘
 
 ### 8.1 关键官方文档
 
-- Laravel 11：https://laravel.com/docs/11.x
-- Livewire 3：https://livewire.laravel.com/docs
+- Laravel 13：https://laravel.com/docs/13.x
+- Livewire 4：https://livewire.laravel.com/docs
 - FluxUI：https://fluxui.dev
 - Spatie Laravel Model States：https://spatie.be/docs/laravel-model-states
 - Spatie Laravel Activitylog：https://spatie.be/docs/laravel-activitylog
