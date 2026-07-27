@@ -46,7 +46,6 @@
 
             <flux:button variant="primary" type="submit" class="crm-login-button" data-test="login-button">
                 登录系统
-                <flux:icon.arrow-right variant="micro" />
             </flux:button>
         </form>
 
