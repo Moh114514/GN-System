@@ -49,6 +49,16 @@ docker compose exec app composer docs:check
 
 如果容器不可用，可使用等价的本地 PHP/Composer 命令，但应在交付说明中写明实际执行内容。
 
+## 数据库安全
+
+- 测试只能连接名称明确为 `gn_system_test` 或以 `_test` / `_testing` 结尾的独立测试数据库。
+- `APP_ENV=testing` 不代表数据库一定安全；普通 Artisan CLI 不读取 `phpunit.xml` 中的环境变量。
+- 禁止把 `php artisan migrate:fresh --env=testing` 作为通用测试准备命令，统一使用 `composer test`。
+- Agent 执行任何破坏性数据库命令前，必须先输出并核对实际环境、连接和数据库名称。
+- 未经用户明确批准，不得清空开发数据库；不得执行 `docker compose down -v`。
+- 无法确认目标数据库时必须停止并报告，不得依赖静默 fallback 或默认数据库继续执行。
+- 发现数据丢失时，不得声称可以恢复，除非已经找到并验证可用备份。
+
 ## 文档影响
 
 每次变更都要判断是否影响：

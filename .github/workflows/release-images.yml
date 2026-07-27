@@ -75,6 +75,9 @@ jobs:
       - name: Run release gates
         run: |
           composer install --no-interaction --prefer-dist --no-progress
+          cp .env.testing.example .env.testing
+          sed -i 's/^DB_HOST=.*/DB_HOST=127.0.0.1/' .env.testing
+          printf '\nDB_PASSWORD=%s\n' "$DB_PASSWORD" >> .env.testing
           npm ci
           npm run build
           composer validate --strict

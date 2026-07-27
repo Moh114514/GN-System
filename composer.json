@@ -75,11 +75,11 @@
             "phpstan analyse"
         ],
         "test": [
-            "@php artisan config:clear --ansi",
+            "@php scripts/run-tests.php --preflight",
             "@docs:check",
             "@lint:check",
             "@types:check",
-            "@php artisan test"
+            "@php scripts/run-tests.php"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",

@@ -42,6 +42,7 @@ Accepted ADR 记录已经生效的长期决策。若 ADR 与代码不一致，�
 ## 开发规范
 
 - [文档维护规则](development/documentation.md)
+- [测试与数据库隔离](development/testing.md)
 - [局域网生产部署与恢复](operations/production-deployment.md)
 - Agent 工作规则见根目录 [AGENTS.md](../AGENTS.md)
 

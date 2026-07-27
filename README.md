@@ -54,6 +54,16 @@ docker compose exec app php artisan app:create-admin
 
 ## 日常开发
 
+首次运行测试前，创建本地测试环境文件：
+
+```powershell
+Copy-Item .env.testing.example .env.testing
+```
+
+根据本机环境在被 Git 忽略的 `.env.testing` 中补充测试数据库密码。PostgreSQL 首次创建全新数据卷时，
+`docker/postgres/init/01-create-test-database.sql` 会创建 `gn_system_test`；已有旧数据卷但缺少测试库时，
+请按[测试与数据库隔离指南](docs/development/testing.md)中的非破坏性步骤创建。
+
 ```powershell
 # 启动或重建
 docker compose up --build -d

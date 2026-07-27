@@ -79,6 +79,12 @@ jobs:
       - name: Install frontend dependencies
         run: npm ci
 
+      - name: Prepare isolated test environment
+        run: |
+          cp .env.testing.example .env.testing
+          sed -i 's/^DB_HOST=.*/DB_HOST=127.0.0.1/' .env.testing
+          printf '\nDB_PASSWORD=%s\n' "$DB_PASSWORD" >> .env.testing
+
       - name: Build frontend assets
         run: npm run build
 

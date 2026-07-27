@@ -11,10 +11,12 @@ use App\Modules\Reminder\ReminderServiceProvider;
 use App\Modules\Report\ReportServiceProvider;
 use App\Modules\Settlement\SettlementServiceProvider;
 use App\Providers\AppServiceProvider;
+use App\Providers\DatabaseSafetyServiceProvider;
 use App\Providers\FortifyServiceProvider;
 
 return [
     AppServiceProvider::class,
+    DatabaseSafetyServiceProvider::class,
     FortifyServiceProvider::class,
     AuthServiceProvider::class,
     CustomerServiceProvider::class,
