@@ -47,9 +47,10 @@ RUN composer install --no-interaction --prefer-dist --no-progress \
 ENTRYPOINT ["app-entrypoint"]
 CMD ["php-fpm"]
 
-FROM composer:2 AS composer-production
+FROM php-base AS composer-production
 
 WORKDIR /app
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 COPY composer.json composer.lock ./
 RUN composer install \
     --no-dev \

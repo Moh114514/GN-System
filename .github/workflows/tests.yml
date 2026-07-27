@@ -63,7 +63,7 @@ jobs:
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.3'
-          extensions: bcmath, intl, mbstring, pdo_pgsql, redis, zip
+          extensions: bcmath, gd, intl, mbstring, pdo_pgsql, redis, zip
           tools: composer:v2
           coverage: none
 
@@ -73,17 +73,17 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Install PHP dependencies
-        run: composer install --no-interaction --prefer-dist --no-progress
-
-      - name: Install frontend dependencies
-        run: npm ci
-
       - name: Prepare isolated test environment
         run: |
           cp .env.testing.example .env.testing
           sed -i 's/^DB_HOST=.*/DB_HOST=127.0.0.1/' .env.testing
           printf '\nDB_PASSWORD=%s\n' "$DB_PASSWORD" >> .env.testing
+
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Install frontend dependencies
+        run: npm ci
 
       - name: Build frontend assets
         run: npm run build
@@ -119,6 +119,7 @@ jobs:
       - name: Assert production image contents
         run: |
           docker run --rm --entrypoint sh gn-system-app:ci -ec '
+            php -m | grep -qx gd
             test ! -e /var/www/html/.env
             test ! -e /var/www/html/.env.example
             test ! -e /var/www/html/.env.production.example
