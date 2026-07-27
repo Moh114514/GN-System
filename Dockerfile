@@ -47,9 +47,10 @@ RUN composer install --no-interaction --prefer-dist --no-progress \
 ENTRYPOINT ["app-entrypoint"]
 CMD ["php-fpm"]
 
-FROM composer:2 AS composer-production
+FROM php-base AS composer-production
 
 WORKDIR /app
+COPY --from=composer:2 /usr/bin/composer /usr/local/bin/composer
 COPY composer.json composer.lock ./
 RUN composer install \
     --no-dev \
@@ -76,8 +77,20 @@ FROM php-base AS production
 
 COPY --from=composer-production --chown=www-data:www-data /app /var/www/html
 COPY --from=frontend-production --chown=www-data:www-data /app/public/build /var/www/html/public/build
+COPY docker/php/php.production.ini /usr/local/etc/php/conf.d/zz-production.ini
+COPY docker/php/production-entrypoint.sh /usr/local/bin/production-entrypoint
 
-RUN chown -R www-data:www-data storage bootstrap/cache
+RUN chmod +x /usr/local/bin/production-entrypoint \
+    && rm -f .env* public/hot public/fonts-manifest.dev.json \
+    && chown -R www-data:www-data storage bootstrap/cache
 
 USER www-data
+ENTRYPOINT ["production-entrypoint"]
 CMD ["php-fpm"]
+
+FROM nginx:1.28-alpine AS web-production
+
+COPY docker/nginx/production.conf /etc/nginx/conf.d/default.conf
+COPY --from=frontend-production /app/public /var/www/html/public
+
+RUN rm -f /var/www/html/public/hot /var/www/html/public/fonts-manifest.dev.json

@@ -1,0 +1,119 @@
+name: release production images
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: gn_system_test
+          POSTGRES_USER: gn_system
+          POSTGRES_PASSWORD: test-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U gn_system -d gn_system_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+
+    env:
+      APP_ENV: testing
+      APP_KEY: base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=
+      APP_DEBUG: false
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5432
+      DB_DATABASE: gn_system_test
+      DB_USERNAME: gn_system
+      DB_PASSWORD: test-password
+      CACHE_STORE: redis
+      QUEUE_CONNECTION: redis
+      REDIS_HOST: 127.0.0.1
+      SESSION_DRIVER: array
+      MAIL_MAILER: array
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.3'
+          extensions: bcmath, gd, intl, mbstring, pdo_pgsql, redis, zip
+          tools: composer:v2
+          coverage: none
+
+      - name: Setup Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Run release gates
+        run: |
+          cp .env.testing.example .env.testing
+          sed -i 's/^DB_HOST=.*/DB_HOST=127.0.0.1/' .env.testing
+          printf '\nDB_PASSWORD=%s\n' "$DB_PASSWORD" >> .env.testing
+          composer install --no-interaction --prefer-dist --no-progress
+          npm ci
+          npm run build
+          composer validate --strict
+          composer audit
+          npm audit --audit-level=high
+          php artisan migrate --force
+          composer ci:check
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set image names
+        run: |
+          echo "APP_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/gn-system-app" >> "$GITHUB_ENV"
+          echo "WEB_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/gn-system-web" >> "$GITHUB_ENV"
+
+      - name: Build and push app image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: production
+          push: true
+          tags: |
+            ${{ env.APP_IMAGE }}:${{ github.ref_name }}
+            ${{ env.APP_IMAGE }}:sha-${{ github.sha }}
+
+      - name: Build and push web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: web-production
+          push: true
+          tags: |
+            ${{ env.WEB_IMAGE }}:${{ github.ref_name }}
+            ${{ env.WEB_IMAGE }}:sha-${{ github.sha }}

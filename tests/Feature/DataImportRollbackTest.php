@@ -1,0 +1,103 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Models\User;
+use App\Modules\DataImport\Application\Services\ImportBatchRollback;
+use App\Modules\DataImport\Application\Services\ImportRowAdjudicator;
+use App\Modules\DataImport\Domain\ImportBatchStatus;
+use App\Modules\DataImport\Domain\ImportProfile;
+use App\Modules\DataImport\Domain\ImportRowStatus;
+use App\Modules\DataImport\Infrastructure\Models\ImportBatch;
+use App\Modules\DataImport\Infrastructure\Models\ImportFile;
+use App\Modules\DataImport\Infrastructure\Models\ImportRow;
+use Database\Seeders\PhaseTwoReferenceDataSeeder;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use RuntimeException;
+use Tests\TestCase;
+
+class DataImportRollbackTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_rollback_is_blocked_when_imported_data_was_modified_after_completion(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
+        $completedAt = now()->subMinutes(10);
+        $batch = ImportBatch::query()->create([
+            'created_by' => $user->id,
+            'status' => ImportBatchStatus::Completed,
+            'completed_at' => $completedAt,
+            'rollback_expires_at' => now()->addHours(23),
+        ]);
+
+        DB::table('institutions')->insert([
+            'code' => 'IMPORTED',
+            'name' => 'Imported institution',
+            'is_active' => true,
+            'import_batch_id' => $batch->id,
+            'created_at' => $completedAt->subMinute(),
+            'updated_at' => now(),
+        ]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('institutions:');
+
+        app(ImportBatchRollback::class)->rollback($batch, $user->id);
+    }
+
+    public function test_expired_batch_cannot_be_rolled_back(): void
+    {
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
+        $batch = ImportBatch::query()->create([
+            'created_by' => $user->id,
+            'status' => ImportBatchStatus::Completed,
+            'completed_at' => now()->subHours(25),
+            'rollback_expires_at' => now()->subHour(),
+        ]);
+
+        $this->expectException(RuntimeException::class);
+
+        app(ImportBatchRollback::class)->rollback($batch, $user->id);
+    }
+
+    public function test_manual_ignore_resolves_the_last_error_and_is_audited(): void
+    {
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
+        $batch = ImportBatch::query()->create([
+            'created_by' => $user->id,
+            'status' => ImportBatchStatus::NeedsReview,
+            'total_rows' => 1,
+            'error_rows' => 1,
+        ]);
+        $file = ImportFile::query()->create([
+            'import_batch_id' => $batch->id,
+            'original_name' => 'summary.csv',
+            'extension' => 'csv',
+            'mime_type' => 'text/csv',
+            'size_bytes' => 10,
+            'sha256' => str_repeat('a', 64),
+            'encrypted_path' => 'imports/test.enc',
+            'status' => 'parsed',
+        ]);
+        $row = ImportRow::query()->create([
+            'import_batch_id' => $batch->id,
+            'import_file_id' => $file->id,
+            'source_row' => 2,
+            'profile' => ImportProfile::SettlementSummary,
+            'status' => ImportRowStatus::Error,
+            'errors' => ['汇总差异'],
+        ]);
+
+        app(ImportRowAdjudicator::class)->ignore($row, $user->id, '经业务确认不导入该汇总行');
+
+        $this->assertSame(ImportRowStatus::Ignored, $row->fresh()->status);
+        $this->assertSame(ImportBatchStatus::Validated, $batch->fresh()->status);
+        $this->assertDatabaseHas('activity_log', [
+            'description' => '人工裁决导入行',
+            'causer_id' => $user->id,
+        ]);
+    }
+}

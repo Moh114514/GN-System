@@ -10,13 +10,16 @@
     "license": "MIT",
     "require": {
         "php": "^8.3",
+        "brick/math": "^0.17",
         "laravel/fortify": "^1.37.2",
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
         "livewire/blaze": "^1.0",
         "livewire/flux": "^2.13.1",
         "livewire/livewire": "^4.1",
+        "phpoffice/phpspreadsheet": "^5.9",
         "sentry/sentry-laravel": "^4.27",
+        "spatie/laravel-activitylog": "^4.12.3",
         "spatie/laravel-backup": "^10.3"
     },
     "require-dev": {
@@ -72,11 +75,11 @@
             "phpstan analyse"
         ],
         "test": [
-            "@php artisan config:clear --ansi",
+            "@php scripts/run-tests.php --preflight",
             "@docs:check",
             "@lint:check",
             "@types:check",
-            "@php artisan test"
+            "@php scripts/run-tests.php"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",

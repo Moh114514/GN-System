@@ -23,8 +23,19 @@
                     <span>总览</span>
                 </a>
 
+                @if (auth()->user()->is_super_admin)
+                    <a href="{{ route('data-imports.index') }}" class="crm-nav-item {{ request()->routeIs('data-imports.*') ? 'is-active' : '' }}" wire:navigate>
+                        <flux:icon.arrow-up-tray aria-hidden="true" />
+                        <span>数据迁移</span>
+                    </a>
+                @endif
+
+                <a href="{{ route('customers.index') }}" class="crm-nav-item {{ request()->routeIs('customers.*') ? 'is-active' : '' }}" wire:navigate>
+                    <flux:icon.users aria-hidden="true" />
+                    <span>客户管理</span>
+                </a>
+
                 @foreach ([
-                    ['users', '客户管理'],
                     ['building-office', '代理商'],
                     ['clipboard-document-list', '订单'],
                     ['banknotes', '月结中心'],

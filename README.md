@@ -1,9 +1,9 @@
 # GN-System CRM
 
 GN-System 是面向医美/医疗代理业务的内部客户管理系统，用于逐步替代分散的
-Excel 客户、代理商、订单和结算数据。当前已完成 Phase 1 基础架构：中文后台、
-内部用户认证、超级管理员双因素认证、容器化运行、健康检查、备份和持续集成。
-业务模块和 Excel 数据迁移将在后续阶段实现。
+Excel 客户、代理商、订单和结算数据。当前已完成 Phase 1 基础架构、Phase 2
+核心数据与导入能力及 Phase 3 客户全生命周期；真实历史数据迁移仍待正式源文件、
+错误处理和抽样核对。
 
 ## 技术基线
 
@@ -35,6 +35,7 @@ docker compose up --build -d
 - Vite 开发服务：<http://localhost:5173>
 - 存活检查：<http://localhost:8080/up>
 - 就绪检查：<http://localhost:8080/health>
+- 运维心跳检查：<http://localhost:8080/health/operations>
 
 PostgreSQL 和 Redis 不暴露主机端口，仅在 Compose 内部网络中通信。若 8080
 或 5173 已占用，可在 `.env` 中修改 `APP_PORT` 或 `VITE_PORT`。需要从其他设备
@@ -54,6 +55,16 @@ docker compose exec app php artisan app:create-admin
 
 ## 日常开发
 
+首次运行测试前，创建本地测试环境文件：
+
+```powershell
+Copy-Item .env.testing.example .env.testing
+```
+
+根据本机环境在被 Git 忽略的 `.env.testing` 中补充测试数据库密码。PostgreSQL 首次创建全新数据卷时，
+`docker/postgres/init/01-create-test-database.sql` 会创建 `gn_system_test`；已有旧数据卷但缺少测试库时，
+请按[测试与数据库隔离指南](docs/development/testing.md)中的非破坏性步骤创建。
+
 ```powershell
 # 启动或重建
 docker compose up --build -d
@@ -64,6 +75,9 @@ docker compose logs -f app nginx queue scheduler
 
 # 数据库迁移
 docker compose exec app php artisan migrate
+
+# 生成可重复执行的 Phase 2 本地模拟数据
+docker compose exec app php artisan db:seed --class=PhaseTwoDemoDataSeeder
 
 # 运行完整质量门禁
 docker compose exec app composer ci:check
@@ -82,8 +96,9 @@ docker compose down
 
 ## 备份
 
-Scheduler 每天 02:00 执行 PostgreSQL 和 `storage/app/private` 全量备份，
-03:00 执行清理；日备份保留 30 天。备份写入独立 Docker 命名卷：
+Scheduler 每小时执行 PostgreSQL 备份，每天 02:00 执行 PostgreSQL 和
+`storage/app/private` 全量备份，03:00 清理，04:00 检查备份健康；备份保留
+7 天全部和 30 天每日最新。开发环境备份写入独立 Docker 命名卷：
 
 ```powershell
 docker compose exec app php artisan backup:run
@@ -91,12 +106,22 @@ docker compose exec app php artisan backup:list
 docker compose exec app php artisan backup:clean
 ```
 
-本地卷不是异地备份。生产对象存储、WAL 归档、HTTPS 和正式部署需在生产目标
-确定后配置；仓库只提供可部署镜像和 CI，不包含虚假的部署任务。
+开发环境本地卷不是异地备份。生产环境采用小时级加密备份和异机同步，暂不使用
+WAL/PITR。
+
+## 局域网生产部署
+
+生产部署与开发环境完全分离，使用 `compose.production.yaml`、不可变 app/web
+镜像、HTTPS、Redis 鉴权和宿主机持久化；不运行 Vite、不挂载源码，也不会在容器
+启动时生成 `APP_KEY` 或自动迁移。
+
+服务器准备、环境变量、发布、回退、异机同步和恢复演练见
+[局域网生产部署与恢复](docs/operations/production-deployment.md)。不要把
+`.env.production`、TLS 私钥或真实凭据提交到 Git。
 
 ## 模块边界
 
-业务代码按以下九个命名空间组织：
+业务代码按以下十个命名空间组织：
 
 ```text
 app/Modules/
@@ -108,13 +133,14 @@ app/Modules/
 ├── Reminder
 ├── Report
 ├── Config
-└── Audit
+├── Audit
+└── DataImport
 ```
 
-共享技术能力放在 `app/Infrastructure`。当前边界测试禁止业务模块导入其他业务
-模块的任意命名空间，也禁止跨模块直接写入数据；Application Contract 和领域事件
-是尚未落地的演进方向。Phase 1 只注册模块提供器和导航入口，不提前实现业务模型。
-具体规则见[模块边界文档](docs/architecture/module-boundaries.md)。
+共享技术能力放在 `app/Infrastructure`。当前边界测试仅允许 Application 层定向
+引用数据所有者模块的 `Application/Contracts` 和 `Application/Data`，继续禁止
+跨模块具体实现引用和直接写表。具体规则见
+[模块边界文档](docs/architecture/module-boundaries.md)。
 
 ## 环境变量与安全
 
@@ -139,4 +165,4 @@ PHPStan、PHPUnit、前端构建和 Composer / npm 安全审计。
 - [CRM 需求文档 v1.9](docs/source/CRM-需求文档-v1.9.md)
 - [架构决策记录](docs/adr/README.md)
 
-下一阶段将在这套基础架构上实现实际 CRM 领域模型、权限矩阵和数据迁移。
+当前实现状态和后续范围以[项目状态](docs/project-status.md)为准。

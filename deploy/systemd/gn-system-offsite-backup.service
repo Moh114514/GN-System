@@ -1,0 +1,10 @@
+[Unit]
+Description=GN-System offsite backup synchronization
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/srv/gn-system/repository/deploy/sync-offsite-backups.sh
+User=root
+Group=root
