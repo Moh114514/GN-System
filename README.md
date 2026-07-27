@@ -1,9 +1,8 @@
 # GN-System CRM
 
 GN-System 是面向医美/医疗代理业务的内部客户管理系统，用于逐步替代分散的
-Excel 客户、代理商、订单和结算数据。当前已完成 Phase 1 基础架构：中文后台、
-内部用户认证、超级管理员双因素认证、容器化运行、健康检查、备份和持续集成。
-业务模块和 Excel 数据迁移将在后续阶段实现。
+Excel 客户、代理商、订单和结算数据。当前已完成 Phase 1 基础架构和 Phase 2
+核心数据层与历史导入能力；真实历史数据迁移仍待正式源文件、错误处理和抽样核对。
 
 ## 技术基线
 
@@ -66,6 +65,9 @@ docker compose logs -f app nginx queue scheduler
 # 数据库迁移
 docker compose exec app php artisan migrate
 
+# 生成可重复执行的 Phase 2 本地模拟数据
+docker compose exec app php artisan db:seed --class=PhaseTwoDemoDataSeeder
+
 # 运行完整质量门禁
 docker compose exec app composer ci:check
 docker compose exec vite npm run build
@@ -108,7 +110,7 @@ WAL/PITR。
 
 ## 模块边界
 
-业务代码按以下九个命名空间组织：
+业务代码按以下十个命名空间组织：
 
 ```text
 app/Modules/
@@ -120,13 +122,14 @@ app/Modules/
 ├── Reminder
 ├── Report
 ├── Config
-└── Audit
+├── Audit
+└── DataImport
 ```
 
-共享技术能力放在 `app/Infrastructure`。当前边界测试禁止业务模块导入其他业务
-模块的任意命名空间，也禁止跨模块直接写入数据；Application Contract 和领域事件
-是尚未落地的演进方向。Phase 1 只注册模块提供器和导航入口，不提前实现业务模型。
-具体规则见[模块边界文档](docs/architecture/module-boundaries.md)。
+共享技术能力放在 `app/Infrastructure`。当前边界测试仅允许 Application 层定向
+引用数据所有者模块的 `Application/Contracts` 和 `Application/Data`，继续禁止
+跨模块具体实现引用和直接写表。具体规则见
+[模块边界文档](docs/architecture/module-boundaries.md)。
 
 ## 环境变量与安全
 
@@ -151,4 +154,4 @@ PHPStan、PHPUnit、前端构建和 Composer / npm 安全审计。
 - [CRM 需求文档 v1.9](docs/source/CRM-需求文档-v1.9.md)
 - [架构决策记录](docs/adr/README.md)
 
-下一阶段将在这套基础架构上实现实际 CRM 领域模型、权限矩阵和数据迁移。
+当前实现状态和后续范围以[项目状态](docs/project-status.md)为准。

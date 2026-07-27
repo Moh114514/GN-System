@@ -77,3 +77,8 @@ Schedule::command('app:offsite-backup-monitor')
     ->hourlyAt(15)
     ->withoutOverlapping()
     ->onOneServer();
+
+Schedule::command('app:purge-imports')
+    ->hourlyAt(30)
+    ->withoutOverlapping()
+    ->onOneServer();

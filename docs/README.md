@@ -18,6 +18,11 @@
 - [ADR-0001：Laravel 13 基础](adr/0001-laravel-13-foundation.md)
 - [ADR-0002：模块边界与数据所有权](adr/0002-module-boundaries-and-data-ownership.md)
 - [ADR-0003：单机局域网生产部署基线](adr/0003-single-host-production-baseline.md)
+- [ADR-0004：导入场景的跨模块 Application 契约](adr/0004-application-import-contracts.md)
+
+## 模块实现
+
+- [Phase 2 核心数据与导入模块](modules/phase-two-core-data.md)
 
 Accepted ADR 记录已经生效的长期决策。若 ADR 与代码不一致，应把它作为需要处理的
 偏差，而不是假装代码已经符合 ADR。

@@ -10,6 +10,12 @@
 > **核心目标**：以标准化、可扩展、可维护为原则，把 7 个子任务拆解到 8 个交付阶段，配套完整的基础设施与工程化体系
 > **架构基线**：模块化单体（Modular Monolith）· Laravel 13 + Livewire 4 + Flux UI 2
 
+> **Phase 2 实现口径（2026-07-27）**：本文所有 `KR-简称` 示例统一按
+> `简称-KR` 实现，旧值仅作为 `legacy_code` 导入；所有“月度累计阶梯/JSONB 阶梯”
+> 规划统一收敛为“等级 + 机构固定基点费率 + 代理商特批”，月初快照整月固定，当月
+> 业绩只产生人工复核的下月等级建议。客户和订单均支持代理商、直销两类渠道，客户
+> 编号永久不随订单渠道变化。本口径覆盖后续未逐项改写的历史方案描述。
+
 ---
 
 ## 目录
@@ -597,21 +603,26 @@ class MultiDimensionalSearch extends Component
 
 ### Phase 2：数据层与 Excel 导入（1.5 周）
 
-**目标**：数据库结构稳定，4 个 Excel 成功迁移
+**状态（2026-07-27）**：开发交付已结束；真实历史迁移转为上线验收项。
+
+**目标**：数据库结构稳定，历史文件具备安全、可审计、可回滚的迁移能力
 
 | 工作项 | 技术/工具 | 输出 |
 |--------|-----------|------|
-| ER 图设计 | dbdiagram.io | `docs/erd.pdf` |
-| Migration 编写 | Laravel Migrations | 20+ 张表，**金额 BIGINT(分)** |
-| 模型 + 关系 | Eloquent + Repository | Models + Interfaces（模块化） |
-| Factory + Seeder | Laravel Factories | 测试数据生成 |
-| Excel 导入 | maatwebsite/excel + brick/math | 4 个 Import 类 |
-| 导入 UI | Livewire + FluxUI | 上传/进度/错误报告 |
-| 预演环境 | staging 临时表 | 100 条试运行 |
-| 事务回滚 | Database Transaction | 失败可回滚 |
-| Activitylog | spatie/laravel-activitylog | 审计记录 |
+| Migration | Laravel Migrations | 核心关系表、唯一约束、渠道互斥和金额/费率约束 |
+| 模块协作 | Application Contracts/Data | 数据所有者单写，DataImport 同步协调 |
+| 模拟数据 | 确定性 Seeder | 代理商、客户、跨渠道订单、推广费、月结和跟进 |
+| Excel/CSV 导入 | PhpSpreadsheet + brick/math | XLSX/XLS/CSV、UTF-8/GB18030、精确金额 |
+| 导入 UI | Livewire + FluxUI | 加密上传、前 50 行预览、映射、裁决和错误报告 |
+| 预演环境 | staging + Database Transaction | 最多 100 条强制回滚试运行 |
+| 正式提交/回滚 | PostgreSQL Transaction | 整批原子提交、24 小时逆序回滚及修改阻断 |
+| 审计 | spatie/laravel-activitylog | 导入、人工裁决和回滚记录 |
 
-**关键里程碑 M2**：✅ 4 个 Excel 100% 迁移成功，错误行可下载报告，金额无浮点误差
+**开发里程碑 M2-D（已完成）**：✅ 导入能力、错误报告、原子性、回滚和金额精度
+通过自动化测试；脱敏结构样本复算通过。
+
+**上线里程碑 M2-O（待执行）**：真实历史文件全量导入，所有差异完成业务裁决并
+抽样核对。未完成前不得宣称生产历史数据迁移完成。
 
 **依赖关系**：依赖 Phase 1
 

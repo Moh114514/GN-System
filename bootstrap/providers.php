@@ -5,6 +5,7 @@ use App\Modules\Audit\AuditServiceProvider;
 use App\Modules\Auth\AuthServiceProvider;
 use App\Modules\Config\ConfigServiceProvider;
 use App\Modules\Customer\CustomerServiceProvider;
+use App\Modules\DataImport\DataImportServiceProvider;
 use App\Modules\Order\OrderServiceProvider;
 use App\Modules\Reminder\ReminderServiceProvider;
 use App\Modules\Report\ReportServiceProvider;
@@ -17,6 +18,7 @@ return [
     FortifyServiceProvider::class,
     AuthServiceProvider::class,
     CustomerServiceProvider::class,
+    DataImportServiceProvider::class,
     AgentServiceProvider::class,
     OrderServiceProvider::class,
     SettlementServiceProvider::class,
