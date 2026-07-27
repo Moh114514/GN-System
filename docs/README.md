@@ -17,6 +17,7 @@
 - [ADR 目录与模板](adr/README.md)
 - [ADR-0001：Laravel 13 基础](adr/0001-laravel-13-foundation.md)
 - [ADR-0002：模块边界与数据所有权](adr/0002-module-boundaries-and-data-ownership.md)
+- [ADR-0003：单机局域网生产部署基线](adr/0003-single-host-production-baseline.md)
 
 Accepted ADR 记录已经生效的长期决策。若 ADR 与代码不一致，应把它作为需要处理的
 偏差，而不是假装代码已经符合 ADR。
@@ -36,9 +37,9 @@ Accepted ADR 记录已经生效的长期决策。若 ADR 与代码不一致，�
 ## 开发规范
 
 - [文档维护规则](development/documentation.md)
+- [局域网生产部署与恢复](operations/production-deployment.md)
 - Agent 工作规则见根目录 [AGENTS.md](../AGENTS.md)
 
 模块文档在模块进入实际业务开发时按需创建，不为空模块骨架预建占位文档。
 普通变更历史由 Git 和 Pull Request 保存；数据库变化由 migration 保存。只有
 真实生产事故才在未来按需建立 `docs/incidents/`。
-

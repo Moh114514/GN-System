@@ -2,11 +2,15 @@
 .github
 .idea
 .vscode
-.env
+.env*
 .phase1-scaffold
 backups
+deploy
 docs
 node_modules
+public/build
+public/hot
+public/fonts-manifest.dev.json
 storage/logs/*
 !storage/logs/.gitignore
 storage/framework/cache/*

@@ -1,0 +1,11 @@
+[Unit]
+Description=Run GN-System offsite backup synchronization hourly
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+RandomizedDelaySec=120
+Unit=gn-system-offsite-backup.service
+
+[Install]
+WantedBy=timers.target

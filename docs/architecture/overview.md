@@ -14,7 +14,8 @@ GN-System 是单一 Laravel 应用和单一部署单元，业务代码按领域�
 - Livewire 4、Flux UI 2、Tailwind CSS 4、Alpine.js
 - PostgreSQL 16 作为唯一当前主数据库
 - Redis 7 用于缓存和队列
-- Nginx、PHP-FPM、Queue、Scheduler 和 Vite 独立容器
+- 开发环境由 Nginx、PHP-FPM、Queue、Scheduler 和 Vite 独立容器组成
+- 生产环境由 TLS Nginx、PHP-FPM、Queue、Scheduler、PostgreSQL 和 Redis 组成
 
 数据库已经在代码、Compose 和 CI 中确定为 PostgreSQL。源设计文档中保留的
 MySQL 内容只是历史备选，不是当前支持矩阵。
@@ -32,13 +33,15 @@ Auth 已有实际实现；其他业务模块目前主要是 Service Provider 骨
 
 ## 运行与部署边界
 
-仓库提供 Docker Compose 开发环境和可部署镜像，CI 使用 PostgreSQL 与 Redis
-服务运行检查。当前尚未确定正式生产平台，也未交付 HTTPS、对象存储或异地备份
-方案。本地命名卷备份不能被表述为生产灾备。
+仓库提供相互独立的开发 Compose 和单机生产 Compose。生产基线为 Ubuntu Server
+24.04 LTS、不可变 app/web 镜像和 Nginx HTTPS；不运行 Vite、不挂载源码，也不在
+容器启动时生成密钥或迁移数据库。PostgreSQL、Redis 使用命名卷，私有文件与加密
+备份使用受控宿主目录，并由 systemd timer 同步至异机挂载点。具体约束见
+[ADR-0003](../adr/0003-single-host-production-baseline.md)和
+[生产部署手册](../operations/production-deployment.md)。
 
 ## 尚未形成的架构
 
 领域数据模型、跨模块协作、业务领域事件、Excel 导入、月结、CQRS 和看板
 预聚合尚未实现。对应源文档是后续设计输入；首次实现时应通过模块文档、测试和
 必要的 ADR 把规划收敛为当前事实。
-

@@ -95,3 +95,50 @@ jobs:
 
       - name: Run CI Checks
         run: composer ci:check
+
+  production-images:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build production images
+        run: |
+          docker build --target production --tag gn-system-app:ci .
+          docker build --target web-production --tag gn-system-web:ci .
+
+      - name: Assert production image contents
+        run: |
+          docker run --rm --entrypoint sh gn-system-app:ci -ec '
+            test ! -e /var/www/html/.env
+            test ! -e /var/www/html/.env.example
+            test ! -e /var/www/html/.env.production.example
+            test ! -e /var/www/html/public/hot
+            test ! -e /var/www/html/public/fonts-manifest.dev.json
+            test ! -d /var/www/html/node_modules
+            test ! -d /var/www/html/tests
+            test ! -d /var/www/html/vendor/phpunit
+            ! command -v composer
+          '
+          docker run --rm --entrypoint sh gn-system-web:ci -ec '
+            test ! -e /var/www/html/public/hot
+            test ! -e /var/www/html/public/fonts-manifest.dev.json
+            test -f /var/www/html/public/build/manifest.json
+          '
+
+      - name: Validate production Compose
+        run: |
+          cp .env.production.example .env.production
+          sed -i 's|^APP_IMAGE=.*|APP_IMAGE=gn-system-app|' .env.production
+          sed -i 's|^WEB_IMAGE=.*|WEB_IMAGE=gn-system-web|' .env.production
+          sed -i 's|^RELEASE_TAG=.*|RELEASE_TAG=ci|' .env.production
+          sed -i 's|^APP_KEY=.*|APP_KEY=base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=|' .env.production
+          sed -i 's|^DB_PASSWORD=.*|DB_PASSWORD=ci-database-password|' .env.production
+          sed -i 's|^REDIS_PASSWORD=.*|REDIS_PASSWORD=ci-redis-password|' .env.production
+          sed -i 's|^BACKUP_ARCHIVE_PASSWORD=.*|BACKUP_ARCHIVE_PASSWORD=ci-backup-password|' .env.production
+          docker compose --env-file .env.production -f compose.production.yaml config --quiet
+          ! docker compose --env-file .env.production -f compose.production.yaml config --services | grep -qx vite
+          ! docker compose --env-file .env.production -f compose.production.yaml config | grep -q '/var/www/html:'

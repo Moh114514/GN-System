@@ -1,5 +1,6 @@
 <?php
 
+use App\Infrastructure\Health\OperationsHealthController;
 use App\Infrastructure\Health\ReadinessController;
 use App\Modules\Auth\Http\Middleware\EnsureSuperAdmin;
 use App\Modules\Auth\Http\Middleware\RequireTwoFactorForSuperAdmin;
@@ -17,6 +18,8 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
         then: function (): void {
             Route::get('/health', ReadinessController::class)->name('health');
+            Route::get('/health/operations', OperationsHealthController::class)
+                ->name('health.operations');
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {

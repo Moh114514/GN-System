@@ -1,0 +1,140 @@
+x-app: &app
+  image: "${APP_IMAGE:?APP_IMAGE is required}:${RELEASE_TAG:?RELEASE_TAG is required}"
+  env_file:
+    - "${PRODUCTION_ENV_FILE:-.env.production}"
+  restart: unless-stopped
+  stop_grace_period: 30s
+  logging: &logging
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "5"
+  volumes:
+    - type: bind
+      source: "${PRIVATE_DATA_PATH:?PRIVATE_DATA_PATH is required}"
+      target: /var/www/html/storage/app/private
+    - type: bind
+      source: "${BACKUP_DATA_PATH:?BACKUP_DATA_PATH is required}"
+      target: /var/www/html/storage/app/backups
+  networks:
+    - backend
+    - egress
+
+services:
+  web:
+    image: "${WEB_IMAGE:?WEB_IMAGE is required}:${RELEASE_TAG:?RELEASE_TAG is required}"
+    restart: unless-stopped
+    stop_grace_period: 30s
+    logging: *logging
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "${LAN_BIND_ADDRESS:?LAN_BIND_ADDRESS is required}:80:80"
+      - "${LAN_BIND_ADDRESS:?LAN_BIND_ADDRESS is required}:443:443"
+    volumes:
+      - type: bind
+        source: "${TLS_CERT_PATH:?TLS_CERT_PATH is required}"
+        target: /etc/nginx/tls/fullchain.pem
+        read_only: true
+      - type: bind
+        source: "${TLS_KEY_PATH:?TLS_KEY_PATH is required}"
+        target: /etc/nginx/tls/privkey.pem
+        read_only: true
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/nginx-health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - frontend
+
+  app:
+    <<: *app
+    command: php-fpm
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "php-fpm", "-t"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    networks:
+      - frontend
+      - backend
+      - egress
+
+  queue:
+    <<: *app
+    command: php artisan queue:work redis --sleep=3 --tries=3 --timeout=120
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  scheduler:
+    <<: *app
+    command: php artisan schedule:work
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  postgres:
+    image: postgres:16.9-bookworm
+    restart: unless-stopped
+    stop_grace_period: 60s
+    logging: *logging
+    environment:
+      POSTGRES_DB: "${DB_DATABASE:?DB_DATABASE is required}"
+      POSTGRES_USER: "${DB_USERNAME:?DB_USERNAME is required}"
+      POSTGRES_PASSWORD: "${DB_PASSWORD:?DB_PASSWORD is required}"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    networks:
+      - backend
+
+  redis:
+    image: redis:7.4.5-bookworm
+    restart: unless-stopped
+    stop_grace_period: 30s
+    logging: *logging
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"
+    command:
+      - sh
+      - -ec
+      - exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli --no-auth-warning -a \"$$REDIS_PASSWORD\" ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - backend
+
+volumes:
+  postgres-data:
+  redis-data:
+
+networks:
+  frontend:
+  backend:
+    internal: true
+  egress:

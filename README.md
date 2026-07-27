@@ -35,6 +35,7 @@ docker compose up --build -d
 - Vite 开发服务：<http://localhost:5173>
 - 存活检查：<http://localhost:8080/up>
 - 就绪检查：<http://localhost:8080/health>
+- 运维心跳检查：<http://localhost:8080/health/operations>
 
 PostgreSQL 和 Redis 不暴露主机端口，仅在 Compose 内部网络中通信。若 8080
 或 5173 已占用，可在 `.env` 中修改 `APP_PORT` 或 `VITE_PORT`。需要从其他设备
@@ -82,8 +83,9 @@ docker compose down
 
 ## 备份
 
-Scheduler 每天 02:00 执行 PostgreSQL 和 `storage/app/private` 全量备份，
-03:00 执行清理；日备份保留 30 天。备份写入独立 Docker 命名卷：
+Scheduler 每小时执行 PostgreSQL 备份，每天 02:00 执行 PostgreSQL 和
+`storage/app/private` 全量备份，03:00 清理，04:00 检查备份健康；备份保留
+7 天全部和 30 天每日最新。开发环境备份写入独立 Docker 命名卷：
 
 ```powershell
 docker compose exec app php artisan backup:run
@@ -91,8 +93,18 @@ docker compose exec app php artisan backup:list
 docker compose exec app php artisan backup:clean
 ```
 
-本地卷不是异地备份。生产对象存储、WAL 归档、HTTPS 和正式部署需在生产目标
-确定后配置；仓库只提供可部署镜像和 CI，不包含虚假的部署任务。
+开发环境本地卷不是异地备份。生产环境采用小时级加密备份和异机同步，暂不使用
+WAL/PITR。
+
+## 局域网生产部署
+
+生产部署与开发环境完全分离，使用 `compose.production.yaml`、不可变 app/web
+镜像、HTTPS、Redis 鉴权和宿主机持久化；不运行 Vite、不挂载源码，也不会在容器
+启动时生成 `APP_KEY` 或自动迁移。
+
+服务器准备、环境变量、发布、回退、异机同步和恢复演练见
+[局域网生产部署与恢复](docs/operations/production-deployment.md)。不要把
+`.env.production`、TLS 私钥或真实凭据提交到 Git。
 
 ## 模块边界
 
