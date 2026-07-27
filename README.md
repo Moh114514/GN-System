@@ -110,9 +110,10 @@ app/Modules/
 └── Audit
 ```
 
-共享技术能力放在 `app/Infrastructure`。模块之间只能通过 Application 层契约
-或领域事件交互，禁止跨模块直接引用或写入模型；Pest 架构测试会检查这一约束。
-Phase 1 只注册模块提供器和导航入口，不提前实现业务模型。
+共享技术能力放在 `app/Infrastructure`。当前边界测试禁止业务模块导入其他业务
+模块的任意命名空间，也禁止跨模块直接写入数据；Application Contract 和领域事件
+是尚未落地的演进方向。Phase 1 只注册模块提供器和导航入口，不提前实现业务模型。
+具体规则见[模块边界文档](docs/architecture/module-boundaries.md)。
 
 ## 环境变量与安全
 
@@ -131,10 +132,10 @@ PHPStan、Pest、前端构建和 Composer / npm 安全审计。
 
 ## 项目文档
 
+- [文档导航与权威性说明](docs/README.md)
+- [当前项目状态](docs/project-status.md)
+- [当前架构概览](docs/architecture/overview.md)
 - [CRM 需求文档 v1.9](docs/source/CRM-需求文档-v1.9.md)
-- [CRM 系统架构设计](docs/source/CRM-系统架构设计.md)
-- [CRM 开发技术路线](docs/source/CRM-开发技术路线文档.md)
-- [CRM 系统架构图](docs/source/CRM-系统架构图.html)
-- [ADR-0001：采用 Laravel 13 与官方 Livewire Starter Kit](docs/adr/0001-laravel-13-foundation.md)
+- [架构决策记录](docs/adr/README.md)
 
 下一阶段将在这套基础架构上实现实际 CRM 领域模型、权限矩阵和数据迁移。

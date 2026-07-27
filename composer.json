@@ -61,6 +61,9 @@
         "lint:check": [
             "pint --parallel --test"
         ],
+        "docs:check": [
+            "@php scripts/check-docs.php"
+        ],
         "ci:check": [
             "Composer\\Config::disableProcessTimeout",
             "@test"
@@ -70,6 +73,7 @@
         ],
         "test": [
             "@php artisan config:clear --ansi",
+            "@docs:check",
             "@lint:check",
             "@types:check",
             "@php artisan test"
