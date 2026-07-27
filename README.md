@@ -1,90 +1,142 @@
 # GN-System CRM
 
-GN-System 是面向医美/医疗代理业务的内部客户管理系统。项目计划将现有
-Excel 中分散的客户、代理商、订单和结算数据迁移到统一的 Web 系统，并提供
-客户跟进、推广费核算、月结、提醒、多维查询、经营看板和系统配置能力。
-
-当前仓库处于 **Phase 0：项目准备**。本阶段只建立文档、协作规范和本地开发
-环境，不包含 Laravel 应用、数据库或生产部署。
+GN-System 是面向医美/医疗代理业务的内部客户管理系统，用于逐步替代分散的
+Excel 客户、代理商、订单和结算数据。当前已完成 Phase 1 基础架构：中文后台、
+内部用户认证、超级管理员双因素认证、容器化运行、健康检查、备份和持续集成。
+业务模块和 Excel 数据迁移将在后续阶段实现。
 
 ## 技术基线
 
 - 架构：Laravel 模块化单体
-- 后端：PHP 8.3、Laravel 11
-- 前端：Livewire 3、FluxUI、Alpine.js
-- 数据：PostgreSQL 16（Phase 1 默认）、Redis 7
-- 本地环境：Docker Desktop + Docker Compose
-- 质量门禁：Pest、PHPStan、Laravel Pint
+- 后端：PHP 8.3、Laravel 13、Laravel Fortify
+- 前端：Livewire 4、Flux UI 2（免费版）、Tailwind CSS 4、Alpine.js
+- 数据：PostgreSQL 16、Redis 7
+- 运行：Nginx、PHP-FPM、独立 Queue / Scheduler、Vite
+- 质量：PHPUnit、Pint、Larastan / PHPStan level 6
+- 可观测性与运维：Sentry（可选）、Spatie Backup、存活及就绪检查
 
-PHP、Composer、Node.js、PostgreSQL 和 Redis 统一在容器中运行，不要求在
-Windows 主机单独安装。
+PHP、Composer、Node.js、PostgreSQL 和 Redis 全部由 Docker 提供，Windows
+主机不需要单独安装这些运行时。
 
-## 目录
+## 首次启动
 
-```text
-GN-System/
-├── docs/source/       # 需求、架构和技术路线原始文档
-├── .vscode/           # 推荐扩展和共享编辑器设置
-├── .editorconfig      # 跨编辑器格式约定
-├── .env.example       # 非敏感环境变量模板
-└── README.md
-```
-
-Laravel 应用与 Docker Compose 配置将在 Phase 1 加入。
-
-## 本地环境准备
-
-1. 安装 Git、Docker Desktop，并启用 Docker 的 WSL2/Linux 容器后端。
-2. 克隆仓库并进入项目目录：
-
-   ```powershell
-   git clone https://github.com/Moh114514/GN-System.git
-   Set-Location GN-System
-   ```
-
-3. 验证基础工具：
-
-   ```powershell
-   git --version
-   docker version
-   docker compose version
-   docker run --rm hello-world
-   ```
-
-4. 复制本地环境模板：
-
-   ```powershell
-   Copy-Item .env.example .env
-   ```
-
-`.env` 只用于本地，禁止提交。真实密码、令牌、证书和生产配置不得写入仓库。
-
-## 分支与提交规范
-
-- `main`：稳定基线，只接收已经验证的变更。
-- `develop`：日常集成分支。
-- `feature/<topic>`：从 `develop` 创建的功能分支，完成后合并回 `develop`。
-- 提交信息使用简短的祈使句，并保持一次提交只表达一个完整变更。
-
-典型流程：
+前置条件是 Git、Docker Desktop，以及已启用的 WSL2 / Linux 容器后端。
 
 ```powershell
-git switch develop
-git pull --ff-only
-git switch -c feature/<topic>
+git clone https://github.com/Moh114514/GN-System.git
+Set-Location GN-System
+Copy-Item .env.example .env
+docker compose up --build -d
 ```
 
-禁止把 `.env`、密钥、数据库数据、依赖目录或构建产物提交到 Git。
+首次启动会安装 PHP 依赖、生成本地 `APP_KEY` 并执行数据库迁移。服务就绪后：
+
+- 应用入口：<http://localhost:8080>
+- Vite 开发服务：<http://localhost:5173>
+- 存活检查：<http://localhost:8080/up>
+- 就绪检查：<http://localhost:8080/health>
+
+PostgreSQL 和 Redis 不暴露主机端口，仅在 Compose 内部网络中通信。若 8080
+或 5173 已占用，可在 `.env` 中修改 `APP_PORT` 或 `VITE_PORT`。需要从其他设备
+访问开发服务时，将 `VITE_PUBLIC_HOST` 设置为浏览器实际访问的主机名或 IP。
+
+## 创建首个超级管理员
+
+项目不会生成默认账号或默认密码。容器启动后运行交互式命令：
+
+```powershell
+docker compose exec app php artisan app:create-admin
+```
+
+密码通过隐藏输入读取，不会出现在 shell 历史中。超级管理员首次登录后必须在
+“账户安全”中确认 TOTP 双因素认证，之后才能进入仪表盘。公开注册已关闭，
+`/register` 返回 404。
+
+## 日常开发
+
+```powershell
+# 启动或重建
+docker compose up --build -d
+
+# 查看服务状态和日志
+docker compose ps
+docker compose logs -f app nginx queue scheduler
+
+# 数据库迁移
+docker compose exec app php artisan migrate
+
+# 运行完整质量门禁
+docker compose exec app composer ci:check
+docker compose exec vite npm run build
+
+# 运维心跳（用于确认独立队列和调度容器）
+docker compose exec app php artisan app:queue-heartbeat
+docker compose exec app php artisan schedule:run
+
+# 停止服务（保留数据库、Redis 和备份卷）
+docker compose down
+```
+
+本地热更新由 `vite` 服务提供。亮色、暗色和跟随系统三种主题可在“外观设置”
+中切换。邮件默认写入应用日志；`SENTRY_LARAVEL_DSN` 为空时 Sentry 不发送事件。
+
+## 备份
+
+Scheduler 每天 02:00 执行 PostgreSQL 和 `storage/app/private` 全量备份，
+03:00 执行清理；日备份保留 30 天。备份写入独立 Docker 命名卷：
+
+```powershell
+docker compose exec app php artisan backup:run
+docker compose exec app php artisan backup:list
+docker compose exec app php artisan backup:clean
+```
+
+本地卷不是异地备份。生产对象存储、WAL 归档、HTTPS 和正式部署需在生产目标
+确定后配置；仓库只提供可部署镜像和 CI，不包含虚假的部署任务。
+
+## 模块边界
+
+业务代码按以下九个命名空间组织：
+
+```text
+app/Modules/
+├── Auth
+├── Customer
+├── Agent
+├── Order
+├── Settlement
+├── Reminder
+├── Report
+├── Config
+└── Audit
+```
+
+共享技术能力放在 `app/Infrastructure`。当前边界测试禁止业务模块导入其他业务
+模块的任意命名空间，也禁止跨模块直接写入数据；Application Contract 和领域事件
+是尚未落地的演进方向。Phase 1 只注册模块提供器和导航入口，不提前实现业务模型。
+具体规则见[模块边界文档](docs/architecture/module-boundaries.md)。
+
+## 环境变量与安全
+
+复制 `.env.example` 后只在本地修改 `.env`。不得提交密码、令牌、证书、真实
+Sentry DSN 或云存储凭据。模板已包含 PostgreSQL、Redis、日志邮件、备份、
+Sentry 和可选 S3 配置。
+
+## 分支规范
+
+- `main`：稳定基线
+- `develop`：日常集成
+- `feature/<topic>`：从 `develop` 创建，验收后合并回 `develop`
+
+CI 在 Pull Request 及推送到 `develop` / `main` 时执行 Composer 校验、Pint、
+PHPStan、PHPUnit、前端构建和 Composer / npm 安全审计。
 
 ## 项目文档
 
+- [文档导航与权威性说明](docs/README.md)
+- [当前项目状态](docs/project-status.md)
+- [当前架构概览](docs/architecture/overview.md)
 - [CRM 需求文档 v1.9](docs/source/CRM-需求文档-v1.9.md)
-- [CRM 系统架构设计](docs/source/CRM-系统架构设计.md)
-- [CRM 开发技术路线](docs/source/CRM-开发技术路线文档.md)
-- [CRM 系统架构图](docs/source/CRM-系统架构图.html)
+- [架构决策记录](docs/adr/README.md)
 
-## 下一阶段
-
-Phase 1 将创建 Laravel 11 模块化单体骨架，以及 Nginx、PHP-FPM、
-PostgreSQL、Redis、队列、调度和 CI/CD 配置。完成标志是
-`docker compose up` 可启动登录页，且自动化质量检查通过。
+下一阶段将在这套基础架构上实现实际 CRM 领域模型、权限矩阵和数据迁移。

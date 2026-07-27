@@ -1,8 +1,12 @@
 # 客户管理系统（CRM）系统架构设计
 
+> **文档性质**：需求与历史设计来源，包含未来规划，不代表当前实现。当前状态见
+> [`docs/project-status.md`](../project-status.md)，当前架构见
+> [`docs/architecture/overview.md`](../architecture/overview.md)。
+>
 > **文档版本**：v1.2（审核优化版 + 评审反馈 + 版本号统一；对应需求文档 v1.9 口径）
 > **编写日期**：2026-07-24
-> **上游依据**：《CRM-需求文档-v1.8.md》（46 项功能需求全部确认）、技术栈 Laravel / Livewire / FluxUI / Alpine.js
+> **上游依据**：《CRM-需求文档-v1.9.md》（46 项功能需求全部确认）、技术栈 Laravel / Livewire / FluxUI / Alpine.js
 > **目标读者**：架构评审者、开发团队、技术负责人
 
 ---
@@ -94,7 +98,7 @@
 │   各模块 Models / 业务规则 / 规则引擎(浅) / 状态机       │
 │   金额计算统一走 brick/math BigDecimal                    │
 └──────────────────────────────────────────────────────────┘
-                          │
+                          ▲ 实现应用层/领域层定义的接口
 ┌──────────────────────────────────────────────────────────┐
 │                   基础设施层 (Infrastructure)                 │
 │   PostgreSQL / Redis(缓存+队列) / DingTalk / 文件存储     │
@@ -102,7 +106,8 @@
 └──────────────────────────────────────────────────────────┘
 ```
 
-依赖方向严格自上而下（表现 → 应用 → 领域 → 基础设施），**禁止反向依赖**，保证领域逻辑可独立测试。
+业务依赖方向为表现 → 应用 → 领域。基础设施层实现应用层或领域层定义的接口，
+领域逻辑不得依赖 PostgreSQL、Redis、第三方 SDK 或其他具体基础设施实现。
 
 ---
 
@@ -116,16 +121,20 @@
 | M2 | **Customer 客户域** | 客户建档、档案、5 阶段/7 档状态机、Excel 批量导入与回滚、详情聚合 | 读 Agent；写自身 |
 | M3 | **Agent 代理商域** | 代理商档案、政策体系、等级、合作状态（合作中/暂停/已终止）、升降级建议 | 读 Customer/Order（统计）；写自身 |
 | M4 | **Order 订单域** | 订单录入、人工填写成交金额（高精度）、状态变更 | 读 Customer/Agent；写自身 |
-| M5 | **Settlement 结算域** | 佣金规则引擎（浅）、月结（周期可由用户自定义触发时间与结算范围，**默认自然月**）、结算单 Word/PDF、财务审核 | 读 Order/Agent/Config；写 settlement |
+| M5 | **Settlement 结算域** | 佣金规则、规则快照、月结（周期可由用户自定义触发时间与结算范围，**默认自然月**）、结算单 Word/PDF、财务审核 | 读 Order/Agent；写 settlement |
 | M6 | **Reminder 提醒域** | 提醒规则引擎（浅）、模板库、钉钉推送、提醒执行日志、客服自定义 | 读 Customer/Order；写 reminders |
-| M7 | **Report 报表域** | to B / to C 双视角看板、ECharts 图表、预聚合表、导出 PDF/图片/HTML | 只读各域 + 预聚合表 |
-| M8 | **Config 配置中心** | 政策体系、等级、佣金规则、状态阶段定义、用户管理 | 写配置；被各域读 |
+| M7 | **Report 报表域** | to B / to C 双视角看板、ECharts 图表、按性能需要演进的预聚合、导出 PDF/图片/HTML | 只读各域 |
+| M8 | **Config 配置中心** | 聚合各领域配置管理页面；只拥有全局系统参数 | 调用各领域公开用例；写自身全局参数 |
 | M9 | **Audit 审计日志** | 全量操作留痕（谁/何时/为何变更） | 横切只写 |
 | — | **Infra 基础设施** | Excel 导入、队列、缓存、文件、监控、备份 | 服务全部模块 |
 
-> **模块边界纪律**：M5 算推广费时，**不直接查 Order 表拼 SQL**，而是调用 `OrderModule::getMonthlySettlementData(agentId, month)` 拿到聚合结果，再套用 `ConfigModule` 提供的规则快照。这样 Agent 的等级调整、规则变更都不会让 M5 失控。
+> **模块边界纪律**：M5 算推广费时，**不直接查 Order 表拼 SQL**，而是通过
+> Order 模块届时公开的应用契约取得结算数据，再使用 Settlement 自身拥有的规则
+> 快照。公共契约的具体形态须在首个跨模块用例实现前另行决策。
 >
 > **依赖方向说明**：上表"读/写"标注明确——模块间只允许**读依赖**（查对方聚合数据），**写操作必须归属数据所属模块**。例如 M3 Agent 统计客户数时只读 Customer，不允许反向写 Customer。从源头上避免循环写依赖。
+> Config 可以提供统一后台入口，但政策体系和等级归 Agent、佣金规则归
+> Settlement、客户状态规则归 Customer、用户与权限归 Auth。
 
 ---
 
@@ -136,8 +145,8 @@
 | 通信场景 | 方式 | 理由 |
 |----------|------|------|
 | 同请求内的模块协作 | **应用服务直接调用**（同步，进程内） | 简单、强一致，如建档时同步生成客户编号 |
-| 跨模块副作用 | **Laravel 领域事件**（解耦） | 订单完成 → 派发 `OrderCompleted`，由监听者异步核算/排提醒 |
-| 耗时操作 | **队列（Redis + Queue）** | 月结、Excel 导入、钉钉推送、报表预聚合异步化 |
+| 跨模块副作用 | **Laravel 领域事件**（解耦） | 订单完成 → 事务提交后派发 `OrderCompleted`，由监听者异步核算/排提醒 |
+| 耗时操作 | **队列（Redis + Queue）** | 月结、Excel 导入、钉钉推送，以及达到性能阈值后的报表预聚合 |
 | 前端 ↔ 后端 | **Livewire AJAX**（wire:model / wire:click） | 无独立 API/SPA，单一代码库，开发最快 |
 | 外部系统 | **DingTalk Webhook** | 推送提醒（Q13 确认） |
 
@@ -176,13 +185,15 @@ OrderService.complete(order)  [DB 事务：订单状态 + 派发事件]
 财务审核（Livewire 页面）→ 一键导出 Word/PDF
 ```
 
-**④ 看板数据（读模型 / 轻量 CQRS）**
+**④ 看板数据（从普通聚合查询开始）**
 ```
-ReportController → 读 预聚合表(daily_agent_metric / monthly_report)
+ReportController → PostgreSQL 聚合查询 + 必要索引/短缓存
    └─ ECharts 渲染（to B / to C 两视角）
    └─ 导出 PDF / 图片 / HTML（队列生成文件）
 ```
-> 看板**不直查业务主表**，只读预聚合结果，保证 < 2 秒。写操作落主表，读操作走预聚合表——这是**轻量 CQRS**（读写分离），由定时任务把主表数据物化进预聚合表。
+> 首版先测量真实数据下的 PostgreSQL 聚合查询性能。只有索引和短缓存仍不能满足
+> < 2 秒目标时，才引入 `daily_agent_metric` / `monthly_report` 等预聚合读模型，
+> 并补充刷新、重建和一致性验证机制。
 
 ### 4.3 架构图（简版）
 
@@ -193,7 +204,7 @@ ReportController → 读 预聚合表(daily_agent_metric / monthly_report)
                                           │ 领域事件
                                    异步队列 Worker → 钉钉
                                           │
-                        PostgreSQL(主数据+预聚合) | Redis(Cache+Queue)
+                        PostgreSQL(主数据+按需预聚合) | Redis(Cache+Queue)
                         Cron(调度) · Sentry(监控) · 自动备份
 ```
 
@@ -230,9 +241,9 @@ ReportController → 读 预聚合表(daily_agent_metric / monthly_report)
 | `settlements` / `settlement_items` | 月结主单 / 明细 | 明细含规则快照 |
 | `reminder_rules` / `reminder_templates` / `reminders` | 提醒规则 / 模板 / 实例 | 规则引擎(浅) |
 | `users` | 用户（两档角色） | is_super_admin 布尔即可 |
-| `daily_agent_metric` / `monthly_report` | 预聚合报表表 | 看板只读，定时刷新 |
+| `daily_agent_metric` / `monthly_report` | 可选预聚合报表表 | 普通聚合无法满足性能目标后再引入 |
 | `audit_logs` | 审计留痕 | 横切全模块 |
-| `config_snapshots` | 配置版本快照（JSONB） | 按 config_type 分类（佣金规则/状态流转/月结周期），支持差异对比与回滚，回滚不影响历史推广费（FR-07-08） |
+| `config_snapshots` | 配置版本快照的规划名称（JSONB） | 实现时按 Agent、Settlement、Customer 等数据所有者确定存放位置，不由 Config 统一写入 |
 | `agent_type_codes` | 代理商类型代码 | JG/GT/KR 系统默认保护（只停不删），管理员可新增自定义代码（如 VIP/OS），2-4 位大写字母数字全局唯一（FR-07-09） |
 
 ### 5.4 索引与查询（9 维多维查询）
@@ -246,13 +257,15 @@ ReportController → 读 预聚合表(daily_agent_metric / monthly_report)
 | 用途 | 技术 | 说明 |
 |------|------|------|
 | 配置缓存 | Redis | 政策/等级/规则热加载，改完即刷 |
-| 看板查询缓存 | Redis | 预聚合结果缓存，TTL 5 分钟 |
+| 看板查询缓存 | Redis | 聚合结果按测量需要设置短 TTL |
 | 月结进度 | Redis | 实时进度条（Q：<5分钟/1000条） |
-| 异步队列 | Redis Queue + (可选) Horizon | 月结/导入/推送/预聚合 |
+| 异步队列 | Redis Queue + (可选) Horizon | 月结/导入/推送/按需预聚合 |
 | 结算单 Word/PDF | 本地磁盘 / 对象存储 | 生成后供下载 |
 | Excel 导入 | 临时存储 + 预演环境 | 导入前 100 条试运行（路线文档策略） |
 
-> **Redis 降级策略**：Redis 不可用时，缓存层自动跳过（直读 DB，性能略降但可用）；队列降级为 `sync` 同步驱动（仅影响异步任务时效，不丢数据）。保证 Redis 单点故障不致系统不可用。
+> **Redis 故障策略**：Laravel 不会在 Redis 连接失败时自动切换为 `sync` 队列。
+> 缓存是否允许绕过应由具体用例显式设计；Redis 队列不可用时任务派发失败，由
+> 异常监控、重试和运维恢复处理，不在运行时动态切换队列驱动。
 
 ---
 
@@ -266,7 +279,7 @@ ReportController → 读 预聚合表(daily_agent_metric / monthly_report)
 | D4 | 规则引擎 | **浅深度：配置化参数（比例+月度累计阶梯）+ DB 规则表** | 平衡灵活与成本，不做 DSL/表达式（F3 确认） | C3-2/F3 |
 | D5 | 历史不变性 | **规则快照** | 比例/等级变更立即生效但不影响历史（Q20） | FR-03-03 |
 | D6 | 模块解耦 | **领域事件 + 队列** | 订单完成异步触发核算/提醒，请求不被拖慢 | M4→M5/M6 |
-| D7 | 看板性能 | **预聚合表 + Redis 缓存（轻量 CQRS）** | 看板 < 2 秒，不直查主表 | NFR-P02/M7 |
+| D7 | 看板性能 | **聚合查询 + 索引 + 按需缓存，达到阈值后再引入预聚合** | 以测量结果控制复杂度并满足看板 < 2 秒 | NFR-P02/M7 |
 | D8 | 推送渠道 | **DingTalk Webhook** | Q13 确认仅钉钉 | FR-04-04/07 |
 | D9 | 权限模型 | **两档（超级管理员/普通内部用户）** | C3-4 最简实现，普通用户看全量（Q12 不限制） | NFR-S02 |
 | D10 | 报表导出 | **PDF / 图片(PNG) / HTML 三格式** | Q14 确认 | FR-06-02 |
@@ -293,7 +306,7 @@ ReportController → 读 预聚合表(daily_agent_metric / monthly_report)
 ```
 
 - **容器化**：Docker Compose 一键起（nginx + php-fpm + redis + postgres），本地与生产同构
-- **CI/CD**：GitHub Actions 跑 Pest 测试 + PHPStan + Pint，通过后部署
+- **CI/CD**：GitHub Actions 跑 PHPUnit 测试 + PHPStan + Pint，通过后部署
 - **调度**：`Cron → artisan schedule:run`，由 Laravel Scheduler 派发月结/提醒
 - **可观测**：Sentry 捕获异常；Supervisor 守护队列 Worker
 - **备份与灾恢**：
@@ -335,7 +348,7 @@ ReportController → 读 预聚合表(daily_agent_metric / monthly_report)
 
 ### 9.3 性能（Performance）
 - **月结 < 5 分钟/1000 条**：队列拆批 + 规则快照预读 + 避免 N+1
-- **看板 < 2 秒**：预聚合表 + Redis 缓存（轻量 CQRS 读写分离），杜绝主表 Join
+- **看板 < 2 秒**：先优化 PostgreSQL 聚合查询和索引；达到性能阈值后再引入预聚合与缓存
 - **页面 < 1.5 秒**：Livewire 局部刷新 + 关键 CSS 内联 + 懒加载
 - **动画 60fps**：高级 CSS（玻璃拟态、磁吸 hover）由 GPU 合成，Three.js 仅点缀且降级处理
 
@@ -356,7 +369,7 @@ ReportController → 读 预聚合表(daily_agent_metric / monthly_report)
 
 ## 11. 与现有文档衔接
 
-- 本架构文档**对应需求文档 v1.8 口径**（政策体系两层、规则引擎浅深度、权限两档、导出三格式等）
+- 本架构文档**对应需求文档 v1.9 口径**（政策体系两层、规则引擎浅深度、权限两档、导出三格式等）
 - 现有《CRM-开发技术路线文档.md》的"推广费核算"等模块仍基于旧"4 档等级 + 硬编码"假设，**需同步修订至本架构口径（建议升级为 v1.6 版）**
 - 下一步：架构评审通过后，再据此细化《开发技术路线文档》的任务拆分与排期
 
