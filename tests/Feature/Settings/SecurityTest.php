@@ -37,6 +37,8 @@ class SecurityTest extends TestCase
 
         $response->assertSee(__('Two-factor authentication'));
         $response->assertSee(__('Enable 2FA'));
+        $response->assertSee('返回总览');
+        $response->assertSee('href="'.route('dashboard').'"', false);
     }
 
     public function test_security_settings_page_requires_password_confirmation_when_enabled(): void

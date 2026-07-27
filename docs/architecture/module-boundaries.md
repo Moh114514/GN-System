@@ -2,7 +2,8 @@
 
 > 最后核验：2026-07-27  
 > 决策依据：[ADR-0002](../adr/0002-module-boundaries-and-data-ownership.md)、
-> [ADR-0004](../adr/0004-application-import-contracts.md)
+> [ADR-0004](../adr/0004-application-import-contracts.md)、
+> [ADR-0005](../adr/0005-daily-application-contracts.md)
 
 ## 当前模块
 
@@ -36,9 +37,9 @@ Infrastructure 或模块内 Application Service 可以实现 Application Contrac
 
 ## 跨模块协作
 
-DataImport 已使用同步 Application Contract 协调核心数据所有者，并在单一数据库
-事务中提交或逆序回滚。这是当前唯一已经落地的跨模块协作模式。新增其他协作方式
-仍需明确数据所有者、依赖方向、同步/异步语义和事务边界，并通过后继 ADR 扩展规则。
+DataImport 使用同步 Application Contract 协调历史导入。Phase 3 Customer 使用
+最小同步 Contract 读取 Agent/Config 引用数据、聚合 Order/Reminder/Audit 详情，
+并在建档事务中调用 Order 首次预约和 Audit 审计写入。各数据所有者仍只写自己的表。
 
-领域事件和通用跨模块 Application Service 尚未形成，不得从本次定向放行推断它们
-可用。
+领域事件、通用 Service Bus 和异步跨模块一致性机制尚未形成，不得从同步契约放行
+推断它们可用。

@@ -19,10 +19,12 @@
 - [ADR-0002：模块边界与数据所有权](adr/0002-module-boundaries-and-data-ownership.md)
 - [ADR-0003：单机局域网生产部署基线](adr/0003-single-host-production-baseline.md)
 - [ADR-0004：导入场景的跨模块 Application 契约](adr/0004-application-import-contracts.md)
+- [ADR-0005：日常业务的同步 Application 契约](adr/0005-daily-application-contracts.md)
 
 ## 模块实现
 
 - [Phase 2 核心数据与导入模块](modules/phase-two-core-data.md)
+- [Phase 3 客户全生命周期](modules/phase-three-customer-lifecycle.md)
 
 Accepted ADR 记录已经生效的长期决策。若 ADR 与代码不一致，应把它作为需要处理的
 偏差，而不是假装代码已经符合 ADR。
@@ -43,6 +45,7 @@ Accepted ADR 记录已经生效的长期决策。若 ADR 与代码不一致，�
 
 - [文档维护规则](development/documentation.md)
 - [测试与数据库隔离](development/testing.md)
+- [页面层级与返回导航](development/ui-navigation.md)
 - [局域网生产部署与恢复](operations/production-deployment.md)
 - Agent 工作规则见根目录 [AGENTS.md](../AGENTS.md)
 

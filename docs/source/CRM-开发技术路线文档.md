@@ -632,7 +632,7 @@ class MultiDimensionalSearch extends Component
 
 | 工作项 | 技术 |
 |--------|------|
-| 状态机 | spatie/laravel-model-states（**规则写死** Q10） |
+| 状态机 | Customer 应用服务 + 数据库状态转移规则（后台可配置 Q10） |
 | Livewire 组件 | CustomerList/Create/Edit/Timeline/Detail |
 | 手动标记流转 | Observer + Event（Q02） |
 | 5 阶段可视化 | FluxUI Timeline |

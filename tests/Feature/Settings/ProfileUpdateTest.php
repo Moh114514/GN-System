@@ -15,7 +15,20 @@ class ProfileUpdateTest extends TestCase
     {
         $this->actingAs($user = User::factory()->create());
 
-        $this->get(route('profile.edit'))->assertOk();
+        $this->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee('返回总览')
+            ->assertSee('href="'.route('dashboard').'"', false);
+    }
+
+    public function test_appearance_page_has_parent_navigation(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $this->get(route('appearance.edit'))
+            ->assertOk()
+            ->assertSee('返回总览')
+            ->assertSee('href="'.route('dashboard').'"', false);
     }
 
     public function test_profile_information_can_be_updated(): void

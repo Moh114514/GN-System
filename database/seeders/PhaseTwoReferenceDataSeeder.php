@@ -80,5 +80,18 @@ class PhaseTwoReferenceDataSeeder extends Seeder
                 ],
             );
         }
+
+        if (DB::getSchemaBuilder()->hasTable('customer_status_transitions')) {
+            $statusIds = DB::table('customer_statuses')->pluck('id', 'key');
+            foreach (array_map(null, array_slice($statuses, 0, -1), array_slice($statuses, 1)) as [$from, $to]) {
+                DB::table('customer_status_transitions')->updateOrInsert(
+                    [
+                        'from_status_id' => $statusIds[$from['key']],
+                        'to_status_id' => $statusIds[$to['key']],
+                    ],
+                    ['is_active' => true, 'created_at' => now(), 'updated_at' => now()],
+                );
+            }
+        }
     }
 }

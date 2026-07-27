@@ -23,6 +23,7 @@ class PhaseTwoDataModelTest extends TestCase
         $this->assertDatabaseHas('agent_type_codes', ['code' => 'KR', 'is_system' => true]);
         $this->assertDatabaseHas('institutions', ['code' => 'BLANCHE']);
         $this->assertDatabaseHas('customer_statuses', ['name' => '沉默待唤醒']);
+        $this->assertDatabaseCount('customer_status_transitions', 6);
 
         $this->expectException(QueryException::class);
         DB::table('customers')->insert([

@@ -26,8 +26,11 @@
 - GN-System 当前是 Laravel 模块化单体，使用 PostgreSQL、Redis、Livewire 和 Docker。
 - 修改模块代码前检查 `docs/architecture/module-boundaries.md` 和
   `tests/Unit/ModuleBoundaryTest.php`。
-- 当前自动化规则禁止业务模块导入其他业务模块的命名空间。跨模块 Contract、
-  Application Service 或领域事件机制尚未落地，不得假设已经可用。
+- 当前自动化规则只允许 Application 层定向引用其他业务模块的
+  `Application/Contracts` 和 `Application/Data`；具体 Model、Service、
+  Infrastructure、Presentation 和直接写表仍禁止。已落地契约及事务边界以
+  `docs/architecture/module-boundaries.md` 和 Accepted ADR 为准，领域事件机制
+  尚未落地，不得假设已经可用。
 - 不得通过删除测试、降低检查强度或修改文档描述来掩盖实现问题。
 - 数据库结构变更必须提供 migration，并补充相应测试。
 - 新增依赖、公共接口或长期性技术约束时，应说明理由和影响。
@@ -85,6 +88,14 @@ docker compose exec app composer docs:check
 - 完成实现后再运行一次完整质量门禁。
 - 不得在每次小修改后重复运行全部测试，除非修改影响全局基础设施。
 - 测试必须依据业务验收条件，不得仅复刻当前实现。
+
+## 页面导航
+
+- 修改或新增完整业务页面前阅读 `docs/development/ui-navigation.md`。
+- 侧栏直接入口属于一级页面；每个二级、三级完整页面必须在内容顶部使用
+  `resources/views/components/page-back.blade.php` 显示返回上一级按钮。
+- 返回按钮必须指向明确的命名父路由，不得依赖浏览器历史；Feature 测试应验证按钮
+  文字和目标路由。
 
 ## 错误与数据安全
 

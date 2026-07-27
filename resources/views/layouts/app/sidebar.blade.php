@@ -30,8 +30,12 @@
                     </a>
                 @endif
 
+                <a href="{{ route('customers.index') }}" class="crm-nav-item {{ request()->routeIs('customers.*') ? 'is-active' : '' }}" wire:navigate>
+                    <flux:icon.users aria-hidden="true" />
+                    <span>客户管理</span>
+                </a>
+
                 @foreach ([
-                    ['users', '客户管理'],
                     ['building-office', '代理商'],
                     ['clipboard-document-list', '订单'],
                     ['banknotes', '月结中心'],
