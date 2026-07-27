@@ -12,7 +12,7 @@ Excel 客户、代理商、订单和结算数据。当前已完成 Phase 1 基�
 - 前端：Livewire 4、Flux UI 2（免费版）、Tailwind CSS 4、Alpine.js
 - 数据：PostgreSQL 16、Redis 7
 - 运行：Nginx、PHP-FPM、独立 Queue / Scheduler、Vite
-- 质量：Pest、Pint、Larastan / PHPStan level 6
+- 质量：PHPUnit、Pint、Larastan / PHPStan level 6
 - 可观测性与运维：Sentry（可选）、Spatie Backup、存活及就绪检查
 
 PHP、Composer、Node.js、PostgreSQL 和 Redis 全部由 Docker 提供，Windows
@@ -37,7 +37,8 @@ docker compose up --build -d
 - 就绪检查：<http://localhost:8080/health>
 
 PostgreSQL 和 Redis 不暴露主机端口，仅在 Compose 内部网络中通信。若 8080
-或 5173 已占用，可在 `.env` 中修改 `APP_PORT` 或 `VITE_PORT`。
+或 5173 已占用，可在 `.env` 中修改 `APP_PORT` 或 `VITE_PORT`。需要从其他设备
+访问开发服务时，将 `VITE_PUBLIC_HOST` 设置为浏览器实际访问的主机名或 IP。
 
 ## 创建首个超级管理员
 
@@ -128,7 +129,7 @@ Sentry 和可选 S3 配置。
 - `feature/<topic>`：从 `develop` 创建，验收后合并回 `develop`
 
 CI 在 Pull Request 及推送到 `develop` / `main` 时执行 Composer 校验、Pint、
-PHPStan、Pest、前端构建和 Composer / npm 安全审计。
+PHPStan、PHPUnit、前端构建和 Composer / npm 安全审计。
 
 ## 项目文档
 

@@ -153,8 +153,8 @@
         <div class="mod"><b>Order 订单</b><small>录入·人工成交金额</small></div>
         <div class="mod"><b>Settlement 结算</b><small>规则引擎·月结·结算单</small></div>
         <div class="mod"><b>Reminder 提醒</b><small>规则引擎·模板·钉钉</small></div>
-        <div class="mod"><b>Report 报表</b><small>to B/to C·预聚合·导出</small></div>
-        <div class="mod"><b>Config 配置</b><small>政策·等级·规则·用户</small></div>
+        <div class="mod"><b>Report 报表</b><small>to B/to C·按需预聚合·导出</small></div>
+        <div class="mod"><b>Config 配置</b><small>聚合管理入口·系统参数</small></div>
         <div class="mod"><b>Audit 审计</b><small>操作留痕·横切</small></div>
       </div>
     </div>
@@ -168,7 +168,7 @@
           <li>月结 Job</li>
           <li>Excel 导入 Job</li>
           <li>钉钉推送 Job</li>
-          <li>报表预聚合 Job</li>
+          <li>按性能需要启用报表预聚合 Job</li>
         </ul>
       </div>
       <div class="conn"><span class="label">推送</span><span class="wire"></span><span class="arrow"></span></div>
@@ -185,11 +185,11 @@
   <div class="data-row">
     <div class="card pg">
       <h3>PostgreSQL</h3>
-      <div class="sub">主数据 · 预聚合表 · 规则快照<br>金额 BIGINT(分) · 复合索引</div>
+      <div class="sub">主数据 · 聚合查询 · 规则快照<br>金额 BIGINT(分) · 复合索引</div>
     </div>
     <div class="card redis">
       <h3>Redis</h3>
-      <div class="sub">Cache · Queue · 月结进度<br>降级：缓存跳过 / 队列 sync</div>
+      <div class="sub">Cache · Queue · 月结进度<br>故障：告警 · 重试 · 运维恢复</div>
     </div>
   </div>
 

@@ -104,6 +104,9 @@ services:
     image: node:22-alpine
     working_dir: /var/www/html
     command: sh -lc "npm install && npm run dev -- --host 0.0.0.0"
+    environment:
+      VITE_PUBLIC_HOST: ${VITE_PUBLIC_HOST:-localhost}
+      VITE_PUBLIC_PORT: ${VITE_PORT:-5173}
     ports:
       - "${VITE_PORT:-5173}:5173"
     volumes:

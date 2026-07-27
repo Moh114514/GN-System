@@ -154,7 +154,7 @@
         <section class="crm-dashboard-grid crm-dashboard-grid-bottom">
             <article class="crm-card">
                 <header class="crm-card-header">
-                    <h2>今日待办提醒 <span class="crm-pill tone-red">4</span></h2>
+                    <h2>今日待办提醒 <span class="crm-pill tone-red">{{ count($tasks) }}</span></h2>
                     <span class="crm-card-link">查看全部 <span>›</span></span>
                 </header>
                 <div class="crm-task-list">

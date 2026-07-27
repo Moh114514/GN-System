@@ -28,6 +28,7 @@ class DashboardTest extends TestCase
             ->assertSee('当前展示为演示数据')
             ->assertSee('月度营收与订单趋势')
             ->assertSee('客户生命周期概览')
+            ->assertSee('今日待办提醒 <span class="crm-pill tone-red">5</span>', false)
             ->assertSee('最近客户记录');
     }
 

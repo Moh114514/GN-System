@@ -73,7 +73,7 @@
 | **Laravel** | 11.x | Web 框架 | 生态成熟、Queue/Schedule/ORM/Events 强 |
 | **Livewire** | 3.x | 前端交互 | 与 Laravel 无缝集成、避免 SPA 复杂度 |
 | **Eloquent ORM** | 内置 | 数据访问 | 配合 Repository 模式，模块化单体边界 |
-| **Laravel Queue** | 内置 | 异步任务 | 月结、提醒排程、导入、推送、预聚合 |
+| **Laravel Queue** | 内置 | 异步任务 | 月结、提醒排程、导入、推送，以及达到阈值后的预聚合 |
 | **Laravel Schedule** | 内置 | 定时任务 | 月结触发、提醒扫描 |
 | **Laravel Events** | 内置 | 模块解耦 | OrderCompleted → 核算/提醒（领域事件） |
 | **brick/math** | 0.12+ | 高精度金额 | BigDecimal 根治 `#VALUE!`，与 BIGINT(分) 配合 |
@@ -94,7 +94,7 @@
 | 技术 | 版本 | 用途 | 选型理由 |
 |------|------|------|----------|
 | **PostgreSQL**（推荐）/ MySQL | 16 / 8.0+ | 主库 | JSONB 存规则快照、复合索引、并发事务；金额一律 **BIGINT(分)** |
-| **Redis** | 7.x | 缓存/队列/会话 | 配置缓存、看板缓存、月结进度；**降级：缓存跳过/队列 sync** |
+| **Redis** | 7.x | 缓存/队列/会话 | 配置缓存、看板缓存、月结进度；队列故障通过监控、重试和运维恢复处理 |
 | **自定义两档权限** | — | 权限模型 | 超级管理员 / 普通内部用户（C3-4 最简，普通用户看全量 Q12） |
 | **Spatie Laravel Activitylog** | 4.x | 操作审计 | 合规要求（客户敏感信息变更追溯） |
 
@@ -119,9 +119,9 @@
 | **PHP-FPM 8.3** | PHP 进程管理 | 与 Nginx 配合 |
 | **Supervisor** | 队列进程守护 | Laravel Queue 必备 |
 | **Git + GitHub/GitLab** | 版本控制 | 必选 |
-| **GitHub Actions** | CI/CD | PR 触发 Pest + PHPStan + Pint，main 触发部署 |
+| **GitHub Actions** | CI/CD | PR 触发 PHPUnit + PHPStan + Pint，main 触发部署 |
 | **PHPStan (level 6) + Laravel Pint** | 静态分析 + 代码风格 | 质量保障 |
-| **Pest 3** | 自动化测试 | Unit + Feature |
+| **PHPUnit 12** | 自动化测试 | Unit + Feature |
 | **Sentry** | 异常监控 | 生产环境必备 |
 | **spatie/laravel-backup** | 自动备份 | PostgreSQL 每日全量 + WAL 归档，RPO≤24h |
 
@@ -493,7 +493,7 @@ class MultiDimensionalSearch extends Component
 #### 技术选型
 - **ECharts 5.5+**：to B / to C 双视角图表
 - **Livewire 实时刷新**（30 秒轮询）
-- **Laravel Cache + 预聚合表**（轻量 CQRS，读写分离）
+- **PostgreSQL 聚合查询 + 索引 + 按需短缓存**
 - **html2canvas / dompdf**：导出 PDF / 图片(PNG) / HTML（Q14）
 
 #### 6 项核心数据
@@ -506,8 +506,10 @@ class MultiDimensionalSearch extends Component
 | **to C（客户侧）** | 客户来源分布 / 月度消费趋势 / 复购率 / 跟进完成率 |
 
 #### 性能优化
-- **预聚合表**（轻量 CQRS）：定时任务写 `daily_agent_metric` / `monthly_report`，看板只读预聚合
-- **Redis 缓存**：5 分钟 TTL
+- 首版使用 PostgreSQL 聚合查询和针对性索引，并记录真实数据下的查询耗时
+- 仅在普通聚合和短缓存无法满足 < 2 秒目标时，引入 `daily_agent_metric` /
+  `monthly_report` 预聚合表及其重建、一致性检查
+- **Redis 缓存**：按测量结果启用短 TTL，不作为正确性依赖
 - **数据权限不限制**：所有内部用户看全量（Q12）
 
 #### 导出（Q14）
@@ -529,23 +531,22 @@ class MultiDimensionalSearch extends Component
 
 #### 配置模块
 ```
-1. 政策体系管理（policy_systems）—— 可自由增删
-2. 等级管理（policy_grades）—— 每体系下多个，含月业绩门槛
-3. 佣金规则配置（commission_rules + agent_rule_overrides）—— 浅引擎：比例+月度累计阶梯
-4. 状态阶段定义（customer_states）—— **可查看、可配置状态名称与流转规则**，当前命名为系统默认值（2026-07-24 修订，原"仅查看/开发写死"）
-5. 数据字典（dictionaries）—— 通用 key-value
-6. 用户与角色管理（users）—— 两档：超级管理员/普通内部用户（C3-4）
+1. Agent：政策体系、等级与代理商类型
+2. Settlement：佣金规则、覆盖规则与结算周期
+3. Customer：状态名称与流转规则
+4. Auth：用户与两档权限
+5. Config：全局系统参数和上述领域配置的统一管理入口
 ```
 
 #### 关键设计
-- **政策体系/等级/规则**：两层结构 + 个性化覆盖（C3-2）
-- **状态阶段**：仅展示，不可配（Q10）
-- **用户管理**：`is_super_admin` 布尔，中间件控制菜单/按钮可见性
-- **配置缓存**：Redis 热加载，修改后立即失效重建
+- 统一配置页面调用数据所属领域的应用用例，不直接写入其他模块的数据表
+- **政策体系/等级**归 Agent，**佣金规则**归 Settlement，**客户状态**归 Customer
+- **用户管理**归 Auth；`is_super_admin` 布尔由中间件控制菜单/按钮可见性
+- 各领域自行决定缓存与失效策略；Redis 缓存不改变数据所有权
 
 #### 验收标准
-- 政策体系/等级/规则增删改查
-- 状态阶段仅查看
+- 统一入口可完成政策体系、等级、规则、状态和用户管理
+- 所有写操作由数据所属模块执行
 - 配置变更实时生效（缓存失效）
 - 操作有审计日志
 
@@ -582,7 +583,7 @@ class MultiDimensionalSearch extends Component
 | Laravel 初始化 | Laravel 13 + Pint | 安装核心包，**模块化目录结构** `app/Modules/{Domain}/` |
 | Livewire + FluxUI | composer require | 配置 Light/Dark 主题 |
 | 认证脚手架 | Laravel Breeze + **两档权限中间件** | 超级管理员 / 普通内部用户（C3-4） |
-| CI/CD | GitHub Actions | PR 触发 Pest + PHPStan + Pint，main 触发部署 |
+| CI/CD | GitHub Actions | PR 触发 PHPUnit + PHPStan + Pint，main 触发部署 |
 | 队列与定时 | Supervisor + Laravel Schedule | Horizon（可选） |
 | 文件存储 | 本地 / 对象存储 | 公开/私有 bucket |
 | 备份策略 | spatie/laravel-backup | PostgreSQL 每日全量 + WAL，RPO≤24h |
@@ -642,7 +643,7 @@ class MultiDimensionalSearch extends Component
 | 推广费算法 | CommissionCalculator + brick/math（月度累计阶梯） |
 | 规则快照 | settlement_items.rule_snapshot（Q20） |
 | 合作状态 | 合作中/暂停/已终止约束（C2） |
-| 单元测试 | Pest 3 |
+| 单元测试 | PHPUnit 12 |
 
 **关键里程碑 M4**：✅ 政策体系两层可用，规则引擎配置化，推广费按月度累计阶梯自动算，`#VALUE!` 根除
 
@@ -674,9 +675,9 @@ class MultiDimensionalSearch extends Component
 |--------|------|
 | 多维查询 | Spatie Query Builder（仅 AND，Q08） |
 | 查询性能 | 复合索引 + 缓存 |
-| to B/to C 看板 | ECharts + 预聚合表（轻量 CQRS） |
+| to B/to C 看板 | ECharts + PostgreSQL 聚合查询；达到性能阈值后再引入预聚合 |
 | 看板导出 | PDF / 图片(PNG) / HTML（Q14） |
-| 配置中心 | 政策体系/等级/规则/用户管理，状态阶段仅查看（Q10） |
+| 配置中心 | 聚合 Agent/Settlement/Customer/Auth 的管理用例，并管理全局系统参数 |
 
 **关键里程碑 M6**：✅ 9 维度 AND 查询，看板 < 2 秒，导出三格式，配置热更新
 
@@ -693,7 +694,7 @@ class MultiDimensionalSearch extends Component
 | 安全审计 | OWASP ZAP + 人工审计 |
 | 数据库优化 | 慢查询日志 + 索引调优 |
 | 前端优化 | 关键 CSS 内联 + 图片懒加载 + Three.js 降级 |
-| Redis 降级演练 | 缓存跳过 / 队列 sync 验证 |
+| Redis 故障演练 | 验证失败可观测、任务重试与恢复流程，不动态切换为 sync |
 | 备份灾恢演练 | WAL 时间点恢复 + RTO 验证 |
 | 生产部署 | 蓝绿部署 / 灰度发布 |
 | 数据迁移 | 真实环境全量迁移 + 校验 |
@@ -753,7 +754,7 @@ Phase 7 (测试+部署) ←────┘
 | 政策体系/规则配置错误 | 🔴 高 | 规则保存前强校验（区间不重叠、比例≤100%）+ 试算预览 |
 | 历史结算数据重构引发纠纷 | 🟡 中 | 规则快照 + 新系统双轨并行 1 个月 |
 | 性能不达标（10 万+ 数据） | 🟡 中 | 提前在 Phase 6 压测；预留 Meilisearch 升级路径 |
-| Redis 单点故障 | 🟡 中 | 降级策略：缓存跳过直读 DB / 队列降级 sync |
+| Redis 单点故障 | 🟡 中 | 缓存按用例显式绕过；队列失败告警、重试并由运维恢复 |
 | 团队不熟悉 Livewire | 🟡 中 | Phase 0–1 提供 1 周培训 + Code Review 严格 |
 | 跟进规则配置复杂度上升 | 🟢 低 | 规则引擎首期浅深度，预留升级至"中"（条件模型） |
 | 需求变更（医美业务季节性强） | 🟢 低 | 政策体系/规则引擎/提醒规则可配置，预留扩展点 |
@@ -782,7 +783,7 @@ Phase 7 (测试+部署) ←────┘
 | Phase 3–6 | 前后阶段可有限并行 | **严格串行**，上一阶段完测才进下一阶段 |
 | Three.js Hero | Phase 1 引入 | **砍掉**，首版用纯 FluxUI 动画替代，降低复杂度 |
 | 看板导出 PNG | Phase 6 | **砍掉**，首版仅导出 PDF + HTML，PNG 迭代补充 |
-| E2E 测试 | Laravel Dusk | **砍掉**，首版仅 Pest Unit + Feature，手工回归 |
+| E2E 测试 | Laravel Dusk | **砍掉**，首版仅 PHPUnit Unit + Feature，手工回归 |
 | 用户培训 | 视频教程 | **砍掉**，首版仅操作手册（Markdown） |
 | 代码审查 | PR Review | **自查** + PHPStan + Pint 自动门禁 |
 | M1 | 2 周 | 2 周（不变，基础架构必须扎实） |
@@ -793,7 +794,7 @@ Phase 7 (测试+部署) ←────┘
 | M6 | 8.5 周 | 15 周 |
 | M7 | 10 周 | 18 周 |
 
-> Solo 模式下优先保证核心模块（Phase 2-5）质量，Phase 6 的导出三格式缩为两格式、Phase 7 精简为 Pest + 压测 + 备份就上线。
+> Solo 模式下优先保证核心模块（Phase 2-5）质量，Phase 6 的导出三格式缩为两格式、Phase 7 精简为 PHPUnit + 压测 + 备份就上线。
 
 ### 7.2 协作工具
 
