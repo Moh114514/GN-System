@@ -6,8 +6,9 @@
 <flux:button
     {{ $attributes->class(['shrink-0 self-start']) }}
     :href="$href"
-    variant="ghost"
-    size="sm"
+    variant="primary"
+    color="blue"
+    size="base"
     icon="arrow-left"
     wire:navigate
 >

@@ -1,9 +1,11 @@
 # 模块边界
 
-> 最后核验：2026-07-27  
+> 最后核验：2026-07-28
 > 决策依据：[ADR-0002](../adr/0002-module-boundaries-and-data-ownership.md)、
 > [ADR-0004](../adr/0004-application-import-contracts.md)、
-> [ADR-0005](../adr/0005-daily-application-contracts.md)
+> [ADR-0005](../adr/0005-daily-application-contracts.md)、
+> [ADR-0006](../adr/0006-synchronous-order-commission-contract.md)、
+> [ADR-0007](../adr/0007-phase-five-settlement-reminder-processing.md)
 
 ## 当前模块
 
@@ -40,6 +42,17 @@ Infrastructure 或模块内 Application Service 可以实现 Application Contrac
 DataImport 使用同步 Application Contract 协调历史导入。Phase 3 Customer 使用
 最小同步 Contract 读取 Agent/Config 引用数据、聚合 Order/Reminder/Audit 详情，
 并在建档事务中调用 Order 首次预约和 Audit 审计写入。各数据所有者仍只写自己的表。
+
+Phase 4 Agent Application 通过 Customer/Order/Config/Settlement 的最小 Contract
+聚合代理商详情和配置；Order Application 在完成订单的事务中同步调用 Settlement
+核算，Settlement 通过 Agent Contract 读取当月等级。Order 只写订单表，Settlement
+只写费率、特批和推广费表，Agent 只写代理商及政策等级表。
+
+Phase 5 Settlement Application 通过 Order、Agent 的只读 Contract 获取月结订单、
+代理商资格和等级建议上下文；等级调整仍由 Agent Contract 安排下月生效。Order
+完成事务同步调用 Reminder Contract 创建术后系列提醒，Reminder 定时扫描通过
+Order、Customer 只读 Contract 生成预约和日期规则实例。队列 Job 只调用本模块
+Application Service；外部钉钉通知在业务事务提交后执行。
 
 领域事件、通用 Service Bus 和异步跨模块一致性机制尚未形成，不得从同步契约放行
 推断它们可用。

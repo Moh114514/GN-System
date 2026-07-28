@@ -178,8 +178,8 @@ class CustomerLifecycleTest extends TestCase
         $this->actingAs($admin)->get(route('customer-statuses.index'))
             ->assertOk()
             ->assertSee('生命周期状态配置')
-            ->assertSee('返回客户管理')
-            ->assertSee('href="'.route('customers.index').'"', false);
+            ->assertSee('返回配置中心')
+            ->assertSee('href="'.route('configuration.index').'"', false);
     }
 
     public function test_customer_list_masks_sensitive_values_and_supports_exact_contact_search(): void
@@ -311,6 +311,10 @@ class CustomerLifecycleTest extends TestCase
         $this->actingAs($this->user)->get(route('customers.show', $customerId))
             ->assertOk()
             ->assertSee('客户详情')
+            ->assertSee('<dd class="mt-1 font-semibold">测试客户</dd>', false)
+            ->assertSee('客户编号')
+            ->assertSee('建档时间')
+            ->assertSee('<strong class="font-semibold">'.$this->user->name.'</strong>', false)
             ->assertSee('返回客户管理')
             ->assertSee('href="'.route('customers.index').'"', false);
         $this->actingAs($this->user)->get(route('customers.edit', $customerId))

@@ -1,0 +1,52 @@
+<?php
+
+namespace App\Modules\Reminder\Application\Services;
+
+use App\Models\User;
+use App\Modules\Customer\Application\Contracts\ReminderCustomerReader;
+use App\Modules\Reminder\Application\Contracts\StaffNotificationSender;
+use App\Modules\Reminder\Infrastructure\Models\Reminder;
+use App\Modules\Reminder\Infrastructure\Models\ReminderEvent;
+
+final readonly class ReminderNotifier
+{
+    public function __construct(
+        private StaffNotificationSender $sender,
+        private ReminderCustomerReader $customers,
+    ) {}
+
+    public function send(int $reminderId): void
+    {
+        $reminder = Reminder::query()->findOrFail($reminderId);
+        if ($reminder->notification_status === 'sent' || ! in_array($reminder->status, ['pending', 'snoozed', 'transferred'], true)) {
+            return;
+        }
+        if (! $this->sender->enabled()) {
+            $reminder->update(['notification_status' => 'disabled']);
+            $this->event($reminder, 'notification_disabled', ['reason' => '钉钉未启用']);
+
+            return;
+        }
+        $customer = $this->customers->byId((int) $reminder->customer_id);
+        $owner = $reminder->assigned_to === null ? null : User::query()->find($reminder->assigned_to);
+        $ownerName = $owner === null ? '未分配' : $owner->name;
+        $this->sender->send(
+            (string) $reminder->title,
+            "客户：{$customer->name}\n\n负责人：{$ownerName}\n\n计划时间：{$reminder->due_at->format('Y-m-d H:i')}\n\n建议方向：".($reminder->suggestion ?: '无固定话术，请员工自行填写'),
+            route('reminders.index'),
+        );
+        $reminder->update(['notification_status' => 'sent', 'notified_at' => now()]);
+        $this->event($reminder, 'notified', []);
+    }
+
+    /** @param array<string, mixed> $properties */
+    public function event(Reminder $reminder, string $event, array $properties): void
+    {
+        ReminderEvent::query()->create([
+            'reminder_id' => $reminder->id,
+            'event' => $event,
+            'properties' => $properties,
+            'occurred_at' => now(),
+        ]);
+    }
+}

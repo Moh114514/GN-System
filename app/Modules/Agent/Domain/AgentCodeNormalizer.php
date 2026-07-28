@@ -6,16 +6,20 @@ use InvalidArgumentException;
 
 final class AgentCodeNormalizer
 {
-    public function agent(string $value): string
+    public function agent(string $value, ?string $expectedTypeCode = null): string
     {
         $code = strtoupper(trim($value));
 
         if (preg_match('/^KR-([A-Z0-9]{2,8})$/', $code, $matches) === 1) {
-            return $matches[1].'-KR';
+            $code = $matches[1].'-KR';
         }
 
-        if (preg_match('/^[A-Z0-9]{2,8}-(JG|GT|KR)$/', $code) !== 1) {
+        if (preg_match('/^[A-Z0-9]{2,8}-([A-Z0-9]{2,4})$/', $code, $matches) !== 1) {
             throw new InvalidArgumentException("无效代理商编号：{$value}");
+        }
+
+        if ($expectedTypeCode !== null && $matches[1] !== strtoupper(trim($expectedTypeCode))) {
+            throw new InvalidArgumentException('代理商编号必须以 -'.strtoupper(trim($expectedTypeCode)).' 结尾。');
         }
 
         return $code;
@@ -29,7 +33,7 @@ final class AgentCodeNormalizer
             return "{$matches[1]}-KR-{$matches[2]}";
         }
 
-        if (preg_match('/^[A-Z0-9]{2,8}-(JG|GT|KR)-\d{4}$/', $code) !== 1
+        if (preg_match('/^[A-Z0-9]{2,8}-[A-Z0-9]{2,4}-\d{4}$/', $code) !== 1
             && preg_match('/^[A-Z0-9]{2,6}-\d{6}$/', $code) !== 1) {
             throw new InvalidArgumentException("无效客户编号：{$value}");
         }

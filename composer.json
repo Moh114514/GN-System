@@ -11,6 +11,7 @@
     "require": {
         "php": "^8.3",
         "brick/math": "^0.17",
+        "dompdf/dompdf": "^3.1",
         "laravel/fortify": "^1.37.2",
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
@@ -18,6 +19,7 @@
         "livewire/flux": "^2.13.1",
         "livewire/livewire": "^4.1",
         "phpoffice/phpspreadsheet": "^5.9",
+        "phpoffice/phpword": "^1.4",
         "sentry/sentry-laravel": "^4.27",
         "spatie/laravel-activitylog": "^4.12.3",
         "spatie/laravel-backup": "^10.3"

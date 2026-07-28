@@ -109,7 +109,7 @@
                             </td>
                             <td>{{ $customer['contact_masked'] }}</td>
                             <td>{{ $customer['document_masked'] }}</td>
-                            <td>{{ $customer['source'] }}</td>
+                            <td class="font-semibold">{{ $customer['source'] }}</td>
                             <td><span class="crm-pill tone-blue">{{ $customer['status'] }}</span></td>
                             <td>{{ $customer['created_at'] }}</td>
                         </tr>

@@ -1,6 +1,10 @@
 <?php
 
 use App\Infrastructure\Queue\QueueHeartbeat;
+use App\Modules\Reminder\Application\Services\ReminderNotificationDispatcher;
+use App\Modules\Reminder\Application\Services\ReminderScheduler;
+use App\Modules\Settlement\Application\Services\SettlementNotificationDispatcher;
+use App\Modules\Settlement\Application\Services\SettlementRunManager;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
@@ -43,6 +47,23 @@ Artisan::command('app:offsite-backup-monitor', function (): void {
     }
 })->purpose('Fail when the host offsite backup sync is stale');
 
+Artisan::command('app:generate-settlements', function (SettlementRunManager $manager): void {
+    $run = $manager->startIfDue();
+    $this->info($run === null ? '当前时间无需生成月结。' : "月结批次 {$run->id} 已启动。");
+})->purpose('Generate the due monthly settlement run');
+
+Artisan::command('app:materialize-reminders', function (ReminderScheduler $scheduler): void {
+    $this->info('已生成 '.$scheduler->materialize().' 条新提醒。');
+})->purpose('Materialize built-in and configured reminder instances');
+
+Artisan::command('app:dispatch-reminder-notifications', function (ReminderNotificationDispatcher $dispatcher): void {
+    $this->info('已派发 '.$dispatcher->dispatchDue().' 条到期提醒通知。');
+})->purpose('Dispatch due reminder notifications');
+
+Artisan::command('app:dispatch-settlement-notifications', function (SettlementNotificationDispatcher $dispatcher): void {
+    $this->info('已派发 '.$dispatcher->dispatchCompleted().' 条月结完成通知。');
+})->purpose('Dispatch completed settlement notifications');
+
 Schedule::command('app:scheduler-heartbeat')
     ->everyMinute()
     ->withoutOverlapping()
@@ -80,5 +101,25 @@ Schedule::command('app:offsite-backup-monitor')
 
 Schedule::command('app:purge-imports')
     ->hourlyAt(30)
+    ->withoutOverlapping()
+    ->onOneServer();
+
+Schedule::command('app:generate-settlements')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->onOneServer();
+
+Schedule::command('app:materialize-reminders')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->onOneServer();
+
+Schedule::command('app:dispatch-reminder-notifications')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->onOneServer();
+
+Schedule::command('app:dispatch-settlement-notifications')
+    ->everyMinute()
     ->withoutOverlapping()
     ->onOneServer();
