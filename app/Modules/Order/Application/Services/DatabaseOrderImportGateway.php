@@ -45,6 +45,7 @@ final class DatabaseOrderImportGateway implements OrderImportGateway
                 'direct_sales_source_id' => $data->directSalesSourceId,
                 'project_name' => $data->projectName,
                 'translator_name' => $data->translatorName,
+                'status' => $data->completedOn === null ? 'pending' : 'completed',
                 'notes' => $data->notes,
                 'import_batch_id' => $data->importBatchId,
             ],

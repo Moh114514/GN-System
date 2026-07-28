@@ -11,20 +11,32 @@ final class DatabaseAgentReferenceReader implements AgentReferenceReader
     public function activeAgents(): array
     {
         return $this->serialize(
-            Agent::query()->where('cooperation_status', 'active')->orderBy('name')->get(['id', 'code', 'name']),
+            Agent::query()->where('cooperation_status', 'active')->orderBy('name')->get(['id', 'code', 'name', 'cooperation_status']),
         );
     }
 
     public function agentsByIds(array $ids): array
     {
         return $this->serialize(
-            Agent::query()->whereKey(array_values(array_unique($ids)))->get(['id', 'code', 'name']),
+            Agent::query()->whereKey(array_values(array_unique($ids)))->get(['id', 'code', 'name', 'cooperation_status']),
         );
+    }
+
+    public function agentById(int $id): array
+    {
+        $agent = Agent::query()->findOrFail($id, ['id', 'code', 'name', 'cooperation_status']);
+
+        return [
+            'id' => (int) $agent->id,
+            'code' => (string) $agent->code,
+            'name' => (string) $agent->name,
+            'cooperation_status' => (string) $agent->cooperation_status,
+        ];
     }
 
     /**
      * @param  Collection<int, Agent>  $agents
-     * @return array<int, array{id: int, code: string, name: string}>
+     * @return array<int, array{id: int, code: string, name: string, cooperation_status: string}>
      */
     private function serialize(Collection $agents): array
     {
@@ -34,6 +46,7 @@ final class DatabaseAgentReferenceReader implements AgentReferenceReader
                 'id' => (int) $agent->id,
                 'code' => (string) $agent->code,
                 'name' => (string) $agent->name,
+                'cooperation_status' => (string) $agent->cooperation_status,
             ];
         }
 

@@ -28,6 +28,14 @@
                         <flux:icon.arrow-up-tray aria-hidden="true" />
                         <span>数据迁移</span>
                     </a>
+                    <a href="{{ route('agents.index') }}" class="crm-nav-item {{ request()->routeIs('agents.*') ? 'is-active' : '' }}" wire:navigate>
+                        <flux:icon.building-office aria-hidden="true" />
+                        <span>代理商</span>
+                    </a>
+                    <a href="{{ route('configuration.index') }}" class="crm-nav-item {{ request()->routeIs('configuration.*', 'agent-configuration.*', 'customer-statuses.*', 'reminder-configuration.*') ? 'is-active' : '' }}" wire:navigate>
+                        <flux:icon.cog-6-tooth aria-hidden="true" />
+                        <span>配置中心</span>
+                    </a>
                 @endif
 
                 <a href="{{ route('customers.index') }}" class="crm-nav-item {{ request()->routeIs('customers.*') ? 'is-active' : '' }}" wire:navigate>
@@ -35,14 +43,22 @@
                     <span>客户管理</span>
                 </a>
 
+                @if (auth()->user()->is_super_admin)
+                    <a href="{{ route('settlements.index') }}" class="crm-nav-item {{ request()->routeIs('settlements.*') ? 'is-active' : '' }}" wire:navigate>
+                        <flux:icon.banknotes aria-hidden="true" />
+                        <span>月结中心</span>
+                    </a>
+                @endif
+
+                <a href="{{ route('reminders.index') }}" class="crm-nav-item {{ request()->routeIs('reminders.*') ? 'is-active' : '' }}" wire:navigate>
+                    <flux:icon.bell-alert aria-hidden="true" />
+                    <span>主动提醒</span>
+                </a>
+
                 @foreach ([
-                    ['building-office', '代理商'],
                     ['clipboard-document-list', '订单'],
-                    ['banknotes', '月结中心'],
-                    ['bell-alert', '主动提醒'],
                     ['magnifying-glass', '多维查询'],
                     ['chart-bar', '数据看板'],
-                    ['cog-6-tooth', '配置中心'],
                 ] as [$icon, $label])
                     <span class="crm-nav-item is-disabled" aria-disabled="true" title="功能将在后续阶段开放">
                         <flux:icon :name="$icon" aria-hidden="true" />

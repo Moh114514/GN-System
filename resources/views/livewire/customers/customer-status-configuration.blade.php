@@ -1,9 +1,9 @@
 <div>
-    <x-page-back :href="route('customers.index')" label="返回客户管理" class="mb-4" />
+    <x-page-back :href="route('configuration.index')" label="返回配置中心" class="mb-4" />
 
     <section class="crm-section-header">
         <div>
-            <p class="crm-eyebrow">超级管理员 · 客户配置</p>
+            <p class="crm-eyebrow">配置中心 · 客户配置</p>
             <h2>生命周期状态配置</h2>
             <p>机器键保持稳定；可调整显示名称、顺序、启用状态和允许的前进路径。</p>
         </div>

@@ -1,0 +1,28 @@
+<div>
+    <x-page-back :href="route('configuration.index')" label="返回配置中心" class="mb-4" />
+    <section class="mb-5"><p class="crm-eyebrow">配置中心 · 主动提醒</p><h2>主动提醒规则与模板</h2><p>使用固定触发类型和单一适用范围配置浅规则，不支持自由脚本或复杂条件表达式。</p></section>
+    @if (session('status'))<div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>@endif
+    @error('configuration')<div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div>@enderror
+    <div class="mb-5 rounded-xl border px-4 py-3 text-sm {{ $dingtalkEnabled ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800' }}">钉钉通知：{{ $dingtalkEnabled ? '已启用' : '未启用；站内提醒仍正常运行' }}</div>
+
+    <section class="grid gap-6 xl:grid-cols-2">
+        <div class="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+            <h3 class="font-semibold">新增规则</h3>
+            <form wire:submit="saveRule" class="mt-4 space-y-3">
+                <div class="grid gap-3 sm:grid-cols-2"><flux:input wire:model="ruleName" label="规则名称" required /><flux:input wire:model="ruleTitle" label="提醒标题" required /></div>
+                <div class="grid gap-3 sm:grid-cols-2"><flux:select wire:model.live="triggerType" label="触发类型"><flux:select.option value="date_offset">日期字段偏移</flux:select.option><flux:select.option value="status_change">客户状态变化</flux:select.option><flux:select.option value="fixed_cycle">固定周期</flux:select.option><flux:select.option value="manual">仅手动</flux:select.option></flux:select><flux:input wire:model="triggerTime" type="time" label="触发时间" /></div>
+                @if ($triggerType === 'date_offset')<div class="grid gap-3 sm:grid-cols-2"><flux:select wire:model="dateField" label="日期字段"><flux:select.option value="created_at">建档日期</flux:select.option><flux:select.option value="appointment_at">到店日期</flux:select.option><flux:select.option value="completed_on">施术日期</flux:select.option><flux:select.option value="birth_date">生日</flux:select.option><flux:select.option value="wechat_added_on">加微信日期</flux:select.option></flux:select><flux:input wire:model="offsetDays" type="number" label="偏移天数（可为负）" /></div>@endif
+                @if ($triggerType === 'fixed_cycle')<flux:input wire:model="intervalDays" type="number" min="1" label="每 N 天" />@endif
+                <div class="grid gap-3 sm:grid-cols-2"><flux:select wire:model="scopeType" label="适用范围"><flux:select.option value="all_customers">全部客户</flux:select.option><flux:select.option value="agent">指定代理商 ID</flux:select.option><flux:select.option value="project">指定项目</flux:select.option><flux:select.option value="owner">指定负责人 ID</flux:select.option><flux:select.option value="cooperation_status">代理商合作状态</flux:select.option></flux:select><flux:input wire:model="scopeValue" label="范围值（全部客户可留空）" /></div>
+                <div class="grid gap-3 sm:grid-cols-2"><flux:input wire:model="suggestion" label="建议方向" /><flux:input wire:model="priority" type="number" min="1" max="5" label="优先级（1最高）" /></div>
+                <flux:button type="submit">{{ $editingRuleId ? '保存规则修改' : '保存规则' }}</flux:button>
+            </form>
+        </div>
+        <div class="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+            <h3 class="font-semibold">全局模板</h3>
+            <form wire:submit="saveTemplate" class="mt-4 space-y-3"><flux:input wire:model="templateName" label="模板名称" required /><flux:input wire:model="templateTitle" label="提醒标题" required /><flux:input wire:model="templateSuggestion" label="建议方向" /><flux:button type="submit">新增模板</flux:button></form>
+            <div class="crm-table-wrap mt-5"><table class="crm-table"><thead><tr><th>模板</th><th>类型</th><th>状态</th><th></th></tr></thead><tbody>@foreach ($templates as $template)<tr><td class="font-semibold">{{ $template->name }}</td><td>{{ $template->is_system ? '系统' : '全局' }}</td><td>{{ $template->is_active ? '启用' : '停用' }}</td><td><div class="flex gap-1"><flux:button wire:click="editTemplate({{ $template->id }})" size="sm" variant="ghost">编辑</flux:button><flux:button wire:click="copyTemplate({{ $template->id }})" size="sm" variant="ghost">复制</flux:button><flux:button wire:click="toggleTemplate({{ $template->id }})" size="sm" variant="ghost">{{ $template->is_active ? '停用' : '启用' }}</flux:button></div></td></tr>@endforeach</tbody></table></div>
+        </div>
+    </section>
+    <section class="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900"><h3 class="font-semibold">已配置规则</h3><div class="crm-table-wrap mt-4"><table class="crm-table"><thead><tr><th>规则</th><th>触发/范围</th><th>状态</th><th></th></tr></thead><tbody>@forelse ($rules as $rule)<tr><td class="font-semibold">{{ $rule->name }}<div class="text-xs text-zinc-500">{{ $rule->title }}</div></td><td>{{ $rule->trigger_type }} / {{ $rule->scope_type }}</td><td>{{ $rule->is_active ? '启用' : '停用' }}</td><td><div class="flex gap-1"><flux:button wire:click="editRule({{ $rule->id }})" size="sm" variant="ghost">编辑</flux:button><flux:button wire:click="toggleRule({{ $rule->id }})" size="sm" variant="ghost">{{ $rule->is_active ? '停用' : '启用' }}</flux:button></div></td></tr>@empty<tr><td colspan="4" class="py-8 text-center text-zinc-500">尚未配置规则。</td></tr>@endforelse</tbody></table></div></section>
+</div>

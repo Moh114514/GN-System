@@ -1,0 +1,24 @@
+<?php
+
+namespace App\Modules\Order\Application\Data;
+
+use Carbon\CarbonImmutable;
+
+final readonly class DailyOrderData
+{
+    public function __construct(
+        public int $customerId,
+        public int $institutionId,
+        public string $channel,
+        public ?int $agentId,
+        public ?int $directSalesSourceId,
+        public string $projectName,
+        public int $amountKrw,
+        public string $status,
+        public ?CarbonImmutable $completedOn,
+        public ?string $translatorName,
+        public ?string $notes,
+        public int $ownerId,
+        public ?string $ipAddress,
+    ) {}
+}

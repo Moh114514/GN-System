@@ -2,7 +2,8 @@
 
 GN-System 是面向医美/医疗代理业务的内部客户管理系统，用于逐步替代分散的
 Excel 客户、代理商、订单和结算数据。当前已完成 Phase 1 基础架构、Phase 2
-核心数据与导入能力及 Phase 3 客户全生命周期；真实历史数据迁移仍待正式源文件、
+核心数据与导入能力、Phase 3 客户全生命周期及 Phase 4 代理商与推广费核算核心
+闭环，以及 Phase 5 月结、结算单与主动提醒中心；真实历史数据迁移仍待正式源文件、
 错误处理和抽样核对。
 
 ## 技术基线
@@ -93,6 +94,8 @@ docker compose down
 
 本地热更新由 `vite` 服务提供。亮色、暗色和跟随系统三种主题可在“外观设置”
 中切换。邮件默认写入应用日志；`SENTRY_LARAVEL_DSN` 为空时 Sentry 不发送事件。
+站内提醒始终可用；只有设置 `DINGTALK_ENABLED=true` 并提供
+`DINGTALK_WEBHOOK_URL`、`DINGTALK_SECRET` 后才会发送钉钉机器人通知。
 
 ## 备份
 
@@ -145,8 +148,8 @@ app/Modules/
 ## 环境变量与安全
 
 复制 `.env.example` 后只在本地修改 `.env`。不得提交密码、令牌、证书、真实
-Sentry DSN 或云存储凭据。模板已包含 PostgreSQL、Redis、日志邮件、备份、
-Sentry 和可选 S3 配置。
+Sentry DSN、钉钉 Webhook/Secret 或云存储凭据。模板已包含 PostgreSQL、Redis、
+日志邮件、备份、Sentry、可选钉钉机器人和可选 S3 配置。
 
 ## 分支规范
 
