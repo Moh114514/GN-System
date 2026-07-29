@@ -90,7 +90,7 @@ CMD ["php-fpm"]
 
 FROM nginx:1.28-alpine AS web-production
 
-COPY docker/nginx/production.conf /etc/nginx/conf.d/default.conf
+COPY docker/nginx/production.conf /etc/nginx/templates/default.conf.template
 COPY --from=frontend-production /app/public /var/www/html/public
 
 RUN rm -f /var/www/html/public/hot /var/www/html/public/fonts-manifest.dev.json

@@ -97,7 +97,8 @@ Schedule::command('backup:monitor')
 Schedule::command('app:offsite-backup-monitor')
     ->hourlyAt(15)
     ->withoutOverlapping()
-    ->onOneServer();
+    ->onOneServer()
+    ->when(fn (): bool => config('operations.offsite_backup_monitor_enabled'));
 
 Schedule::command('app:purge-imports')
     ->hourlyAt(30)

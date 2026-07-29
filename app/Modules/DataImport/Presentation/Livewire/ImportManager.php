@@ -53,7 +53,7 @@ class ImportManager extends Component
         return view('livewire.data-imports.import-manager');
     }
 
-    public function upload(EncryptedImportStorage $storage): void
+    public function stageUploads(EncryptedImportStorage $storage): void
     {
         $this->validate([
             'uploads' => ['required', 'array', 'min:1', 'max:5'],
