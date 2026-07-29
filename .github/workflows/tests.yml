@@ -123,6 +123,7 @@ jobs:
             test ! -e /var/www/html/.env
             test ! -e /var/www/html/.env.example
             test ! -e /var/www/html/.env.production.example
+            test ! -e /var/www/html/.env.uat.example
             test ! -e /var/www/html/public/hot
             test ! -e /var/www/html/public/fonts-manifest.dev.json
             test ! -d /var/www/html/node_modules
@@ -136,9 +137,27 @@ jobs:
             test -f /var/www/html/public/build/manifest.json
           '
 
-      - name: Validate production Compose
+      - name: Assert environment-specific HTTPS redirects
+        run: |
+          docker run --rm \
+            --entrypoint sh \
+            --env EXTERNAL_HTTPS_PORT_SUFFIX= \
+            --env 'NGINX_ENVSUBST_FILTER=^EXTERNAL_HTTPS_PORT_SUFFIX$' \
+            gn-system-web:ci -ec \
+            '/docker-entrypoint.d/20-envsubst-on-templates.sh
+             grep -F "return 301 https://\$host\$request_uri;" /etc/nginx/conf.d/default.conf'
+          docker run --rm \
+            --entrypoint sh \
+            --env EXTERNAL_HTTPS_PORT_SUFFIX=:8443 \
+            --env 'NGINX_ENVSUBST_FILTER=^EXTERNAL_HTTPS_PORT_SUFFIX$' \
+            gn-system-web:ci -ec \
+            '/docker-entrypoint.d/20-envsubst-on-templates.sh
+             grep -F "return 301 https://\$host:8443\$request_uri;" /etc/nginx/conf.d/default.conf'
+
+      - name: Validate production and UAT Compose
         run: |
           cp .env.production.example .env.production
+          cp .env.uat.example .env.uat
           sed -i 's|^APP_IMAGE=.*|APP_IMAGE=gn-system-app|' .env.production
           sed -i 's|^WEB_IMAGE=.*|WEB_IMAGE=gn-system-web|' .env.production
           sed -i 's|^RELEASE_TAG=.*|RELEASE_TAG=ci|' .env.production
@@ -146,6 +165,42 @@ jobs:
           sed -i 's|^DB_PASSWORD=.*|DB_PASSWORD=ci-database-password|' .env.production
           sed -i 's|^REDIS_PASSWORD=.*|REDIS_PASSWORD=ci-redis-password|' .env.production
           sed -i 's|^BACKUP_ARCHIVE_PASSWORD=.*|BACKUP_ARCHIVE_PASSWORD=ci-backup-password|' .env.production
-          docker compose --env-file .env.production -f compose.production.yaml config --quiet
-          ! docker compose --env-file .env.production -f compose.production.yaml config --services | grep -qx vite
-          ! docker compose --env-file .env.production -f compose.production.yaml config | grep -q '/var/www/html:'
+          sed -i 's|^APP_IMAGE=.*|APP_IMAGE=gn-system-app|' .env.uat
+          sed -i 's|^WEB_IMAGE=.*|WEB_IMAGE=gn-system-web|' .env.uat
+          sed -i 's|^RELEASE_TAG=.*|RELEASE_TAG=ci-uat|' .env.uat
+          sed -i 's|^APP_KEY=.*|APP_KEY=base64:BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB=|' .env.uat
+          sed -i 's|^DB_PASSWORD=.*|DB_PASSWORD=ci-uat-database-password|' .env.uat
+          sed -i 's|^REDIS_PASSWORD=.*|REDIS_PASSWORD=ci-uat-redis-password|' .env.uat
+          sed -i 's|^BACKUP_ARCHIVE_PASSWORD=.*|BACKUP_ARCHIVE_PASSWORD=ci-uat-backup-password|' .env.uat
+
+          production_config=$(docker compose --env-file .env.production \
+            -f compose.production.yaml config --format json)
+          uat_config=$(docker compose --env-file .env.uat \
+            -f compose.production.yaml config --format json)
+
+          jq -e '.name == "gn-system-production"' <<<"${production_config}"
+          jq -e '.services.web.ports[] | select(.target == 80 and .published == "80")' \
+            <<<"${production_config}"
+          jq -e '.services.web.ports[] | select(.target == 443 and .published == "443")' \
+            <<<"${production_config}"
+          jq -e '.services.app.environment.APP_NAME == "GN-System CRM"' \
+            <<<"${production_config}"
+          jq -e '.services.app.environment.OFFSITE_BACKUP_MONITOR_ENABLED == "true"' \
+            <<<"${production_config}"
+
+          jq -e '.name == "gn-system-uat"' <<<"${uat_config}"
+          jq -e '.services.web.ports[] | select(.target == 80 and .published == "8080")' \
+            <<<"${uat_config}"
+          jq -e '.services.web.ports[] | select(.target == 443 and .published == "8443")' \
+            <<<"${uat_config}"
+          jq -e '.services.app.environment.APP_NAME == "GN-System CRM UAT"' \
+            <<<"${uat_config}"
+          jq -e '.services.app.environment.OFFSITE_BACKUP_MONITOR_ENABLED == "false"' \
+            <<<"${uat_config}"
+          jq -e '.services.app.volumes[] | select(.source == "/srv/gn-system/uat/data/private")' \
+            <<<"${uat_config}"
+
+          ! docker compose --env-file .env.production -f compose.production.yaml \
+            config --services | grep -qx vite
+          ! grep -q '/var/www/html:' <<<"${production_config}"
+          ! grep -q '/srv/gn-system/data/' <<<"${uat_config}"

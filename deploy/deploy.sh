@@ -4,10 +4,9 @@ set -euo pipefail
 repository_directory=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 environment_file=${1:-"${repository_directory}/.env.production"}
 compose_file="${repository_directory}/compose.production.yaml"
-release_directory=/srv/gn-system/releases
 
 if [[ ! -f ${environment_file} ]]; then
-    echo "Production environment file not found: ${environment_file}" >&2
+    echo "Deployment environment file not found: ${environment_file}" >&2
     exit 1
 fi
 
@@ -15,17 +14,32 @@ environment_file=$(realpath "${environment_file}")
 environment_mode=$(stat -c '%a' "${environment_file}")
 
 if [[ ${environment_mode} != 600 ]]; then
-    echo "Production environment file must have mode 0600." >&2
+    echo "Deployment environment file must have mode 0600." >&2
     exit 1
 fi
 
 release_tag=$(sed -n 's/^RELEASE_TAG=//p' "${environment_file}" | tail -n 1)
+release_directory=$(sed -n 's/^RELEASE_STATE_PATH=//p' "${environment_file}" | tail -n 1)
 app_url=$(sed -n 's/^APP_URL=//p' "${environment_file}" | tail -n 1)
 
 if [[ -z ${release_tag} || ${release_tag} == latest ]]; then
     echo "RELEASE_TAG must be an explicit immutable version, never latest." >&2
     exit 1
 fi
+
+if [[ -z ${release_directory} ]]; then
+    echo "RELEASE_STATE_PATH must be configured." >&2
+    exit 1
+fi
+
+release_directory=$(realpath -m "${release_directory}")
+case "${release_directory}" in
+    /srv/gn-system/releases|/srv/gn-system/*/releases) ;;
+    *)
+        echo "RELEASE_STATE_PATH must be /srv/gn-system/releases or an isolated child environment releases directory." >&2
+        exit 1
+        ;;
+esac
 
 if [[ ${app_url} != https://* ]]; then
     echo "APP_URL must use HTTPS in production." >&2

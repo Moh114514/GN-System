@@ -119,8 +119,10 @@ WAL/PITR。
 启动时生成 `APP_KEY` 或自动迁移。
 
 服务器准备、环境变量、发布、回退、异机同步和恢复演练见
-[局域网生产部署与恢复](docs/operations/production-deployment.md)。不要把
-`.env.production`、TLS 私钥或真实凭据提交到 Git。
+[局域网生产部署与恢复](docs/operations/production-deployment.md)；版本从开发、
+UAT 验收到正式镜像晋级的完整步骤见
+[UAT 测试版本与正式发布流程](docs/operations/release-management.md)。不要把
+`.env.production`、`.env.uat`、TLS 私钥或真实凭据提交到 Git。
 
 ## 模块边界
 

@@ -1,4 +1,4 @@
-<div class="crm-content" wire:poll.5s>
+<div class="crm-content">
     <section class="crm-section-header">
         <div>
             <p class="crm-eyebrow">Phase 2 · 数据迁移</p>
@@ -18,25 +18,55 @@
             <h3 class="text-lg font-semibold">上传迁移文件</h3>
             <p class="mt-1 text-sm text-zinc-500">支持 XLSX、XLS、CSV；单文件最大 20MB，一批最多 5 个文件。</p>
 
-            <form wire:submit="upload" class="mt-5 space-y-4">
-                <input
-                    wire:model="uploads"
-                    type="file"
-                    multiple
-                    accept=".xlsx,.xls,.csv"
-                    class="block w-full rounded-xl border border-dashed border-zinc-300 p-5 text-sm"
+            <form wire:submit="stageUploads" class="mt-5 space-y-4">
+                <div
+                    x-data="{ uploading: false, progress: 0 }"
+                    x-on:livewire-upload-start="uploading = true"
+                    x-on:livewire-upload-finish="uploading = false"
+                    x-on:livewire-upload-error="uploading = false"
+                    x-on:livewire-upload-cancel="uploading = false"
+                    x-on:livewire-upload-progress="progress = $event.detail.progress"
                 >
+                    <input
+                        wire:model="uploads"
+                        type="file"
+                        multiple
+                        accept=".xlsx,.xls,.csv"
+                        class="block w-full rounded-xl border border-dashed border-zinc-300 p-5 text-sm"
+                    >
+                    <div x-cloak x-show="uploading" class="mt-3" role="status">
+                        <div class="flex items-center justify-between text-sm text-zinc-600">
+                            <span>正在上传到加密预处理区…</span>
+                            <span x-text="`${progress}%`"></span>
+                        </div>
+                        <progress class="mt-2 h-2 w-full" max="100" x-bind:value="progress"></progress>
+                    </div>
+                </div>
                 @error('uploads') <p class="text-sm text-red-600">{{ $message }}</p> @enderror
                 @error('uploads.*') <p class="text-sm text-red-600">{{ $message }}</p> @enderror
 
-                <flux:button type="submit" variant="primary" wire:loading.attr="disabled">
-                    加密上传并预演
+                <flux:button
+                    type="submit"
+                    variant="primary"
+                    wire:loading.attr="disabled"
+                    wire:target="uploads,stageUploads"
+                >
+                    <span wire:loading.remove wire:target="stageUploads">加密上传并预演</span>
+                    <span wire:loading wire:target="stageUploads">正在创建导入批次…</span>
                 </flux:button>
             </form>
 
             @if ($this->selectedBatch)
                 @php($batch = $this->selectedBatch)
-                <div class="mt-8 border-t border-zinc-200 pt-6 dark:border-zinc-700">
+                <div
+                    class="mt-8 border-t border-zinc-200 pt-6 dark:border-zinc-700"
+                    @if ($uploads === [] && in_array($batch->status, [
+                        \App\Modules\DataImport\Domain\ImportBatchStatus::Uploaded,
+                        \App\Modules\DataImport\Domain\ImportBatchStatus::Parsing,
+                    ], true))
+                        wire:poll.5s
+                    @endif
+                >
                     <div class="flex flex-wrap items-start justify-between gap-4">
                         <div>
                             <h3 class="font-semibold">批次 {{ $batch->id }}</h3>
