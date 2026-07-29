@@ -32,6 +32,11 @@ chmod 0600 .env.production
 地址、TLS 路径、SMTP 或 Sentry。至少验证一个告警渠道有效。把 `APP_KEY`、数据库、
 Redis、备份密码另存于密码管理器或离线恢复信封。SMTP 使用 587/STARTTLS 时保留
 `MAIL_SCHEME=smtp`；使用 465 隐式 TLS 时改为 `smtps`。
+保持 `PRODUCTION_ENV_FILE=.env.production`、`HTTP_PORT=80`、
+`HTTPS_PORT=443`、`EXTERNAL_HTTPS_PORT_SUFFIX=`、
+`RELEASE_STATE_PATH=/srv/gn-system/releases` 和
+`OFFSITE_BACKUP_MONITOR_ENABLED=true`。同机 UAT 必须使用独立环境文件、端口、
+数据和发布历史，具体见[发布管理手册](release-management.md)。
 
 把证书安装到 `/srv/gn-system/tls/fullchain.pem` 和 `privkey.pem`，私钥权限设为
 `0600`。先验证配置：
@@ -55,9 +60,11 @@ docker compose --env-file .env.production -f compose.production.yaml \
 
 ## 3. 发布与回退
 
-只有 `v*` Git 标签通过完整门禁后才发布 GHCR 镜像。服务器使用只读 GHCR 凭据，
-只拉取 `.env.production` 中的明确版本，禁止使用 `latest`、在服务器改代码或安装
-依赖。
+RC 标签 `vX.Y.Z-rc.N` 通过完整门禁后构建 GHCR 镜像；UAT 验收通过后，正式标签
+`vX.Y.Z` 只把同一提交上最新 RC 的 app/web 镜像按原 digest 晋级，不重新构建。
+完整标签流程见[发布管理手册](release-management.md)。服务器使用只读 GHCR
+凭据，只拉取 `.env.production` 中的明确版本，禁止使用 `latest`、在服务器改代码
+或安装依赖。
 
 `deploy/deploy.sh` 会检查环境、记录旧版本、执行部署前全量备份、进入维护状态、
 拉取镜像、执行 `migrate --force --isolated`、启动服务，并等待三个健康接口通过。

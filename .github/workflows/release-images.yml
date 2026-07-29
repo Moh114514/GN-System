@@ -56,9 +56,44 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          fetch-depth: 0
           persist-credentials: false
 
+      - name: Resolve release mode
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          release_tag=${GITHUB_REF_NAME}
+          if [[ ${release_tag} =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
+            echo "mode=rc" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ ! ${release_tag} =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Unsupported release tag: ${release_tag}" >&2
+            exit 1
+          fi
+
+          candidate_tag=
+          while IFS= read -r rc_tag; do
+            if [[ $(git rev-list -n 1 "${rc_tag}") == "${GITHUB_SHA}" ]]; then
+              candidate_tag=${rc_tag}
+              break
+            fi
+          done < <(git tag --list "${release_tag}-rc.*" --sort=-version:refname)
+
+          if [[ -z ${candidate_tag} ]]; then
+            echo "No RC tag for ${release_tag} points to ${GITHUB_SHA}." >&2
+            exit 1
+          fi
+
+          echo "mode=stable" >> "$GITHUB_OUTPUT"
+          echo "candidate_tag=${candidate_tag}" >> "$GITHUB_OUTPUT"
+
       - name: Setup PHP
+        if: steps.release.outputs.mode == 'rc'
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.3'
@@ -67,12 +102,14 @@ jobs:
           coverage: none
 
       - name: Setup Node
+        if: steps.release.outputs.mode == 'rc'
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: '22'
           cache: npm
 
       - name: Run release gates
+        if: steps.release.outputs.mode == 'rc'
         run: |
           cp .env.testing.example .env.testing
           sed -i 's/^DB_HOST=.*/DB_HOST=127.0.0.1/' .env.testing
@@ -99,6 +136,7 @@ jobs:
           echo "WEB_IMAGE=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/gn-system-web" >> "$GITHUB_ENV"
 
       - name: Build and push app image
+        if: steps.release.outputs.mode == 'rc'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -109,6 +147,7 @@ jobs:
             ${{ env.APP_IMAGE }}:sha-${{ github.sha }}
 
       - name: Build and push web image
+        if: steps.release.outputs.mode == 'rc'
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -117,3 +156,46 @@ jobs:
           tags: |
             ${{ env.WEB_IMAGE }}:${{ github.ref_name }}
             ${{ env.WEB_IMAGE }}:sha-${{ github.sha }}
+
+      - name: Promote accepted RC images
+        if: steps.release.outputs.mode == 'stable'
+        env:
+          CANDIDATE_TAG: ${{ steps.release.outputs.candidate_tag }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          app_source="${APP_IMAGE}:${CANDIDATE_TAG}"
+          app_target="${APP_IMAGE}:${RELEASE_TAG}"
+          web_source="${WEB_IMAGE}:${CANDIDATE_TAG}"
+          web_target="${WEB_IMAGE}:${RELEASE_TAG}"
+
+          source_app_digest=$(docker buildx imagetools inspect "${app_source}" \
+            | awk '$1 == "Digest:" { print $2; exit }')
+          source_web_digest=$(docker buildx imagetools inspect "${web_source}" \
+            | awk '$1 == "Digest:" { print $2; exit }')
+
+          if [[ -z ${source_app_digest} || -z ${source_web_digest} ]]; then
+            echo "Accepted RC images are incomplete: ${CANDIDATE_TAG}" >&2
+            exit 1
+          fi
+
+          docker buildx imagetools create --tag "${app_target}" "${app_source}"
+          docker buildx imagetools create --tag "${web_target}" "${web_source}"
+
+          target_app_digest=$(docker buildx imagetools inspect "${app_target}" \
+            | awk '$1 == "Digest:" { print $2; exit }')
+          target_web_digest=$(docker buildx imagetools inspect "${web_target}" \
+            | awk '$1 == "Digest:" { print $2; exit }')
+
+          if [[ ${source_app_digest} != "${target_app_digest}" ]] \
+            || [[ ${source_web_digest} != "${target_web_digest}" ]]
+          then
+            echo "Stable image digests do not match the accepted RC." >&2
+            exit 1
+          fi
+
+          printf 'Promoted %s to %s\napp: %s\nweb: %s\n' \
+            "${CANDIDATE_TAG}" "${RELEASE_TAG}" \
+            "${target_app_digest}" "${target_web_digest}"

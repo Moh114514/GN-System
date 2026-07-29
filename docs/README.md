@@ -50,6 +50,8 @@ Accepted ADR 记录已经生效的长期决策。若 ADR 与代码不一致，�
 - [文档维护规则](development/documentation.md)
 - [测试与数据库隔离](development/testing.md)
 - [页面层级与返回导航](development/ui-navigation.md)
+- [UAT 测试版本与正式发布流程](operations/release-management.md)
+- [Phase 5 UAT 验收手册](operations/phase-five-uat-acceptance.md)
 - [局域网生产部署与恢复](operations/production-deployment.md)
 - Agent 工作规则见根目录 [AGENTS.md](../AGENTS.md)
 
