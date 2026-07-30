@@ -87,6 +87,7 @@ class ReferenceConfigurationImportTest extends TestCase
         $this->assertDatabaseCount('institutions', 0);
         $this->assertDatabaseCount('agents', 0);
 
+        app(ReferenceConfigurationImportParser::class)->parse($batch);
         Livewire::test(ReferenceConfigurationImportManager::class)
             ->set('selectedBatchId', $batch->id)
             ->assertSee('wire:click="commitBatch"', false)

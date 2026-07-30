@@ -47,7 +47,13 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->seed(PhaseTwoReferenceDataSeeder::class);
         $this->user = User::factory()->create();
         $this->institutionId = (int) DB::table('institutions')->value('id');
-        $sourceId = (int) DB::table('direct_sales_sources')->value('id');
+        $sourceId = (int) DB::table('direct_sales_sources')->insertGetId([
+            'code' => 'P6WEB',
+            'name' => 'Phase Six Web',
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
         $statusId = (int) CustomerStatus::query()->where('key', 'interested')->value('id');
         $this->customer = Customer::query()->create([
             'code' => 'WEB-000001',

@@ -71,7 +71,7 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
             ))
             ->count();
         $sourceDistribution = Customer::query()
-            ->whereBetween('created_at', [$from, $to])
+            ->whereBetween('customers.created_at', [$from, $to])
             ->leftJoin('direct_sales_sources as source', 'source.id', '=', 'customers.source_direct_sales_id')
             ->select([
                 'customers.original_channel',
