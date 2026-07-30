@@ -28,6 +28,7 @@ final readonly class DatabaseCommissionConfigurationGateway implements Commissio
         CarbonImmutable $effectiveMonth,
         int $actorId,
         ?string $ipAddress,
+        bool $isActive = true,
     ): void {
         $month = $this->validateMonthAndRate($effectiveMonth, $rateBps);
         $rule = CommissionRule::query()->where([
@@ -44,7 +45,7 @@ final readonly class DatabaseCommissionConfigurationGateway implements Commissio
             'institution_id' => $institutionId,
             'effective_month' => $month,
         ]);
-        $rule->fill(['rate_bps' => $rateBps, 'is_active' => true])->save();
+        $rule->fill(['rate_bps' => $rateBps, 'is_active' => $isActive])->save();
         $this->audit->record(
             description: '机构推广费率已保存',
             properties: ['before' => $before, 'after' => $rule->only(['rate_bps', 'effective_month', 'is_active'])],

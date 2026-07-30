@@ -32,7 +32,7 @@
                         <flux:icon.building-office aria-hidden="true" />
                         <span>代理商</span>
                     </a>
-                    <a href="{{ route('configuration.index') }}" class="crm-nav-item {{ request()->routeIs('configuration.*', 'agent-configuration.*', 'customer-statuses.*', 'reminder-configuration.*') ? 'is-active' : '' }}" wire:navigate>
+                    <a href="{{ route('configuration.index') }}" class="crm-nav-item {{ request()->routeIs('configuration.*', 'agent-configuration.*', 'customer-statuses.*', 'reminder-configuration.*', 'reference-configuration-imports.*') ? 'is-active' : '' }}" wire:navigate>
                         <flux:icon.cog-6-tooth aria-hidden="true" />
                         <span>配置中心</span>
                     </a>

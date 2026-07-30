@@ -39,7 +39,10 @@ Infrastructure 或模块内 Application Service 可以实现 Application Contrac
 
 ## 跨模块协作
 
-DataImport 使用同步 Application Contract 协调历史导入。Phase 3 Customer 使用
+DataImport 使用同步 Application Contract 协调历史导入和基础配置导入。基础配置
+批次按 Config/Customer/Agent 的字典、Agent 政策等级、Settlement 机构费率、Agent
+档案与等级分配的顺序，在一个事务中调用各数据所有者契约；DataImport 不直接写入
+这些模块的数据表。Phase 3 Customer 使用
 最小同步 Contract 读取 Agent/Config 引用数据、聚合 Order/Reminder/Audit 详情，
 并在建档事务中调用 Order 首次预约和 Audit 审计写入。各数据所有者仍只写自己的表。
 

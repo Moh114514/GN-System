@@ -39,7 +39,7 @@ final readonly class ImportBatchCommitter
 
     public function dryRun(ImportBatch $batch, int $limit = 100): void
     {
-        if ($batch->status !== ImportBatchStatus::Validated) {
+        if (($batch->kind ?? 'historical') !== 'historical' || $batch->status !== ImportBatchStatus::Validated) {
             throw new RuntimeException('只有已验证批次可以执行事务预演。');
         }
 
@@ -73,7 +73,7 @@ final readonly class ImportBatchCommitter
 
     public function commit(ImportBatch $batch): void
     {
-        if ($batch->status !== ImportBatchStatus::Validated) {
+        if (($batch->kind ?? 'historical') !== 'historical' || $batch->status !== ImportBatchStatus::Validated) {
             throw new RuntimeException('只有零错误、零待处理项的已验证批次可以正式导入。');
         }
 

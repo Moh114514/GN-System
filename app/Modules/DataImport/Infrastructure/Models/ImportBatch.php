@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property string $id
  * @property int $created_by
+ * @property string $kind
  * @property ImportBatchStatus $status
  * @property int $total_rows
  * @property int $valid_rows

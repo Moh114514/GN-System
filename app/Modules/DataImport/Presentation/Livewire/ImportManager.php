@@ -83,6 +83,7 @@ class ImportManager extends Component
 
         $batch = ImportBatch::query()->create([
             'created_by' => $userId,
+            'kind' => 'historical',
             'status' => ImportBatchStatus::Uploaded,
         ]);
 
@@ -183,7 +184,7 @@ class ImportManager extends Component
         session()->flash('status', '该行已人工裁决为忽略，并写入审计记录。');
     }
 
-    public function commit(ImportBatchCommitter $committer): void
+    public function commitBatch(ImportBatchCommitter $committer): void
     {
         $batch = $this->ownedBatch();
         $committer->commit($batch);
@@ -248,6 +249,7 @@ class ImportManager extends Component
     public function batches(): Collection
     {
         return ImportBatch::query()
+            ->where('kind', 'historical')
             ->withCount('files')
             ->latest()
             ->limit(20)
@@ -262,6 +264,7 @@ class ImportManager extends Component
         }
 
         return ImportBatch::query()
+            ->where('kind', 'historical')
             ->with(['files', 'rows' => fn ($query) => $query->orderBy('id')->limit(50)])
             ->find($this->selectedBatchId);
     }
@@ -285,6 +288,8 @@ class ImportManager extends Component
     {
         abort_if($this->selectedBatchId === null, 404);
 
-        return ImportBatch::query()->findOrFail($this->selectedBatchId);
+        return ImportBatch::query()
+            ->where('kind', 'historical')
+            ->findOrFail($this->selectedBatchId);
     }
 }

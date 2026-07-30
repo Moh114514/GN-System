@@ -4,6 +4,7 @@ namespace App\Modules\DataImport;
 
 use App\Modules\DataImport\Console\PurgeExpiredImportsCommand;
 use App\Modules\DataImport\Presentation\Livewire\ImportManager;
+use App\Modules\DataImport\Presentation\Livewire\ReferenceConfigurationImportManager;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
@@ -20,9 +21,11 @@ class DataImportServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        Route::middleware(['web', 'auth', 'verified', 'super-admin', 'super-admin.2fa'])
-            ->get('/admin/data-imports', ImportManager::class)
-            ->name('data-imports.index');
+        Route::middleware(['web', 'auth', 'verified', 'super-admin', 'super-admin.2fa'])->group(function (): void {
+            Route::get('/admin/data-imports', ImportManager::class)->name('data-imports.index');
+            Route::get('/admin/reference-configuration-imports', ReferenceConfigurationImportManager::class)
+                ->name('reference-configuration-imports.index');
+        });
 
         if ($this->app->runningInConsole()) {
             $this->commands([PurgeExpiredImportsCommand::class]);
