@@ -38,6 +38,8 @@ class AgentConfiguration extends Component
 
     public string $gradeSortOrder = '0';
 
+    public string $gradeListSort = 'configured';
+
     public string $ruleGradeId = '';
 
     public string $ruleInstitutionId = '';
@@ -45,6 +47,8 @@ class AgentConfiguration extends Component
     public string $ruleRateBps = '';
 
     public string $ruleEffectiveMonth = '';
+
+    public string $ruleListSort = 'effective_desc';
 
     public string $overrideAgentId = '';
 
@@ -55,6 +59,8 @@ class AgentConfiguration extends Component
     public string $overrideEffectiveMonth = '';
 
     public string $overrideReason = '';
+
+    public string $overrideListSort = 'effective_desc';
 
     public function mount(): void
     {
@@ -172,7 +178,13 @@ class AgentConfiguration extends Component
 
     public function render(AgentConfigurationCoordinator $coordinator): View
     {
-        return view('livewire.agents.agent-configuration', ['state' => $coordinator->state()]);
+        return view('livewire.agents.agent-configuration', [
+            'state' => $coordinator->state(
+                $this->gradeListSort,
+                $this->ruleListSort,
+                $this->overrideListSort,
+            ),
+        ]);
     }
 
     private function run(\Closure $operation, string $success): void

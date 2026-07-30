@@ -79,9 +79,14 @@ final readonly class CustomerStatusManager
 
         return CustomerLifecycleStage::query()
             ->orderBy('sort_order')
+            ->orderBy('key')
             ->get()
             ->map(function (CustomerLifecycleStage $stage) use ($transitions): array {
-                $statuses = CustomerStatus::query()->where('stage_id', $stage->id)->orderBy('sort_order')->get();
+                $statuses = CustomerStatus::query()
+                    ->where('stage_id', $stage->id)
+                    ->orderBy('sort_order')
+                    ->orderBy('key')
+                    ->get();
 
                 return [
                     'id' => $stage->id,
