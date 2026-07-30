@@ -16,7 +16,9 @@ use App\Modules\Report\Application\Services\DashboardRangeFactory;
 use App\Modules\Report\Application\Services\DashboardService;
 use App\Modules\Report\Application\Services\ReportExportManager;
 use App\Modules\Report\Application\Services\ReportSearch;
+use App\Modules\Report\Infrastructure\Models\ReportExport;
 use App\Modules\Report\Jobs\GenerateReportExport;
+use App\Modules\Report\Presentation\Livewire\Dashboard;
 use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
@@ -28,6 +30,7 @@ use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Livewire;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
@@ -227,7 +230,22 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->assertOk()
             ->assertSee('数据看板')
             ->assertSee('代理商推广费排行')
+            ->assertSee('data-dashboard-chart', false)
             ->assertDontSee('演示数据');
+
+        foreach (['html', 'pdf'] as $format) {
+            $component = Livewire::actingAs($this->user)->test(Dashboard::class);
+            $component->call('export', $format);
+            $componentExport = ReportExport::query()
+                ->where('created_by', $this->user->id)
+                ->where('kind', 'dashboard')
+                ->where('format', $format)
+                ->latest('id')
+                ->firstOrFail();
+
+            $component->assertRedirect(route('reports.exports.download', $componentExport));
+            Storage::disk('local')->assertExists($componentExport->path);
+        }
     }
 
     public function test_configuration_catalog_user_safeguards_and_customer_snapshot_rollback(): void

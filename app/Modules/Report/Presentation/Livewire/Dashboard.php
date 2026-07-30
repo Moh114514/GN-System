@@ -8,7 +8,6 @@ use App\Modules\Report\Application\Services\DashboardRangeFactory;
 use App\Modules\Report\Application\Services\DashboardService;
 use DomainException;
 use Illuminate\Contracts\View\View;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
@@ -57,11 +56,11 @@ class Dashboard extends Component
     public function export(
         string $format,
         DashboardExportGenerator $generator,
-    ): RedirectResponse {
+    ): void {
         abort_if($this->snapshot === [], 422);
         $export = $generator->generate($this->user(), $format, $this->snapshot);
 
-        return redirect()->route('reports.exports.download', $export);
+        $this->redirectRoute('reports.exports.download', ['export' => $export]);
     }
 
     public function render(): View
