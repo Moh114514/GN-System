@@ -302,6 +302,14 @@ final readonly class SpreadsheetImportParser
                 ImportProfile::MonthlyDetail => $this->normalizeMonthlyDetail($raw),
                 ImportProfile::SettlementSummary => $this->normalizeSettlementSummary($raw),
                 ImportProfile::Codebook => [ImportRowStatus::Ignored, [], []],
+                ImportProfile::AgentType,
+                ImportProfile::Institution,
+                ImportProfile::DirectSalesSource,
+                ImportProfile::PolicySystem,
+                ImportProfile::PolicyGrade,
+                ImportProfile::CommissionRule,
+                ImportProfile::Agent,
+                ImportProfile::GradeAssignment => throw new InvalidArgumentException('基础配置工作表必须使用独立的基础配置导入页面。'),
             };
         } catch (Throwable $exception) {
             return [ImportRowStatus::Error, [], [$exception->getMessage()]];

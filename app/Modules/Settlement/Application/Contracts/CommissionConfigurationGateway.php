@@ -16,6 +16,7 @@ interface CommissionConfigurationGateway
         CarbonImmutable $effectiveMonth,
         int $actorId,
         ?string $ipAddress,
+        bool $isActive = true,
     ): void;
 
     public function saveOverride(

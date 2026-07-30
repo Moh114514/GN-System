@@ -28,7 +28,7 @@ final readonly class ImportBatchRollback
 
     public function rollback(ImportBatch $batch, int $userId): void
     {
-        if (! $batch->canRollback()) {
+        if (($batch->kind ?? 'historical') !== 'historical' || ! $batch->canRollback()) {
             throw new RuntimeException('该批次不在允许回滚的 24 小时窗口内。');
         }
 
