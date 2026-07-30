@@ -183,7 +183,7 @@ class ImportManager extends Component
         session()->flash('status', '该行已人工裁决为忽略，并写入审计记录。');
     }
 
-    public function commit(ImportBatchCommitter $committer): void
+    public function commitBatch(ImportBatchCommitter $committer): void
     {
         $batch = $this->ownedBatch();
         $committer->commit($batch);

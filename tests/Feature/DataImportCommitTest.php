@@ -11,8 +11,10 @@ use App\Modules\DataImport\Domain\ImportRowStatus;
 use App\Modules\DataImport\Infrastructure\Models\ImportBatch;
 use App\Modules\DataImport\Infrastructure\Models\ImportFile;
 use App\Modules\DataImport\Infrastructure\Models\ImportRow;
+use App\Modules\DataImport\Presentation\Livewire\ImportManager;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 use RuntimeException;
 use Tests\TestCase;
 
@@ -34,9 +36,27 @@ class DataImportCommitTest extends TestCase
         $this->assertDatabaseCount('agents', 0);
         $this->assertDatabaseCount('orders', 0);
 
-        $committer->commit($batch->fresh());
+        $this->actingAs($user);
+        $statusChanges = [];
+        ImportBatch::updated(function (ImportBatch $updatedBatch) use ($batch, &$statusChanges): void {
+            if ($updatedBatch->id === $batch->id && $updatedBatch->wasChanged('status')) {
+                $statusChanges[] = $updatedBatch->status;
+            }
+        });
 
+        Livewire::test(ImportManager::class)
+            ->set('selectedBatchId', $batch->id)
+            ->assertSee('wire:click="commitBatch"', false)
+            ->assertDontSee('wire:click="commit"', false)
+            ->call('commitBatch')
+            ->assertHasNoErrors();
+
+        $this->assertSame(
+            [ImportBatchStatus::Committing, ImportBatchStatus::Completed],
+            $statusChanges,
+        );
         $this->assertSame(ImportBatchStatus::Completed, $batch->fresh()->status);
+        $this->assertNotNull($batch->fresh()->completed_at);
         $this->assertDatabaseHas('agents', ['code' => 'SZ-JG']);
         $this->assertDatabaseHas('customers', ['code' => 'SZ-JG-0001']);
         $this->assertDatabaseHas('orders', ['amount_krw' => 12000000, 'channel' => 'agent']);
