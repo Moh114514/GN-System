@@ -43,6 +43,12 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, TwoFactorAuthenticatable;
 
+    protected $attributes = [
+        'is_active' => true,
+        'session_version' => 1,
+        'invitation_status' => 'accepted',
+    ];
+
     /**
      * Get the attributes that should be cast.
      *
