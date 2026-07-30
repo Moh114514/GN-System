@@ -65,8 +65,11 @@
         <table class="charts">
             <thead><tr><th>项目</th><th>数值</th></tr></thead>
             <tbody>
-                @forelse ($rows as $row)<tr><td>{{ $row['key'] }}</td><td>{{ $row['value'] }}</td></tr>
-                @empty<tr><td colspan="2">暂无数据</td></tr>@endforelse
+                @forelse ($rows as $row)
+                    <tr><td>{{ $row['key'] }}</td><td>{{ $row['value'] }}</td></tr>
+                @empty
+                    <tr><td colspan="2">暂无数据</td></tr>
+                @endforelse
             </tbody>
         </table>
     @endforeach
