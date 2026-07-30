@@ -16,7 +16,7 @@
     </style>
 </head>
 <body>
-    @php
+    <?php
         $metricLabels = [
             'new_customers' => '新增客户', 'completed_amount' => '成交金额',
             'revenue' => '营收', 'active_customers' => '在跟进客户',
@@ -28,50 +28,52 @@
             'monthly_consumption' => '月度消费趋势', 'repurchase_rate' => '复购率',
             'followup_completion_rate' => '跟进完成率', 'institution_revenue' => '机构营收对比',
         ];
-    @endphp
+    ?>
     <h1>GN-System 数据看板</h1>
     <p class="meta">
         区间：{{ $snapshot['range']['label'] }}（{{ $snapshot['range']['from'] }} 至 {{ $snapshot['range']['to'] }}）；
         生成时间：{{ $snapshot['generated_at'] }}
     </p>
     <table class="metrics">
-        @foreach (array_chunk(array_keys($metricLabels), 3) as $keys)
+        <?php foreach (array_chunk(array_keys($metricLabels), 3) as $keys): ?>
             <tr>
-                @foreach ($keys as $key)
-                    @php($metric = $snapshot['metrics'][$key])
+                <?php foreach ($keys as $key): ?>
+                    <?php $metric = $snapshot['metrics'][$key]; ?>
                     <td>
                         <div class="label">{{ $metricLabels[$key] }}</div>
                         <div class="value">{{ number_format($metric['value']) }}</div>
                         <div>环比 {{ $metric['change'] === null ? '—' : number_format($metric['change'], 2).'%' }}</div>
                     </td>
-                @endforeach
+                <?php endforeach; ?>
             </tr>
-        @endforeach
+        <?php endforeach; ?>
     </table>
-    @foreach ($chartLabels as $key => $label)
-        @php
+    <?php foreach ($chartLabels as $key => $label): ?>
+        <?php
             $rows = $snapshot['charts'][$key];
             $maximum = max(1, ...array_map(fn ($row) => (float) $row['value'], $rows));
-        @endphp
+        ?>
         <div class="chart-title">{{ $label }}</div>
         <svg width="720" height="{{ max(36, count($rows) * 28) }}" viewBox="0 0 720 {{ max(36, count($rows) * 28) }}">
-            @foreach ($rows as $index => $row)
+            <?php foreach ($rows as $index => $row): ?>
                 <rect class="bar-bg" x="160" y="{{ $index * 28 + 5 }}" width="480" height="16" rx="3" />
                 <rect class="bar" x="160" y="{{ $index * 28 + 5 }}" width="{{ 480 * ((float) $row['value'] / $maximum) }}" height="16" rx="3" />
                 <text x="0" y="{{ $index * 28 + 17 }}">{{ $row['key'] }}</text>
                 <text x="650" y="{{ $index * 28 + 17 }}">{{ number_format($row['value'], 2) }}</text>
-            @endforeach
+            <?php endforeach; ?>
         </svg>
         <table class="charts">
             <thead><tr><th>项目</th><th>数值</th></tr></thead>
             <tbody>
-                @forelse ($rows as $row)
-                    <tr><td>{{ $row['key'] }}</td><td>{{ $row['value'] }}</td></tr>
-                @empty
+                <?php if ($rows === []): ?>
                     <tr><td colspan="2">暂无数据</td></tr>
-                @endforelse
+                <?php else: ?>
+                    <?php foreach ($rows as $row): ?>
+                    <tr><td>{{ $row['key'] }}</td><td>{{ $row['value'] }}</td></tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
             </tbody>
         </table>
-    @endforeach
+    <?php endforeach; ?>
 </body>
 </html>
