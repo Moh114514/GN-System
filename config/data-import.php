@@ -6,4 +6,5 @@ return [
     'failed_retention_days' => 7,
     'blind_index_key' => env('BLIND_INDEX_KEY', env('APP_KEY')),
     'allowed_extensions' => ['xlsx', 'xls', 'csv'],
+    'structure_template_marker' => 'GN-System 历史数据导入结构示例（不可导入）',
 ];

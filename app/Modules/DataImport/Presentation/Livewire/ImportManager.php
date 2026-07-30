@@ -5,7 +5,9 @@ namespace App\Modules\DataImport\Presentation\Livewire;
 use App\Modules\DataImport\Application\Services\ImportBatchCommitter;
 use App\Modules\DataImport\Application\Services\ImportBatchRollback;
 use App\Modules\DataImport\Application\Services\ImportReferenceManager;
+use App\Modules\DataImport\Application\Services\ImportReferenceReadiness;
 use App\Modules\DataImport\Application\Services\ImportRowAdjudicator;
+use App\Modules\DataImport\Application\Services\ImportTemplateGenerator;
 use App\Modules\DataImport\Domain\ImportBatchStatus;
 use App\Modules\DataImport\Infrastructure\EncryptedImportStorage;
 use App\Modules\DataImport\Infrastructure\Models\ImportBatch;
@@ -53,8 +55,10 @@ class ImportManager extends Component
         return view('livewire.data-imports.import-manager');
     }
 
-    public function stageUploads(EncryptedImportStorage $storage): void
-    {
+    public function stageUploads(
+        EncryptedImportStorage $storage,
+        ImportReferenceReadiness $readiness,
+    ): void {
         $this->validate([
             'uploads' => ['required', 'array', 'min:1', 'max:5'],
             'uploads.*' => [
@@ -63,6 +67,16 @@ class ImportManager extends Component
                 'max:'.config('data-import.max_file_kilobytes'),
             ],
         ]);
+
+        $referenceState = $readiness->inspect();
+        if (! $referenceState['ready']) {
+            $this->addError(
+                'uploads',
+                '导入基础数据未就绪：'.implode('、', $referenceState['issues']).'。',
+            );
+
+            return;
+        }
 
         $userId = Auth::id();
         abort_unless(is_int($userId), 403);
@@ -92,6 +106,20 @@ class ImportManager extends Component
         unset($this->batches, $this->selectedBatch);
 
         session()->flash('status', '文件已加密上传，正在解析和校验。');
+    }
+
+    public function downloadStructureExample(ImportTemplateGenerator $templates): BinaryFileResponse
+    {
+        return response()
+            ->download($templates->structureExample(), '历史数据导入-结构示例.xlsx')
+            ->deleteFileAfterSend();
+    }
+
+    public function downloadImportableSimulation(ImportTemplateGenerator $templates): BinaryFileResponse
+    {
+        return response()
+            ->download($templates->importableSimulation(), '历史数据导入-可导入模拟数据.xlsx')
+            ->deleteFileAfterSend();
     }
 
     public function selectBatch(string $batchId): void
@@ -236,6 +264,21 @@ class ImportManager extends Component
         return ImportBatch::query()
             ->with(['files', 'rows' => fn ($query) => $query->orderBy('id')->limit(50)])
             ->find($this->selectedBatchId);
+    }
+
+    /**
+     * @return array{
+     *     ready: bool,
+     *     issues: array<int, string>,
+     *     agent_types: array<int, array{code: string, name: string}>,
+     *     institutions: array<int, array{code: string, name: string}>,
+     *     direct_sales_sources: array<int, array{code: string, name: string}>
+     * }
+     */
+    #[Computed]
+    public function referenceReadiness(): array
+    {
+        return app(ImportReferenceReadiness::class)->inspect();
     }
 
     private function ownedBatch(): ImportBatch

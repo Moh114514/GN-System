@@ -16,6 +16,19 @@ final readonly class DatabaseAgentImportGateway implements AgentImportGateway
 {
     public function __construct(private AgentCodeNormalizer $normalizer) {}
 
+    public function activeAgentTypes(): array
+    {
+        return AgentTypeCode::query()
+            ->where('is_active', true)
+            ->orderBy('code')
+            ->get(['code', 'name'])
+            ->map(fn (AgentTypeCode $type): array => [
+                'code' => $type->code,
+                'name' => $type->name,
+            ])
+            ->all();
+    }
+
     public function normalizeAgentCode(string $code): string
     {
         return $this->normalizer->agent($code);

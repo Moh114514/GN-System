@@ -16,10 +16,21 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property string $encrypted_path
  * @property string|null $profile
  * @property string $status
+ * @property array<string, mixed>|null $preflight
  */
 class ImportFile extends Model
 {
     protected $guarded = [];
+
+    /**
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return [
+            'preflight' => 'array',
+        ];
+    }
 
     /** @return BelongsTo<ImportBatch, $this> */
     public function batch(): BelongsTo
