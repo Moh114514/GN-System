@@ -93,11 +93,14 @@ final readonly class DashboardService
         $institutionNames = $this->config->institutionNamesByIds(array_column($current['order']['institution_revenue'], 'institution_id'));
         $taskCustomerNames = $this->customers->namesByIds(array_column($current['reminder']['today_tasks'], 'customer_id'));
         $ownerNames = $this->users->namesByIds(array_column($current['customer']['recent_customers'], 'owner_id'));
-        $monthlyOrders = collect($current['order']['monthly_orders'])->keyBy('key');
+        $monthlyOrders = [];
+        foreach ($current['order']['monthly_orders'] as $monthlyOrder) {
+            $monthlyOrders[(string) $monthlyOrder['key']] = (int) $monthlyOrder['value'];
+        }
         $monthlyTrend = array_map(fn (array $row): array => [
             'key' => $row['key'],
             'value' => $row['value'],
-            'orders' => (int) data_get($monthlyOrders->get($row['key']), 'value', 0),
+            'orders' => $monthlyOrders[$row['key']] ?? 0,
         ], $current['order']['monthly_consumption']);
 
         return new DashboardSnapshotData(

@@ -106,13 +106,14 @@ final class DatabaseReportOrderReader implements ReportOrderReader
      */
     private function lifecycle(CarbonImmutable $to): array
     {
-        $repeatCustomers = Order::query()
+        $repeatCustomerQuery = DB::table('orders')
             ->where('status', 'completed')
             ->where('completed_at', '<=', $to)
             ->select('customer_id')
             ->groupBy('customer_id')
-            ->havingRaw('COUNT(*) >= 2')
-            ->get()
+            ->havingRaw('COUNT(*) >= 2');
+        $repeatCustomers = DB::query()
+            ->fromSub($repeatCustomerQuery, 'repeat_customers')
             ->count();
 
         return [
