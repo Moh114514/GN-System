@@ -22,7 +22,9 @@ interface ReportOrderReader
      *   completed_amount: int,
      *   repurchase_rate: float,
      *   monthly_consumption: array<int, array{key: string, value: int}>,
-     *   institution_revenue: array<int, array{institution_id: int, value: int}>
+     *   monthly_orders: array<int, array{key: string, value: int}>,
+     *   institution_revenue: array<int, array{institution_id: int, value: int}>,
+     *   lifecycle: array{appointed_customers: int, repeat_customers: int}
      * }
      */
     public function dashboard(CarbonImmutable $from, CarbonImmutable $to): array;

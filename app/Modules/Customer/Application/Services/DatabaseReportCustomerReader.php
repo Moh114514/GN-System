@@ -55,6 +55,14 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
     public function dashboard(CarbonImmutable $from, CarbonImmutable $to): array
     {
         $newCustomers = Customer::query()->whereBetween('created_at', [$from, $to])->count();
+        $totalCustomers = Customer::query()->where('created_at', '<=', $to)->count();
+        $arrivedCustomers = DB::table('customers')
+            ->join('customer_statuses as status', 'status.id', '=', 'customers.current_status_id')
+            ->join('customer_lifecycle_stages as stage', 'stage.id', '=', 'status.stage_id')
+            ->where('customers.created_at', '<=', $to)
+            ->where('stage.sort_order', '>=', 30)
+            ->distinct('customers.id')
+            ->count('customers.id');
         $lostStatusId = DB::table('customer_statuses')->where('key', 'lost')->value('id');
         $activeCustomers = Customer::query()
             ->where('created_at', '<=', $to)
@@ -97,11 +105,47 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
                 'value' => (int) $row->getAttribute('value'),
             ])
             ->all();
+        $recentCustomers = Customer::query()
+            ->where('customers.created_at', '<=', $to)
+            ->leftJoin('customer_statuses as status', 'status.id', '=', 'customers.current_status_id')
+            ->leftJoin('direct_sales_sources as source', 'source.id', '=', 'customers.source_direct_sales_id')
+            ->orderByDesc('customers.created_at')
+            ->orderByDesc('customers.id')
+            ->limit(5)
+            ->get([
+                'customers.id',
+                'customers.code',
+                'customers.name',
+                'customers.original_channel',
+                'customers.source_agent_id',
+                'customers.source_direct_sales_id',
+                'customers.owner_id',
+                'customers.created_at',
+                'status.key as status_key',
+                'status.name as status_name',
+                'source.name as source_name',
+            ])
+            ->map(fn (Customer $customer): array => [
+                'id' => (int) $customer->id,
+                'code' => (string) $customer->code,
+                'name' => (string) $customer->name,
+                'source_type' => (string) $customer->original_channel,
+                'source_id' => (int) ($customer->source_agent_id ?? $customer->source_direct_sales_id),
+                'source_name' => (string) ($customer->getAttribute('source_name') ?: '未知直销来源'),
+                'status_key' => (string) ($customer->getAttribute('status_key') ?: 'registered'),
+                'status_name' => (string) ($customer->getAttribute('status_name') ?: '建档'),
+                'owner_id' => (int) ($customer->owner_id ?? 0),
+                'created_on' => $customer->created_at?->setTimezone('Asia/Shanghai')->toDateString() ?? '',
+            ])
+            ->all();
 
         return [
             'new_customers' => $newCustomers,
             'active_customers' => $activeCustomers,
+            'total_customers' => $totalCustomers,
+            'arrived_customers' => $arrivedCustomers,
             'source_distribution' => $sourceDistribution,
+            'recent_customers' => $recentCustomers,
         ];
     }
 }

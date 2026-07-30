@@ -4,6 +4,8 @@ namespace App\Modules\Settlement\Application\Services;
 
 use App\Modules\Settlement\Application\Contracts\ReportSettlementReader;
 use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
+use App\Modules\Settlement\Infrastructure\Models\Settlement;
+use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -47,6 +49,61 @@ final class DatabaseReportSettlementReader implements ReportSettlementReader
             'monthly_promotion' => collect($monthly)
                 ->map(fn ($value, $key): array => ['key' => (string) $key, 'value' => (int) $value])
                 ->values()->all(),
+            'progress' => $this->progress($asOf),
+        ];
+    }
+
+    /**
+     * @return array{
+     *   percentage: float,
+     *   settled_amount: int,
+     *   review_amount: int,
+     *   pending_amount: int,
+     *   expected_amount: int,
+     *   period_start: string,
+     *   period_end: string
+     * }
+     */
+    private function progress(CarbonImmutable $asOf): array
+    {
+        $run = SettlementRun::query()
+            ->whereDate('period_end', '<=', $asOf->toDateString())
+            ->latest('period_end')
+            ->first();
+        if ($run === null) {
+            return [
+                'percentage' => 0.0,
+                'settled_amount' => 0,
+                'review_amount' => 0,
+                'pending_amount' => 0,
+                'expected_amount' => 0,
+                'period_start' => $asOf->startOfMonth()->toDateString(),
+                'period_end' => $asOf->endOfMonth()->toDateString(),
+            ];
+        }
+
+        $settlements = Settlement::query()->where('settlement_run_id', $run->id)->get();
+        $settledAmount = (int) $settlements
+            ->whereIn('status', ['settled', 'paid'])
+            ->sum('total_commission_krw');
+        $reviewAmount = (int) $settlements
+            ->whereIn('status', ['pending_review', 'rejected'])
+            ->sum('total_commission_krw');
+        $pendingAmount = (int) $settlements
+            ->where('status', 'approved')
+            ->sum('total_commission_krw');
+        $expectedAmount = (int) $settlements->sum('total_commission_krw');
+
+        return [
+            'percentage' => $expectedAmount === 0
+                ? 0.0
+                : round($settledAmount / $expectedAmount * 100, 1),
+            'settled_amount' => $settledAmount,
+            'review_amount' => $reviewAmount,
+            'pending_amount' => $pendingAmount,
+            'expected_amount' => $expectedAmount,
+            'period_start' => $run->period_start->toDateString(),
+            'period_end' => $run->period_end->toDateString(),
         ];
     }
 }

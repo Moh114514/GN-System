@@ -3,6 +3,7 @@
 namespace App\Modules\Order\Application\Services;
 
 use App\Modules\Order\Application\Contracts\ReportOrderReader;
+use App\Modules\Order\Infrastructure\Models\Appointment;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Report\Application\Data\ReportOrderData;
 use App\Modules\Report\Application\Data\ReportPageData;
@@ -69,6 +70,16 @@ final class DatabaseReportOrderReader implements ReportOrderReader
                 'key' => (string) $row->getAttribute('key'),
                 'value' => (int) $row->getAttribute('value'),
             ])->all();
+        $monthlyOrders = (clone $base)
+            ->selectRaw("TO_CHAR(DATE_TRUNC('month', completed_at), 'YYYY-MM') AS key")
+            ->selectRaw('COUNT(*)::int AS value')
+            ->groupByRaw("DATE_TRUNC('month', completed_at)")
+            ->orderByRaw("DATE_TRUNC('month', completed_at)")
+            ->get()
+            ->map(fn (Order $row): array => [
+                'key' => (string) $row->getAttribute('key'),
+                'value' => (int) $row->getAttribute('value'),
+            ])->all();
         $institutions = (clone $base)
             ->select('institution_id')
             ->selectRaw('SUM(amount_krw)::bigint AS value')
@@ -84,7 +95,33 @@ final class DatabaseReportOrderReader implements ReportOrderReader
             'completed_amount' => $amount,
             'repurchase_rate' => $purchasers === 0 ? 0.0 : round($repeaters / $purchasers * 100, 2),
             'monthly_consumption' => $monthly,
+            'monthly_orders' => $monthlyOrders,
             'institution_revenue' => $institutions,
+            'lifecycle' => $this->lifecycle($to),
+        ];
+    }
+
+    /**
+     * @return array{appointed_customers: int, repeat_customers: int}
+     */
+    private function lifecycle(CarbonImmutable $to): array
+    {
+        $repeatCustomers = Order::query()
+            ->where('status', 'completed')
+            ->where('completed_at', '<=', $to)
+            ->select('customer_id')
+            ->groupBy('customer_id')
+            ->havingRaw('COUNT(*) >= 2')
+            ->get()
+            ->count();
+
+        return [
+            'appointed_customers' => Appointment::query()
+                ->whereNotNull('scheduled_at')
+                ->where('scheduled_at', '<=', $to)
+                ->distinct('customer_id')
+                ->count('customer_id'),
+            'repeat_customers' => $repeatCustomers,
         ];
     }
 

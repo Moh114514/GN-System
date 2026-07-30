@@ -35,8 +35,47 @@ function renderDashboardCharts() {
         const isPie = ['grade_distribution', 'source_distribution'].includes(key);
         const isLine = ['monthly_promotion', 'monthly_consumption'].includes(key);
         const isRate = ['repurchase_rate', 'followup_completion_rate'].includes(key);
+        const isRevenueOrders = key === 'monthly_revenue_orders';
         const palette = [colors.primary, colors.blue, '#8b5cf6', '#f59e0b', '#10b981', '#ef4444'];
-        chart.setOption(isPie ? {
+        chart.setOption(isRevenueOrders ? {
+            tooltip: { trigger: 'axis' },
+            grid: { left: 68, right: 48, top: 22, bottom: 42 },
+            xAxis: {
+                type: 'category',
+                data: categories,
+                axisLine: { lineStyle: { color: colors.line } },
+                axisLabel: { color: colors.muted },
+            },
+            yAxis: [{
+                type: 'value',
+                splitLine: { lineStyle: { color: colors.line, type: 'dashed' } },
+                axisLabel: {
+                    color: colors.muted,
+                    formatter: (value) => Number(value).toLocaleString(),
+                },
+            }, {
+                type: 'value',
+                splitLine: { show: false },
+                axisLabel: { color: colors.muted },
+                minInterval: 1,
+            }],
+            series: [{
+                name: '营收（KRW）',
+                type: 'bar',
+                data,
+                barMaxWidth: 34,
+                itemStyle: { color: colors.primary, borderRadius: [5, 5, 0, 0] },
+            }, {
+                name: '订单数（单）',
+                type: 'line',
+                yAxisIndex: 1,
+                data: values.map((row) => row.orders),
+                smooth: true,
+                symbolSize: 7,
+                itemStyle: { color: colors.blue },
+                lineStyle: { width: 3, color: colors.blue },
+            }],
+        } : isPie ? {
             color: palette,
             tooltip: { trigger: 'item', valueFormatter: (value) => Number(value).toLocaleString() },
             legend: { bottom: 0, textStyle: { color: colors.muted } },

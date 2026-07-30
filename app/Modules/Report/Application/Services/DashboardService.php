@@ -3,6 +3,7 @@
 namespace App\Modules\Report\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\ReportAgentReader;
+use App\Modules\Auth\Application\Contracts\ReportUserReader;
 use App\Modules\Config\Application\Contracts\ReportConfigReader;
 use App\Modules\Customer\Application\Contracts\ReportCustomerReader;
 use App\Modules\Order\Application\Contracts\ReportOrderReader;
@@ -24,6 +25,7 @@ final readonly class DashboardService
         private ReportConfigReader $config,
         private ReportSettlementReader $settlements,
         private ReportReminderReader $reminders,
+        private ReportUserReader $users,
     ) {}
 
     public function refreshSeconds(): int
@@ -33,7 +35,7 @@ final readonly class DashboardService
 
     public function snapshot(DashboardRangeData $range, bool $force = false): DashboardSnapshotData
     {
-        $key = 'report:dashboard:'.hash('sha256', $range->from->toIso8601String().'|'.$range->to->toIso8601String());
+        $key = 'report:dashboard:v2:'.hash('sha256', $range->from->toIso8601String().'|'.$range->to->toIso8601String());
         if ($force) {
             try {
                 Cache::forget($key);
@@ -79,9 +81,24 @@ final readonly class DashboardService
                 ),
                 'source_id',
             ),
+            ...array_column(
+                array_filter(
+                    $current['customer']['recent_customers'],
+                    fn (array $row): bool => $row['source_type'] === 'agent',
+                ),
+                'source_id',
+            ),
         ];
         $agentNames = $this->agents->namesByIds($agentIds);
         $institutionNames = $this->config->institutionNamesByIds(array_column($current['order']['institution_revenue'], 'institution_id'));
+        $taskCustomerNames = $this->customers->namesByIds(array_column($current['reminder']['today_tasks'], 'customer_id'));
+        $ownerNames = $this->users->namesByIds(array_column($current['customer']['recent_customers'], 'owner_id'));
+        $monthlyOrders = collect($current['order']['monthly_orders'])->keyBy('key');
+        $monthlyTrend = array_map(fn (array $row): array => [
+            'key' => $row['key'],
+            'value' => $row['value'],
+            'orders' => (int) data_get($monthlyOrders->get($row['key']), 'value', 0),
+        ], $current['order']['monthly_consumption']);
 
         return new DashboardSnapshotData(
             range: $range,
@@ -114,8 +131,48 @@ final readonly class DashboardService
                     'value' => $row['value'],
                 ], $current['order']['institution_revenue']),
             ],
+            panels: [
+                'promotion_fee' => $current['settlement']['promotion_fee'],
+                'pending_reminders' => $current['reminder']['pending_reminders'],
+                'monthly_revenue_orders' => $monthlyTrend,
+                'lifecycle' => $this->lifecycle($current),
+                'today_tasks' => array_map(fn (array $task): array => [
+                    ...$task,
+                    'customer_name' => $taskCustomerNames[$task['customer_id']] ?? '未知客户',
+                ], $current['reminder']['today_tasks']),
+                'recent_customers' => array_map(fn (array $customer): array => [
+                    ...$customer,
+                    'source_name' => $customer['source_type'] === 'agent'
+                        ? ($agentNames[$customer['source_id']] ?? '未知代理商')
+                        : $customer['source_name'],
+                    'owner_name' => $ownerNames[$customer['owner_id']] ?? '未分配',
+                ], $current['customer']['recent_customers']),
+                'settlement_progress' => $current['settlement']['progress'],
+            ],
             generatedAt: now('Asia/Shanghai')->toIso8601String(),
         );
+    }
+
+    /**
+     * @param  array<string, array<string, mixed>>  $current
+     * @return array<int, array{key: string, value: int, percentage: float}>
+     */
+    private function lifecycle(array $current): array
+    {
+        $total = (int) $current['customer']['total_customers'];
+        $rows = [
+            'registered' => $total,
+            'appointed' => (int) $current['order']['lifecycle']['appointed_customers'],
+            'arrived' => (int) $current['customer']['arrived_customers'],
+            'followed_up' => (int) $current['reminder']['followup_customers'],
+            'repeat' => (int) $current['order']['lifecycle']['repeat_customers'],
+        ];
+
+        return array_map(fn (string $key, int $value): array => [
+            'key' => $key,
+            'value' => $value,
+            'percentage' => $total === 0 ? 0.0 : round($value / $total * 100, 1),
+        ], array_keys($rows), array_values($rows));
     }
 
     /** @return array<string, array<string, mixed>> */

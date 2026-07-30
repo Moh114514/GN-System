@@ -27,7 +27,9 @@ class DashboardTest extends TestCase
             ->assertSee('GN-System')
             ->assertSee('数据看板')
             ->assertSee('新增客户')
-            ->assertSee('机构营收对比')
+            ->assertSee('月度营收与订单趋势')
+            ->assertSee('客户生命周期概览')
+            ->assertSee('最近客户记录')
             ->assertDontSee('演示数据');
     }
 

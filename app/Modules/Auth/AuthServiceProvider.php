@@ -3,7 +3,9 @@
 namespace App\Modules\Auth;
 
 use App\Models\User;
+use App\Modules\Auth\Application\Contracts\ReportUserReader;
 use App\Modules\Auth\Application\Contracts\UserManagementGateway;
+use App\Modules\Auth\Application\Services\DatabaseReportUserReader;
 use App\Modules\Auth\Application\Services\DatabaseUserManagementGateway;
 use App\Modules\Auth\Console\CreateAdminCommand;
 use Illuminate\Auth\Events\Login;
@@ -14,6 +16,7 @@ class AuthServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->bind(ReportUserReader::class, DatabaseReportUserReader::class);
         $this->app->bind(UserManagementGateway::class, DatabaseUserManagementGateway::class);
     }
 

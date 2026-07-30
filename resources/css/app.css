@@ -705,6 +705,22 @@ select:focus[data-flux-control] {
     margin-top: 4px;
 }
 
+.crm-panel-empty {
+    display: flex;
+    min-height: 180px;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+    color: var(--crm-muted);
+    font-size: 12px;
+}
+
+.crm-panel-empty svg {
+    width: 26px;
+    opacity: .5;
+}
+
 .crm-chart text {
     fill: var(--crm-muted);
     font-size: 10px;
@@ -739,8 +755,24 @@ select:focus[data-flux-control] {
     padding: 13px 16px;
 }
 
+.crm-dashboard-controls,
+.crm-dashboard-range {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.crm-dashboard-controls {
+    justify-content: space-between;
+    margin-bottom: 12px;
+}
+
+.crm-dashboard-range {
+    min-width: 0;
+    flex-wrap: wrap;
+}
+
 .crm-dashboard-updated {
-    padding-bottom: 8px;
     color: var(--crm-muted);
     font-size: 12px;
 }
@@ -1064,6 +1096,12 @@ select:focus[data-flux-control] {
 
 .crm-table tbody tr:last-child td {
     border-bottom: 0;
+}
+
+.crm-table td.crm-table-empty {
+    padding: 34px 8px;
+    color: var(--crm-muted);
+    text-align: center;
 }
 
 .crm-customer-id {
@@ -1432,6 +1470,11 @@ select:focus[data-flux-control] {
 
     .crm-content {
         padding: 14px;
+    }
+
+    .crm-dashboard-controls {
+        align-items: flex-start;
+        flex-direction: column;
     }
 
     .crm-demo-notice {

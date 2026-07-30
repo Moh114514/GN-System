@@ -57,9 +57,10 @@ Phase 5 Settlement Application 通过 Order、Agent 的只读 Contract 获取月
 Order、Customer 只读 Contract 生成预约和日期规则实例。队列 Job 只调用本模块
 Application Service；外部钉钉通知在业务事务提交后执行。
 
-Phase 6 Report Application 通过 Customer、Agent、Order、Config、Settlement 和
-Reminder 的只读 Contract/Data 组合查询与看板快照。Order 只查询自己的订单事实，
-其他数据所有者解析筛选、批量名称和各自聚合，Report 不跨模块引用 Model/Builder。
+Phase 6 Report Application 通过 Customer、Agent、Order、Config、Settlement、
+Reminder 和 Auth 的只读 Contract/Data 组合查询与看板快照。Order 只查询自己的
+订单事实，Auth 仅批量映射负责人姓名，其他数据所有者解析筛选、批量名称和各自聚合，
+Report 不跨模块引用 Model/Builder。
 Config Application 通过 Agent、Customer、Settlement 的配置历史 Contract 和 Auth
 的用户管理 Contract 聚合配置页面；每个数据所有者仍独占实际写入、快照和回滚。
 

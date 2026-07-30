@@ -7,11 +7,13 @@ final readonly class DashboardSnapshotData
     /**
      * @param  array<string, array{value: int|float, previous: int|float, change: float|null}>  $metrics
      * @param  array<string, array<int, array<string, int|float|string>>>  $charts
+     * @param  array<string, mixed>  $panels
      */
     public function __construct(
         public DashboardRangeData $range,
         public array $metrics,
         public array $charts,
+        public array $panels,
         public string $generatedAt,
     ) {}
 
@@ -26,6 +28,7 @@ final readonly class DashboardSnapshotData
             ],
             'metrics' => $this->metrics,
             'charts' => $this->charts,
+            'panels' => $this->panels,
             'generated_at' => $this->generatedAt,
         ];
     }
