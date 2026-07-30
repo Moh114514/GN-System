@@ -180,6 +180,10 @@ class PhaseSixReportingConfigurationTest extends TestCase
     {
         Storage::fake('local');
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-07-30 12:00:00', 'Asia/Shanghai'));
+        $this->customer->update([
+            'created_at' => CarbonImmutable::now()->subMinute(),
+            'updated_at' => CarbonImmutable::now()->subMinute(),
+        ]);
         $order = Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => $this->institutionId,
