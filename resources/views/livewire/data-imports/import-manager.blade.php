@@ -120,7 +120,7 @@
                                 <flux:button wire:click="reparse" variant="ghost">重新校验</flux:button>
                             @endif
                             @if ($batch->status === \App\Modules\DataImport\Domain\ImportBatchStatus::Validated)
-                                <flux:button wire:click="commit" variant="primary" wire:confirm="确认将整个批次原子写入正式业务表？">
+                                <flux:button wire:click="commitBatch" variant="primary" wire:confirm="确认将整个批次原子写入正式业务表？">
                                     正式导入
                                 </flux:button>
                             @endif
