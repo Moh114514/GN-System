@@ -10,7 +10,7 @@ interface ReportCustomerReader
 
     /**
      * @param  array<int, int>  $ids
-     *  @return array<int, string>
+     * @return array<int, string>
      */
     public function namesByIds(array $ids): array;
 

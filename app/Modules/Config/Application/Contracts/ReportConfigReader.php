@@ -6,7 +6,7 @@ interface ReportConfigReader
 {
     /**
      * @param  array<int, int>  $ids
-     *  @return array<int, string>
+     * @return array<int, string>
      */
     public function institutionNamesByIds(array $ids): array;
 

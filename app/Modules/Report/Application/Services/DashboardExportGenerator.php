@@ -13,7 +13,7 @@ final class DashboardExportGenerator
     /** @param array<string, mixed> $snapshot */
     public function generate(User $user, string $format, array $snapshot): ReportExport
     {
-        if (! in_array($format, ['pdf', 'html'], true)) {
+        if (in_array($format, ['pdf', 'html'], true) === false) {
             throw new DomainException('看板服务端导出仅支持 PDF 和 HTML。');
         }
         $export = ReportExport::query()->create([
