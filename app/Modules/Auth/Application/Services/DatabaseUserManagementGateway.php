@@ -78,7 +78,7 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
         DB::transaction(function () use ($userId, $isSuperAdmin, $actorId, $ipAddress): void {
             $user = User::query()->lockForUpdate()->findOrFail($userId);
             if ($user->is_super_admin && ! $isSuperAdmin && $user->is_active
-                && User::query()->where('is_active', true)->where('is_super_admin', true)->lockForUpdate()->get()->count() <= 1) {
+                && $this->activeSuperAdminCountForUpdate() <= 1) {
                 throw new DomainException('不能降级最后一个启用中的超级管理员。');
             }
             $before = (bool) $user->is_super_admin;
@@ -103,7 +103,7 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
             }
             $user = User::query()->lockForUpdate()->findOrFail($userId);
             if ($user->is_super_admin && $user->is_active && ! $active
-                && User::query()->where('is_active', true)->where('is_super_admin', true)->lockForUpdate()->get()->count() <= 1) {
+                && $this->activeSuperAdminCountForUpdate() <= 1) {
                 throw new DomainException('不能停用最后一个启用中的超级管理员。');
             }
             $before = (bool) $user->is_active;
@@ -142,5 +142,17 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
 
             return 'failed';
         }
+    }
+
+    private function activeSuperAdminCountForUpdate(): int
+    {
+        return count(
+            User::query()
+                ->where('is_active', true)
+                ->where('is_super_admin', true)
+                ->lockForUpdate()
+                ->get(['id'])
+                ->all(),
+        );
     }
 }

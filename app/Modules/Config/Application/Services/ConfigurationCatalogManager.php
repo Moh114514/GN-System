@@ -34,9 +34,12 @@ final readonly class ConfigurationCatalogManager
             'dictionary_items' => DictionaryItem::query()->orderBy('type')->orderBy('name')->get()->toArray(),
             'parameters' => SystemParameter::query()->orderBy('key')->get()->mapWithKeys(
                 fn (SystemParameter $parameter): array => [
-                    $parameter->key => is_string($parameter->value)
-                        ? json_decode($parameter->value, true, 512, JSON_THROW_ON_ERROR)
-                        : $parameter->value,
+                    $parameter->key => json_decode(
+                        (string) $parameter->getRawOriginal('value'),
+                        true,
+                        512,
+                        JSON_THROW_ON_ERROR,
+                    ),
                 ],
             )->all(),
         ];

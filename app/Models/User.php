@@ -22,6 +22,10 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property bool $is_super_admin
  * @property bool $is_active
  * @property int $session_version
+ * @property string $invitation_status
+ * @property Carbon|null $invitation_sent_at
+ * @property Carbon|null $disabled_at
+ * @property int|null $disabled_by
  * @property string|null $two_factor_secret
  * @property string|null $two_factor_recovery_codes
  * @property Carbon|null $two_factor_confirmed_at
