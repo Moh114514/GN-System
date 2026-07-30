@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Customer\Infrastructure\Models\DirectSalesSource;
+use App\Modules\DataImport\Application\Services\ImportTemplateGenerator;
 use App\Modules\DataImport\Application\Services\SpreadsheetImportParser;
 use App\Modules\DataImport\Domain\ImportBatchStatus;
 use App\Modules\DataImport\Domain\ImportProfile;
@@ -15,6 +17,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
+use Throwable;
 
 class SpreadsheetImportParserTest extends TestCase
 {
@@ -89,18 +92,136 @@ CSV;
             ->where('status', ImportRowStatus::Error)
             ->count();
         $this->assertSame(3, $koreanErrors);
+
+        $file = $batch->files()->where('original_name', '代理商档案.csv')->firstOrFail();
+        $this->assertSame(',', $file->preflight['delimiter']);
+        $this->assertSame('UTF-8', $file->preflight['encoding']);
+        $this->assertSame(1, $file->preflight['sheets'][0]['header_row']);
+        $this->assertSame('代理商档案', $file->preflight['sheets'][0]['profile_label']);
+    }
+
+    public function test_semicolon_csv_fails_with_a_delimiter_and_header_message_instead_of_codebook(): void
+    {
+        Storage::fake('local');
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
+        $batch = ImportBatch::query()->create([
+            'created_by' => $user->id,
+            'status' => ImportBatchStatus::Uploaded,
+        ]);
+        $this->attach(
+            $batch,
+            '错误分隔符.csv',
+            "代理商编号;代理商名称;代理类型\nSZ-JG;测试代理商;旅行社\n",
+        );
+
+        try {
+            app(SpreadsheetImportParser::class)->parse($batch->fresh('files'));
+            $this->fail('Expected the parser to reject a semicolon-delimited CSV.');
+        } catch (Throwable $exception) {
+            $this->assertStringContainsString('表头未识别', $exception->getMessage());
+            $this->assertStringContainsString('英文逗号分隔', $exception->getMessage());
+        }
+
+        $batch->refresh();
+        $file = $batch->files()->firstOrFail();
+        $this->assertSame(ImportBatchStatus::Failed, $batch->status);
+        $this->assertSame('failed', $file->status);
+        $this->assertSame(',', $file->preflight['delimiter']);
+        $this->assertSame('未识别', $file->preflight['sheets'][0]['profile_label']);
+        $this->assertNotSame(ImportProfile::Codebook->value, $file->profile);
+    }
+
+    public function test_invalid_customer_code_reports_both_supported_formats(): void
+    {
+        Storage::fake('local');
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
+        $batch = ImportBatch::query()->create([
+            'created_by' => $user->id,
+            'status' => ImportBatchStatus::Uploaded,
+        ]);
+        $this->attach(
+            $batch,
+            '代理商月明细.csv',
+            "代理商名称,客户编号,姓名,意向机构,项目,推广费比例\n"
+            ."SZ-JG,错误编号,测试客户,dod,测试项目,10%\n",
+        );
+
+        app(SpreadsheetImportParser::class)->parse($batch->fresh('files'));
+
+        $row = $batch->rows()->firstOrFail();
+        $this->assertSame(ImportRowStatus::Error, $row->status);
+        $this->assertStringContainsString('SZ-JG-0001', implode(' ', $row->errors ?? []));
+        $this->assertStringContainsString('WEB-000001', implode(' ', $row->errors ?? []));
+    }
+
+    public function test_generated_simulation_workbook_is_recognized_and_validated(): void
+    {
+        Storage::fake('local');
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        DirectSalesSource::query()->create([
+            'code' => 'WEB',
+            'name' => '官网',
+            'is_active' => true,
+        ]);
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
+        $batch = ImportBatch::query()->create([
+            'created_by' => $user->id,
+            'status' => ImportBatchStatus::Uploaded,
+        ]);
+        $path = app(ImportTemplateGenerator::class)->importableSimulation();
+
+        try {
+            $this->attach($batch, '可导入模拟数据.xlsx', (string) file_get_contents($path));
+        } finally {
+            @unlink($path);
+        }
+
+        app(SpreadsheetImportParser::class)->parse($batch->fresh('files'));
+        $batch->refresh();
+
+        $this->assertSame(ImportBatchStatus::Validated, $batch->status);
+        $this->assertSame(4, $batch->valid_rows);
+        $this->assertSame(0, $batch->warning_rows);
+        $this->assertSame(0, $batch->error_rows);
+        $this->assertSame('mixed', $batch->files()->sole()->profile);
+    }
+
+    public function test_structure_example_workbook_is_explicitly_rejected(): void
+    {
+        Storage::fake('local');
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
+        $batch = ImportBatch::query()->create([
+            'created_by' => $user->id,
+            'status' => ImportBatchStatus::Uploaded,
+        ]);
+        $path = app(ImportTemplateGenerator::class)->structureExample();
+
+        try {
+            $this->attach($batch, '结构示例.xlsx', (string) file_get_contents($path));
+        } finally {
+            @unlink($path);
+        }
+
+        $this->expectExceptionMessage('结构示例文件');
+        app(SpreadsheetImportParser::class)->parse($batch->fresh('files'));
     }
 
     private function attach(ImportBatch $batch, string $name, string $contents): void
     {
         $upload = UploadedFile::fake()->createWithContent($name, $contents);
         $stored = app(EncryptedImportStorage::class)->store($batch->id, $upload);
+        $extension = strtolower((string) pathinfo($name, PATHINFO_EXTENSION));
 
         ImportFile::query()->create([
             'import_batch_id' => $batch->id,
             'original_name' => $name,
-            'extension' => 'csv',
-            'mime_type' => 'text/csv',
+            'extension' => $extension,
+            'mime_type' => $extension === 'csv'
+                ? 'text/csv'
+                : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'size_bytes' => $stored['size'],
             'sha256' => $stored['sha256'],
             'encrypted_path' => $stored['path'],

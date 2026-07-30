@@ -18,6 +18,39 @@
             <h3 class="text-lg font-semibold">上传迁移文件</h3>
             <p class="mt-1 text-sm text-zinc-500">支持 XLSX、XLS、CSV；单文件最大 20MB，一批最多 5 个文件。</p>
 
+            <div class="mt-4 flex flex-wrap gap-2">
+                <flux:button wire:click="downloadStructureExample" size="sm" variant="ghost">
+                    下载结构示例
+                </flux:button>
+                <flux:button
+                    wire:click="downloadImportableSimulation"
+                    size="sm"
+                    variant="ghost"
+                    :disabled="! $this->referenceReadiness['ready']"
+                >
+                    下载可导入模拟数据
+                </flux:button>
+            </div>
+            <p class="mt-2 text-xs text-zinc-500">
+                结构示例仅用于核对表头，不能导入；可导入模拟数据会使用当前已启用的基础数据生成。
+                CSV 必须使用英文逗号（,）分隔。
+            </p>
+
+            <div class="mt-4 rounded-xl border px-4 py-3 text-sm {{ $this->referenceReadiness['ready'] ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-900' }}">
+                <p class="font-semibold">
+                    导入基础数据：{{ $this->referenceReadiness['ready'] ? '已就绪' : '未就绪' }}
+                </p>
+                @if ($this->referenceReadiness['ready'])
+                    <p class="mt-1 text-xs">
+                        代理类型 {{ count($this->referenceReadiness['agent_types']) }} 项 ·
+                        机构 {{ count($this->referenceReadiness['institutions']) }} 项 ·
+                        直销来源 {{ count($this->referenceReadiness['direct_sales_sources']) }} 项
+                    </p>
+                @else
+                    <p class="mt-1 text-xs">{{ implode('、', $this->referenceReadiness['issues']) }}。请先补齐后再上传。</p>
+                @endif
+            </div>
+
             <form wire:submit="stageUploads" class="mt-5 space-y-4">
                 <div
                     x-data="{ uploading: false, progress: 0 }"
@@ -44,12 +77,16 @@
                 </div>
                 @error('uploads') <p class="text-sm text-red-600">{{ $message }}</p> @enderror
                 @error('uploads.*') <p class="text-sm text-red-600">{{ $message }}</p> @enderror
+                <p class="text-xs text-zinc-500">
+                    客户编号格式：代理客户如 SZ-JG-0001；直销客户如 WEB-000001。
+                </p>
 
                 <flux:button
                     type="submit"
                     variant="primary"
                     wire:loading.attr="disabled"
                     wire:target="uploads,stageUploads"
+                    :disabled="! $this->referenceReadiness['ready']"
                 >
                     <span wire:loading.remove wire:target="stageUploads">加密上传并预演</span>
                     <span wire:loading wire:target="stageUploads">正在创建导入批次…</span>
@@ -98,6 +135,54 @@
                     @if ($batch->failure_reason)
                         <p class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{{ $batch->failure_reason }}</p>
                     @endif
+
+                    <div class="mt-5 overflow-x-auto">
+                        <table class="min-w-full text-left text-sm">
+                            <thead class="border-b border-zinc-200 text-zinc-500">
+                                <tr>
+                                    <th class="px-3 py-2">文件</th>
+                                    <th class="px-3 py-2">格式/编码</th>
+                                    <th class="px-3 py-2">分隔符</th>
+                                    <th class="px-3 py-2">识别结果</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-zinc-100">
+                                @foreach ($batch->files as $file)
+                                    @php($preflight = $file->preflight ?? [])
+                                    <tr>
+                                        <td class="px-3 py-2">
+                                            <span class="font-medium">{{ $file->original_name }}</span>
+                                            <span class="block text-xs text-zinc-500">{{ $file->status }}</span>
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            {{ $preflight['format'] ?? strtoupper($file->extension) }}
+                                            @if (! empty($preflight['encoding']))
+                                                <span class="block text-xs text-zinc-500">{{ $preflight['encoding'] }}</span>
+                                            @endif
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            @if (($preflight['delimiter'] ?? null) === ',')
+                                                英文逗号（,）
+                                            @else
+                                                不适用
+                                            @endif
+                                        </td>
+                                        <td class="px-3 py-2">
+                                            @forelse (($preflight['sheets'] ?? []) as $sheet)
+                                                <span class="block">
+                                                    {{ $sheet['name'] }}：
+                                                    {{ $sheet['profile_label'] ?? '未识别' }}
+                                                    · 表头第 {{ $sheet['header_row'] ?? '—' }} 行
+                                                </span>
+                                            @empty
+                                                <span class="text-zinc-500">等待预检或文件读取失败</span>
+                                            @endforelse
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
 
                     <div class="mt-5 overflow-x-auto">
                         <table class="min-w-full text-left text-sm">

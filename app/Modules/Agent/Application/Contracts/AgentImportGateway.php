@@ -7,6 +7,9 @@ use DateTimeInterface;
 
 interface AgentImportGateway
 {
+    /** @return array<int, array{code: string, name: string}> */
+    public function activeAgentTypes(): array;
+
     public function normalizeAgentCode(string $code): string;
 
     public function normalizeCustomerCode(string $code): string;

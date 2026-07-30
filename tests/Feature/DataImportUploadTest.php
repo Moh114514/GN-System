@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Customer\Infrastructure\Models\DirectSalesSource;
 use App\Modules\DataImport\Infrastructure\Models\ImportBatch;
 use App\Modules\DataImport\Infrastructure\Models\ImportFile;
 use App\Modules\DataImport\Jobs\ParseImportBatch;
 use App\Modules\DataImport\Presentation\Livewire\ImportManager;
+use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
@@ -26,6 +28,12 @@ class DataImportUploadTest extends TestCase
 
         Storage::fake('local');
         Queue::fake();
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        DirectSalesSource::query()->create([
+            'code' => 'WEB',
+            'name' => '官网',
+            'is_active' => true,
+        ]);
         $this->admin = User::factory()->superAdmin()->withTwoFactor()->create();
         $this->actingAs($this->admin);
     }
@@ -36,6 +44,18 @@ class DataImportUploadTest extends TestCase
             ->assertOk()
             ->assertSee('wire:submit="stageUploads"', false)
             ->assertDontSee('wire:submit="upload"', false);
+    }
+
+    public function test_import_page_explains_csv_customer_codes_and_reference_readiness(): void
+    {
+        $this->get(route('data-imports.index'))
+            ->assertOk()
+            ->assertSee('CSV 必须使用英文逗号')
+            ->assertSee('SZ-JG-0001')
+            ->assertSee('WEB-000001')
+            ->assertSee('导入基础数据：已就绪')
+            ->assertSee('下载结构示例')
+            ->assertSee('下载可导入模拟数据');
     }
 
     public function test_xlsx_and_csv_files_are_encrypted_and_queued_as_one_batch(): void
@@ -119,5 +139,30 @@ class DataImportUploadTest extends TestCase
             ->assertHasErrors(['uploads']);
 
         $this->assertDatabaseCount('import_batches', 0);
+    }
+
+    public function test_upload_is_blocked_when_required_reference_data_is_missing(): void
+    {
+        DirectSalesSource::query()->delete();
+        $file = UploadedFile::fake()->createWithContent('历史数据.csv', "客户编号,客户姓名\nWEB-000001,测试\n");
+
+        Livewire::test(ImportManager::class)
+            ->set('uploads', [$file])
+            ->call('stageUploads')
+            ->assertHasErrors(['uploads'])
+            ->assertSee('缺少启用中的直销来源');
+
+        $this->assertDatabaseCount('import_batches', 0);
+    }
+
+    public function test_structure_and_importable_simulation_templates_are_separate_downloads(): void
+    {
+        Livewire::test(ImportManager::class)
+            ->call('downloadStructureExample')
+            ->assertFileDownloaded('历史数据导入-结构示例.xlsx');
+
+        Livewire::test(ImportManager::class)
+            ->call('downloadImportableSimulation')
+            ->assertFileDownloaded('历史数据导入-可导入模拟数据.xlsx');
     }
 }
