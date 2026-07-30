@@ -51,7 +51,7 @@
     <?php foreach ($chartLabels as $key => $label): ?>
         <?php
             $rows = $snapshot['charts'][$key];
-            $maximum = max(1, ...array_map(fn ($row) => (float) $row['value'], $rows));
+            $maximum = max([1, ...array_map(fn ($row) => (float) $row['value'], $rows)]);
         ?>
         <div class="chart-title">{{ $label }}</div>
         <svg width="720" height="{{ max(36, count($rows) * 28) }}" viewBox="0 0 720 {{ max(36, count($rows) * 28) }}">
