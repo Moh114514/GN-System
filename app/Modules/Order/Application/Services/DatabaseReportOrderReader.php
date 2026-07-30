@@ -60,10 +60,10 @@ final class DatabaseReportOrderReader implements ReportOrderReader
         $purchasers = $customerCounts->count();
         $repeaters = $customerCounts->filter(fn ($count): bool => (int) $count >= 2)->count();
         $monthly = (clone $base)
-            ->selectRaw("TO_CHAR(DATE_TRUNC('month', completed_at AT TIME ZONE 'Asia/Shanghai'), 'YYYY-MM') AS key")
+            ->selectRaw("TO_CHAR(DATE_TRUNC('month', completed_at), 'YYYY-MM') AS key")
             ->selectRaw('SUM(amount_krw)::bigint AS value')
-            ->groupByRaw("DATE_TRUNC('month', completed_at AT TIME ZONE 'Asia/Shanghai')")
-            ->orderByRaw("DATE_TRUNC('month', completed_at AT TIME ZONE 'Asia/Shanghai')")
+            ->groupByRaw("DATE_TRUNC('month', completed_at)")
+            ->orderByRaw("DATE_TRUNC('month', completed_at)")
             ->get()
             ->map(fn (Order $row): array => [
                 'key' => (string) $row->getAttribute('key'),
@@ -102,15 +102,15 @@ final class DatabaseReportOrderReader implements ReportOrderReader
             && $filters->timeTo !== null && $filters->timeTo !== ''
             && $filters->timeFrom > $filters->timeTo) {
             $query->where(function ($time) use ($filters): void {
-                $time->whereRaw("(completed_at AT TIME ZONE 'Asia/Shanghai')::time >= ?", [$filters->timeFrom])
-                    ->orWhereRaw("(completed_at AT TIME ZONE 'Asia/Shanghai')::time <= ?", [$filters->timeTo]);
+                $time->whereRaw('completed_at::time >= ?', [$filters->timeFrom])
+                    ->orWhereRaw('completed_at::time <= ?', [$filters->timeTo]);
             });
         } else {
             if ($filters->timeFrom !== null && $filters->timeFrom !== '') {
-                $query->whereRaw("(completed_at AT TIME ZONE 'Asia/Shanghai')::time >= ?", [$filters->timeFrom]);
+                $query->whereRaw('completed_at::time >= ?', [$filters->timeFrom]);
             }
             if ($filters->timeTo !== null && $filters->timeTo !== '') {
-                $query->whereRaw("(completed_at AT TIME ZONE 'Asia/Shanghai')::time <= ?", [$filters->timeTo]);
+                $query->whereRaw('completed_at::time <= ?', [$filters->timeTo]);
             }
         }
         foreach ([

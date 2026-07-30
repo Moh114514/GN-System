@@ -41,6 +41,8 @@ class PhaseSixReportingConfigurationTest extends TestCase
 
     private int $institutionId;
 
+    private int $agentId;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -51,6 +53,14 @@ class PhaseSixReportingConfigurationTest extends TestCase
             'code' => 'P6WEB',
             'name' => 'Phase Six Web',
             'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $this->agentId = (int) DB::table('agents')->insertGetId([
+            'agent_type_code_id' => DB::table('agent_type_codes')->value('id'),
+            'code' => 'P6-AGENT',
+            'name' => 'Phase Six Agent',
+            'cooperation_status' => 'active',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -182,7 +192,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
         ]);
         OrderCommission::query()->create([
             'order_id' => $order->id,
-            'agent_id' => DB::table('agents')->value('id'),
+            'agent_id' => $this->agentId,
             'rate_bps' => 1000,
             'amount_krw' => 88000,
             'rule_snapshot' => ['test' => true],
