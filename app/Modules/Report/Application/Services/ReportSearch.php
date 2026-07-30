@@ -6,6 +6,7 @@ use App\Modules\Agent\Application\Contracts\ReportAgentReader;
 use App\Modules\Config\Application\Contracts\ReportConfigReader;
 use App\Modules\Customer\Application\Contracts\ReportCustomerReader;
 use App\Modules\Order\Application\Contracts\ReportOrderReader;
+use App\Modules\Report\Application\Data\ReportOrderData;
 use App\Modules\Report\Application\Data\ReportPageData;
 use App\Modules\Report\Application\Data\ReportQueryData;
 use Carbon\CarbonImmutable;
@@ -93,7 +94,7 @@ final readonly class ReportSearch
     }
 
     /**
-     * @param  array<int, \App\Modules\Report\Application\Data\ReportOrderData>  $orders
+     * @param  array<int, ReportOrderData>  $orders
      * @return array<int, array<string, int|string|null>>
      */
     private function decorate(array $orders): array

@@ -4,7 +4,8 @@ namespace App\Modules\Config\Application\Contracts;
 
 interface ReportConfigReader
 {
-    /** @param array<int, int> $ids
+    /**
+     * @param  array<int, int>  $ids
      *  @return array<int, string>
      */
     public function institutionNamesByIds(array $ids): array;

@@ -107,9 +107,10 @@ final readonly class DatabaseConfigurationHistoryGateway implements Configuratio
             : (array) $row->snapshot;
     }
 
-    /** @param array<string, array<int, array<string, mixed>>> $target
-     *  @param array<string, array<int, array<string, mixed>>> $current
-     *  @return array<string, array{changed: bool, target_count: int, current_count: int, target: array<int, array<string, mixed>>, current: array<int, array<string, mixed>>}>
+    /**
+     * @param  array<string, array<int, array<string, mixed>>>  $target
+     * @param  array<string, array<int, array<string, mixed>>>  $current
+     * @return array<string, array{changed: bool, target_count: int, current_count: int, target: array<int, array<string, mixed>>, current: array<int, array<string, mixed>>}>
      */
     private function tableDiff(array $target, array $current): array
     {

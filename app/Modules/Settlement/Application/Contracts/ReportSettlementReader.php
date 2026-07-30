@@ -7,7 +7,7 @@ use Carbon\CarbonImmutable;
 interface ReportSettlementReader
 {
     /**
-     * @param  array<int, string>  $orderMonths order id => YYYY-MM
+     * @param  array<int, string>  $orderMonths  order id => YYYY-MM
      * @return array{
      *   promotion_fee: int,
      *   pending_settlement: int,

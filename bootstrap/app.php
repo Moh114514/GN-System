@@ -2,8 +2,8 @@
 
 use App\Infrastructure\Health\OperationsHealthController;
 use App\Infrastructure\Health\ReadinessController;
-use App\Modules\Auth\Http\Middleware\EnsureUserIsActive;
 use App\Modules\Auth\Http\Middleware\EnsureSuperAdmin;
+use App\Modules\Auth\Http\Middleware\EnsureUserIsActive;
 use App\Modules\Auth\Http\Middleware\RequireTwoFactorForSuperAdmin;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;

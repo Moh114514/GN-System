@@ -16,7 +16,6 @@ use App\Modules\Report\Application\Services\DashboardRangeFactory;
 use App\Modules\Report\Application\Services\DashboardService;
 use App\Modules\Report\Application\Services\ReportExportManager;
 use App\Modules\Report\Application\Services\ReportSearch;
-use App\Modules\Report\Infrastructure\Models\ReportExport;
 use App\Modules\Report\Jobs\GenerateReportExport;
 use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
 use Carbon\CarbonImmutable;

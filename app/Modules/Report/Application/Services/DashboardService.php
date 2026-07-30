@@ -10,6 +10,7 @@ use App\Modules\Reminder\Application\Contracts\ReportReminderReader;
 use App\Modules\Report\Application\Data\DashboardRangeData;
 use App\Modules\Report\Application\Data\DashboardSnapshotData;
 use App\Modules\Settlement\Application\Contracts\ReportSettlementReader;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Throwable;
@@ -118,7 +119,7 @@ final readonly class DashboardService
     }
 
     /** @return array<string, array<string, mixed>> */
-    private function period(\Carbon\CarbonImmutable $from, \Carbon\CarbonImmutable $to): array
+    private function period(CarbonImmutable $from, CarbonImmutable $to): array
     {
         $orderMonths = $this->orders->completedOrderMonths($from, $to);
 

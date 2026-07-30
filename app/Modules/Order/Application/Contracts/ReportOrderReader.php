@@ -4,13 +4,14 @@ namespace App\Modules\Order\Application\Contracts;
 
 use App\Modules\Report\Application\Data\ReportPageData;
 use App\Modules\Report\Application\Data\ReportQueryData;
+use App\Modules\Report\Application\Data\ReportOrderData;
 use Carbon\CarbonImmutable;
 
 interface ReportOrderReader
 {
     public function paginate(ReportQueryData $query, int $perPage, int $page): ReportPageData;
 
-    /** @return array<int, \App\Modules\Report\Application\Data\ReportOrderData> */
+    /** @return array<int, ReportOrderData> */
     public function rows(ReportQueryData $query): array;
 
     /** @return array<int, string> order id => YYYY-MM */

@@ -4,7 +4,8 @@ namespace App\Modules\Agent\Application\Contracts;
 
 interface ReportAgentReader
 {
-    /** @param array<int, int> $ids
+    /**
+     * @param  array<int, int>  $ids
      *  @return array<int, string>
      */
     public function namesByIds(array $ids): array;
