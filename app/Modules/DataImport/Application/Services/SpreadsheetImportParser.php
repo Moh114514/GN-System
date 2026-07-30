@@ -4,6 +4,7 @@ namespace App\Modules\DataImport\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\AgentImportGateway;
 use App\Modules\Config\Application\Contracts\CatalogImportGateway;
+use App\Modules\Customer\Application\Contracts\CustomerImportGateway;
 use App\Modules\DataImport\Domain\ImportBatchStatus;
 use App\Modules\DataImport\Domain\ImportProfile;
 use App\Modules\DataImport\Domain\ImportRowStatus;
@@ -18,6 +19,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use InvalidArgumentException;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use PhpOffice\PhpSpreadsheet\Reader\Csv;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use Throwable;
@@ -28,6 +30,7 @@ final readonly class SpreadsheetImportParser
         private EncryptedImportStorage $storage,
         private AgentImportGateway $agents,
         private CatalogImportGateway $catalog,
+        private CustomerImportGateway $customers,
     ) {}
 
     public function parse(ImportBatch $batch): void
@@ -56,6 +59,19 @@ final readonly class SpreadsheetImportParser
     {
         $contents = $this->storage->decrypt($file->encrypted_path);
         $temporaryPath = storage_path('app/private/import-temp/'.Str::uuid().'.'.$file->extension);
+        $encoding = 'UTF-8';
+        $preflight = [
+            'format' => strtoupper($file->extension),
+            'encoding' => $encoding,
+            'delimiter' => $file->extension === 'csv' ? ',' : null,
+            'sheets' => [],
+        ];
+
+        $file->update([
+            'status' => 'parsing',
+            'profile' => null,
+            'preflight' => null,
+        ]);
 
         if (! is_dir(dirname($temporaryPath))) {
             mkdir(dirname($temporaryPath), 0700, true);
@@ -63,17 +79,52 @@ final readonly class SpreadsheetImportParser
 
         if ($file->extension === 'csv' && ! mb_check_encoding($contents, 'UTF-8')) {
             $contents = mb_convert_encoding($contents, 'UTF-8', 'GB18030');
+            $encoding = 'GB18030 → UTF-8';
+            $preflight['encoding'] = $encoding;
         }
 
         file_put_contents($temporaryPath, $contents);
 
         try {
-            $spreadsheet = IOFactory::load($temporaryPath);
+            $spreadsheet = $file->extension === 'csv'
+                ? $this->loadCommaSeparatedCsv($temporaryPath)
+                : IOFactory::load($temporaryPath);
+
+            if ($this->isStructureExample($spreadsheet)) {
+                throw new InvalidArgumentException(
+                    '当前文件是结构示例文件，不能作为正式数据导入；请使用“可导入模拟数据”模板或填写真实脱敏数据。',
+                );
+            }
+
             $profiles = [];
 
             foreach ($spreadsheet->getWorksheetIterator() as $worksheet) {
                 $rows = $worksheet->toArray(null, true, true, true);
-                [$profile, $headerRow, $headers] = $this->detectProfile($rows);
+                [$profile, $headerRow, $headers] = $this->detectProfile(
+                    $rows,
+                    $worksheet->getTitle(),
+                );
+
+                $preflight['sheets'][] = [
+                    'name' => $worksheet->getTitle(),
+                    'header_row' => $headerRow > 0 ? $headerRow : null,
+                    'profile' => $profile?->value,
+                    'profile_label' => $profile?->label() ?? '未识别',
+                    'headers' => array_values($headers),
+                ];
+
+                if ($profile === null) {
+                    $file->update(['preflight' => $preflight]);
+                    $delimiterHint = count($headers) <= 1
+                        ? '；CSV 必须使用英文逗号分隔，请检查分隔符'
+                        : '';
+
+                    throw new InvalidArgumentException(
+                        "文件“{$file->original_name}”工作表“{$worksheet->getTitle()}”表头未识别{$delimiterHint}。"
+                        ."请使用结构示例核对字段，当前候选表头行：{$headerRow}。",
+                    );
+                }
+
                 $profiles[] = $profile->value;
 
                 if ($profile === ImportProfile::Codebook) {
@@ -115,7 +166,15 @@ final readonly class SpreadsheetImportParser
             $file->update([
                 'status' => 'parsed',
                 'profile' => count(array_unique($profiles)) === 1 ? $profiles[0] : 'mixed',
+                'preflight' => $preflight,
             ]);
+        } catch (Throwable $exception) {
+            $file->update([
+                'status' => 'failed',
+                'preflight' => $preflight,
+            ]);
+
+            throw $exception;
         } finally {
             if (isset($spreadsheet)) {
                 $spreadsheet->disconnectWorksheets();
@@ -129,10 +188,14 @@ final readonly class SpreadsheetImportParser
 
     /**
      * @param  array<int, array<string, mixed>>  $rows
-     * @return array{ImportProfile, int, array<string, string>}
+     * @return array{ImportProfile|null, int, array<string, string>}
      */
-    private function detectProfile(array $rows): array
+    private function detectProfile(array $rows, string $sheetName): array
     {
+        if ($this->isExplicitCodebook($sheetName)) {
+            return [ImportProfile::Codebook, 0, []];
+        }
+
         foreach (array_slice($rows, 0, 20, true) as $rowNumber => $row) {
             $values = array_map(fn ($value): string => $this->cleanText($value), $row);
 
@@ -158,7 +221,57 @@ final readonly class SpreadsheetImportParser
             }
         }
 
-        return [ImportProfile::Codebook, 0, []];
+        [$candidateRow, $candidateHeaders] = $this->candidateHeader($rows);
+
+        return [null, $candidateRow, array_combine(
+            array_map(fn (int $index): string => (string) $index, array_keys($candidateHeaders)),
+            $candidateHeaders,
+        ) ?: []];
+    }
+
+    private function loadCommaSeparatedCsv(string $path): Spreadsheet
+    {
+        $reader = new Csv;
+        $reader->setDelimiter(',');
+        $reader->setEnclosure('"');
+        $reader->setInputEncoding('UTF-8');
+
+        return $reader->load($path);
+    }
+
+    private function isExplicitCodebook(string $sheetName): bool
+    {
+        return preg_match('/^(说明|导入说明|代码表|字典|codebook)$/iu', trim($sheetName)) === 1;
+    }
+
+    private function isStructureExample(Spreadsheet $spreadsheet): bool
+    {
+        return $this->cleanText($spreadsheet->getSheet(0)->getCell('A1')->getValue())
+            === (string) config('data-import.structure_template_marker');
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return array{int, array<int, string>}
+     */
+    private function candidateHeader(array $rows): array
+    {
+        $bestRow = 0;
+        $bestHeaders = [];
+
+        foreach (array_slice($rows, 0, 20, true) as $rowNumber => $row) {
+            $headers = array_values(array_filter(
+                array_map(fn ($value): string => $this->cleanText($value), $row),
+                fn (string $value): bool => $value !== '',
+            ));
+
+            if (count($headers) > count($bestHeaders)) {
+                $bestRow = (int) $rowNumber;
+                $bestHeaders = $headers;
+            }
+        }
+
+        return [$bestRow, $bestHeaders];
     }
 
     /**
@@ -202,6 +315,12 @@ final readonly class SpreadsheetImportParser
     {
         $sourceCode = $this->requiredText($raw, '代理商编号');
         $code = $this->agents->normalizeAgentCode($sourceCode);
+        $typeCode = (string) str($code)->afterLast('-');
+        $activeTypeCodes = array_column($this->agents->activeAgentTypes(), 'code');
+
+        if (! in_array($typeCode, $activeTypeCodes, true)) {
+            throw new InvalidArgumentException("代理商编号 {$sourceCode} 对应的代理类型 {$typeCode} 未配置或未启用。");
+        }
 
         return [ImportRowStatus::Valid, [
             'source_code' => strtoupper($sourceCode),
@@ -233,9 +352,9 @@ final readonly class SpreadsheetImportParser
         $legacyCode = null;
 
         if ($sourceCode === null) {
-            $errors[] = '缺少客户编号，需要在预演中确认来源后生成。';
+            $errors[] = '缺少客户编号。代理客户示例：SZ-JG-0001；直销客户示例：WEB-000001。';
         } else {
-            $code = $this->agents->normalizeCustomerCode($sourceCode);
+            $code = $this->normalizeCustomerCode($sourceCode);
             $legacyCode = strtoupper($sourceCode) === $code ? null : strtoupper($sourceCode);
         }
 
@@ -282,7 +401,7 @@ final readonly class SpreadsheetImportParser
 
         return [ImportRowStatus::Valid, [
             'agent_ref' => $this->requiredText($raw, '代理商名称'),
-            'customer_code' => $this->agents->normalizeCustomerCode($this->requiredText($raw, '客户编号')),
+            'customer_code' => $this->normalizeCustomerCode($this->requiredText($raw, '客户编号')),
             'customer_name' => $this->requiredText($raw, '姓名'),
             'contact' => $this->text($raw, '联系方式'),
             'institution' => $this->requiredText($raw, '意向机构'),
@@ -332,6 +451,38 @@ final readonly class SpreadsheetImportParser
                 $agentMap[(string) ($data['source_code'] ?? $data['code'])] = (string) $data['code'];
                 $agentMap[(string) $data['code']] = (string) $data['code'];
             }
+        }
+
+        foreach ($batch->rows()->where('profile', ImportProfile::CustomerFollowup)->get() as $row) {
+            if ($row->status === ImportRowStatus::Error) {
+                continue;
+            }
+
+            $data = $row->normalized_data ?? [];
+            $code = (string) ($data['code'] ?? '');
+            $errors = $row->errors ?? [];
+
+            if (preg_match('/^([A-Z0-9]{2,6})-\d{6}$/', $code, $matches) === 1) {
+                if ($this->customers->resolveDirectSalesSourceId($matches[1]) === null) {
+                    $errors[] = "未知直销来源代码：{$matches[1]}";
+                }
+            } elseif (preg_match('/^(.+)-\d{4}$/', $code, $matches) === 1) {
+                $agentReference = $matches[1];
+                if (! isset($agentMap[$agentReference])
+                    && $this->agents->resolveAgentId($agentReference) === null) {
+                    $errors[] = "未知客户来源代理商：{$agentReference}";
+                }
+            }
+
+            $institution = (string) ($data['institution'] ?? '');
+            if ($institution !== '' && $this->catalog->resolveInstitutionId($institution) === null) {
+                $errors[] = "未知机构：{$institution}";
+            }
+
+            $row->update([
+                'errors' => array_values(array_unique($errors)),
+                'status' => $errors === [] ? ImportRowStatus::Valid : ImportRowStatus::Error,
+            ]);
         }
 
         $aggregates = [];
@@ -482,6 +633,18 @@ final readonly class SpreadsheetImportParser
         }
 
         return trim(preg_replace('/\s+/u', ' ', (string) $value) ?? (string) $value);
+    }
+
+    private function normalizeCustomerCode(string $sourceCode): string
+    {
+        try {
+            return $this->agents->normalizeCustomerCode($sourceCode);
+        } catch (InvalidArgumentException) {
+            throw new InvalidArgumentException(
+                "无效客户编号：{$sourceCode}。代理客户应为“代理商编号-四位流水”，"
+                .'例如 SZ-JG-0001；直销客户应为“2–6 位大写来源代码-六位流水”，例如 WEB-000001。',
+            );
+        }
     }
 
     /** @param array<string, mixed> $raw */
