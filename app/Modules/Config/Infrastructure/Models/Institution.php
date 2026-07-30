@@ -10,6 +10,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property string $code
  * @property string $name
  * @property bool $is_active
+ * @property string|null $address
+ * @property string|null $contact_name
+ * @property string|null $contact_value
  */
 class Institution extends Model
 {

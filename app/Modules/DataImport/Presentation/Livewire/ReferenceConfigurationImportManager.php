@@ -96,7 +96,7 @@ class ReferenceConfigurationImportManager extends Component
         session()->flash('status', '批次已重新进入预览、校验和事务预演。');
     }
 
-    public function commit(ReferenceConfigurationImportCommitter $committer): void
+    public function commitBatch(ReferenceConfigurationImportCommitter $committer): void
     {
         $this->validate([
             'confirmImport' => ['accepted'],

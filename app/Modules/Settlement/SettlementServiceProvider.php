@@ -3,10 +3,16 @@
 namespace App\Modules\Settlement;
 
 use App\Modules\Settlement\Application\Contracts\CommissionConfigurationGateway;
+use App\Modules\Settlement\Application\Contracts\ConfigurationHistoryGateway;
 use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
+use App\Modules\Settlement\Application\Contracts\InstitutionUsageReader;
+use App\Modules\Settlement\Application\Contracts\ReportSettlementReader;
 use App\Modules\Settlement\Application\Contracts\SettlementImportGateway;
 use App\Modules\Settlement\Application\Services\DatabaseCommissionConfigurationGateway;
+use App\Modules\Settlement\Application\Services\DatabaseConfigurationHistoryGateway;
 use App\Modules\Settlement\Application\Services\DatabaseDailyCommissionGateway;
+use App\Modules\Settlement\Application\Services\DatabaseInstitutionUsageReader;
+use App\Modules\Settlement\Application\Services\DatabaseReportSettlementReader;
 use App\Modules\Settlement\Application\Services\DatabaseSettlementImportGateway;
 use App\Modules\Settlement\Presentation\Http\SettlementDocumentController;
 use App\Modules\Settlement\Presentation\Livewire\SettlementCenter;
@@ -21,6 +27,9 @@ class SettlementServiceProvider extends ServiceProvider
         $this->app->bind(SettlementImportGateway::class, DatabaseSettlementImportGateway::class);
         $this->app->bind(DailyCommissionGateway::class, DatabaseDailyCommissionGateway::class);
         $this->app->bind(CommissionConfigurationGateway::class, DatabaseCommissionConfigurationGateway::class);
+        $this->app->bind(ReportSettlementReader::class, DatabaseReportSettlementReader::class);
+        $this->app->bind(InstitutionUsageReader::class, DatabaseInstitutionUsageReader::class);
+        $this->app->bind(ConfigurationHistoryGateway::class, DatabaseConfigurationHistoryGateway::class);
     }
 
     public function boot(): void

@@ -9,6 +9,46 @@
 
     <section class="grid gap-5 lg:grid-cols-2">
         <a
+            href="{{ route('direct-sales-sources.index') }}"
+            class="group rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:border-teal-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-teal-700"
+            wire:navigate
+        >
+            <span class="flex size-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300"><flux:icon.arrow-trending-up aria-hidden="true" /></span>
+            <h3 class="mt-5 text-lg font-semibold">直销来源配置</h3>
+            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">由 Customer 模块维护直销来源的名称、稳定代码和启停状态。</p>
+            <span class="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-teal-700 dark:text-teal-300">进入配置<flux:icon.arrow-right class="size-4" aria-hidden="true" /></span>
+        </a>
+        <a
+            href="{{ route('configuration.history') }}"
+            class="group rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:border-teal-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-teal-700"
+            wire:navigate
+        >
+            <span class="flex size-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300"><flux:icon.clock aria-hidden="true" /></span>
+            <h3 class="mt-5 text-lg font-semibold">配置历史与回滚</h3>
+            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">聚合查看各数据所有者保存的版本、差异与事务回滚记录。</p>
+            <span class="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-teal-700 dark:text-teal-300">查看历史<flux:icon.arrow-right class="size-4" aria-hidden="true" /></span>
+        </a>
+        <a
+            href="{{ route('configuration.users') }}"
+            class="group rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:border-teal-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-teal-700"
+            wire:navigate
+        >
+            <span class="flex size-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300"><flux:icon.user-group aria-hidden="true" /></span>
+            <h3 class="mt-5 text-lg font-semibold">内部用户与权限</h3>
+            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">邀请用户、调整两档角色、启停账号并查看邮件发送状态。</p>
+            <span class="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-teal-700 dark:text-teal-300">进入管理<flux:icon.arrow-right class="size-4" aria-hidden="true" /></span>
+        </a>
+        <a
+            href="{{ route('configuration.catalog') }}"
+            class="group rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:border-teal-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-teal-700"
+            wire:navigate
+        >
+            <span class="flex size-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300"><flux:icon.building-library aria-hidden="true" /></span>
+            <h3 class="mt-5 text-lg font-semibold">机构、字典与系统参数</h3>
+            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">维护机构联系信息、施术项目、翻译语种以及报表白名单参数。</p>
+            <span class="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-teal-700 dark:text-teal-300">进入配置<flux:icon.arrow-right class="size-4" aria-hidden="true" /></span>
+        </a>
+        <a
             href="{{ route('customer-statuses.index') }}"
             class="group rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:border-teal-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-teal-700"
             wire:navigate

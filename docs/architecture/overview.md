@@ -1,6 +1,6 @@
 # 当前架构概览
 
-> 最后核验：2026-07-28
+> 最后核验：2026-07-30
 > 本文只描述当前仓库已经采用的架构，不描述未来业务数据流。
 
 ## 系统形态
@@ -30,7 +30,8 @@ MySQL 内容只是历史备选，不是当前支持矩阵。
 
 Auth 已有完整认证实现；Customer 已交付全生命周期页面；Agent 已交付档案、政策
 等级与配置页面；Order 与 Settlement 已交付最小订单完成、推广费核算和月结审核
-闭环；Reminder 已交付面向内部员工的主动提醒中心。Report 等模块现状详见
+闭环；Reminder 已交付面向内部员工的主动提醒中心；Report 已交付查询、看板和
+导出协调；Config 已交付统一配置目录、用户管理协调和配置历史聚合。模块现状详见
 [项目状态](../project-status.md)，隔离规则详见
 [模块边界](module-boundaries.md)。
 
@@ -70,6 +71,21 @@ Settlement 使用版本化周期配置和按代理商拆分的队列任务，从
 Reminder 保存规则、模板、提醒实例和生命周期事件。订单完成事务同步幂等创建术后
 提醒，Scheduler 通过只读 Application Contract 扫描预约和客户日期规则。钉钉通知
 由事务提交后的独立队列任务发送；未启用或失败不会回滚站内提醒或月结数据。
+
+## 查询、看板与配置
+
+Report 只编排数据所有者提供的只读 Application Contract/Data。Order 执行订单事实
+分页和聚合，Customer、Agent、Config、Settlement、Reminder 分别解析敏感查询、
+批量名称、推广费/月结和提醒口径；Report 不直接引用其他模块 Model 或查询其表。
+护照仅通过 Customer 的规范化 HMAC 盲索引精确定位，绝不解密扫描。
+
+看板聚合最多缓存五分钟，缓存异常时记录告警并直接执行数据库聚合。PDF 与 HTML
+使用同一服务端不可变快照，PNG 由浏览器捕获当前快照。Excel 与服务端看板导出保存
+在私有磁盘，并由创建者授权下载、Queue 生成和 Scheduler 过期清理。
+
+配置数据仍由 Agent、Customer、Settlement、Auth 与 Config 各自写入。Config 页面
+只调用 Application 契约聚合操作；高风险配置快照分表保存在所属模块，回滚在所属
+模块的单一事务中完成，不重算历史订单推广费或已结算快照。
 
 ## 尚未形成的架构
 

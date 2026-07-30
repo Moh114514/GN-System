@@ -133,6 +133,7 @@ final readonly class CustomerProfileManager
                 customerId: $customer->id,
                 institutionId: $institutionId,
                 scheduledAt: $arrivalDate->startOfDay(),
+                projectName: trim($profile->projectIntention),
                 translatorName: $translatorName,
                 ownerId: $actorId,
                 notes: $profile->notes,

@@ -4,6 +4,7 @@ namespace App\Modules\Order\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Config\Application\Contracts\InstitutionReferenceReader;
+use App\Modules\Config\Application\Contracts\OrderDictionaryReader;
 use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
 use App\Modules\Order\Application\Contracts\DailyOrderGateway;
 use App\Modules\Order\Application\Data\DailyOrderData;
@@ -16,6 +17,7 @@ final readonly class DailyOrderWorkspace
         private CustomerOrderReferenceReader $customers,
         private AgentReferenceReader $agents,
         private InstitutionReferenceReader $institutions,
+        private OrderDictionaryReader $dictionary,
         private DailyOrderGateway $orders,
     ) {}
 
@@ -27,6 +29,8 @@ final readonly class DailyOrderWorkspace
             'agents' => array_values($this->agents->activeAgents()),
             'direct_sources' => $this->customers->activeDirectSalesSources(),
             'institutions' => array_values($this->institutions->activeInstitutions()),
+            'treatment_projects' => $this->dictionary->activeItems('treatment_project'),
+            'translator_languages' => $this->dictionary->activeItems('translator_language'),
             'orders' => array_map(
                 fn (OrderSummaryData $order): array => get_object_vars($order),
                 $this->orders->forCustomer($customerId),
@@ -36,7 +40,31 @@ final readonly class DailyOrderWorkspace
 
     public function create(DailyOrderData $data): int
     {
-        return $this->orders->create($data);
+        $project = $data->treatmentProjectId === null
+            ? null
+            : $this->dictionary->activeItem($data->treatmentProjectId, 'treatment_project');
+        $language = $data->translatorLanguageId === null
+            ? null
+            : $this->dictionary->activeItem($data->translatorLanguageId, 'translator_language');
+
+        return $this->orders->create(new DailyOrderData(
+            customerId: $data->customerId,
+            institutionId: $data->institutionId,
+            channel: $data->channel,
+            agentId: $data->agentId,
+            directSalesSourceId: $data->directSalesSourceId,
+            projectName: $project['name'] ?? $data->projectName,
+            amountKrw: $data->amountKrw,
+            status: $data->status,
+            completedOn: $data->completedOn,
+            translatorName: $data->translatorName,
+            notes: $data->notes,
+            ownerId: $data->ownerId,
+            ipAddress: $data->ipAddress,
+            treatmentProjectId: $project['id'] ?? null,
+            translatorLanguageId: $language['id'] ?? null,
+            translatorLanguageName: $language['name'] ?? null,
+        ));
     }
 
     public function complete(int $orderId, CarbonImmutable $completedOn, int $actorId, ?string $ipAddress): int

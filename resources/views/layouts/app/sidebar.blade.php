@@ -32,7 +32,7 @@
                         <flux:icon.building-office aria-hidden="true" />
                         <span>代理商</span>
                     </a>
-                    <a href="{{ route('configuration.index') }}" class="crm-nav-item {{ request()->routeIs('configuration.*', 'agent-configuration.*', 'customer-statuses.*', 'reminder-configuration.*', 'reference-configuration-imports.*') ? 'is-active' : '' }}" wire:navigate>
+                    <a href="{{ route('configuration.index') }}" class="crm-nav-item {{ request()->routeIs('configuration.*', 'agent-configuration.*', 'customer-statuses.*', 'direct-sales-sources.*', 'reminder-configuration.*', 'reference-configuration-imports.*') ? 'is-active' : '' }}" wire:navigate>
                         <flux:icon.cog-6-tooth aria-hidden="true" />
                         <span>配置中心</span>
                     </a>
@@ -41,6 +41,11 @@
                 <a href="{{ route('customers.index') }}" class="crm-nav-item {{ request()->routeIs('customers.*') ? 'is-active' : '' }}" wire:navigate>
                     <flux:icon.users aria-hidden="true" />
                     <span>客户管理</span>
+                </a>
+
+                <a href="{{ route('reports.search') }}" class="crm-nav-item {{ request()->routeIs('reports.search', 'reports.exports.*') ? 'is-active' : '' }}" wire:navigate>
+                    <flux:icon.magnifying-glass aria-hidden="true" />
+                    <span>多维查询</span>
                 </a>
 
                 @if (auth()->user()->is_super_admin)
@@ -57,8 +62,6 @@
 
                 @foreach ([
                     ['clipboard-document-list', '订单'],
-                    ['magnifying-glass', '多维查询'],
-                    ['chart-bar', '数据看板'],
                 ] as [$icon, $label])
                     <span class="crm-nav-item is-disabled" aria-disabled="true" title="功能将在后续阶段开放">
                         <flux:icon :name="$icon" aria-hidden="true" />
@@ -110,15 +113,12 @@
                 </label>
 
                 <button type="button" class="crm-date-range" disabled>
-                    <span>2025-05-01</span>
-                    <span>—</span>
-                    <span>2025-05-31</span>
+                    <span>{{ now('Asia/Shanghai')->format('Y-m-d') }}</span>
                     <flux:icon.calendar-days aria-hidden="true" />
                 </button>
 
-                <button type="button" class="crm-icon-button crm-notification-button" aria-label="通知，11 条未读" disabled>
+                <button type="button" class="crm-icon-button crm-notification-button" aria-label="通知" disabled>
                     <flux:icon.bell aria-hidden="true" />
-                    <span>11</span>
                 </button>
 
                 <flux:dropdown position="bottom" align="end">

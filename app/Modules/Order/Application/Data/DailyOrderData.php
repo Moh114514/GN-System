@@ -20,5 +20,8 @@ final readonly class DailyOrderData
         public ?string $notes,
         public int $ownerId,
         public ?string $ipAddress,
+        public ?int $treatmentProjectId = null,
+        public ?int $translatorLanguageId = null,
+        public ?string $translatorLanguageName = null,
     ) {}
 }

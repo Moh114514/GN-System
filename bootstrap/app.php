@@ -2,6 +2,7 @@
 
 use App\Infrastructure\Health\OperationsHealthController;
 use App\Infrastructure\Health\ReadinessController;
+use App\Modules\Auth\Http\Middleware\EnsureUserIsActive;
 use App\Modules\Auth\Http\Middleware\EnsureSuperAdmin;
 use App\Modules\Auth\Http\Middleware\RequireTwoFactorForSuperAdmin;
 use Illuminate\Foundation\Application;
@@ -23,6 +24,7 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->appendToGroup('web', EnsureUserIsActive::class);
         $middleware->alias([
             'super-admin' => EnsureSuperAdmin::class,
             'super-admin.2fa' => RequireTwoFactorForSuperAdmin::class,

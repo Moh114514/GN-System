@@ -102,7 +102,7 @@
                             <flux:checkbox wire:model="confirmImport" label="我已核对预览，并确认按上述顺序写入全部基础配置" />
                             @error('confirmImport') <p class="mt-2 text-sm text-red-600">{{ $message }}</p> @enderror
                         </div>
-                        <flux:button wire:click="commit" variant="primary" class="mt-4" wire:confirm="确认写入本批次全部基础配置吗？">确认写入</flux:button>
+                        <flux:button wire:click="commitBatch" variant="primary" class="mt-4" wire:confirm="确认写入本批次全部基础配置吗？">确认写入</flux:button>
                     </section>
                 @endif
             @else

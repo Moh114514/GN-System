@@ -89,7 +89,9 @@ class ReferenceConfigurationImportTest extends TestCase
 
         Livewire::test(ReferenceConfigurationImportManager::class)
             ->set('selectedBatchId', $batch->id)
-            ->call('commit')
+            ->assertSee('wire:click="commitBatch"', false)
+            ->assertDontSee('wire:click="commit"', false)
+            ->call('commitBatch')
             ->assertHasErrors(['confirmImport']);
     }
 
@@ -112,7 +114,11 @@ class ReferenceConfigurationImportTest extends TestCase
         $this->assertDatabaseCount('agents', 0);
         $this->assertNotNull($batch->fresh()->summary['dry_run_completed_at'] ?? null);
 
-        app(ReferenceConfigurationImportCommitter::class)->commit($batch->fresh(), '127.0.0.1');
+        Livewire::test(ReferenceConfigurationImportManager::class)
+            ->set('selectedBatchId', $batch->id)
+            ->set('confirmImport', true)
+            ->call('commitBatch')
+            ->assertHasNoErrors();
 
         $this->assertDatabaseHas('agent_type_codes', ['code' => 'UAT', 'name' => 'UAT 代理']);
         $this->assertDatabaseHas('institutions', ['code' => 'UAT-HOSP', 'name' => 'UAT 示例机构']);
@@ -129,6 +135,7 @@ class ReferenceConfigurationImportTest extends TestCase
             'causer_id' => $this->admin->id,
         ]);
         $this->assertSame(ImportBatchStatus::Completed, $batch->fresh()->status);
+        $this->assertNotNull($batch->fresh()->completed_at);
     }
 
     public function test_relationship_errors_block_confirmation_and_identify_the_source_row(): void

@@ -41,16 +41,28 @@
                         @endforeach
                     </flux:select>
                 @endif
-                <flux:input wire:model="projectName" label="项目名称" required />
+                <flux:select wire:model="treatmentProjectId" label="施术项目字典（可选）">
+                    <flux:select.option value="">手工填写 / 未归类</flux:select.option>
+                    @foreach ($context['treatment_projects'] as $project)
+                        <flux:select.option value="{{ $project['id'] }}">{{ $project['name'] }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:input wire:model="projectName" label="项目名称快照" :required="$treatmentProjectId === ''" />
                 <flux:input wire:model="amountKrw" type="number" min="0" step="1" label="成交金额（KRW）" required />
                 <flux:select wire:model.live="status" label="订单状态" required>
                     <flux:select.option value="pending">待完成</flux:select.option>
                     <flux:select.option value="completed">已完成</flux:select.option>
                 </flux:select>
                 @if ($status === 'completed')
-                    <flux:input wire:model="completedOn" type="date" label="完成日期" required />
+                    <flux:input wire:model="completedOn" type="datetime-local" label="成交时间" required />
                 @endif
-                <flux:input wire:model="translatorName" label="翻译" />
+                <flux:select wire:model="translatorLanguageId" label="翻译语种（可选）">
+                    <flux:select.option value="">未选择</flux:select.option>
+                    @foreach ($context['translator_languages'] as $language)
+                        <flux:select.option value="{{ $language['id'] }}">{{ $language['name'] }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+                <flux:input wire:model="translatorName" label="翻译姓名" />
                 <flux:textarea wire:model="notes" label="备注" rows="3" />
                 <flux:button type="submit" variant="primary" class="w-full">保存订单</flux:button>
             </form>

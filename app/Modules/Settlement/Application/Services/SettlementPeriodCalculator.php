@@ -3,6 +3,7 @@
 namespace App\Modules\Settlement\Application\Services;
 
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Settlement\Application\Contracts\ConfigurationHistoryGateway;
 use App\Modules\Settlement\Application\Data\SettlementPeriodData;
 use App\Modules\Settlement\Infrastructure\Models\SettlementConfiguration;
 use Carbon\CarbonImmutable;
@@ -10,7 +11,10 @@ use DomainException;
 
 final class SettlementPeriodCalculator
 {
-    public function __construct(private readonly AuditRecorder $audit) {}
+    public function __construct(
+        private readonly AuditRecorder $audit,
+        private readonly ConfigurationHistoryGateway $configurationHistory,
+    ) {}
 
     public function activeConfiguration(CarbonImmutable $at): SettlementConfiguration
     {
@@ -77,6 +81,7 @@ final class SettlementPeriodCalculator
             throw new DomainException('月结触发时间格式无效。');
         }
         $effectiveFrom = $this->nextBoundary($now, $boundaryDay)->toDateString();
+        $this->configurationHistory->capture($actorId);
 
         $configuration = SettlementConfiguration::query()->updateOrCreate(
             ['effective_from' => $effectiveFrom],

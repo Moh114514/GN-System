@@ -16,6 +16,7 @@ final class DatabaseCustomerOrderGateway implements CustomerOrderGateway
             'customer_id' => $data->customerId,
             'institution_id' => $data->institutionId,
             'scheduled_at' => $data->scheduledAt,
+            'treatment_project_snapshot' => $data->projectName,
             'translator_name' => $data->translatorName,
             'owner_id' => $data->ownerId,
             'status' => 'scheduled',
