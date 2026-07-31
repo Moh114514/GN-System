@@ -10,8 +10,7 @@ Excel 客户、代理商、订单和结算数据。当前已完成 Phase 1 基�
 
 - 架构：Laravel 模块化单体
 - 后端：PHP 8.3、Laravel 13、Laravel Fortify
-- 前端：Livewire 4、Flux UI 2（免费版）、Tailwind CSS 4、Alpine.js、ECharts、
-  html2canvas
+- 前端：Livewire 4、Flux UI 2（免费版）、Tailwind CSS 4、Alpine.js、ECharts
 - 数据：PostgreSQL 16、Redis 7
 - 运行：Nginx、PHP-FPM、独立 Queue / Scheduler、Vite
 - 质量：PHPUnit、Pint、Larastan / PHPStan level 6

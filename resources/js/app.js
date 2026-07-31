@@ -1,5 +1,4 @@
 import * as echarts from 'echarts';
-import html2canvas from 'html2canvas';
 
 const chartInstances = new WeakMap();
 const chartObservers = new WeakMap();
@@ -142,29 +141,6 @@ function renderDashboardCharts() {
 function scheduleDashboardCharts() {
     window.requestAnimationFrame(() => window.requestAnimationFrame(renderDashboardCharts));
 }
-
-window.gnExportDashboardPng = async () => {
-    const element = document.querySelector('[data-dashboard-export]');
-    if (! (element instanceof HTMLElement)) {
-        throw new Error('没有找到可导出的看板内容，请刷新页面后重试。');
-    }
-
-    const canvas = await html2canvas(element, {
-        backgroundColor: '#ffffff',
-        scale: 2,
-        useCORS: false,
-        onclone: (clonedDocument) => {
-            // html2canvas 1.4 cannot parse Tailwind 4's default oklch palette.
-            // The global border reset resolves --color-gray-200 on every
-            // descendant, including elements without a visible border.
-            clonedDocument.documentElement.style.setProperty('--color-gray-200', '#e5e7eb');
-        },
-    });
-    const link = document.createElement('a');
-    link.download = `dashboard-${new Date().toISOString().slice(0, 19).replaceAll(':', '-')}.png`;
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-};
 
 document.addEventListener('DOMContentLoaded', scheduleDashboardCharts);
 document.addEventListener('livewire:navigated', scheduleDashboardCharts);

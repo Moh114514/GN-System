@@ -1,7 +1,6 @@
 <div
     class="crm-dashboard"
     wire:poll.{{ $refreshSeconds }}s="refreshDashboard"
-    x-data="{ pngExporting: false, pngError: '' }"
 >
     <section class="crm-dashboard-controls" aria-label="看板操作">
         <div class="crm-dashboard-range">
@@ -29,30 +28,8 @@
             <flux:button wire:click="refreshDashboard" size="sm" variant="ghost" icon="arrow-path">刷新</flux:button>
             <flux:button wire:click="export('pdf')" size="sm" variant="ghost">PDF</flux:button>
             <flux:button wire:click="export('html')" size="sm" variant="ghost">HTML</flux:button>
-            <flux:button
-                x-on:click="
-                    pngExporting = true;
-                    pngError = '';
-                    window.gnExportDashboardPng()
-                        .catch((error) => {
-                            console.error(error);
-                            const detail = error?.message || String(error || '');
-                            pngError = detail
-                                ? `PNG 生成失败：${detail}`
-                                : 'PNG 生成失败，请刷新页面后重试。';
-                        })
-                        .finally(() => pngExporting = false);
-                "
-                x-bind:disabled="pngExporting"
-                size="sm"
-                variant="primary"
-            >
-                <span x-show="! pngExporting">PNG</span>
-                <span x-cloak x-show="pngExporting">正在生成…</span>
-            </flux:button>
         </div>
         @if ($rangeError)<p class="crm-dashboard-error">{{ $rangeError }}</p>@endif
-        <p x-cloak x-show="pngError" x-text="pngError" class="crm-dashboard-error" role="alert"></p>
     </section>
 
     @if ($snapshot !== [])
@@ -98,8 +75,6 @@
 
         <div
             class="crm-dashboard-snapshot"
-            data-dashboard-export
-            data-dashboard-snapshot="{{ json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT) }}"
         >
             <section class="crm-metrics" aria-label="核心指标">
                 @foreach ($metricDefinitions as [$key, $label, $money, $icon, $tone, $spark])
