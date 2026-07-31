@@ -124,7 +124,7 @@ jobs:
           composer ci:check
 
       - name: Login to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4.5.1
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -137,7 +137,7 @@ jobs:
 
       - name: Build and push app image
         if: steps.release.outputs.mode == 'rc'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: production
@@ -148,7 +148,7 @@ jobs:
 
       - name: Build and push web image
         if: steps.release.outputs.mode == 'rc'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           target: web-production
