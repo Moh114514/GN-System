@@ -4,13 +4,17 @@ namespace App\Modules\Order;
 
 use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
 use App\Modules\Order\Application\Contracts\DailyOrderGateway;
+use App\Modules\Order\Application\Contracts\InstitutionUsageReader;
 use App\Modules\Order\Application\Contracts\OrderImportGateway;
 use App\Modules\Order\Application\Contracts\ReminderSourceReader;
+use App\Modules\Order\Application\Contracts\ReportOrderReader;
 use App\Modules\Order\Application\Contracts\SettlementOrderReader;
 use App\Modules\Order\Application\Services\DatabaseCustomerOrderGateway;
 use App\Modules\Order\Application\Services\DatabaseDailyOrderGateway;
+use App\Modules\Order\Application\Services\DatabaseInstitutionUsageReader;
 use App\Modules\Order\Application\Services\DatabaseOrderImportGateway;
 use App\Modules\Order\Application\Services\DatabaseReminderSourceReader;
+use App\Modules\Order\Application\Services\DatabaseReportOrderReader;
 use App\Modules\Order\Application\Services\DatabaseSettlementOrderReader;
 use App\Modules\Order\Presentation\Livewire\CustomerOrders;
 use Illuminate\Support\Facades\Route;
@@ -25,6 +29,8 @@ class OrderServiceProvider extends ServiceProvider
         $this->app->bind(DailyOrderGateway::class, DatabaseDailyOrderGateway::class);
         $this->app->bind(SettlementOrderReader::class, DatabaseSettlementOrderReader::class);
         $this->app->bind(ReminderSourceReader::class, DatabaseReminderSourceReader::class);
+        $this->app->bind(ReportOrderReader::class, DatabaseReportOrderReader::class);
+        $this->app->bind(InstitutionUsageReader::class, DatabaseInstitutionUsageReader::class);
     }
 
     public function boot(): void

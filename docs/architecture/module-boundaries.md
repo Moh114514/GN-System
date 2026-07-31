@@ -1,6 +1,6 @@
 # 模块边界
 
-> 最后核验：2026-07-28
+> 最后核验：2026-07-30
 > 决策依据：[ADR-0002](../adr/0002-module-boundaries-and-data-ownership.md)、
 > [ADR-0004](../adr/0004-application-import-contracts.md)、
 > [ADR-0005](../adr/0005-daily-application-contracts.md)、
@@ -56,6 +56,13 @@ Phase 5 Settlement Application 通过 Order、Agent 的只读 Contract 获取月
 完成事务同步调用 Reminder Contract 创建术后系列提醒，Reminder 定时扫描通过
 Order、Customer 只读 Contract 生成预约和日期规则实例。队列 Job 只调用本模块
 Application Service；外部钉钉通知在业务事务提交后执行。
+
+Phase 6 Report Application 通过 Customer、Agent、Order、Config、Settlement、
+Reminder 和 Auth 的只读 Contract/Data 组合查询与看板快照。Order 只查询自己的
+订单事实，Auth 仅批量映射负责人姓名，其他数据所有者解析筛选、批量名称和各自聚合，
+Report 不跨模块引用 Model/Builder。
+Config Application 通过 Agent、Customer、Settlement 的配置历史 Contract 和 Auth
+的用户管理 Contract 聚合配置页面；每个数据所有者仍独占实际写入、快照和回滚。
 
 领域事件、通用 Service Bus 和异步跨模块一致性机制尚未形成，不得从同步契约放行
 推断它们可用。

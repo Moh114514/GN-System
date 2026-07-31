@@ -8,6 +8,7 @@ ARG APP_GID=1000
 RUN apt-get -o Acquire::Retries=5 update \
     && apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
         curl \
+        fonts-droid-fallback \
         git \
         libicu-dev \
         libjpeg62-turbo-dev \

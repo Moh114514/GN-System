@@ -25,11 +25,33 @@ class DashboardTest extends TestCase
         $response
             ->assertOk()
             ->assertSee('GN-System')
-            ->assertSee('当前展示为演示数据')
+            ->assertSee('数据看板')
+            ->assertSee('id="global-search"', false)
+            ->assertSee('action="'.route('global-search').'"', false)
+            ->assertSee('name="q"', false)
+            ->assertSee('href="'.route('reports.search').'"', false)
+            ->assertSee('href="'.route('reminders.index').'"', false)
+            ->assertSee('name="date"', false)
+            ->assertDontSee('PNG')
+            ->assertSee('新增客户')
             ->assertSee('月度营收与订单趋势')
             ->assertSee('客户生命周期概览')
-            ->assertSee('今日待办提醒 <span class="crm-pill tone-red">5</span>', false)
-            ->assertSee('最近客户记录');
+            ->assertSee('最近客户记录')
+            ->assertDontSee('演示数据');
+    }
+
+    public function test_topbar_date_opens_the_selected_day_on_the_dashboard(): void
+    {
+        $user = User::factory()->create();
+
+        $response = $this->actingAs($user)->get(route('dashboard', ['date' => '2026-07-15']));
+
+        $response
+            ->assertOk()
+            ->assertSee('value="2026-07-15"', false)
+            ->assertSee('起始日期')
+            ->assertSee('终止日期')
+            ->assertSee('2026-07-15 至 2026-07-15');
     }
 
     public function test_super_admin_without_two_factor_is_redirected_to_security_settings(): void
@@ -50,6 +72,6 @@ class DashboardTest extends TestCase
         $response
             ->assertOk()
             ->assertSee('GN-System')
-            ->assertSee('本月月结进度');
+            ->assertSee('数据看板');
     }
 }

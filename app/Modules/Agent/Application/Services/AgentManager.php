@@ -2,6 +2,7 @@
 
 namespace App\Modules\Agent\Application\Services;
 
+use App\Modules\Agent\Application\Contracts\ConfigurationHistoryGateway;
 use App\Modules\Agent\Application\Data\AgentProfileData;
 use App\Modules\Agent\Domain\AgentCodeNormalizer;
 use App\Modules\Agent\Infrastructure\Models\Agent;
@@ -20,6 +21,7 @@ final readonly class AgentManager
     public function __construct(
         private AgentCodeNormalizer $normalizer,
         private AuditRecorder $audit,
+        private ConfigurationHistoryGateway $configurationHistory,
     ) {}
 
     public function create(AgentProfileData $data, int $actorId, ?string $ipAddress): int
@@ -116,6 +118,7 @@ final readonly class AgentManager
         if ($type->exists && $type->is_system && $type->code !== $normalizedCode) {
             throw new DomainException('系统类型代码不可修改。');
         }
+        $this->configurationHistory->capture($actorId);
         $before = $type->exists ? $type->only(['code', 'name', 'description', 'is_active']) : null;
         $type->fill(['code' => $normalizedCode, 'name' => trim($name), 'description' => $this->nullable($description)])->save();
         $this->recordConfiguration('代理商类型代码已保存', $type, $before, $actorId, $ipAddress);
@@ -136,6 +139,7 @@ final readonly class AgentManager
 
     public function toggleType(int $id, int $actorId, ?string $ipAddress): void
     {
+        $this->configurationHistory->capture($actorId);
         $type = AgentTypeCode::query()->findOrFail($id);
         $before = $type->only(['is_active']);
         $type->update(['is_active' => ! $type->is_active]);
@@ -144,6 +148,7 @@ final readonly class AgentManager
 
     public function savePolicy(?int $id, string $name, int $actorId, ?string $ipAddress): void
     {
+        $this->configurationHistory->capture($actorId);
         $system = $id === null ? new PolicySystem(['is_active' => true]) : PolicySystem::query()->findOrFail($id);
         $before = $system->exists ? $system->only(['name', 'is_active']) : null;
         $system->fill(['name' => trim($name)])->save();
@@ -160,6 +165,7 @@ final readonly class AgentManager
 
     public function togglePolicy(int $id, int $actorId, ?string $ipAddress): void
     {
+        $this->configurationHistory->capture($actorId);
         $system = PolicySystem::query()->findOrFail($id);
         $before = $system->only(['is_active']);
         $system->update(['is_active' => ! $system->is_active]);
@@ -169,6 +175,7 @@ final readonly class AgentManager
     public function saveGrade(?int $id, int $policySystemId, string $name, int $thresholdKrw, int $sortOrder, int $actorId, ?string $ipAddress): void
     {
         PolicySystem::query()->findOrFail($policySystemId);
+        $this->configurationHistory->capture($actorId);
         $grade = $id === null ? new PolicyGrade(['is_active' => true]) : PolicyGrade::query()->findOrFail($id);
         $before = $grade->exists ? $grade->only(['policy_system_id', 'name', 'monthly_threshold_krw', 'sort_order', 'is_active']) : null;
         $grade->fill([
@@ -196,6 +203,7 @@ final readonly class AgentManager
 
     public function toggleGrade(int $id, int $actorId, ?string $ipAddress): void
     {
+        $this->configurationHistory->capture($actorId);
         $grade = PolicyGrade::query()->findOrFail($id);
         $before = $grade->only(['is_active']);
         $grade->update(['is_active' => ! $grade->is_active]);

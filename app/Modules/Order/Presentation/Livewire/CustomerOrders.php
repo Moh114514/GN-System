@@ -28,6 +28,8 @@ class CustomerOrders extends Component
 
     public string $projectName = '';
 
+    public string $treatmentProjectId = '';
+
     public string $amountKrw = '';
 
     public string $status = 'pending';
@@ -35,6 +37,8 @@ class CustomerOrders extends Component
     public string $completedOn = '';
 
     public string $translatorName = '';
+
+    public string $translatorLanguageId = '';
 
     public string $notes = '';
 
@@ -49,7 +53,7 @@ class CustomerOrders extends Component
         $this->channel = (string) $profile['original_channel'];
         $this->agentId = (string) ($profile['source_agent_id'] ?? '');
         $this->directSalesSourceId = (string) ($profile['source_direct_sales_id'] ?? '');
-        $this->completedOn = now()->toDateString();
+        $this->completedOn = now('Asia/Shanghai')->format('Y-m-d\TH:i');
     }
 
     public function save(DailyOrderWorkspace $workspace): void
@@ -59,11 +63,13 @@ class CustomerOrders extends Component
             'channel' => ['required', 'in:agent,direct'],
             'agentId' => [$this->channel === 'agent' ? 'required' : 'nullable', 'integer'],
             'directSalesSourceId' => [$this->channel === 'direct' ? 'required' : 'nullable', 'integer'],
-            'projectName' => ['required', 'string', 'max:255'],
+            'projectName' => ['required_without:treatmentProjectId', 'nullable', 'string', 'max:255'],
+            'treatmentProjectId' => ['nullable', 'integer'],
             'amountKrw' => ['required', 'integer', 'min:0'],
             'status' => ['required', 'in:pending,completed'],
             'completedOn' => [$this->status === 'completed' ? 'required' : 'nullable', 'date'],
             'translatorName' => ['nullable', 'string', 'max:255'],
+            'translatorLanguageId' => ['nullable', 'integer'],
             'notes' => ['nullable', 'string', 'max:5000'],
         ]);
         try {
@@ -76,18 +82,22 @@ class CustomerOrders extends Component
                 projectName: $this->projectName,
                 amountKrw: (int) $this->amountKrw,
                 status: $this->status,
-                completedOn: $this->status === 'completed' ? CarbonImmutable::parse($this->completedOn) : null,
+                completedOn: $this->status === 'completed'
+                    ? CarbonImmutable::parse($this->completedOn, 'Asia/Shanghai')
+                    : null,
                 translatorName: $this->translatorName === '' ? null : $this->translatorName,
                 notes: $this->notes === '' ? null : $this->notes,
                 ownerId: (int) Auth::id(),
                 ipAddress: request()->ip(),
+                treatmentProjectId: $this->treatmentProjectId === '' ? null : (int) $this->treatmentProjectId,
+                translatorLanguageId: $this->translatorLanguageId === '' ? null : (int) $this->translatorLanguageId,
             ));
         } catch (DomainException $exception) {
             $this->addError('order', $exception->getMessage());
 
             return;
         }
-        $this->reset('institutionId', 'projectName', 'amountKrw', 'translatorName', 'notes');
+        $this->reset('institutionId', 'projectName', 'treatmentProjectId', 'amountKrw', 'translatorName', 'translatorLanguageId', 'notes');
         $this->status = 'pending';
         session()->flash('status', '订单已保存。');
         $this->loadContext($workspace);
@@ -96,7 +106,7 @@ class CustomerOrders extends Component
     public function complete(int $orderId, DailyOrderWorkspace $workspace): void
     {
         try {
-            $workspace->complete($orderId, CarbonImmutable::today(), (int) Auth::id(), request()->ip());
+            $workspace->complete($orderId, CarbonImmutable::now('Asia/Shanghai'), (int) Auth::id(), request()->ip());
         } catch (DomainException $exception) {
             $this->addError('completion', $exception->getMessage());
 

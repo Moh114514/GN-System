@@ -132,45 +132,45 @@ final readonly class ReferenceConfigurationImportParser
         try {
             $data = match ($profile) {
                 ImportProfile::AgentType => [
-                    'code' => $this->code($raw['代码'], 2, 4),
+                    'code' => $this->code($raw['代码'], '代码', 2, 4),
                     'name' => $this->required($raw['名称'], '名称'),
                     'description' => $this->nullable($raw['说明']),
-                    'is_active' => $this->boolean($raw['启用']),
+                    'is_active' => $this->boolean($raw['启用'], '启用'),
                 ],
                 ImportProfile::Institution => [
-                    'code' => $this->code($raw['机构代码'], 1, 32, true),
+                    'code' => $this->code($raw['机构代码'], '机构代码', 1, 32, true),
                     'name' => $this->required($raw['正式名称'], '正式名称'),
                     'aliases' => $this->aliases($raw['别名']),
-                    'is_active' => $this->boolean($raw['启用']),
+                    'is_active' => $this->boolean($raw['启用'], '启用'),
                 ],
                 ImportProfile::DirectSalesSource => [
-                    'code' => $this->code($raw['代码'], 2, 6),
+                    'code' => $this->code($raw['代码'], '代码', 2, 6),
                     'name' => $this->required($raw['名称'], '名称'),
-                    'is_active' => $this->boolean($raw['启用']),
+                    'is_active' => $this->boolean($raw['启用'], '启用'),
                 ],
                 ImportProfile::PolicySystem => [
                     'name' => $this->required($raw['名称'], '名称'),
-                    'is_active' => $this->boolean($raw['启用']),
+                    'is_active' => $this->boolean($raw['启用'], '启用'),
                 ],
                 ImportProfile::PolicyGrade => [
                     'policy_system' => $this->required($raw['政策体系'], '政策体系'),
                     'name' => $this->required($raw['等级名称'], '等级名称'),
                     'monthly_threshold_krw' => $this->integer($raw['月业绩门槛KRW'], '月业绩门槛KRW', 0),
                     'sort_order' => $this->integer($raw['排序'], '排序', 0, 65535),
-                    'is_active' => $this->boolean($raw['启用']),
+                    'is_active' => $this->boolean($raw['启用'], '启用'),
                 ],
                 ImportProfile::CommissionRule => [
                     'policy_system' => $this->required($raw['政策体系'], '政策体系'),
                     'policy_grade' => $this->required($raw['等级名称'], '等级名称'),
-                    'institution_code' => $this->code($raw['机构代码'], 1, 32, true),
+                    'institution_code' => $this->code($raw['机构代码'], '机构代码', 1, 32, true),
                     'rate_bps' => $this->integer($raw['费率基点'], '费率基点', 0, 10000),
                     'effective_month' => $this->date($raw['生效月份'], '生效月份')->startOfMonth()->format('Y-m-d'),
-                    'is_active' => $this->boolean($raw['启用']),
+                    'is_active' => $this->boolean($raw['启用'], '启用'),
                 ],
                 ImportProfile::Agent => [
                     'code' => $this->agentCodes->normalizeAgentCode($this->required($raw['代理商编号'], '代理商编号')),
                     'name' => $this->required($raw['代理商名称'], '代理商名称'),
-                    'type_code' => $this->code($raw['代理类型代码'], 2, 4),
+                    'type_code' => $this->code($raw['代理类型代码'], '代理类型代码', 2, 4),
                     'business_role' => $this->nullable($raw['业务角色']),
                     'contact_name' => $this->nullable($raw['联系人']),
                     'contact_value' => $this->nullable($raw['联系方式']),
@@ -318,23 +318,28 @@ final readonly class ReferenceConfigurationImportParser
         return $value === '' ? null : $value;
     }
 
-    private function code(mixed $value, int $min, int $max, bool $allowSeparators = false): string
+    private function code(mixed $value, string $field, int $min, int $max, bool $allowSeparators = false): string
     {
-        $code = strtoupper($this->required($value, '代码'));
+        $code = strtoupper($this->required($value, $field));
         $pattern = $allowSeparators ? "/^[A-Z0-9_-]{{$min},{$max}}$/" : "/^[A-Z0-9]{{$min},{$max}}$/";
         if (preg_match($pattern, $code) !== 1) {
-            throw new InvalidArgumentException("代码 {$code} 格式不正确。");
+            $characters = $allowSeparators ? '大写字母、数字、下划线或连字符' : '大写字母或数字';
+            throw new InvalidArgumentException(
+                "{$field}“{$this->display($value)}”格式不正确；应为 {$min}-{$max} 位{$characters}。",
+            );
         }
 
         return $code;
     }
 
-    private function boolean(mixed $value): bool
+    private function boolean(mixed $value, string $field): bool
     {
-        return match (mb_strtolower($this->required($value, '启用'))) {
+        return match (mb_strtolower($this->required($value, $field))) {
             '是', '启用', 'true', '1', 'yes' => true,
             '否', '停用', 'false', '0', 'no' => false,
-            default => throw new InvalidArgumentException('启用字段必须填写“是/否”或 1/0。'),
+            default => throw new InvalidArgumentException(
+                "{$field}“{$this->display($value)}”无效；请填写“是/否”或 1/0。",
+            ),
         };
     }
 
@@ -342,11 +347,12 @@ final readonly class ReferenceConfigurationImportParser
     {
         $text = str_replace(',', '', $this->required($value, $field));
         if (filter_var($text, FILTER_VALIDATE_INT) === false) {
-            throw new InvalidArgumentException("{$field}必须为整数。");
+            throw new InvalidArgumentException("{$field}“{$this->display($value)}”无效；必须填写整数。");
         }
         $integer = (int) $text;
         if ($integer < $min || ($max !== null && $integer > $max)) {
-            throw new InvalidArgumentException("{$field}超出允许范围。");
+            $range = $max === null ? "不小于 {$min}" : "介于 {$min} 与 {$max} 之间";
+            throw new InvalidArgumentException("{$field}“{$this->display($value)}”超出允许范围；应{$range}。");
         }
 
         return $integer;
@@ -361,7 +367,9 @@ final readonly class ReferenceConfigurationImportParser
         try {
             return CarbonImmutable::parse($this->required($value, $field));
         } catch (Throwable) {
-            throw new InvalidArgumentException("{$field}不是有效日期。");
+            throw new InvalidArgumentException(
+                "{$field}“{$this->display($value)}”不是有效日期；请填写 Excel 日期或 YYYY-MM-DD。",
+            );
         }
     }
 
@@ -390,7 +398,16 @@ final readonly class ReferenceConfigurationImportParser
             '合作中', 'active' => 'active',
             '暂停', 'paused' => 'paused',
             '已终止', 'terminated' => 'terminated',
-            default => throw new InvalidArgumentException('合作状态必须是合作中、暂停或已终止。'),
+            default => throw new InvalidArgumentException(
+                "合作状态“{$this->display($value)}”无效；请填写合作中、暂停或已终止。",
+            ),
         };
+    }
+
+    private function display(mixed $value): string
+    {
+        $text = $this->text($value);
+
+        return $text === '' ? '（空）' : $text;
     }
 }

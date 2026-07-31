@@ -15,6 +15,8 @@ use Illuminate\Support\Carbon;
  * @property int $amount_krw
  * @property string $status
  * @property Carbon|null $completed_on
+ * @property Carbon|null $completed_at
+ * @property string $completion_precision
  */
 class Order extends Model
 {
@@ -22,6 +24,9 @@ class Order extends Model
 
     protected function casts(): array
     {
-        return ['completed_on' => 'date'];
+        return [
+            'completed_on' => 'date',
+            'completed_at' => 'datetime',
+        ];
     }
 }

@@ -18,6 +18,8 @@ use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 #[Layout('layouts.app')]
@@ -80,6 +82,70 @@ class ReferenceConfigurationImportManager extends Component
             ->deleteFileAfterSend();
     }
 
+    public function downloadErrors(): BinaryFileResponse
+    {
+        $batch = $this->ownedBatch();
+        $rows = $batch->rows()
+            ->where('status', 'error')
+            ->orderBy('import_file_id')
+            ->orderBy('sheet_name')
+            ->orderBy('source_row')
+            ->get();
+
+        abort_if($rows->isEmpty() && $batch->failure_reason === null, 404, '当前批次没有可下载的错误。');
+
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('基础配置导入错误');
+        $sheet->fromArray([
+            ['工作表', '源行号', '配置类型', '错误详情', '原始数据'],
+        ]);
+
+        $line = 2;
+        if ($batch->failure_reason !== null) {
+            $sheet->fromArray([[
+                '工作簿整体',
+                '',
+                '文件结构或事务预演',
+                $batch->failure_reason,
+                '',
+            ]], null, "A{$line}");
+            $line++;
+        }
+
+        foreach ($rows as $row) {
+            $sheet->fromArray([[
+                $row->sheet_name,
+                $row->source_row,
+                $row->profile->label(),
+                implode("\n", $row->errors ?? []),
+                $this->formatRawPayload($row->raw_payload_encrypted ?? []),
+            ]], null, "A{$line}");
+            $line++;
+        }
+
+        $lastLine = max(1, $line - 1);
+        $sheet->freezePane('A2');
+        $sheet->setAutoFilter("A1:E{$lastLine}");
+        $sheet->getStyle('A1:E1')->getFont()->setBold(true);
+        $sheet->getStyle("D2:E{$lastLine}")->getAlignment()->setWrapText(true)->setVertical('top');
+        foreach (['A' => 22, 'B' => 12, 'C' => 22, 'D' => 56, 'E' => 72] as $column => $width) {
+            $sheet->getColumnDimension($column)->setWidth($width);
+        }
+
+        $directory = storage_path('app/private');
+        if (! is_dir($directory)) {
+            mkdir($directory, 0700, true);
+        }
+        $path = "{$directory}/reference-configuration-import-errors-{$batch->id}.xlsx";
+        (new Xlsx($spreadsheet))->save($path);
+        $spreadsheet->disconnectWorksheets();
+
+        return response()
+            ->download($path, "基础配置导入错误-{$batch->id}.xlsx")
+            ->deleteFileAfterSend();
+    }
+
     public function selectBatch(string $batchId): void
     {
         $this->selectedBatchId = $batchId;
@@ -96,7 +162,7 @@ class ReferenceConfigurationImportManager extends Component
         session()->flash('status', '批次已重新进入预览、校验和事务预演。');
     }
 
-    public function commit(ReferenceConfigurationImportCommitter $committer): void
+    public function commitBatch(ReferenceConfigurationImportCommitter $committer): void
     {
         $this->validate([
             'confirmImport' => ['accepted'],
@@ -141,5 +207,33 @@ class ReferenceConfigurationImportManager extends Component
         return ImportBatch::query()
             ->where('kind', 'reference_configuration')
             ->findOrFail($this->selectedBatchId);
+    }
+
+    /** @param array<string, mixed> $payload */
+    private function formatRawPayload(array $payload): string
+    {
+        $lines = [];
+        foreach ($payload as $field => $value) {
+            $lines[] = "{$field}：".$this->displayValue($value);
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private function displayValue(mixed $value): string
+    {
+        if ($value === null || $value === '') {
+            return '（空）';
+        }
+
+        if (is_bool($value)) {
+            return $value ? '是' : '否';
+        }
+
+        if (is_scalar($value)) {
+            return (string) $value;
+        }
+
+        return json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '（无法显示）';
     }
 }
