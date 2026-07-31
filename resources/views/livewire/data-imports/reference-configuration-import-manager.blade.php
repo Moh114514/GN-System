@@ -50,13 +50,29 @@
                             <h3 class="font-semibold">批次预览</h3>
                             <p class="mt-1 text-sm text-zinc-600">有效 {{ $batch->valid_rows }} · 错误 {{ $batch->error_rows }} · 总计 {{ $batch->total_rows }}</p>
                         </div>
-                        @if (in_array($batch->status, [\App\Modules\DataImport\Domain\ImportBatchStatus::Failed, \App\Modules\DataImport\Domain\ImportBatchStatus::NeedsReview], true))
-                            <flux:button wire:click="reparse" variant="ghost">重新解析</flux:button>
-                        @endif
+                        <div class="flex flex-wrap gap-2">
+                            @if ($batch->error_rows > 0 || $batch->failure_reason)
+                                <flux:button wire:click="downloadErrors" variant="ghost" icon="arrow-down-tray">
+                                    下载错误报告
+                                </flux:button>
+                            @endif
+                            @if (in_array($batch->status, [\App\Modules\DataImport\Domain\ImportBatchStatus::Failed, \App\Modules\DataImport\Domain\ImportBatchStatus::NeedsReview], true))
+                                <flux:button wire:click="reparse" variant="ghost">重新解析</flux:button>
+                            @endif
+                        </div>
                     </div>
 
                     @if ($batch->failure_reason)
-                        <div class="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{{ $batch->failure_reason }}</div>
+                        <div class="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                            <p class="font-semibold">工作簿处理失败</p>
+                            <p class="mt-1">{{ $batch->failure_reason }}</p>
+                            <p class="mt-2 text-red-600">请下载错误报告查看完整信息，修正工作簿后重新上传。</p>
+                        </div>
+                    @elseif ($batch->error_rows > 0)
+                        <div class="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+                            <p class="font-semibold">发现 {{ $batch->error_rows }} 行错误，当前批次不能写入。</p>
+                            <p class="mt-1">请根据下方工作表、源行号和错误详情修改 XLSX；也可以下载错误报告集中处理。</p>
+                        </div>
                     @endif
 
                     @foreach ($batch->files as $file)
@@ -77,14 +93,31 @@
                     <h3 class="font-semibold">前 100 行校验结果</h3>
                     <div class="crm-table-wrap mt-4">
                         <table class="crm-table">
-                            <thead><tr><th>工作表/行</th><th>结果</th><th>规范化预览</th><th>错误</th></tr></thead>
+                            <thead><tr><th>工作表/源行号</th><th>结果</th><th>数据预览</th><th>错误详情</th></tr></thead>
                             <tbody>
                                 @forelse ($batch->rows as $row)
                                     <tr>
                                         <td>{{ $row->sheet_name }} #{{ $row->source_row }}</td>
-                                        <td>{{ $row->status->value }}</td>
-                                        <td class="max-w-xl break-all text-xs">{{ json_encode($row->normalized_data, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) }}</td>
-                                        <td class="text-sm text-red-600">{{ implode('；', $row->errors ?? []) }}</td>
+                                        <td>
+                                            @if ($row->status === \App\Modules\DataImport\Domain\ImportRowStatus::Valid)
+                                                <span class="text-emerald-700">通过</span>
+                                            @else
+                                                <span class="font-medium text-red-700">错误</span>
+                                            @endif
+                                        </td>
+                                        <td class="max-w-xl break-all text-xs">
+                                            {{ json_encode(
+                                                $row->status === \App\Modules\DataImport\Domain\ImportRowStatus::Valid
+                                                    ? $row->normalized_data
+                                                    : $row->raw_payload_encrypted,
+                                                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+                                            ) }}
+                                        </td>
+                                        <td class="text-sm text-red-600">
+                                            @foreach ($row->errors ?? [] as $error)
+                                                <span class="block">{{ $error }}</span>
+                                            @endforeach
+                                        </td>
                                     </tr>
                                 @empty
                                     <tr><td colspan="4" class="py-8 text-center text-zinc-500">暂无可预览数据。</td></tr>
