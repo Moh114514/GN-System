@@ -143,7 +143,12 @@ function scheduleDashboardCharts() {
     window.requestAnimationFrame(() => window.requestAnimationFrame(renderDashboardCharts));
 }
 
-window.gnExportDashboardPng = async (element) => {
+window.gnExportDashboardPng = async () => {
+    const element = document.querySelector('[data-dashboard-export]');
+    if (! (element instanceof HTMLElement)) {
+        throw new Error('没有找到可导出的看板内容，请刷新页面后重试。');
+    }
+
     const canvas = await html2canvas(element, {
         backgroundColor: '#ffffff',
         scale: 2,

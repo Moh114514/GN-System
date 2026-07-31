@@ -4,7 +4,25 @@
     <meta charset="UTF-8">
     <title>GN-System 数据看板</title>
     <style>
-        body { font-family: DejaVu Sans, sans-serif; color: #18181b; font-size: 12px; }
+        @if ($pdfFontPath !== null)
+            @font-face {
+                font-family: "GN CJK";
+                font-style: normal;
+                font-weight: normal;
+                src: url("file://{{ $pdfFontPath }}") format("truetype");
+            }
+            @font-face {
+                font-family: "GN CJK";
+                font-style: normal;
+                font-weight: bold;
+                src: url("file://{{ $pdfFontPath }}") format("truetype");
+            }
+        @endif
+        body {
+            font-family: "GN CJK", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", DejaVu Sans, sans-serif;
+            color: #18181b;
+            font-size: 12px;
+        }
         h1 { margin-bottom: 4px; } .meta { color: #71717a; margin-bottom: 18px; }
         .metrics { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
         .metrics td { border: 1px solid #d4d4d8; padding: 10px; width: 33%; }
