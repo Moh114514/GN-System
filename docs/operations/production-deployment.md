@@ -3,6 +3,10 @@
 > 适用基线：Ubuntu Server 24.04 LTS x86-64、Docker Engine、Compose Plugin。  
 > 本文描述单机生产基线，不适用于开发环境。
 
+当前 Production 根目录为 `/srv/gn-system/production`，尚未首次部署。UAT 已使用
+`/srv/gn-system`，两者不能交换或共用。环境对照、UAT 更新、日常命令和故障处理见
+[完整运维手册](operations-manual.md)。
+
 ## 1. 容量与网络
 
 建议服务器至少 4 核、8 GB 内存、250 GB SSD、千兆有线网络并接入 UPS。拓扑为：
@@ -14,16 +18,18 @@ Docker 发布端口可能绕过普通 UFW 规则，因此应在 `DOCKER-USER` �
 并从允许及不允许的网段各做一次实际访问验证。防火墙规则属于主机配置，不由仓库
 脚本自动修改，以免误断服务器连接。
 
-准备正式域名的内网 DNS 和受客户端信任的证书。证书及私钥不能进入 Git 或镜像。
+准备 `gncrm.local` 的内网 DNS/hosts 和受客户端信任的证书。正式证书必须包含
+`DNS:gncrm.local`；证书及私钥不能进入 Git 或镜像。
 
 ## 2. 首次准备
 
 服务器只需安装 Git、Docker Engine、Compose Plugin、curl、rsync 和
-mountpoint。将仓库放到 `/srv/gn-system/repository`，然后执行：
+mountpoint。Production 仓库位于 `/srv/gn-system/production/repository`，执行：
 
 ```bash
 sudo timedatectl set-timezone Asia/Shanghai
-sudo deploy/prepare-host.sh
+cd /srv/gn-system/production/repository
+sudo ./deploy/prepare-host.sh /srv/gn-system/production
 cp .env.production.example .env.production
 chmod 0600 .env.production
 ```
@@ -38,12 +44,14 @@ Redis、备份密码另存于密码管理器或离线恢复信封。SMTP 使用 
 修复 SMTP 后由管理员重发；凭据不得进入 Git。
 保持 `PRODUCTION_ENV_FILE=.env.production`、`HTTP_PORT=80`、
 `HTTPS_PORT=443`、`EXTERNAL_HTTPS_PORT_SUFFIX=`、
-`RELEASE_STATE_PATH=/srv/gn-system/releases` 和
+`RELEASE_STATE_PATH=/srv/gn-system/production/releases` 和
 `OFFSITE_BACKUP_MONITOR_ENABLED=true`。同机 UAT 必须使用独立环境文件、端口、
 数据和发布历史，具体见[发布管理手册](release-management.md)。
 
-把证书安装到 `/srv/gn-system/tls/fullchain.pem` 和 `privkey.pem`，私钥权限设为
-`0600`。先验证配置：
+把证书安装到 `/srv/gn-system/production/tls/fullchain.pem` 和 `privkey.pem`，
+私钥权限设为 `0600`。设置 `APP_URL=https://gncrm.local`、
+`LAN_BIND_ADDRESS=192.168.0.141`，并为 Production 单独生成 `APP_KEY`、数据库、
+Redis 和备份密码。先验证配置：
 
 ```bash
 docker compose --env-file .env.production -f compose.production.yaml config
@@ -52,7 +60,7 @@ docker compose --env-file .env.production -f compose.production.yaml config
 生产启动不会生成密钥或执行 migration。首次发布也统一使用发布脚本：
 
 ```bash
-deploy/deploy.sh .env.production
+sudo ./deploy/deploy.sh .env.production
 ```
 
 首次发布后运行交互命令创建管理员：
@@ -82,8 +90,9 @@ RC 标签 `vX.Y.Z-rc.N` 通过完整门禁后构建 GHCR 镜像；UAT 验收通�
 4. 再后续版本才允许删除旧字段或表。
 
 如果健康检查失败且 migration 仍向后兼容，修改 `RELEASE_TAG` 为
-`/srv/gn-system/releases/current` 记录的旧版本后重新运行发布。若已经执行不兼容
-数据库变更，停止写入并使用部署前备份恢复，不能只回退镜像。
+`/srv/gn-system/production/releases/current` 或 `history.tsv` 中人工确认的旧版本
+后重新运行发布。若已经执行不兼容数据库变更，停止写入并使用部署前备份恢复，不能
+只回退镜像。
 
 ## 4. 健康与日志
 
@@ -132,7 +141,9 @@ systemctl list-timers gn-system-offsite-backup.timer
 恢复只能指向空数据库，且需要人工输入 `RESTORE`：
 
 ```bash
-deploy/restore.sh .env.production /srv/gn-system/data/backups/<backup>.zip
+sudo ./deploy/restore.sh \
+  .env.production \
+  /srv/gn-system/production/data/backups/<backup>.zip
 ```
 
 恢复顺序为：准备相同 `APP_KEY` 和配置、恢复数据库、恢复私有文件、检查 migration、

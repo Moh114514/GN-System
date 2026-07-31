@@ -11,7 +11,7 @@ UAT 结果只能证明对应 RC 在该 UAT 环境通过，不代表生产环境�
 由发布或运维负责人记录以下证据：
 
 - RC 标签、标签提交和 app/web 镜像摘要；
-- `/srv/gn-system/uat/releases/current` 中的当前版本；
+- `/srv/gn-system/releases/current` 中的当前版本；
 - `/up`、`/health` 和 `/health/operations` 均成功；
 - UAT 的 Queue 和 Scheduler 容器正常，运维健康页不存在过期心跳；
 - 使用已确认 TOTP 的超级管理员账号，并准备一个普通内部用户账号用于权限验证；

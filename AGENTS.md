@@ -57,8 +57,13 @@
   移动或复用；修复必须形成新提交并发布下一个 RC。
 - RC 标签触发完整门禁和 app/web 镜像构建。UAT 验收通过后，正式标签
   `vX.Y.Z` 必须指向同一提交，并把已验收 RC 镜像按原 digest 晋级，不得重新构建。
-- UAT 与生产即使同机也必须使用独立仓库目录、Compose 项目、环境文件、端口、
-  数据卷、持久化目录、凭据、证书和发布历史。
+- 当前同机布局中，UAT 位于 `/srv/gn-system`，Production 位于
+  `/srv/gn-system/production`。不得按已废弃的“Production 使用根目录、UAT 使用
+  `/srv/gn-system/uat`”方案操作。
+- UAT 与 Production 必须使用独立仓库目录、Compose 项目、环境文件、端口、数据卷、
+  持久化目录、凭据、证书和发布历史。完整当前值和命令以
+  `docs/operations/operations-manual.md` 为准。
+- 首次连接服务器先读`docs/operations/beginner-operations-guide.md`；该指南不替代发布、回退和恢复的完整手册。
 - 服务器只允许获取标签、切换到明确的 detached tag、修改被 Git 忽略且权限为
   `0600` 的环境文件，并运行仓库发布脚本。禁止直接修改业务代码、运行 `git pull`
   后部署、在服务器安装应用依赖或从源码临时构建生产版本。
@@ -104,6 +109,15 @@ docker compose exec app composer docs:check
 
 有影响时，按 `docs/development/documentation.md` 同步更新。普通重构、样式、
 命名或不改变行为的小型修复通常无需修改文档，不要制造无意义的文档变更。
+
+当系统状态发生更新时（例如当前阶段、已实现能力、环境状态、版本状态、部署状态
+或已知运维问题发生变化），必须同时核对并更新以下两份运维文档：
+
+- `docs/operations/operations-manual.md`：完整运维手册；
+- `docs/operations/beginner-operations-guide.md`：小白运维指南。
+
+两份文档面向不同读者，但涉及的事实必须保持一致；如果某次状态变更不影响其中一份，
+也要在修改说明中明确核对结果。
 
 ## 变更范围控制
 

@@ -1,6 +1,6 @@
 # 当前架构概览
 
-> 最后核验：2026-07-30
+> 最后核验：2026-07-31
 > 本文只描述当前仓库已经采用的架构，不描述未来业务数据流。
 
 ## 系统形态
@@ -42,7 +42,9 @@ Auth 已有完整认证实现；Customer 已交付全生命周期页面；Agent 
 容器启动时生成密钥或迁移数据库。PostgreSQL、Redis 使用命名卷，私有文件与加密
 备份使用受控宿主目录，并由 systemd timer 同步至异机挂载点。同机 UAT 复用生产
 镜像和 Compose，但通过独立仓库、Compose 项目、端口、数据、凭据和发布历史隔离；
-正式标签只晋级已验收 RC 的原镜像 digest，不重新构建。具体约束见
+当前 UAT 位于 `/srv/gn-system`，Production 位于 `/srv/gn-system/production`，
+旧的反向目录方案已经废弃。正式标签只晋级已验收 RC 的原镜像 digest，不重新构建。
+当前环境参数与操作命令见[完整运维手册](../operations/operations-manual.md)，具体约束见
 [ADR-0003](../adr/0003-single-host-production-baseline.md)和
 [生产部署手册](../operations/production-deployment.md)，版本流程见
 [发布管理手册](../operations/release-management.md)。
