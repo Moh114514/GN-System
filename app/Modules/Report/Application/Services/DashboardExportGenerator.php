@@ -7,12 +7,15 @@ use App\Modules\Report\Infrastructure\Models\ReportExport;
 use DomainException;
 use Dompdf\Dompdf;
 use Dompdf\Options;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
 final class DashboardExportGenerator
 {
     private const PDF_FONT_PATH = '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf';
+
+    private const PDF_CACHE_PATH = 'framework/cache/dompdf';
 
     /** @param array<string, mixed> $snapshot */
     public function generate(User $user, string $format, array $snapshot): ReportExport
@@ -43,10 +46,20 @@ final class DashboardExportGenerator
         if ($format === 'html') {
             Storage::disk('local')->put($path, $html);
         } else {
+            $fontCachePath = storage_path(self::PDF_CACHE_PATH.'/fonts');
+            $tempPath = storage_path(self::PDF_CACHE_PATH.'/temp');
+            File::ensureDirectoryExists($fontCachePath);
+            File::ensureDirectoryExists($tempPath);
+            if (! is_writable($fontCachePath) || ! is_writable($tempPath)) {
+                throw new RuntimeException('看板 PDF 缓存目录不可写，请检查 storage 目录权限后重试。');
+            }
             $options = new Options;
             $options->setIsRemoteEnabled(false);
             $options->setChroot([base_path(), dirname(self::PDF_FONT_PATH)]);
             $options->setDefaultFont('GN CJK');
+            $options->setFontDir($fontCachePath);
+            $options->setFontCache($fontCachePath);
+            $options->setTempDir($tempPath);
             $pdf = new Dompdf($options);
             $pdf->loadHtml($html, 'UTF-8');
             $pdf->setPaper('A4', 'landscape');

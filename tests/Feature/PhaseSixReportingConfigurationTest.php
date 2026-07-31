@@ -26,6 +26,7 @@ use DomainException;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
@@ -234,6 +235,9 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->assertSame($html->data_snapshot['generated_at'], $pdf->data_snapshot['generated_at']);
         Storage::disk('local')->assertExists($html->path);
         Storage::disk('local')->assertExists($pdf->path);
+        $this->assertNotEmpty(
+            File::glob(storage_path('framework/cache/dompdf/fonts/gn_cjk_*.ufm')),
+        );
 
         $this->actingAs($this->user)->get(route('dashboard'))
             ->assertOk()
