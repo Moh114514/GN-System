@@ -47,6 +47,8 @@ class DashboardTest extends TestCase
         $response
             ->assertOk()
             ->assertSee('value="2026-07-15"', false)
+            ->assertSee('起始日期')
+            ->assertSee('终止日期')
             ->assertSee('2026-07-15 至 2026-07-15');
     }
 

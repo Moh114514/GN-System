@@ -4,7 +4,7 @@
 >
     <section class="crm-dashboard-controls" aria-label="看板操作">
         <div class="crm-dashboard-range">
-            <flux:select wire:model.live="preset" size="sm" aria-label="统计区间" class="w-32">
+            <flux:select wire:model.live="preset" size="sm" aria-label="统计区间" class="crm-dashboard-preset">
                 <option value="today">今日</option>
                 <option value="week">本周</option>
                 <option value="month">本月</option>
@@ -13,9 +13,26 @@
                 <option value="custom">自定义</option>
             </flux:select>
             @if ($preset === 'custom')
-                <flux:input wire:model="customFrom" type="date" size="sm" aria-label="开始日期" />
-                <flux:input wire:model="customTo" type="date" size="sm" aria-label="结束日期" />
-                <flux:button wire:click="applyCustomRange" size="sm" variant="primary">应用</flux:button>
+                <div class="crm-dashboard-custom-range" role="group" aria-label="自定义日期区间">
+                    <label for="dashboard-custom-from">起始日期</label>
+                    <flux:input
+                        id="dashboard-custom-from"
+                        wire:model="customFrom"
+                        class="crm-dashboard-date-input"
+                        type="date"
+                        size="sm"
+                    />
+                    <span class="crm-dashboard-date-separator" aria-hidden="true">—</span>
+                    <label for="dashboard-custom-to">终止日期</label>
+                    <flux:input
+                        id="dashboard-custom-to"
+                        wire:model="customTo"
+                        class="crm-dashboard-date-input"
+                        type="date"
+                        size="sm"
+                    />
+                    <flux:button wire:click="applyCustomRange" size="sm" variant="primary">应用</flux:button>
+                </div>
             @endif
             @if ($snapshot !== [])
                 <span class="crm-dashboard-updated">

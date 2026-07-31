@@ -838,6 +838,31 @@ select:focus[data-flux-control] {
     flex-wrap: wrap;
 }
 
+.crm-dashboard-preset {
+    width: 112px;
+}
+
+.crm-dashboard-custom-range {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+}
+
+.crm-dashboard-custom-range label {
+    color: var(--crm-muted);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.crm-dashboard-date-input {
+    width: 148px;
+}
+
+.crm-dashboard-date-separator {
+    color: var(--crm-muted);
+}
+
 .crm-dashboard-updated {
     color: var(--crm-muted);
     font-size: 12px;
@@ -1541,6 +1566,11 @@ select:focus[data-flux-control] {
     .crm-dashboard-controls {
         align-items: flex-start;
         flex-direction: column;
+    }
+
+    .crm-dashboard-custom-range {
+        flex-wrap: wrap;
+        white-space: normal;
     }
 
     .crm-demo-notice {
