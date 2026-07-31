@@ -96,7 +96,9 @@ final class DashboardExportGenerator
 
         foreach ($exports as $export) {
             if (
-                $export->data_snapshot === $snapshot
+                // PostgreSQL jsonb normalizes equivalent numeric values such
+                // as 0.0 and 0 when the stored snapshot is read back.
+                $export->data_snapshot == $snapshot
                 && is_string($export->path)
                 && Storage::disk('local')->exists($export->path)
             ) {
