@@ -10,8 +10,9 @@
 >
 > 生产状态：目录已初始化，尚未首次部署
 
-本文是 GN-System 环境、发布、部署和日常运维的统一入口。版本标签与镜像晋级的
-细节见[发布管理手册](release-management.md)，生产首次部署和灾难恢复的原则见
+本文是 GN-System 环境、发布、部署和日常运维的统一入口。第一次接触服务器时，先读
+[小白运维指南](beginner-operations-guide.md)。版本标签与镜像晋级的细节见
+[发布管理手册](release-management.md)，生产首次部署和灾难恢复的原则见
 [生产部署与恢复](production-deployment.md)，Phase 5 业务验收见
 [Phase 5 UAT 验收手册](phase-five-uat-acceptance.md)。
 
