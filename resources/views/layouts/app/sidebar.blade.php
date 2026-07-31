@@ -105,21 +105,82 @@
                 <h1>{{ $title ?? 'CRM 管理系统' }}</h1>
                 <div class="crm-topbar-spacer"></div>
 
-                <label class="crm-search">
-                    <flux:icon.magnifying-glass aria-hidden="true" />
-                    <span class="sr-only">全局搜索</span>
-                    <input type="search" placeholder="搜索客户、订单、代理商、手机号等" disabled>
-                    <kbd>⌘ K</kbd>
-                </label>
+                <div
+                    class="crm-global-search"
+                    x-data="{ open: false, query: @js(request()->routeIs('customers.*', 'agents.*') ? (string) request('search', '') : '') }"
+                    @click.outside="open = false"
+                    @keydown.window.prevent.meta.k="$refs.input.focus(); open = true"
+                    @keydown.window.prevent.ctrl.k="$refs.input.focus(); open = true"
+                >
+                    <form action="{{ route('customers.index') }}" method="GET" class="crm-search" @submit="open = false">
+                        <flux:icon.magnifying-glass aria-hidden="true" />
+                        <label class="sr-only" for="global-search">全局搜索</label>
+                        <input
+                            id="global-search"
+                            x-ref="input"
+                            x-model="query"
+                            @focus="open = true"
+                            @input="open = true"
+                            name="search"
+                            type="search"
+                            placeholder="搜索客户、订单、代理商、手机号等"
+                            autocomplete="off"
+                        >
+                        <kbd>⌘ K</kbd>
+                    </form>
 
-                <button type="button" class="crm-date-range" disabled>
-                    <span>{{ now('Asia/Shanghai')->format('Y-m-d') }}</span>
-                    <flux:icon.calendar-days aria-hidden="true" />
-                </button>
+                    <div class="crm-search-menu" x-cloak x-show="open" role="menu">
+                        <a
+                            x-bind:href="'{{ route('customers.index') }}?search=' + encodeURIComponent(query)"
+                            @click="open = false"
+                            role="menuitem"
+                        >
+                            <flux:icon.users aria-hidden="true" />
+                            <span>在客户中搜索<strong x-text="query ? `“${query}”` : ''"></strong></span>
+                        </a>
+                        <a
+                            x-bind:href="'{{ route('reports.search') }}' + (query ? '?projectName=' + encodeURIComponent(query) : '')"
+                            @click="open = false"
+                            role="menuitem"
+                        >
+                            <flux:icon.clipboard-document-list aria-hidden="true" />
+                            <span>在订单项目中搜索<strong x-text="query ? `“${query}”` : ''"></strong></span>
+                        </a>
+                        @if (auth()->user()->is_super_admin)
+                            <a
+                                x-bind:href="'{{ route('agents.index') }}?search=' + encodeURIComponent(query)"
+                                @click="open = false"
+                                role="menuitem"
+                            >
+                                <flux:icon.building-office aria-hidden="true" />
+                                <span>在代理商中搜索<strong x-text="query ? `“${query}”` : ''"></strong></span>
+                            </a>
+                        @endif
+                    </div>
+                </div>
 
-                <button type="button" class="crm-icon-button crm-notification-button" aria-label="通知" disabled>
+                <form action="{{ route('dashboard') }}" method="GET" class="crm-date-form">
+                    <label class="crm-date-range">
+                        <span class="sr-only">查看指定日期的看板</span>
+                        <input
+                            type="date"
+                            name="date"
+                            value="{{ request()->routeIs('dashboard') ? (string) request('date', now('Asia/Shanghai')->format('Y-m-d')) : now('Asia/Shanghai')->format('Y-m-d') }}"
+                            aria-label="查看指定日期的看板"
+                            onchange="this.form.requestSubmit()"
+                        >
+                        <flux:icon.calendar-days aria-hidden="true" />
+                    </label>
+                </form>
+
+                <a
+                    href="{{ route('reminders.index') }}"
+                    class="crm-icon-button crm-notification-button"
+                    aria-label="查看主动提醒"
+                    wire:navigate
+                >
                     <flux:icon.bell aria-hidden="true" />
-                </button>
+                </a>
 
                 <flux:dropdown position="bottom" align="end">
                     <button type="button" class="crm-user-pill" data-test="sidebar-menu-button">

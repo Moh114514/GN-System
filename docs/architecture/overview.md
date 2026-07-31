@@ -80,7 +80,7 @@ Report 只编排数据所有者提供的只读 Application Contract/Data。Order
 护照仅通过 Customer 的规范化 HMAC 盲索引精确定位，绝不解密扫描。
 
 看板聚合最多缓存五分钟，缓存异常时记录告警并直接执行数据库聚合。PDF 与 HTML
-使用同一服务端不可变快照，PNG 由浏览器捕获当前快照。Excel 与服务端看板导出保存
+使用同一服务端不可变快照。Excel 与服务端看板导出保存
 在私有磁盘，并由创建者授权下载、Queue 生成和 Scheduler 过期清理。
 
 配置数据仍由 Agent、Customer、Settlement、Auth 与 Config 各自写入。Config 页面

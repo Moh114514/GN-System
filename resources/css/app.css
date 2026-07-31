@@ -353,6 +353,10 @@ select:focus[data-flux-control] {
     display: none;
 }
 
+.crm-global-search {
+    position: relative;
+}
+
 .crm-search {
     display: flex;
     min-width: 250px;
@@ -387,6 +391,51 @@ select:focus[data-flux-control] {
     font-size: 10px;
 }
 
+.crm-search-menu {
+    position: absolute;
+    z-index: 50;
+    top: calc(100% + 7px);
+    right: 0;
+    display: grid;
+    width: 100%;
+    min-width: 280px;
+    overflow: hidden;
+    border: 1px solid var(--crm-line);
+    border-radius: 10px;
+    background: var(--crm-surface);
+    box-shadow: var(--crm-shadow-hover);
+    padding: 5px;
+}
+
+.crm-search-menu a {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    border-radius: 7px;
+    padding: 9px 10px;
+    color: var(--crm-ink-secondary);
+    font-size: 12.5px;
+}
+
+.crm-search-menu a:hover {
+    background: var(--crm-primary-soft);
+    color: var(--crm-primary-dark);
+}
+
+.crm-search-menu svg {
+    width: 17px;
+    flex: 0 0 auto;
+}
+
+.crm-search-menu strong {
+    margin-left: 4px;
+    font-weight: 600;
+}
+
+.crm-date-form {
+    flex: 0 0 auto;
+}
+
 .crm-date-range {
     display: flex;
     align-items: center;
@@ -399,6 +448,23 @@ select:focus[data-flux-control] {
 .crm-date-range svg {
     width: 16px;
     color: var(--crm-muted);
+}
+
+.crm-date-range input {
+    width: 92px;
+    border: 0;
+    background: transparent;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    outline: 0;
+}
+
+.crm-date-range:focus-within,
+.crm-date-range:hover,
+.crm-icon-button:hover {
+    border-color: var(--crm-primary);
+    color: var(--crm-primary-dark);
 }
 
 .crm-notification-button > span {

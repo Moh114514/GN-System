@@ -259,7 +259,8 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->assertSee('最近客户记录')
             ->assertSee('最近月结进度')
             ->assertSee('data-dashboard-chart="monthly_revenue_orders"', false)
-            ->assertSee('data-dashboard-export', false)
+            ->assertDontSee('data-dashboard-export', false)
+            ->assertDontSee('PNG')
             ->assertDontSee('$refs.dashboard', false)
             ->assertDontSee('crm-report-chart-grid', false)
             ->assertDontSee('演示数据');

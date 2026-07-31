@@ -17,6 +17,8 @@ use Livewire\Component;
 #[Title('数据看板')]
 class Dashboard extends Component
 {
+    public string $date = '';
+
     public string $preset = 'month';
 
     public string $customFrom = '';
@@ -30,8 +32,18 @@ class Dashboard extends Component
 
     public int $refreshSeconds = 300;
 
+    /** @var array<string, array<string, string>> */
+    protected array $queryString = [
+        'date' => ['except' => ''],
+    ];
+
     public function mount(DashboardRangeFactory $ranges, DashboardService $dashboard): void
     {
+        if ($this->date !== '') {
+            $this->preset = 'custom';
+            $this->customFrom = $this->date;
+            $this->customTo = $this->date;
+        }
         $this->refreshSeconds = $dashboard->refreshSeconds();
         $this->loadSnapshot($ranges, $dashboard);
     }
