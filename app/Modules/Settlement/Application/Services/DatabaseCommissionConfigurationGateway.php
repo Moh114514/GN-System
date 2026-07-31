@@ -4,6 +4,7 @@ namespace App\Modules\Settlement\Application\Services;
 
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Settlement\Application\Contracts\CommissionConfigurationGateway;
+use App\Modules\Settlement\Application\Contracts\ConfigurationHistoryGateway;
 use App\Modules\Settlement\Infrastructure\Models\AgentCommissionOverride;
 use App\Modules\Settlement\Infrastructure\Models\CommissionRule;
 use Carbon\CarbonImmutable;
@@ -11,7 +12,10 @@ use DomainException;
 
 final readonly class DatabaseCommissionConfigurationGateway implements CommissionConfigurationGateway
 {
-    public function __construct(private AuditRecorder $audit) {}
+    public function __construct(
+        private AuditRecorder $audit,
+        private ConfigurationHistoryGateway $configurationHistory,
+    ) {}
 
     public function configuration(): array
     {
@@ -31,6 +35,7 @@ final readonly class DatabaseCommissionConfigurationGateway implements Commissio
         bool $isActive = true,
     ): void {
         $month = $this->validateMonthAndRate($effectiveMonth, $rateBps);
+        $this->configurationHistory->capture($actorId);
         $rule = CommissionRule::query()->where([
             'policy_grade_id' => $policyGradeId,
             'institution_id' => $institutionId,
@@ -67,6 +72,7 @@ final readonly class DatabaseCommissionConfigurationGateway implements Commissio
         ?string $ipAddress,
     ): void {
         $month = $this->validateMonthAndRate($effectiveMonth, $rateBps);
+        $this->configurationHistory->capture($actorId);
         $query = AgentCommissionOverride::query()->where('agent_id', $agentId);
         $institutionId === null ? $query->whereNull('institution_id') : $query->where('institution_id', $institutionId);
         $override = $query->whereDate('effective_from', $month)->first();

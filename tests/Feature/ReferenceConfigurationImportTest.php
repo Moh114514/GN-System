@@ -87,9 +87,12 @@ class ReferenceConfigurationImportTest extends TestCase
         $this->assertDatabaseCount('institutions', 0);
         $this->assertDatabaseCount('agents', 0);
 
+        app(ReferenceConfigurationImportParser::class)->parse($batch);
         Livewire::test(ReferenceConfigurationImportManager::class)
             ->set('selectedBatchId', $batch->id)
-            ->call('commit')
+            ->assertSee('wire:click="commitBatch"', false)
+            ->assertDontSee('wire:click="commit"', false)
+            ->call('commitBatch')
             ->assertHasErrors(['confirmImport']);
     }
 
@@ -112,7 +115,11 @@ class ReferenceConfigurationImportTest extends TestCase
         $this->assertDatabaseCount('agents', 0);
         $this->assertNotNull($batch->fresh()->summary['dry_run_completed_at'] ?? null);
 
-        app(ReferenceConfigurationImportCommitter::class)->commit($batch->fresh(), '127.0.0.1');
+        Livewire::test(ReferenceConfigurationImportManager::class)
+            ->set('selectedBatchId', $batch->id)
+            ->set('confirmImport', true)
+            ->call('commitBatch')
+            ->assertHasNoErrors();
 
         $this->assertDatabaseHas('agent_type_codes', ['code' => 'UAT', 'name' => 'UAT 代理']);
         $this->assertDatabaseHas('institutions', ['code' => 'UAT-HOSP', 'name' => 'UAT 示例机构']);
@@ -129,6 +136,7 @@ class ReferenceConfigurationImportTest extends TestCase
             'causer_id' => $this->admin->id,
         ]);
         $this->assertSame(ImportBatchStatus::Completed, $batch->fresh()->status);
+        $this->assertNotNull($batch->fresh()->completed_at);
     }
 
     public function test_relationship_errors_block_confirmation_and_identify_the_source_row(): void
@@ -167,6 +175,78 @@ class ReferenceConfigurationImportTest extends TestCase
             '机构代码“MISSING”不存在',
             implode('；', $invalidBatch->rows()->where('sheet_name', '机构费率规则')->sole()->errors ?? []),
         );
+
+        $component = Livewire::test(ReferenceConfigurationImportManager::class)
+            ->set('selectedBatchId', $invalidBatch->id)
+            ->assertSee('发现 1 行错误，当前批次不能写入')
+            ->assertSee('机构费率规则 #2')
+            ->assertSee('机构代码“MISSING”不存在')
+            ->call('downloadErrors')
+            ->assertFileDownloaded("基础配置导入错误-{$invalidBatch->id}.xlsx");
+
+        $manager = app(ReferenceConfigurationImportManager::class);
+        $manager->selectedBatchId = $invalidBatch->id;
+        $response = $manager->downloadErrors();
+        $reportPath = $response->getFile()->getPathname();
+        $report = IOFactory::load($reportPath);
+        $sheet = $report->getActiveSheet();
+        $this->assertSame('工作表', $sheet->getCell('A1')->getValue());
+        $this->assertSame('机构费率规则', $sheet->getCell('A2')->getValue());
+        $this->assertSame(2, $sheet->getCell('B2')->getValue());
+        $this->assertStringContainsString('机构代码“MISSING”不存在', (string) $sheet->getCell('D2')->getValue());
+        $this->assertStringContainsString('机构代码：MISSING', (string) $sheet->getCell('E2')->getValue());
+        $report->disconnectWorksheets();
+        unlink($reportPath);
+    }
+
+    public function test_error_report_includes_batch_level_workbook_failures(): void
+    {
+        $batch = ImportBatch::query()->create([
+            'created_by' => $this->admin->id,
+            'kind' => 'reference_configuration',
+            'status' => ImportBatchStatus::Failed,
+            'failure_reason' => '缺少工作表：代理商类型。请使用下载示例保留全部八个工作表。',
+        ]);
+
+        Livewire::test(ReferenceConfigurationImportManager::class)
+            ->set('selectedBatchId', $batch->id)
+            ->assertSee('工作簿处理失败')
+            ->assertSee('缺少工作表：代理商类型')
+            ->call('downloadErrors')
+            ->assertFileDownloaded("基础配置导入错误-{$batch->id}.xlsx");
+    }
+
+    public function test_field_validation_errors_include_field_value_and_allowed_format(): void
+    {
+        Livewire::test(ReferenceConfigurationImportManager::class)
+            ->set('workbook', $this->exampleUpload())
+            ->call('stageWorkbook');
+        $batch = ImportBatch::query()->with('files')->sole();
+
+        $path = storage_path('app/private/test-invalid-field.xlsx');
+        $contents = app(EncryptedImportStorage::class)
+            ->decrypt($batch->files->sole()->encrypted_path);
+        file_put_contents($path, $contents);
+        $workbook = IOFactory::load($path);
+        $workbook->getSheetByName('机构及机构别名')?->setCellValue('A2', '错误 代码');
+        (new Xlsx($workbook))->save($path);
+        $workbook->disconnectWorksheets();
+        $replacement = UploadedFile::fake()->createWithContent('字段错误.xlsx', file_get_contents($path) ?: '');
+        unlink($path);
+
+        ImportBatch::query()->delete();
+        Livewire::test(ReferenceConfigurationImportManager::class)
+            ->set('workbook', $replacement)
+            ->call('stageWorkbook');
+        $invalidBatch = ImportBatch::query()->with('files')->sole();
+        app(ReferenceConfigurationImportParser::class)->parse($invalidBatch);
+
+        $error = implode(
+            '；',
+            $invalidBatch->rows()->where('sheet_name', '机构及机构别名')->sole()->errors ?? [],
+        );
+        $this->assertStringContainsString('机构代码“错误 代码”格式不正确', $error);
+        $this->assertStringContainsString('1-32 位大写字母、数字、下划线或连字符', $error);
     }
 
     private function exampleUpload(): UploadedFile

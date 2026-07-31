@@ -34,6 +34,9 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
             if (! in_array($data->status, ['pending', 'completed'], true)) {
                 throw new DomainException('订单状态无效。');
             }
+            $completedAt = $data->status === 'completed' && $data->completedOn !== null
+                ? $data->completedOn->setTimezone('Asia/Shanghai')
+                : null;
             $order = Order::query()->create([
                 'customer_id' => $data->customerId,
                 'institution_id' => $data->institutionId,
@@ -43,6 +46,12 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
                 'project_name' => trim($data->projectName),
                 'amount_krw' => $data->amountKrw,
                 'completed_on' => $data->status === 'completed' ? $data->completedOn : null,
+                'completed_at' => $completedAt,
+                'completion_precision' => $completedAt === null ? 'date' : 'datetime',
+                'treatment_project_snapshot' => trim($data->projectName),
+                'treatment_project_id' => $data->treatmentProjectId,
+                'translator_language_id' => $data->translatorLanguageId,
+                'translator_language_snapshot' => $data->translatorLanguageName,
                 'translator_name' => $data->translatorName,
                 'owner_id' => $data->ownerId,
                 'status' => $data->status,
@@ -59,7 +68,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
 
             $this->audit->record(
                 description: '订单已创建',
-                properties: ['after' => $order->only(['customer_id', 'institution_id', 'channel', 'agent_id', 'direct_sales_source_id', 'project_name', 'amount_krw', 'status', 'completed_on'])],
+                properties: ['after' => $order->only(['customer_id', 'institution_id', 'channel', 'agent_id', 'direct_sales_source_id', 'project_name', 'amount_krw', 'status', 'completed_on', 'completed_at', 'completion_precision'])],
                 causerId: $data->ownerId,
                 subject: $order,
                 logName: 'order',
@@ -79,13 +88,19 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
                 return (int) $order->id;
             }
             $this->assertChannel((string) $order->channel, $order->agent_id, $order->direct_sales_source_id);
-            $before = $order->only(['status', 'completed_on']);
-            $order->update(['status' => 'completed', 'completed_on' => $completedOn]);
+            $before = $order->only(['status', 'completed_on', 'completed_at', 'completion_precision']);
+            $order->update([
+                'status' => 'completed',
+                'completed_on' => $completedOn,
+                'completed_at' => $completedOn->setTimezone('Asia/Shanghai'),
+                'completion_precision' => 'datetime',
+                'treatment_project_snapshot' => $order->treatment_project_snapshot ?: $order->project_name,
+            ]);
             $this->recordCommission($order, $completedOn, $actorId, $ipAddress);
             $this->scheduleReminders($order, $completedOn, $actorId);
             $this->audit->record(
                 description: '订单已完成',
-                properties: ['before' => $before, 'after' => $order->only(['status', 'completed_on'])],
+                properties: ['before' => $before, 'after' => $order->only(['status', 'completed_on', 'completed_at', 'completion_precision'])],
                 causerId: $actorId,
                 subject: $order,
                 logName: 'order',

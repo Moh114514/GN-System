@@ -4,6 +4,7 @@ namespace App\Modules\Customer\Application\Services;
 
 use App\Models\User;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Customer\Application\Contracts\ConfigurationHistoryGateway;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerLifecycleStage;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
@@ -14,7 +15,10 @@ use Illuminate\Validation\ValidationException;
 
 final readonly class CustomerStatusManager
 {
-    public function __construct(private AuditRecorder $audit) {}
+    public function __construct(
+        private AuditRecorder $audit,
+        private ConfigurationHistoryGateway $configurationHistory,
+    ) {}
 
     public function change(
         int $customerId,
@@ -119,6 +123,7 @@ final readonly class CustomerStatusManager
     public function saveConfiguration(array $stages, array $statuses, User $actor, ?string $ipAddress): void
     {
         DB::transaction(function () use ($stages, $statuses, $actor, $ipAddress): void {
+            $this->configurationHistory->capture((int) $actor->id);
             foreach ($stages as $input) {
                 CustomerLifecycleStage::query()->whereKey($input['id'])->update([
                     'name' => trim($input['name']),

@@ -3,14 +3,14 @@
 GN-System 是面向医美/医疗代理业务的内部客户管理系统，用于逐步替代分散的
 Excel 客户、代理商、订单和结算数据。当前已完成 Phase 1 基础架构、Phase 2
 核心数据与导入能力、Phase 3 客户全生命周期及 Phase 4 代理商与推广费核算核心
-闭环，以及 Phase 5 月结、结算单与主动提醒中心；真实历史数据迁移仍待正式源文件、
-错误处理和抽样核对。
+闭环、Phase 5 月结、结算单与主动提醒中心，以及 Phase 6 多维查询、真实数据看板
+和配置中心，并已启用独立订单中心；真实历史数据迁移仍待正式源文件、错误处理和抽样核对。
 
 ## 技术基线
 
 - 架构：Laravel 模块化单体
 - 后端：PHP 8.3、Laravel 13、Laravel Fortify
-- 前端：Livewire 4、Flux UI 2（免费版）、Tailwind CSS 4、Alpine.js
+- 前端：Livewire 4、Flux UI 2（免费版）、Tailwind CSS 4、Alpine.js、ECharts
 - 数据：PostgreSQL 16、Redis 7
 - 运行：Nginx、PHP-FPM、独立 Queue / Scheduler、Vite
 - 质量：PHPUnit、Pint、Larastan / PHPStan level 6
@@ -96,6 +96,10 @@ docker compose down
 中切换。邮件默认写入应用日志；`SENTRY_LARAVEL_DSN` 为空时 Sentry 不发送事件。
 站内提醒始终可用；只有设置 `DINGTALK_ENABLED=true` 并提供
 `DINGTALK_WEBHOOK_URL`、`DINGTALK_SECRET` 后才会发送钉钉机器人通知。
+开发环境用户邀请使用 `MAIL_MAILER=log`，密码设置链接写入应用日志；若需实际收件，
+应改用开发专用 SMTP。查询 Excel 和看板 PDF/HTML 导出均写入
+`storage/app/private/reports`，必须由 Queue 与 Scheduler 容器共同保障生成和
+24 小时过期清理，不能把该目录作为公开 Web 目录。
 
 ## 备份
 

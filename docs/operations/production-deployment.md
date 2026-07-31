@@ -32,6 +32,10 @@ chmod 0600 .env.production
 地址、TLS 路径、SMTP 或 Sentry。至少验证一个告警渠道有效。把 `APP_KEY`、数据库、
 Redis、备份密码另存于密码管理器或离线恢复信封。SMTP 使用 587/STARTTLS 时保留
 `MAIL_SCHEME=smtp`；使用 465 隐式 TLS 时改为 `smtps`。
+用户管理通过 SMTP 发送一次性密码设置链接，因此生产发布前必须验证
+`MAIL_HOST`、`MAIL_PORT`、`MAIL_USERNAME`、`MAIL_PASSWORD`、
+`MAIL_FROM_ADDRESS` 和公网/内网可访问的 `APP_URL`。邀请失败会保留失败状态，
+修复 SMTP 后由管理员重发；凭据不得进入 Git。
 保持 `PRODUCTION_ENV_FILE=.env.production`、`HTTP_PORT=80`、
 `HTTPS_PORT=443`、`EXTERNAL_HTTPS_PORT_SUFFIX=`、
 `RELEASE_STATE_PATH=/srv/gn-system/releases` 和
@@ -96,6 +100,12 @@ docker compose --env-file .env.production -f compose.production.yaml logs --tail
 ```
 
 服务器重启后检查所有服务自动恢复，并确认新队列任务由新代码处理。
+
+多维查询 Excel 与看板 PDF/HTML 写入私有磁盘的 `reports/` 子目录，下载必须经过
+应用授权，文件默认 24 小时过期。`PRIVATE_DATA_PATH` 必须持久、不可被 Nginx
+直接公开，并对 app、queue、scheduler 容器可读写。发布后应分别验证异步 Excel
+成功/失败/重试、非创建者 403、过期清理以及 SHA-256；同时确认 Scheduler 中的
+`app:purge-report-exports` 正常运行。
 
 ## 5. 备份与异机同步
 

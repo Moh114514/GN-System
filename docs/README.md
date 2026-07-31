@@ -29,6 +29,8 @@
 - [Phase 3 客户全生命周期](modules/phase-three-customer-lifecycle.md)
 - [Phase 4 代理商与推广费核算](modules/phase-four-agent-commission.md)
 - [Phase 5 月结、结算单与主动提醒](modules/phase-five-settlement-reminder.md)
+- [Phase 6 多维查询、数据看板与配置中心](modules/phase-six-reporting-configuration.md)
+- [订单中心](modules/order-management.md)
 
 Accepted ADR 记录已经生效的长期决策。若 ADR 与代码不一致，应把它作为需要处理的
 偏差，而不是假装代码已经符合 ADR。

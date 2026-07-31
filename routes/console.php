@@ -105,6 +105,11 @@ Schedule::command('app:purge-imports')
     ->withoutOverlapping()
     ->onOneServer();
 
+Schedule::command('app:purge-report-exports')
+    ->hourlyAt(40)
+    ->withoutOverlapping()
+    ->onOneServer();
+
 Schedule::command('app:generate-settlements')
     ->everyMinute()
     ->withoutOverlapping()

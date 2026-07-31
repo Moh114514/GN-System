@@ -6,6 +6,7 @@ use App\Modules\Order\Application\Contracts\OrderImportGateway;
 use App\Modules\Order\Application\Data\OrderImportData;
 use App\Modules\Order\Infrastructure\Models\Appointment;
 use App\Modules\Order\Infrastructure\Models\Order;
+use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use Illuminate\Support\Facades\DB;
 
@@ -22,6 +23,7 @@ final class DatabaseOrderImportGateway implements OrderImportGateway
                     'scheduled_at' => $data->scheduledAt,
                 ],
                 [
+                    'treatment_project_snapshot' => $data->projectName,
                     'translator_name' => $data->translatorName,
                     'status' => 'completed',
                     'notes' => $data->notes,
@@ -44,8 +46,13 @@ final class DatabaseOrderImportGateway implements OrderImportGateway
                 'agent_id' => $data->agentId,
                 'direct_sales_source_id' => $data->directSalesSourceId,
                 'project_name' => $data->projectName,
+                'treatment_project_snapshot' => $data->projectName,
                 'translator_name' => $data->translatorName,
                 'status' => $data->completedOn === null ? 'pending' : 'completed',
+                'completed_at' => $data->completedOn === null
+                    ? null
+                    : CarbonImmutable::parse($data->completedOn->toDateString().' 00:00:00', 'Asia/Shanghai'),
+                'completion_precision' => 'date',
                 'notes' => $data->notes,
                 'import_batch_id' => $data->importBatchId,
             ],
