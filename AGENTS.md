@@ -110,6 +110,15 @@ docker compose exec app composer docs:check
 有影响时，按 `docs/development/documentation.md` 同步更新。普通重构、样式、
 命名或不改变行为的小型修复通常无需修改文档，不要制造无意义的文档变更。
 
+当系统状态发生更新时（例如当前阶段、已实现能力、环境状态、版本状态、部署状态
+或已知运维问题发生变化），必须同时核对并更新以下两份运维文档：
+
+- `docs/operations/operations-manual.md`：完整运维手册；
+- `docs/operations/beginner-operations-guide.md`：小白运维指南。
+
+两份文档面向不同读者，但涉及的事实必须保持一致；如果某次状态变更不影响其中一份，
+也要在修改说明中明确核对结果。
+
 ## 变更范围控制
 
 - 优先完成满足需求的最小修改。

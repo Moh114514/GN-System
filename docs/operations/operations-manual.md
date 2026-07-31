@@ -1151,9 +1151,16 @@ namei -l /srv/gn-system/data/private
 
 ## 17. 文档维护
 
+系统状态发生变化时，必须同时核对并更新本手册和
+[小白运维指南](beginner-operations-guide.md)。这里的“系统状态”包括当前阶段、已实现
+能力、UAT/Production 部署状态、正在运行的版本、环境地址、已知运维问题和恢复结论等。
+两份文档虽然面向不同读者，但相关事实必须保持一致；若某次状态变化不影响其中一份，
+也要在 Pull Request 中写明已完成核对。
+
 路径、域名、端口、Compose project、证书、环境文件或发布流程变化时，必须同时更新：
 
 - 本手册；
+- [小白运维指南](beginner-operations-guide.md)；
 - `AGENTS.md`；
 - `.env.uat.example` / `.env.production.example`；
 - 发布和生产部署手册；
