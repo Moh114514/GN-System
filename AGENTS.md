@@ -63,9 +63,7 @@
 - UAT 与 Production 必须使用独立仓库目录、Compose 项目、环境文件、端口、数据卷、
   持久化目录、凭据、证书和发布历史。完整当前值和命令以
   `docs/operations/operations-manual.md` 为准。
-- 首次连接服务器、使用 VS Code 或让 Codex 协助日常排障时，先读
-  `docs/operations/beginner-operations-guide.md`；该指南不替代发布、回退和恢复的
-  完整手册。
+- 首次连接服务器先读`docs/operations/beginner-operations-guide.md`；该指南不替代发布、回退和恢复的完整手册。
 - 服务器只允许获取标签、切换到明确的 detached tag、修改被 Git 忽略且权限为
   `0600` 的环境文件，并运行仓库发布脚本。禁止直接修改业务代码、运行 `git pull`
   后部署、在服务器安装应用依赖或从源码临时构建生产版本。
