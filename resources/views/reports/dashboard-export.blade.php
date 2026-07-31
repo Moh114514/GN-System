@@ -11,25 +11,20 @@
                 font-weight: normal;
                 src: url("file://{{ $pdfFontPath }}") format("truetype");
             }
-            @font-face {
-                font-family: "GN CJK";
-                font-style: normal;
-                font-weight: bold;
-                src: url("file://{{ $pdfFontPath }}") format("truetype");
-            }
         @endif
         body {
             font-family: "GN CJK", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", DejaVu Sans, sans-serif;
             color: #18181b;
             font-size: 12px;
         }
-        h1 { margin-bottom: 4px; } .meta { color: #71717a; margin-bottom: 18px; }
+        h1 { margin-bottom: 4px; font-weight: normal; } .meta { color: #71717a; margin-bottom: 18px; }
         .metrics { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
         .metrics td { border: 1px solid #d4d4d8; padding: 10px; width: 33%; }
-        .label { color: #71717a; } .value { font-size: 18px; font-weight: bold; margin-top: 4px; }
+        .label { color: #71717a; } .value { font-size: 18px; font-weight: normal; margin-top: 4px; }
         .charts { width: 100%; border-collapse: collapse; }
         .charts th, .charts td { border: 1px solid #d4d4d8; padding: 6px; text-align: left; }
-        .chart-title { margin-top: 14px; font-size: 14px; font-weight: bold; }
+        .charts th { font-weight: normal; }
+        .chart-title { margin-top: 14px; font-size: 14px; font-weight: normal; }
         .bar { fill: #0f766e; } .bar-bg { fill: #f4f4f5; }
     </style>
 </head>

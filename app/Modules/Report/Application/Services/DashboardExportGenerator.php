@@ -23,6 +23,10 @@ final class DashboardExportGenerator
         if (in_array($format, ['pdf', 'html'], true) === false) {
             throw new DomainException('看板服务端导出仅支持 PDF 和 HTML。');
         }
+        $reusableExport = $this->reusableExport($user, $format, $snapshot);
+        if ($reusableExport !== null) {
+            return $reusableExport;
+        }
         $pdfFontPath = $format === 'pdf' ? self::PDF_FONT_PATH : null;
         if ($pdfFontPath !== null && ! is_readable($pdfFontPath)) {
             throw new RuntimeException('看板 PDF 中文字体不可用，请重新构建应用镜像后重试。');
@@ -57,6 +61,7 @@ final class DashboardExportGenerator
             $options->setIsRemoteEnabled(false);
             $options->setChroot([base_path(), dirname(self::PDF_FONT_PATH)]);
             $options->setDefaultFont('GN CJK');
+            $options->setIsFontSubsettingEnabled(false);
             $options->setFontDir($fontCachePath);
             $options->setFontCache($fontCachePath);
             $options->setTempDir($tempPath);
@@ -74,5 +79,31 @@ final class DashboardExportGenerator
         ]);
 
         return $export;
+    }
+
+    /** @param array<string, mixed> $snapshot */
+    private function reusableExport(User $user, string $format, array $snapshot): ?ReportExport
+    {
+        $exports = ReportExport::query()
+            ->where('created_by', $user->id)
+            ->where('kind', 'dashboard')
+            ->where('format', $format)
+            ->where('status', 'completed')
+            ->where('expires_at', '>', now())
+            ->latest('generated_at')
+            ->limit(20)
+            ->get();
+
+        foreach ($exports as $export) {
+            if (
+                $export->data_snapshot === $snapshot
+                && is_string($export->path)
+                && Storage::disk('local')->exists($export->path)
+            ) {
+                return $export;
+            }
+        }
+
+        return null;
     }
 }

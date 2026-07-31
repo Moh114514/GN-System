@@ -232,7 +232,17 @@ class PhaseSixReportingConfigurationTest extends TestCase
 
         $html = app(DashboardExportGenerator::class)->generate($this->user, 'html', $snapshot);
         $pdf = app(DashboardExportGenerator::class)->generate($this->user, 'pdf', $snapshot);
+        $reusedPdf = app(DashboardExportGenerator::class)->generate($this->user, 'pdf', $snapshot);
         $this->assertSame($html->data_snapshot['generated_at'], $pdf->data_snapshot['generated_at']);
+        $this->assertSame($pdf->id, $reusedPdf->id);
+        $this->assertSame(
+            1,
+            ReportExport::query()
+                ->where('created_by', $this->user->id)
+                ->where('kind', 'dashboard')
+                ->where('format', 'pdf')
+                ->count(),
+        );
         Storage::disk('local')->assertExists($html->path);
         Storage::disk('local')->assertExists($pdf->path);
         $this->assertNotEmpty(

@@ -153,6 +153,12 @@ window.gnExportDashboardPng = async () => {
         backgroundColor: '#ffffff',
         scale: 2,
         useCORS: false,
+        onclone: (clonedDocument) => {
+            // html2canvas 1.4 cannot parse Tailwind 4's default oklch palette.
+            // The global border reset resolves --color-gray-200 on every
+            // descendant, including elements without a visible border.
+            clonedDocument.documentElement.style.setProperty('--color-gray-200', '#e5e7eb');
+        },
     });
     const link = document.createElement('a');
     link.download = `dashboard-${new Date().toISOString().slice(0, 19).replaceAll(':', '-')}.png`;

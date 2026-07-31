@@ -36,7 +36,10 @@
                     window.gnExportDashboardPng()
                         .catch((error) => {
                             console.error(error);
-                            pngError = error?.message || 'PNG 生成失败，请刷新页面后重试。';
+                            const detail = error?.message || String(error || '');
+                            pngError = detail
+                                ? `PNG 生成失败：${detail}`
+                                : 'PNG 生成失败，请刷新页面后重试。';
                         })
                         .finally(() => pngExporting = false);
                 "
