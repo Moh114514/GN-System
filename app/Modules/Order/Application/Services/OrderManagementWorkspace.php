@@ -44,7 +44,20 @@ final readonly class OrderManagementWorkspace
 
     /**
      * @param  array{search?: string, status?: string, channel?: string, institution_id?: int|null, agent_id?: int|null}  $filters
-     * @return LengthAwarePaginator<int, array<string, mixed>>
+     * @return LengthAwarePaginator<int, array{
+     *     id: int,
+     *     customer_id: int,
+     *     customer_name: string,
+     *     customer_code: string,
+     *     institution: string,
+     *     channel: string,
+     *     source: string,
+     *     project_name: string,
+     *     amount_krw: int,
+     *     status: string,
+     *     completed_at: string|null,
+     *     created_at: string|null
+     * }>
      */
     public function paginate(array $filters, int $perPage): LengthAwarePaginator
     {
