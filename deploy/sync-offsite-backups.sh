@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-source_directory=${1:-/srv/gn-system/data/backups}
+source_directory=${1:-/srv/gn-system/production/data/backups}
 destination_mount=${2:-/mnt/gn-system-offsite}
 destination_directory="${destination_mount}/gn-system"
 

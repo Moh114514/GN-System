@@ -57,8 +57,12 @@
   移动或复用；修复必须形成新提交并发布下一个 RC。
 - RC 标签触发完整门禁和 app/web 镜像构建。UAT 验收通过后，正式标签
   `vX.Y.Z` 必须指向同一提交，并把已验收 RC 镜像按原 digest 晋级，不得重新构建。
-- UAT 与生产即使同机也必须使用独立仓库目录、Compose 项目、环境文件、端口、
-  数据卷、持久化目录、凭据、证书和发布历史。
+- 当前同机布局中，UAT 位于 `/srv/gn-system`，Production 位于
+  `/srv/gn-system/production`。不得按已废弃的“Production 使用根目录、UAT 使用
+  `/srv/gn-system/uat`”方案操作。
+- UAT 与 Production 必须使用独立仓库目录、Compose 项目、环境文件、端口、数据卷、
+  持久化目录、凭据、证书和发布历史。完整当前值和命令以
+  `docs/operations/operations-manual.md` 为准。
 - 服务器只允许获取标签、切换到明确的 detached tag、修改被 Git 忽略且权限为
   `0600` 的环境文件，并运行仓库发布脚本。禁止直接修改业务代码、运行 `git pull`
   后部署、在服务器安装应用依赖或从源码临时构建生产版本。

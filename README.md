@@ -123,8 +123,9 @@ WAL/PITR。
 启动时生成 `APP_KEY` 或自动迁移。
 
 服务器准备、环境变量、发布、回退、异机同步和恢复演练见
-[局域网生产部署与恢复](docs/operations/production-deployment.md)；版本从开发、
-UAT 验收到正式镜像晋级的完整步骤见
+[完整运维手册](docs/operations/operations-manual.md)；Production 首次部署和恢复
+原则见[局域网生产部署与恢复](docs/operations/production-deployment.md)；版本从
+开发、UAT 验收到正式镜像晋级的完整步骤见
 [UAT 测试版本与正式发布流程](docs/operations/release-management.md)。不要把
 `.env.production`、`.env.uat`、TLS 私钥或真实凭据提交到 Git。
 
@@ -171,6 +172,7 @@ PHPStan、PHPUnit、前端构建和 Composer / npm 安全审计。
 - [文档导航与权威性说明](docs/README.md)
 - [当前项目状态](docs/project-status.md)
 - [当前架构概览](docs/architecture/overview.md)
+- [完整运维手册](docs/operations/operations-manual.md)
 - [CRM 需求文档 v1.9](docs/source/CRM-需求文档-v1.9.md)
 - [架构决策记录](docs/adr/README.md)
 
