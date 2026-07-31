@@ -105,14 +105,19 @@
                 <h1>{{ $title ?? 'CRM 管理系统' }}</h1>
                 <div class="crm-topbar-spacer"></div>
 
+                @php
+                    $topbarSearchQuery = request()->routeIs('global-search')
+                        ? (string) request('q', '')
+                        : (request()->routeIs('customers.*', 'agents.*') ? (string) request('search', '') : '');
+                @endphp
                 <div
                     class="crm-global-search"
-                    x-data="{ open: false, query: @js(request()->routeIs('customers.*', 'agents.*') ? (string) request('search', '') : '') }"
+                    x-data="{ open: false, query: @js($topbarSearchQuery) }"
                     @click.outside="open = false"
                     @keydown.window.prevent.meta.k="$refs.input.focus(); open = true"
                     @keydown.window.prevent.ctrl.k="$refs.input.focus(); open = true"
                 >
-                    <form action="{{ route('customers.index') }}" method="GET" class="crm-search" @submit="open = false">
+                    <form action="{{ route('global-search') }}" method="GET" class="crm-search" @submit="open = false">
                         <flux:icon.magnifying-glass aria-hidden="true" />
                         <label class="sr-only" for="global-search">全局搜索</label>
                         <input
@@ -121,7 +126,7 @@
                             x-model="query"
                             @focus="open = true"
                             @input="open = true"
-                            name="search"
+                            name="q"
                             type="search"
                             placeholder="搜索客户、订单、代理商、手机号等"
                             autocomplete="off"

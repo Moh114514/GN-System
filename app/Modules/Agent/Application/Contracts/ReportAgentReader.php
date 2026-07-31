@@ -5,6 +5,14 @@ namespace App\Modules\Agent\Application\Contracts;
 interface ReportAgentReader
 {
     /**
+     * @return array{
+     *   total: int,
+     *   items: array<int, array{id: int, code: string, name: string, status: string}>
+     * }
+     */
+    public function globalSearch(string $query, int $limit): array;
+
+    /**
      * @param  array<int, int>  $ids
      * @return array<int, string>
      */

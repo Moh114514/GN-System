@@ -8,6 +8,33 @@ use Illuminate\Support\Facades\DB;
 
 final class DatabaseReportAgentReader implements ReportAgentReader
 {
+    public function globalSearch(string $query, int $limit): array
+    {
+        $query = trim($query);
+        if ($query === '') {
+            return ['total' => 0, 'items' => []];
+        }
+
+        $agents = Agent::query()->where(fn ($builder) => $builder
+            ->where('name', 'ilike', '%'.$query.'%')
+            ->orWhere('code', 'ilike', '%'.strtoupper($query).'%'));
+        $total = (clone $agents)->count();
+        $items = $agents
+            ->orderBy('name')
+            ->orderBy('id')
+            ->limit(max(1, $limit))
+            ->get(['id', 'code', 'name', 'cooperation_status'])
+            ->map(fn (Agent $agent): array => [
+                'id' => (int) $agent->id,
+                'code' => (string) $agent->code,
+                'name' => (string) $agent->name,
+                'status' => (string) $agent->cooperation_status,
+            ])
+            ->all();
+
+        return ['total' => $total, 'items' => $items];
+    }
+
     public function namesByIds(array $ids): array
     {
         return Agent::query()->whereKey(array_values(array_unique($ids)))->pluck('name', 'id')

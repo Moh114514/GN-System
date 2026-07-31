@@ -6,6 +6,14 @@ use Carbon\CarbonImmutable;
 
 interface ReportCustomerReader
 {
+    /**
+     * @return array{
+     *   total: int,
+     *   items: array<int, array{id: int, code: string, name: string, status: string}>
+     * }
+     */
+    public function globalSearch(string $query, int $limit): array;
+
     public function customerIdForPassport(string $passport): ?int;
 
     /**

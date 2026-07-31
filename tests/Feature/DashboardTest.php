@@ -27,6 +27,8 @@ class DashboardTest extends TestCase
             ->assertSee('GN-System')
             ->assertSee('数据看板')
             ->assertSee('id="global-search"', false)
+            ->assertSee('action="'.route('global-search').'"', false)
+            ->assertSee('name="q"', false)
             ->assertSee('href="'.route('reports.search').'"', false)
             ->assertSee('href="'.route('reminders.index').'"', false)
             ->assertSee('name="date"', false)

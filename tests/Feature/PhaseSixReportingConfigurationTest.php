@@ -149,6 +149,41 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->assertSame(0, $missing['page']->total);
     }
 
+    public function test_topbar_enter_search_groups_all_authorized_result_types(): void
+    {
+        Order::query()->create([
+            'customer_id' => $this->customer->id,
+            'institution_id' => $this->institutionId,
+            'agent_id' => $this->agentId,
+            'channel' => 'agent',
+            'project_name' => 'Phase Six Project',
+            'treatment_project_snapshot' => 'Phase Six Project',
+            'amount_krw' => 660000,
+            'completed_on' => '2026-07-30',
+            'completed_at' => CarbonImmutable::parse('2026-07-30 10:00:00', 'Asia/Shanghai'),
+            'completion_precision' => 'datetime',
+            'owner_id' => $this->user->id,
+            'status' => 'completed',
+        ]);
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+
+        $this->actingAs($admin)->get(route('global-search', ['q' => 'Phase Six']))
+            ->assertOk()
+            ->assertSee('全部搜索结果')
+            ->assertSee('Phase Six Customer')
+            ->assertSee('Phase Six Project')
+            ->assertSee('Phase Six Agent')
+            ->assertSee('href="'.route('customers.index', ['search' => 'Phase Six']).'"', false)
+            ->assertSee('href="'.route('reports.search', ['projectName' => 'Phase Six']).'"', false)
+            ->assertSee('href="'.route('agents.index', ['search' => 'Phase Six']).'"', false);
+
+        $this->actingAs($this->user)->get(route('global-search', ['q' => 'Phase Six']))
+            ->assertOk()
+            ->assertSee('Phase Six Customer')
+            ->assertSee('Phase Six Project')
+            ->assertDontSee('查看全部代理商');
+    }
+
     public function test_query_export_is_private_hashed_retryable_and_expires(): void
     {
         Storage::fake('local');

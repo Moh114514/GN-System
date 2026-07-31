@@ -5,6 +5,7 @@ namespace App\Modules\Customer\Application\Services;
 use App\Modules\Customer\Application\Contracts\ReportCustomerReader;
 use App\Modules\Customer\Domain\BlindIndex;
 use App\Modules\Customer\Infrastructure\Models\Customer;
+use App\Modules\Customer\Infrastructure\Models\CustomerContact;
 use App\Modules\Customer\Infrastructure\Models\CustomerIdentityDocument;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
@@ -12,6 +13,43 @@ use Illuminate\Support\Facades\DB;
 final readonly class DatabaseReportCustomerReader implements ReportCustomerReader
 {
     public function __construct(private BlindIndex $blindIndex) {}
+
+    public function globalSearch(string $query, int $limit): array
+    {
+        $query = trim($query);
+        if ($query === '') {
+            return ['total' => 0, 'items' => []];
+        }
+
+        $hash = $this->blindIndex->for($query);
+        $contactCustomerIds = $hash === null
+            ? []
+            : CustomerContact::query()->where('lookup_hash', $hash)->pluck('customer_id')->all();
+        $customers = Customer::query()
+            ->leftJoin('customer_statuses as status', 'status.id', '=', 'customers.current_status_id')
+            ->where(function ($builder) use ($query, $contactCustomerIds): void {
+                $builder->where('customers.name', 'ilike', '%'.$query.'%')
+                    ->orWhere('customers.code', 'ilike', '%'.strtoupper($query).'%');
+                if ($contactCustomerIds !== []) {
+                    $builder->orWhereIn('customers.id', $contactCustomerIds);
+                }
+            });
+        $total = (clone $customers)->count('customers.id');
+        $items = $customers
+            ->orderBy('customers.name')
+            ->orderBy('customers.id')
+            ->limit(max(1, $limit))
+            ->get(['customers.id', 'customers.code', 'customers.name', 'status.name as status_name'])
+            ->map(fn (Customer $customer): array => [
+                'id' => (int) $customer->id,
+                'code' => (string) $customer->code,
+                'name' => (string) $customer->name,
+                'status' => (string) ($customer->getAttribute('status_name') ?: '未设置'),
+            ])
+            ->all();
+
+        return ['total' => $total, 'items' => $items];
+    }
 
     public function customerIdForPassport(string $passport): ?int
     {
