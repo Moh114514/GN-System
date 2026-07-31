@@ -17,6 +17,7 @@ use App\Modules\Order\Application\Services\DatabaseReminderSourceReader;
 use App\Modules\Order\Application\Services\DatabaseReportOrderReader;
 use App\Modules\Order\Application\Services\DatabaseSettlementOrderReader;
 use App\Modules\Order\Presentation\Livewire\CustomerOrders;
+use App\Modules\Order\Presentation\Livewire\OrderCenter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
@@ -36,8 +37,11 @@ class OrderServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Route::middleware(['web', 'auth', 'verified', 'super-admin.2fa'])
-            ->get('/customers/{customer}/orders', CustomerOrders::class)
-            ->whereNumber('customer')
-            ->name('customers.orders');
+            ->group(function (): void {
+                Route::get('/orders', OrderCenter::class)->name('orders.index');
+                Route::get('/customers/{customer}/orders', CustomerOrders::class)
+                    ->whereNumber('customer')
+                    ->name('customers.orders');
+            });
     }
 }

@@ -38,7 +38,7 @@
                     </a>
                 @endif
 
-                <a href="{{ route('customers.index') }}" class="crm-nav-item {{ request()->routeIs('customers.*') ? 'is-active' : '' }}" wire:navigate>
+                <a href="{{ route('customers.index') }}" class="crm-nav-item {{ request()->routeIs('customers.index', 'customers.create', 'customers.show', 'customers.edit') ? 'is-active' : '' }}" wire:navigate>
                     <flux:icon.users aria-hidden="true" />
                     <span>客户管理</span>
                 </a>
@@ -60,15 +60,10 @@
                     <span>主动提醒</span>
                 </a>
 
-                @foreach ([
-                    ['clipboard-document-list', '订单'],
-                ] as [$icon, $label])
-                    <span class="crm-nav-item is-disabled" aria-disabled="true" title="功能将在后续阶段开放">
-                        <flux:icon :name="$icon" aria-hidden="true" />
-                        <span>{{ $label }}</span>
-                        <span class="crm-nav-lock">待开放</span>
-                    </span>
-                @endforeach
+                <a href="{{ route('orders.index') }}" class="crm-nav-item {{ request()->routeIs('orders.*', 'customers.orders') ? 'is-active' : '' }}" wire:navigate>
+                    <flux:icon.clipboard-document-list aria-hidden="true" />
+                    <span>订单</span>
+                </a>
             </nav>
 
             <div class="crm-sidebar-footer">

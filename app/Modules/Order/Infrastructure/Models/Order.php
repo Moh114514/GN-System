@@ -17,6 +17,7 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $completed_on
  * @property Carbon|null $completed_at
  * @property string $completion_precision
+ * @property Carbon|null $created_at
  */
 class Order extends Model
 {
