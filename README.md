@@ -122,7 +122,9 @@ WAL/PITR。
 镜像、HTTPS、Redis 鉴权和宿主机持久化；不运行 Vite、不挂载源码，也不会在容器
 启动时生成 `APP_KEY` 或自动迁移。
 
-服务器准备、环境变量、发布、回退、异机同步和恢复演练见
+第一次连接服务器或使用 Codex 排障时先读
+[小白运维指南](docs/operations/beginner-operations-guide.md)。服务器准备、环境变量、
+发布、回退、异机同步和恢复演练见
 [完整运维手册](docs/operations/operations-manual.md)；Production 首次部署和恢复
 原则见[局域网生产部署与恢复](docs/operations/production-deployment.md)；版本从
 开发、UAT 验收到正式镜像晋级的完整步骤见
@@ -172,6 +174,7 @@ PHPStan、PHPUnit、前端构建和 Composer / npm 安全审计。
 - [文档导航与权威性说明](docs/README.md)
 - [当前项目状态](docs/project-status.md)
 - [当前架构概览](docs/architecture/overview.md)
+- [小白运维指南](docs/operations/beginner-operations-guide.md)
 - [完整运维手册](docs/operations/operations-manual.md)
 - [CRM 需求文档 v1.9](docs/source/CRM-需求文档-v1.9.md)
 - [架构决策记录](docs/adr/README.md)
