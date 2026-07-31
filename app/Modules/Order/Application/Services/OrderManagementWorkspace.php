@@ -122,6 +122,8 @@ final readonly class OrderManagementWorkspace
             ];
         });
 
+        // PHPStan treats the inferred array shape as invariant even though it matches the declared shape.
+        // @phpstan-ignore return.type
         return new LengthAwarePaginator(
             $items,
             $page->total(),
