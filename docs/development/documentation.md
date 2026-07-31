@@ -7,7 +7,7 @@
 
 | 变更类型 | 必须更新 |
 |---|---|
-| 当前阶段变化或功能首次落地、移除 | `docs/project-status.md` |
+| 当前阶段变化或功能首次落地、移除 | `docs/project-status.md`；同时核对并更新两份运维文档 |
 | 长期架构或技术决策 | 新 ADR 或替代 ADR，以及对应当前态架构文档 |
 | 模块职责、数据所有权、公共契约或业务规则 | 对应模块文档；不存在时随实现创建 |
 | 数据库结构 | migration、测试，以及受影响的状态或模块文档 |
@@ -28,6 +28,16 @@
 - Bug 通过测试和 Issue/PR 记录，不维护长期累积的 `bugs.md`。
 - 仅真实生产事故需要在 `docs/incidents/` 建立复盘；该目录在首次事故时创建。
 
+## 系统状态更新
+
+系统状态发生变化时，除了更新对应的当前态文档，还必须同步核对：
+
+- `docs/operations/operations-manual.md`；
+- `docs/operations/beginner-operations-guide.md`。
+
+这两份文档的读者不同，但环境、版本、部署状态和已知问题等事实必须一致。若状态变更
+不影响其中一份，也要在 Pull Request 中说明已经完成核对。
+
 ## Pull Request 检查
 
 每个 PR 都应说明文档影响。若无影响，写明 `Documentation impact: none`；若有
@@ -39,4 +49,3 @@
 - 新增 Customer 业务表：提供 migration 和测试，创建或更新 Customer 模块文档，
   并更新项目状态。
 - 改变跨模块协作方式：新增替代 ADR，更新模块边界文档和边界测试。
-

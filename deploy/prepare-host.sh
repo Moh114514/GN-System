@@ -6,12 +6,12 @@ if [[ ${EUID} -ne 0 ]]; then
     exit 1
 fi
 
-base_directory=${1:-/srv/gn-system}
+base_directory=${1:-/srv/gn-system/production}
 app_uid=${APP_UID:-1000}
 app_gid=${APP_GID:-1000}
 
 if [[ ${base_directory} != /srv/gn-system && ${base_directory} != /srv/gn-system/* ]]; then
-    echo "The production base directory must be /srv/gn-system or a child of it." >&2
+    echo "The environment base directory must be /srv/gn-system or a child of it." >&2
     exit 1
 fi
 

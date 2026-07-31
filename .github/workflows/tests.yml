@@ -192,6 +192,8 @@ jobs:
             <<<"${production_config}"
           jq -e '.services.app.environment.OFFSITE_BACKUP_MONITOR_ENABLED == "true"' \
             <<<"${production_config}"
+          jq -e '.services.app.volumes[] | select(.source == "/srv/gn-system/production/data/private")' \
+            <<<"${production_config}"
 
           jq -e '.name == "gn-system-uat"' <<<"${uat_config}"
           jq -e '.services.web.ports[] | select(.target == 80 and .published == "8080")' \
@@ -202,10 +204,11 @@ jobs:
             <<<"${uat_config}"
           jq -e '.services.app.environment.OFFSITE_BACKUP_MONITOR_ENABLED == "false"' \
             <<<"${uat_config}"
-          jq -e '.services.app.volumes[] | select(.source == "/srv/gn-system/uat/data/private")' \
+          jq -e '.services.app.volumes[] | select(.source == "/srv/gn-system/data/private")' \
             <<<"${uat_config}"
 
           ! docker compose --env-file .env.production -f compose.production.yaml \
             config --services | grep -qx vite
           ! grep -q '/var/www/html:' <<<"${production_config}"
-          ! grep -q '/srv/gn-system/data/' <<<"${uat_config}"
+          ! grep -q '/srv/gn-system/production/data/' <<<"${uat_config}"
+          ! grep -q '/srv/gn-system/data/' <<<"${production_config}"
