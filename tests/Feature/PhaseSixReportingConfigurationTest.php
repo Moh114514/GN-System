@@ -172,6 +172,8 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->actingAs($admin)->get(route('global-search', ['q' => 'Phase Six']))
             ->assertOk()
             ->assertSee('全部搜索结果')
+            ->assertSee('返回总览')
+            ->assertSee('href="'.route('dashboard').'"', false)
             ->assertSee('Phase Six Customer')
             ->assertSee('Phase Six Project')
             ->assertSee('Phase Six Agent')
@@ -239,6 +241,39 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->assertDontSee('异步导出 Excel')
             ->assertDontSee('常用查询')
             ->assertSee('最近导出');
+    }
+
+    public function test_large_search_export_is_queued_instead_of_blocking_the_livewire_request(): void
+    {
+        config(['reporting.max_sync_export_rows' => 0]);
+        Queue::fake();
+
+        Order::query()->create([
+            'customer_id' => $this->customer->id,
+            'institution_id' => $this->institutionId,
+            'channel' => 'direct',
+            'direct_sales_source_id' => DB::table('direct_sales_sources')->value('id'),
+            'project_name' => 'Queued Export Project',
+            'amount_krw' => 100,
+            'completed_on' => '2026-07-30',
+            'completed_at' => CarbonImmutable::parse('2026-07-30 10:00:00', 'Asia/Shanghai'),
+            'completion_precision' => 'datetime',
+            'owner_id' => $this->user->id,
+            'status' => 'completed',
+        ]);
+
+        $component = Livewire::actingAs($this->user)->test(ReportSearchPage::class);
+        $component->call('downloadExport')
+            ->assertHasNoErrors();
+
+        $export = ReportExport::query()
+            ->where('created_by', $this->user->id)
+            ->where('kind', 'search')
+            ->latest('id')
+            ->firstOrFail();
+
+        $this->assertSame('queued', $export->status);
+        Queue::assertPushed(GenerateReportExport::class);
     }
 
     public function test_dashboard_uses_real_snapshot_for_metrics_charts_and_server_exports(): void

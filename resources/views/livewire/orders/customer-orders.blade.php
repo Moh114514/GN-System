@@ -77,9 +77,9 @@
                 <tbody>
                 @forelse ($context['orders'] as $order)
                     <tr wire:key="order-{{ $order['id'] }}">
-                        <td>{{ $order['projectName'] }}<div class="text-xs text-zinc-500">₩ {{ number_format($order['amountKrw']) }}</div></td>
+                        <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('orders.show', $order['id']) }}" wire:navigate>{{ $order['projectName'] }}</a><div class="text-xs text-zinc-500">₩ {{ number_format($order['amountKrw']) }}</div></td>
                         <td>{{ $order['channel'] === 'agent' ? '代理商' : '直销' }}</td>
-                        <td>{{ $order['status'] === 'completed' ? '已完成' : '待完成' }}</td>
+                        <td>{{ ['pending' => '待完成', 'completed' => '已完成', 'cancelled' => '已取消'][$order['status']] ?? $order['status'] }}</td>
                         <td>{{ $order['commissionAmountKrw'] === null ? '—' : '₩ '.number_format($order['commissionAmountKrw']).' · '.number_format($order['commissionRateBps'] / 100, 2).'%' }}</td>
                         <td>@if ($order['status'] === 'pending')<flux:button wire:click="complete({{ $order['id'] }})" size="sm">标记完成</flux:button>@endif</td>
                     </tr>

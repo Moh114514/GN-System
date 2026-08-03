@@ -1,4 +1,5 @@
 <div>
+    <x-page-back :href="route('dashboard')" label="返回总览" class="mb-4" />
     <section class="crm-section-header">
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">全部搜索结果</h2>

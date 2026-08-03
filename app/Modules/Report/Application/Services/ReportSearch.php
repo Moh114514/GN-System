@@ -46,6 +46,12 @@ final readonly class ReportSearch
         return ['page' => $result, 'rows' => $this->decorate($result->items)];
     }
 
+    /** @param array<string, int|string|null> $criteria */
+    public function count(array $criteria): int
+    {
+        return $this->orders->count($this->queryData($criteria));
+    }
+
     /**
      * @param  array<string, int|string|null>  $criteria
      * @return array<int, array<string, int|string|null>>

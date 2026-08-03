@@ -3,10 +3,15 @@
 namespace App\Modules\Order\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
+use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Config\Application\Contracts\InstitutionReferenceReader;
 use App\Modules\Config\Application\Contracts\OrderDictionaryReader;
 use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
+use App\Modules\Order\Application\Contracts\OrderLifecycleGateway;
+use App\Modules\Order\Application\Data\OrderUpdateData;
 use App\Modules\Order\Infrastructure\Models\Order;
+use App\Modules\Reminder\Application\Contracts\OrderReminderReader;
+use App\Modules\Settlement\Application\Contracts\OrderFinancialReader;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 final readonly class OrderManagementWorkspace
@@ -16,6 +21,10 @@ final readonly class OrderManagementWorkspace
         private AgentReferenceReader $agents,
         private InstitutionReferenceReader $institutions,
         private OrderDictionaryReader $dictionary,
+        private OrderLifecycleGateway $lifecycle,
+        private AuditRecorder $audit,
+        private OrderReminderReader $reminders,
+        private OrderFinancialReader $financials,
     ) {}
 
     /** @return array<string, array<int, array<string, mixed>>> */
@@ -59,9 +68,9 @@ final readonly class OrderManagementWorkspace
      *     created_at: string|null
      * }>
      */
-    public function paginate(array $filters, int $perPage): LengthAwarePaginator
+    public function paginate(array $filters, int $perPage, bool $includeDeleted = false): LengthAwarePaginator
     {
-        $query = Order::query();
+        $query = $includeDeleted ? Order::onlyTrashed() : Order::query();
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') {
             $customerIds = $this->customers->customerIdsForOrderSearch($search);
@@ -131,5 +140,95 @@ final readonly class OrderManagementWorkspace
             $page->currentPage(),
             ['path' => request()->url(), 'query' => request()->query()],
         );
+    }
+
+    /** @return array<string, mixed> */
+    public function detail(int $orderId): array
+    {
+        $order = Order::withTrashed()->findOrFail($orderId);
+        $customer = $this->customers->customerForOrder((int) $order->customer_id);
+        $institution = $this->institutions->institutionsByIds([(int) $order->institution_id])[(int) $order->institution_id] ?? null;
+        $agent = $order->agent_id === null ? null : ($this->agents->agentsByIds([(int) $order->agent_id])[(int) $order->agent_id] ?? null);
+        $source = $order->direct_sales_source_id === null
+            ? null
+            : ($this->customers->directSalesSourcesByIds([(int) $order->direct_sales_source_id])[(int) $order->direct_sales_source_id] ?? null);
+
+        return [
+            'id' => (int) $order->id,
+            'customer' => $customer,
+            'institution' => $institution,
+            'agent' => $agent,
+            'direct_source' => $source,
+            'channel' => (string) $order->channel,
+            'project_name' => (string) $order->project_name,
+            'amount_krw' => (int) $order->amount_krw,
+            'status' => (string) $order->status,
+            'completed_at' => $order->completed_at?->format('Y-m-d H:i'),
+            'created_at' => $order->created_at?->format('Y-m-d H:i'),
+            'updated_at' => $order->updated_at === null ? null : (string) $order->updated_at,
+            'cancelled_at' => $order->cancelled_at === null ? null : (string) $order->cancelled_at,
+            'cancellation_reason' => $order->cancellation_reason,
+            'deleted_at' => $order->deleted_at === null ? null : (string) $order->deleted_at,
+            'deletion_reason' => $order->deletion_reason,
+            'translator_name' => $order->translator_name,
+            'translator_language' => $order->translator_language_snapshot,
+            'translator_language_id' => $order->translator_language_id,
+            'treatment_project_id' => $order->treatment_project_id,
+            'notes' => $order->notes,
+            'financial' => $this->financials->forOrder((int) $order->id),
+            'reminders' => $this->reminders->forOrder((int) $order->id),
+            'audit' => array_map(fn ($entry): array => [
+                'description' => $entry->description,
+                'event' => $entry->event,
+                'properties' => $entry->properties,
+                'causer_id' => $entry->causerId,
+                'occurred_at' => $entry->occurredAt->format('Y-m-d H:i'),
+            ], $this->audit->trail($order, 'order')),
+        ];
+    }
+
+    public function updatePending(OrderUpdateData $data, int $actorId, ?string $ipAddress): int
+    {
+        $project = $data->treatmentProjectId === null
+            ? null
+            : $this->dictionary->activeItem($data->treatmentProjectId, 'treatment_project');
+        $language = $data->translatorLanguageId === null
+            ? null
+            : $this->dictionary->activeItem($data->translatorLanguageId, 'translator_language');
+
+        return $this->lifecycle->updatePending(new OrderUpdateData(
+            orderId: $data->orderId,
+            institutionId: $data->institutionId,
+            channel: $data->channel,
+            agentId: $data->agentId,
+            directSalesSourceId: $data->directSalesSourceId,
+            projectName: $project['name'] ?? $data->projectName,
+            amountKrw: $data->amountKrw,
+            translatorName: $data->translatorName,
+            notes: $data->notes,
+            treatmentProjectId: $project['id'] ?? null,
+            translatorLanguageId: $language['id'] ?? null,
+            translatorLanguageName: $language['name'] ?? null,
+        ), $actorId, $ipAddress);
+    }
+
+    public function cancel(int $orderId, int $actorId, string $reason, ?string $ipAddress): int
+    {
+        return $this->lifecycle->cancel($orderId, $actorId, $reason, $ipAddress);
+    }
+
+    public function reopen(int $orderId, int $actorId, string $reason, ?string $ipAddress): int
+    {
+        return $this->lifecycle->reopen($orderId, $actorId, $reason, $ipAddress);
+    }
+
+    public function softDelete(int $orderId, int $actorId, string $reason, ?string $ipAddress): int
+    {
+        return $this->lifecycle->softDelete($orderId, $actorId, $reason, $ipAddress);
+    }
+
+    public function restore(int $orderId, int $actorId, ?string $ipAddress): int
+    {
+        return $this->lifecycle->restore($orderId, $actorId, $ipAddress);
     }
 }

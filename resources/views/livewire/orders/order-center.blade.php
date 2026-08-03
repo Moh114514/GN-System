@@ -126,6 +126,11 @@
                 <flux:select.option value="">全部状态</flux:select.option>
                 <flux:select.option value="pending">待完成</flux:select.option>
                 <flux:select.option value="completed">已完成</flux:select.option>
+                <flux:select.option value="cancelled">已取消</flux:select.option>
+            </flux:select>
+            <flux:select class="w-32" wire:model.live="showDeleted" size="sm" aria-label="订单记录范围">
+                <flux:select.option value="0">正常订单</flux:select.option>
+                <flux:select.option value="1">回收站</flux:select.option>
             </flux:select>
             <flux:select class="w-32" wire:model.live="channelFilter" size="sm" aria-label="订单渠道筛选">
                 <flux:select.option value="">全部渠道</flux:select.option>
@@ -169,14 +174,15 @@
                 <tbody>
                     @forelse ($orders as $order)
                         <tr wire:key="managed-order-{{ $order['id'] }}">
-                            <td><span class="font-semibold">{{ $order['project_name'] }}</span><div class="text-xs text-zinc-500">#{{ $order['id'] }}</div></td>
+                            <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('orders.show', $order['id']) }}" wire:navigate>{{ $order['project_name'] }}</a><div class="text-xs text-zinc-500">#{{ $order['id'] }}</div></td>
                             <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('customers.show', $order['customer_id']) }}" wire:navigate>{{ $order['customer_name'] }}</a><div class="text-xs text-zinc-500">{{ $order['customer_code'] }}</div></td>
                             <td>{{ $order['institution'] }}<div class="text-xs text-zinc-500">{{ $order['channel'] === 'agent' ? '代理商' : '直销' }} · {{ $order['source'] }}</div></td>
                             <td>₩ {{ number_format($order['amount_krw']) }}</td>
-                            <td><span class="crm-pill {{ $order['status'] === 'completed' ? 'tone-green' : 'tone-amber' }}">{{ $order['status'] === 'completed' ? '已完成' : '待完成' }}</span></td>
+                            <td><span class="crm-pill {{ $order['status'] === 'completed' ? 'tone-green' : ($order['status'] === 'cancelled' ? 'tone-red' : 'tone-amber') }}">{{ ['pending' => '待完成', 'completed' => '已完成', 'cancelled' => '已取消'][$order['status']] ?? $order['status'] }}</span></td>
                             <td>{{ $order['completed_at'] ?? $order['created_at'] }}<div class="text-xs text-zinc-500">{{ $order['completed_at'] ? '成交时间' : '创建时间' }}</div></td>
                             <td>
-                                @if ($order['status'] === 'pending')
+                                <flux:button href="{{ route('orders.show', $order['id']) }}" wire:navigate variant="ghost" size="sm">查看详情</flux:button>
+                                @if (! $showDeleted && $order['status'] === 'pending')
                                     <flux:button wire:click="complete({{ $order['id'] }})" wire:confirm="确认将此订单标记为已完成？完成后会固化推广费和术后提醒，不能在此页面修改。" size="sm">标记完成</flux:button>
                                 @endif
                             </td>
