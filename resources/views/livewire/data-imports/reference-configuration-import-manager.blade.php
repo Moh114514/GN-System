@@ -1,11 +1,31 @@
 <div @if (in_array($this->selectedBatch?->status, [\App\Modules\DataImport\Domain\ImportBatchStatus::Uploaded, \App\Modules\DataImport\Domain\ImportBatchStatus::Parsing], true)) wire:poll.3s @endif>
     <x-page-back :href="route('configuration.index')" label="返回配置中心" class="mb-4" />
 
+    @php
+        $batchStatusLabels = [
+            'uploaded' => '已上传',
+            'parsing' => '检查中',
+            'needs_review' => '待处理',
+            'validated' => '检查通过',
+            'committing' => '导入中',
+            'completed' => '已完成',
+            'failed' => '失败',
+            'rolled_back' => '已撤销',
+            'expired' => '已过期',
+        ];
+    @endphp
     <section class="crm-section-header">
         <div>
             <p class="crm-eyebrow">配置中心 · 批量维护</p>
             <h2>基础配置导入</h2>
-            <p>单个 XLSX 分八个工作表导入。上传只进行预览和校验，必须由管理员再次确认后才会写入。</p>
+            <p>用一个包含八个工作表的 XLSX 工作簿批量维护基础配置。上传后先预览和检查，由管理员确认后才会正式写入。</p>
+            <p class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500">
+                <span class="rounded-md bg-teal-50 px-2 py-0.5 font-medium text-teal-700 dark:bg-teal-950 dark:text-teal-300">1 上传工作簿</span>
+                <span aria-hidden="true">→</span>
+                <span class="rounded-md bg-teal-50 px-2 py-0.5 font-medium text-teal-700 dark:bg-teal-950 dark:text-teal-300">2 检查预览</span>
+                <span aria-hidden="true">→</span>
+                <span class="rounded-md bg-teal-50 px-2 py-0.5 font-medium text-teal-700 dark:bg-teal-950 dark:text-teal-300">3 确认写入</span>
+            </p>
         </div>
         <flux:button wire:click="downloadExample" variant="ghost" icon="arrow-down-tray">下载填写示例</flux:button>
     </section>
@@ -32,8 +52,12 @@
             <div class="mt-4 space-y-2">
                 @forelse ($this->batches as $batch)
                     <button type="button" wire:click="selectBatch('{{ $batch->id }}')" class="w-full rounded-xl border p-3 text-left {{ $selectedBatchId === $batch->id ? 'border-teal-500 bg-teal-50' : 'border-zinc-200' }}">
-                        <span class="block font-mono text-xs">{{ $batch->id }}</span>
-                        <span class="mt-1 block text-sm">状态：{{ $batch->status->value }} · {{ $batch->total_rows }} 行</span>
+                        <span class="flex items-center justify-between gap-2">
+                            <strong>{{ $batchStatusLabels[$batch->status->value] ?? $batch->status->value }}</strong>
+                            <span class="text-xs text-zinc-400">{{ $batch->created_at->format('Y-m-d H:i') }}</span>
+                        </span>
+                        <span class="mt-1 block text-sm text-zinc-500">共 {{ $batch->total_rows }} 行</span>
+                        <span class="mt-0.5 block truncate text-xs text-zinc-400">编号 {{ $batch->id }}</span>
                     </button>
                 @empty
                     <p class="text-sm text-zinc-500">尚无基础配置导入批次。</p>
@@ -57,7 +81,7 @@
                                 </flux:button>
                             @endif
                             @if (in_array($batch->status, [\App\Modules\DataImport\Domain\ImportBatchStatus::Failed, \App\Modules\DataImport\Domain\ImportBatchStatus::NeedsReview], true))
-                                <flux:button wire:click="reparse" variant="ghost">重新解析</flux:button>
+                                <flux:button wire:click="reparse" variant="ghost">重新检查</flux:button>
                             @endif
                         </div>
                     </div>
@@ -90,7 +114,7 @@
                 </section>
 
                 <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-                    <h3 class="font-semibold">前 100 行校验结果</h3>
+                    <h3 class="font-semibold">前 100 行检查结果</h3>
                     <div class="crm-table-wrap mt-4">
                         <table class="crm-table">
                             <thead><tr><th>工作表/源行号</th><th>结果</th><th>数据预览</th><th>错误详情</th></tr></thead>
@@ -130,7 +154,7 @@
                 @if ($batch->status === \App\Modules\DataImport\Domain\ImportBatchStatus::Validated)
                     <section class="rounded-2xl border border-amber-300 bg-amber-50 p-5">
                         <h3 class="font-semibold text-amber-900">管理员最终确认</h3>
-                        <p class="mt-1 text-sm text-amber-800">校验和事务预演已通过。确认后将一次性写入全部有效行；任一写入失败会回滚整个事务。</p>
+                        <p class="mt-1 text-sm text-amber-800">检查已通过。确认后将一次性写入全部有效数据；如果中途出错，已写入的内容会自动撤销，不会留下不完整的数据。</p>
                         <div class="mt-4">
                             <flux:checkbox wire:model="confirmImport" label="我已核对预览，并确认按上述顺序写入全部基础配置" />
                             @error('confirmImport') <p class="mt-2 text-sm text-red-600">{{ $message }}</p> @enderror

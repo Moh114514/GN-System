@@ -3,9 +3,9 @@
         <div>
             <p class="crm-eyebrow">财务管理</p>
             <h2>月结中心</h2>
-            <p>按已完成订单的不可变推广费快照生成月结、审核结算单并跟踪处理进度。</p>
+            <p>根据已完成订单自动汇总推广费，生成月结并跟踪结算单的审核与处理进度。</p>
         </div>
-        <flux:button wire:click="generate" icon="play" variant="primary">生成最近已结束周期</flux:button>
+        <flux:button wire:click="generate" icon="play" variant="primary">生成最新月结</flux:button>
     </section>
 
     @if (session('status'))<div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>@endif

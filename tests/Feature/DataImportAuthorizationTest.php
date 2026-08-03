@@ -27,6 +27,6 @@ class DataImportAuthorizationTest extends TestCase
             ->get(route('data-imports.index'))
             ->assertOk()
             ->assertSee('历史数据导入')
-            ->assertSee('加密上传并预演');
+            ->assertSee('上传文件并预览');
     }
 }

@@ -15,7 +15,7 @@
         >
             <span class="flex size-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300"><flux:icon.arrow-trending-up aria-hidden="true" /></span>
             <h3 class="mt-5 text-lg font-semibold">直销来源配置</h3>
-            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">由 Customer 模块维护直销来源的名称、稳定代码和启停状态。</p>
+            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">维护直销来源的名称、代码和启停状态。</p>
             <span class="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-teal-700 dark:text-teal-300">进入配置<flux:icon.arrow-right class="size-4" aria-hidden="true" /></span>
         </a>
         <a
@@ -25,7 +25,7 @@
         >
             <span class="flex size-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300"><flux:icon.clock aria-hidden="true" /></span>
             <h3 class="mt-5 text-lg font-semibold">配置历史与回滚</h3>
-            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">聚合查看各数据所有者保存的版本、差异与事务回滚记录。</p>
+            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">集中查看各项配置的保存版本、修改差异和回滚记录。</p>
             <span class="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-teal-700 dark:text-teal-300">查看历史<flux:icon.arrow-right class="size-4" aria-hidden="true" /></span>
         </a>
         <a
@@ -35,7 +35,7 @@
         >
             <span class="flex size-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300"><flux:icon.user-group aria-hidden="true" /></span>
             <h3 class="mt-5 text-lg font-semibold">内部用户与权限</h3>
-            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">邀请用户、调整两档角色、启停账号并查看邮件发送状态。</p>
+            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">邀请用户、分配角色、启停账号并查看邮件发送状态。</p>
             <span class="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-teal-700 dark:text-teal-300">进入管理<flux:icon.arrow-right class="size-4" aria-hidden="true" /></span>
         </a>
         <a
@@ -45,7 +45,7 @@
         >
             <span class="flex size-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300"><flux:icon.building-library aria-hidden="true" /></span>
             <h3 class="mt-5 text-lg font-semibold">机构、字典与系统参数</h3>
-            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">维护机构联系信息、施术项目、翻译语种以及报表白名单参数。</p>
+            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">维护机构联系信息、施术项目、翻译语种和报表参数。</p>
             <span class="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-teal-700 dark:text-teal-300">进入配置<flux:icon.arrow-right class="size-4" aria-hidden="true" /></span>
         </a>
         <a
@@ -100,7 +100,7 @@
                 <flux:icon.arrow-up-tray aria-hidden="true" />
             </span>
             <h3 class="mt-5 text-lg font-semibold">基础配置导入</h3>
-            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">通过单个 XLSX 预览、校验并批量维护基础字典、政策、费率、代理商和等级分配。</p>
+            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">通过单个 XLSX 预览、检查并批量维护基础字典、政策、费率、代理商和等级分配。</p>
             <span class="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-teal-700 dark:text-teal-300">进入导入<flux:icon.arrow-right class="size-4" aria-hidden="true" /></span>
         </a>
     </section>
