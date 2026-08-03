@@ -6,25 +6,39 @@ use App\Models\User;
 use App\Modules\Report\Infrastructure\Models\ReportExport;
 use App\Modules\Report\Jobs\GenerateReportExport;
 use Illuminate\Database\Eloquent\Collection;
+use Throwable;
 
 final readonly class ReportExportManager
 {
-    public function __construct(private ReportSearch $search) {}
+    public function __construct(
+        private ReportSearch $search,
+        private ReportSearchExportGenerator $generator,
+    ) {}
 
     /** @param array<string, int|string|null> $criteria */
     public function queueSearch(User $user, array $criteria): ReportExport
     {
-        $export = ReportExport::query()->create([
-            'created_by' => $user->id,
-            'kind' => 'search',
-            'format' => 'xlsx',
-            'status' => 'queued',
-            'criteria_snapshot' => $this->search->queryData($criteria)->toArray(),
-            'expires_at' => now()->addHours(24),
-        ]);
+        $export = $this->createSearchExport($user, $criteria, 'queued');
         GenerateReportExport::dispatch($export->id);
 
         return $export;
+    }
+
+    /** @param array<string, int|string|null> $criteria */
+    public function generateSearch(User $user, array $criteria): ReportExport
+    {
+        $export = $this->createSearchExport($user, $criteria, 'generating');
+
+        try {
+            return $this->generator->generate($export);
+        } catch (Throwable $exception) {
+            $export->update([
+                'status' => 'failed',
+                'failure_reason' => $exception->getMessage(),
+            ]);
+
+            throw $exception;
+        }
     }
 
     public function retry(User $user, string $id): void
@@ -49,5 +63,18 @@ final readonly class ReportExportManager
             ->latest()
             ->limit(20)
             ->get();
+    }
+
+    /** @param array<string, int|string|null> $criteria */
+    private function createSearchExport(User $user, array $criteria, string $status): ReportExport
+    {
+        return ReportExport::query()->create([
+            'created_by' => $user->id,
+            'kind' => 'search',
+            'format' => 'xlsx',
+            'status' => $status,
+            'criteria_snapshot' => $this->search->queryData($criteria)->toArray(),
+            'expires_at' => now()->addHours(24),
+        ]);
     }
 }

@@ -16,9 +16,11 @@ use App\Modules\Report\Application\Services\DashboardRangeFactory;
 use App\Modules\Report\Application\Services\DashboardService;
 use App\Modules\Report\Application\Services\ReportExportManager;
 use App\Modules\Report\Application\Services\ReportSearch;
+use App\Modules\Report\Application\Services\ReportSearchExportGenerator;
 use App\Modules\Report\Infrastructure\Models\ReportExport;
 use App\Modules\Report\Jobs\GenerateReportExport;
 use App\Modules\Report\Presentation\Livewire\Dashboard;
+use App\Modules\Report\Presentation\Livewire\ReportSearchPage;
 use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
@@ -191,7 +193,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $export = app(ReportExportManager::class)->queueSearch($this->user, []);
         Queue::assertPushed(GenerateReportExport::class);
 
-        (new GenerateReportExport($export->id))->handle(app(ReportSearch::class));
+        (new GenerateReportExport($export->id))->handle(app(ReportSearchExportGenerator::class));
         $export->refresh();
         $this->assertSame('completed', $export->status);
         $this->assertNotNull($export->sha256);
@@ -210,6 +212,33 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->artisan('app:purge-report-exports')->assertSuccessful();
         $this->assertSame('expired', $export->fresh()->status);
         Storage::disk('local')->assertMissing((string) $export->path);
+    }
+
+    public function test_search_page_downloads_excel_immediately_and_only_shows_recent_exports(): void
+    {
+        Storage::fake('local');
+        Queue::fake();
+
+        $component = Livewire::actingAs($this->user)->test(ReportSearchPage::class);
+        $component->call('downloadExport');
+
+        $export = ReportExport::query()
+            ->where('created_by', $this->user->id)
+            ->where('kind', 'search')
+            ->latest('id')
+            ->firstOrFail();
+
+        $component->assertRedirect(route('reports.exports.download', $export));
+        $this->assertSame('completed', $export->status);
+        Queue::assertNothingPushed();
+        Storage::disk('local')->assertExists($export->path);
+
+        $this->actingAs($this->user)->get(route('reports.search'))
+            ->assertOk()
+            ->assertSee('导出 Excel')
+            ->assertDontSee('异步导出 Excel')
+            ->assertDontSee('常用查询')
+            ->assertSee('最近导出');
     }
 
     public function test_dashboard_uses_real_snapshot_for_metrics_charts_and_server_exports(): void

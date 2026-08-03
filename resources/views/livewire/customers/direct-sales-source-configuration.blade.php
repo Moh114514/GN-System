@@ -1,7 +1,7 @@
 <div>
     <x-page-back :href="route('configuration.index')" label="返回配置中心" class="mb-4" />
     <section class="crm-section-header">
-        <div><p class="crm-eyebrow">Customer · 来源字典</p><h2>直销来源配置</h2><p>停用来源不再出现在新建客户下拉框中，历史客户来源保持不变。</p></div>
+        <div><p class="text-xs font-medium text-zinc-400">配置中心 · 来源字典</p><h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">直销来源配置</h2><p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">停用来源不再出现在新建客户下拉框中，历史客户来源保持不变。</p></div>
     </section>
     @if (session('status'))<div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>@endif
     <section class="grid gap-6 xl:grid-cols-[22rem_1fr]">

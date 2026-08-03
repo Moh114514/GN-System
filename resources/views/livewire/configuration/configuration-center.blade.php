@@ -1,9 +1,8 @@
 <div>
     <section class="crm-section-header">
         <div>
-            <p class="crm-eyebrow">系统管理</p>
-            <h2>配置中心</h2>
-            <p>集中维护系统当前已开放的业务规则与基础配置。</p>
+            <h2 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">配置中心</h2>
+            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">集中维护系统当前已开放的业务规则与基础配置。</p>
         </div>
     </section>
 

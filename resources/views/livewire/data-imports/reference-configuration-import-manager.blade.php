@@ -16,15 +16,15 @@
     @endphp
     <section class="crm-section-header">
         <div>
-            <p class="crm-eyebrow">配置中心 · 批量维护</p>
-            <h2>基础配置导入</h2>
-            <p>用一个包含八个工作表的 XLSX 工作簿批量维护基础配置。上传后先预览和检查，由管理员确认后才会正式写入。</p>
-            <p class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500">
-                <span class="rounded-md bg-teal-50 px-2 py-0.5 font-medium text-teal-700 dark:bg-teal-950 dark:text-teal-300">1 上传工作簿</span>
-                <span aria-hidden="true">→</span>
-                <span class="rounded-md bg-teal-50 px-2 py-0.5 font-medium text-teal-700 dark:bg-teal-950 dark:text-teal-300">2 检查预览</span>
-                <span aria-hidden="true">→</span>
-                <span class="rounded-md bg-teal-50 px-2 py-0.5 font-medium text-teal-700 dark:bg-teal-950 dark:text-teal-300">3 确认写入</span>
+            <p class="text-xs font-medium text-zinc-400">配置中心 · 批量维护</p>
+            <h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">基础配置导入</h2>
+            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">用一个包含八个工作表的 XLSX 工作簿批量维护基础配置。上传后先预览和检查，由管理员确认后才会正式写入。</p>
+            <p class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+                <span class="rounded-full border border-zinc-200 bg-white px-4 py-1.5 font-medium text-zinc-700 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">上传工作簿</span>
+                <span class="text-zinc-300 dark:text-zinc-600" aria-hidden="true">→</span>
+                <span class="rounded-full border border-zinc-200 bg-white px-4 py-1.5 font-medium text-zinc-700 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">检查预览</span>
+                <span class="text-zinc-300 dark:text-zinc-600" aria-hidden="true">→</span>
+                <span class="rounded-full border border-zinc-200 bg-white px-4 py-1.5 font-medium text-zinc-700 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">确认写入</span>
             </p>
         </div>
         <flux:button wire:click="downloadExample" variant="ghost" icon="arrow-down-tray">下载填写示例</flux:button>

@@ -1,9 +1,8 @@
 <div>
     <section class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-            <p class="crm-eyebrow">Phase 3 · 客户全生命周期</p>
-            <h2>客户管理</h2>
-            <p>统一管理客户档案、来源、状态与跟进记录。</p>
+            <h2 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">客户管理</h2>
+            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">统一管理客户档案、来源、状态与跟进记录。</p>
         </div>
         <div class="flex shrink-0 gap-2 sm:justify-end">
             @if (auth()->user()->is_super_admin)

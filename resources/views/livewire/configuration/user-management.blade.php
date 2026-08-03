@@ -2,9 +2,9 @@
     <x-page-back :href="route('configuration.index')" label="返回配置中心" class="mb-4" />
     <section class="crm-section-header">
         <div>
-            <p class="crm-eyebrow">Auth · 两档权限</p>
-            <h2>内部用户管理</h2>
-            <p>新用户通过一次性密码设置链接激活；停用会阻止登录并撤销数据库或 Redis 中的现有会话。</p>
+            <p class="text-xs font-medium text-zinc-400">配置中心 · 账号权限</p>
+            <h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">内部用户管理</h2>
+            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">新用户通过一次性密码设置链接激活；停用账号后，该用户将无法登录，已登录的也会立即退出。</p>
         </div>
     </section>
     @if (session('status'))<div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>@endif

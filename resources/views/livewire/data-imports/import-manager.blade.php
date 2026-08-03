@@ -35,14 +35,14 @@
     @endphp
     <section class="crm-section-header">
         <div>
-            <h2>历史数据导入</h2>
-            <p>上传历史业务数据文件，系统会在正式导入前自动检查格式、重复数据和异常记录。</p>
-            <p class="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-xs">
-                <span class="rounded-full bg-teal-50 px-3 py-1 font-medium text-teal-700 dark:bg-teal-950 dark:text-teal-300">上传文件</span>
-                <span class="text-zinc-400" aria-hidden="true">→</span>
-                <span class="rounded-full bg-teal-50 px-3 py-1 font-medium text-teal-700 dark:bg-teal-950 dark:text-teal-300">检查数据</span>
-                <span class="text-zinc-400" aria-hidden="true">→</span>
-                <span class="rounded-full bg-teal-50 px-3 py-1 font-medium text-teal-700 dark:bg-teal-950 dark:text-teal-300">确认导入</span>
+            <h2 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">历史数据导入</h2>
+            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">上传历史业务数据文件，系统会在正式导入前自动检查格式、重复数据和异常记录。</p>
+            <p class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm">
+                <span class="rounded-full border border-zinc-200 bg-white px-4 py-1.5 font-medium text-zinc-700 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">上传文件</span>
+                <span class="text-zinc-300 dark:text-zinc-600" aria-hidden="true">→</span>
+                <span class="rounded-full border border-zinc-200 bg-white px-4 py-1.5 font-medium text-zinc-700 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">检查数据</span>
+                <span class="text-zinc-300 dark:text-zinc-600" aria-hidden="true">→</span>
+                <span class="rounded-full border border-zinc-200 bg-white px-4 py-1.5 font-medium text-zinc-700 shadow-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200">确认导入</span>
             </p>
         </div>
     </section>

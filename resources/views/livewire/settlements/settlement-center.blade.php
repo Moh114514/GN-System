@@ -1,9 +1,8 @@
 <div>
     <section class="crm-section-header">
         <div>
-            <p class="crm-eyebrow">财务管理</p>
-            <h2>月结中心</h2>
-            <p>根据已完成订单自动汇总推广费，生成月结并跟踪结算单的审核与处理进度。</p>
+            <h2 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">月结中心</h2>
+            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">根据已完成订单自动汇总推广费，生成月结并跟踪结算单的审核与处理进度。</p>
         </div>
         <flux:button wire:click="generate" icon="play" variant="primary">生成最新月结</flux:button>
     </section>

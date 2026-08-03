@@ -1,9 +1,8 @@
 <div>
     <section class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-            <p class="crm-eyebrow">Order · 日常订单管理</p>
-            <h2>订单管理</h2>
-            <p>统一录入和查询订单；订单完成时同步固化推广费与术后提醒。</p>
+            <h2 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">订单管理</h2>
+            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">统一录入和查询订单；订单完成时同步固化推广费与术后提醒。</p>
         </div>
         <flux:button wire:click="openCreate" variant="primary" size="sm" icon="plus">新建订单</flux:button>
     </section>

@@ -62,3 +62,6 @@ Desktop.ini
 *.tmp
 *.swp
 *~
+
+# Local WorkBuddy notes
+/.workbuddy/

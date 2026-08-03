@@ -5,8 +5,6 @@ namespace App\Modules\Report\Presentation\Livewire;
 use App\Models\User;
 use App\Modules\Report\Application\Services\ReportExportManager;
 use App\Modules\Report\Application\Services\ReportSearch;
-use App\Modules\Report\Application\Services\SavedQueryManager;
-use App\Modules\Report\Infrastructure\Models\SavedQuery;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -49,12 +47,6 @@ class ReportSearchPage extends Component
 
     public int $page = 1;
 
-    public string $savedQueryName = '';
-
-    public string $savedQueryScope = 'personal';
-
-    public ?int $editingSavedQueryId = null;
-
     /** @var array<string, array<int, array{id: int, name: string}>> */
     public array $options = [];
 
@@ -84,7 +76,7 @@ class ReportSearchPage extends Component
 
     public function updated(string $property): void
     {
-        if (! in_array($property, ['page', 'savedQueryName', 'savedQueryScope'], true)) {
+        if ($property !== 'page') {
             $this->page = 1;
         }
     }
@@ -111,91 +103,10 @@ class ReportSearchPage extends Component
         $this->page = min(max(1, $lastPage), $this->page + 1);
     }
 
-    public function saveQuery(SavedQueryManager $manager): void
+    public function downloadExport(ReportExportManager $manager): void
     {
-        $this->validate([
-            'savedQueryName' => ['required', 'string', 'max:120'],
-            'savedQueryScope' => ['required', 'in:personal,team'],
-        ]);
-        if ($this->editingSavedQueryId === null) {
-            $manager->save($this->user(), $this->savedQueryName, $this->savedQueryScope, $this->criteria());
-        } else {
-            $manager->update(
-                $this->user(),
-                $this->editingSavedQueryId,
-                $this->savedQueryName,
-                $this->savedQueryScope,
-                $this->criteria(),
-            );
-        }
-        $this->cancelQueryEdit();
-        session()->flash('status', '常用查询已保存。');
-    }
-
-    public function loadQuery(int $id): void
-    {
-        $saved = SavedQuery::query()
-            ->where(fn ($query) => $query
-                ->where('scope', 'team')
-                ->orWhere('created_by', $this->user()->id))
-            ->findOrFail($id);
-        $this->applySavedQuery($saved);
-    }
-
-    public function editQuery(int $id): void
-    {
-        $saved = SavedQuery::query()
-            ->where(fn ($query) => $query
-                ->where('scope', 'team')
-                ->orWhere('created_by', $this->user()->id))
-            ->findOrFail($id);
-        abort_unless(
-            (int) $saved->created_by === (int) $this->user()->id
-            || ($saved->scope === 'team' && $this->user()->is_super_admin),
-            403,
-        );
-        $this->applySavedQuery($saved);
-        $this->editingSavedQueryId = (int) $saved->id;
-        $this->savedQueryName = (string) $saved->name;
-        $this->savedQueryScope = (string) $saved->scope;
-    }
-
-    public function cancelQueryEdit(): void
-    {
-        $this->reset('editingSavedQueryId', 'savedQueryName');
-        $this->savedQueryScope = 'personal';
-    }
-
-    private function applySavedQuery(SavedQuery $saved): void
-    {
-        $criteria = $saved->criteria;
-        $this->completedFrom = $this->dateInput($criteria['completed_from'] ?? null);
-        $this->completedTo = $this->dateInput($criteria['completed_to'] ?? null);
-        $this->timeFrom = (string) ($criteria['time_from'] ?? '');
-        $this->timeTo = (string) ($criteria['time_to'] ?? '');
-        $this->customerId = $this->inputValue($criteria['customer_id'] ?? null);
-        $this->agentId = $this->inputValue($criteria['agent_id'] ?? null);
-        $this->institutionId = $this->inputValue($criteria['institution_id'] ?? null);
-        $this->projectName = (string) ($criteria['project_name'] ?? '');
-        $this->translatorName = (string) ($criteria['translator_name'] ?? '');
-        $this->amountMin = $this->inputValue($criteria['amount_min'] ?? null);
-        $this->amountMax = $this->inputValue($criteria['amount_max'] ?? null);
-        $this->passport = '';
-        $this->sortField = (string) $saved->sort_field;
-        $this->sortDirection = (string) $saved->sort_direction;
-        $this->page = 1;
-    }
-
-    public function deleteQuery(int $id, SavedQueryManager $manager): void
-    {
-        $manager->delete($this->user(), $id);
-        session()->flash('status', '常用查询已删除。');
-    }
-
-    public function queueExport(ReportExportManager $manager): void
-    {
-        $manager->queueSearch($this->user(), $this->criteria());
-        session()->flash('status', 'Excel 导出任务已进入队列。');
+        $export = $manager->generateSearch($this->user(), $this->criteria());
+        $this->redirectRoute('reports.exports.download', ['export' => $export]);
     }
 
     public function retryExport(string $id, ReportExportManager $manager): void
@@ -206,16 +117,13 @@ class ReportSearchPage extends Component
 
     public function render(
         ReportSearch $search,
-        SavedQueryManager $savedQueries,
         ReportExportManager $exports,
     ): View {
         $result = $search->paginate($this->criteria(), $this->perPage, $this->page);
-        $saved = $savedQueries->visibleTo($this->user());
         $recentExports = $exports->recent($this->user());
 
         return view('livewire.reports.search', [
             'result' => $result,
-            'savedQueries' => $saved,
             'recentExports' => $recentExports,
         ]);
     }
@@ -247,15 +155,5 @@ class ReportSearchPage extends Component
         abort_unless($user instanceof User, 401);
 
         return $user;
-    }
-
-    private function inputValue(mixed $value): string
-    {
-        return $value === null ? '' : (string) $value;
-    }
-
-    private function dateInput(mixed $value): string
-    {
-        return $value === null || $value === '' ? '' : substr((string) $value, 0, 10);
     }
 }

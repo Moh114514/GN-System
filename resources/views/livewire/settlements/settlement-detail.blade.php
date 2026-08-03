@@ -5,7 +5,7 @@
 
     <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <div class="flex flex-wrap items-start justify-between gap-4">
-            <div><p class="crm-eyebrow">月结详情</p><h2 class="text-xl font-semibold">{{ data_get($settlement->snapshot, 'agent.name', '代理商') }}</h2><p class="text-sm text-zinc-500">{{ $settlement->period_start->format('Y-m-d') }} 至 {{ $settlement->period_end->format('Y-m-d') }}</p></div>
+            <div><p class="text-xs font-medium text-zinc-400">月结详情</p><h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ data_get($settlement->snapshot, 'agent.name', '代理商') }}</h2><p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ $settlement->period_start->format('Y-m-d') }} 至 {{ $settlement->period_end->format('Y-m-d') }}</p></div>
             <span class="crm-pill tone-blue">{{ ['pending_review'=>'待审核','rejected'=>'已驳回','approved'=>'已通过','settled'=>'已结清','paid'=>'历史已结清','reconciled'=>'历史已对账'][$settlement->status] ?? $settlement->status }}</span>
         </div>
         <dl class="mt-5 grid gap-4 sm:grid-cols-3"><div><dt class="text-xs text-zinc-500">消费合计</dt><dd class="font-semibold">₩ {{ number_format($settlement->total_consumption_krw) }}</dd></div><div><dt class="text-xs text-zinc-500">推广费合计</dt><dd class="font-semibold">₩ {{ number_format($settlement->total_commission_krw) }}</dd></div><div><dt class="text-xs text-zinc-500">人民币应付</dt><dd class="font-semibold">{{ $settlement->exchange_rate_krw_per_cny ? '¥ '.number_format($settlement->payout_amount_cny_fen / 100, 2) : '待审核' }}</dd></div></dl>
