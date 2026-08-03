@@ -91,8 +91,43 @@ class PhaseFiveReminderTest extends TestCase
         $gateway->schedule($data);
 
         $this->assertDatabaseCount('reminders', 5);
-        $this->assertDatabaseHas('reminders', ['customer_id' => $this->customer->id, 'title' => '术后第 180 天跟进']);
+        $this->assertDatabaseHas('reminders', ['customer_id' => $this->customer->id, 'reminder_type' => 'post_treatment', 'status' => 'pending']);
         $this->assertDatabaseCount('reminder_events', 5);
+    }
+
+    public function test_cancelled_post_treatment_reminders_reactivate_on_order_recompletion(): void
+    {
+        $order = Order::query()->create([
+            'customer_id' => $this->customer->id,
+            'institution_id' => Institution::query()->firstOrFail()->id,
+            'channel' => 'direct',
+            'direct_sales_source_id' => $this->source->id,
+            'project_name' => '提醒复活项目',
+            'amount_krw' => 10000,
+            'completed_on' => '2026-08-05',
+            'owner_id' => $this->user->id,
+            'status' => 'completed',
+        ]);
+        $data = new CompletedTreatmentData(
+            orderId: $order->id,
+            customerId: $this->customer->id,
+            projectName: '提醒复活项目',
+            completedOn: CarbonImmutable::parse('2026-08-05'),
+            ownerId: $this->user->id,
+            actorId: $this->user->id,
+        );
+        $gateway = app(DatabaseTreatmentReminderGateway::class);
+        $gateway->schedule($data);
+        $completed = Reminder::query()->where('order_id', $order->id)->where('reminder_type', 'post_treatment')->firstOrFail();
+        $completed->update(['status' => 'completed', 'completed_at' => now(), 'completed_by' => $this->user->id]);
+        $gateway->cancelForOrder($order->id, $this->admin->id, '订单状态回退');
+
+        $gateway->schedule($data);
+
+        $this->assertSame(5, Reminder::query()->where('order_id', $order->id)->count());
+        $this->assertSame('completed', $completed->refresh()->status);
+        $this->assertSame(4, Reminder::query()->where('order_id', $order->id)->where('status', 'pending')->count());
+        $this->assertDatabaseHas('reminder_events', ['event' => 'reactivated']);
     }
 
     public function test_scheduler_materializes_appointment_and_birthday_without_duplicates(): void

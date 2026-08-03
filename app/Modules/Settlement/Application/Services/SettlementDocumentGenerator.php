@@ -106,6 +106,19 @@ final class SettlementDocumentGenerator
         $this->record($settlement, 'pdf', $pdfPath, $data);
     }
 
+    public function discard(int $settlementId): int
+    {
+        $documents = SettlementDocument::query()->where('settlement_id', $settlementId)->get();
+        foreach ($documents as $document) {
+            if (Storage::disk('local')->exists($document->path)) {
+                Storage::disk('local')->delete($document->path);
+            }
+        }
+        SettlementDocument::query()->where('settlement_id', $settlementId)->delete();
+
+        return $documents->count();
+    }
+
     public function archiveRun(string $runId): string
     {
         $documents = SettlementDocument::query()

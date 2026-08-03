@@ -44,6 +44,7 @@ final readonly class ExchangeRateQuoteService
                 'exchange_rate_quote_error' => null,
                 'exchange_rate_manual_override' => false,
             ] : [
+                'exchange_rate_krw_per_cny' => null,
                 'exchange_rate_quote_source' => $quote->source,
                 'exchange_rate_quoted_at' => null,
                 'exchange_rate_quote_status' => 'unavailable',

@@ -35,7 +35,10 @@ final readonly class SettlementGenerator
             if ($existing !== null && $existing->settlement_run_id !== $runId) {
                 throw new DomainException('该代理商周期已存在历史或其他月结记录，禁止覆盖。');
             }
-            if ($existing !== null && $existing->status !== 'rejected') {
+            $rebuild = $existing !== null
+                && $existing->status === 'pending_review'
+                && ! DB::table('settlement_items')->where('settlement_id', $existing->id)->exists();
+            if ($existing !== null && $existing->status !== 'rejected' && ! $rebuild) {
                 return;
             }
 
@@ -112,7 +115,9 @@ final readonly class SettlementGenerator
                 ]);
             }
 
-            $this->markProcessed($run, $agentId, $totalConsumption, $totalCommission);
+            if (! $rebuild) {
+                $this->markProcessed($run, $agentId, $totalConsumption, $totalCommission);
+            }
         }, 3);
     }
 
