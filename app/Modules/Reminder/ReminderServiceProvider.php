@@ -4,11 +4,13 @@ namespace App\Modules\Reminder;
 
 use App\Modules\Reminder\Application\Contracts\CustomerFollowupGateway;
 use App\Modules\Reminder\Application\Contracts\FollowupImportGateway;
+use App\Modules\Reminder\Application\Contracts\OrderReminderReader;
 use App\Modules\Reminder\Application\Contracts\ReportReminderReader;
 use App\Modules\Reminder\Application\Contracts\StaffNotificationSender;
 use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
 use App\Modules\Reminder\Application\Services\DatabaseCustomerFollowupGateway;
 use App\Modules\Reminder\Application\Services\DatabaseFollowupImportGateway;
+use App\Modules\Reminder\Application\Services\DatabaseOrderReminderReader;
 use App\Modules\Reminder\Application\Services\DatabaseReportReminderReader;
 use App\Modules\Reminder\Application\Services\DatabaseTreatmentReminderGateway;
 use App\Modules\Reminder\Infrastructure\Notifications\DingTalkClient;
@@ -24,6 +26,7 @@ class ReminderServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(FollowupImportGateway::class, DatabaseFollowupImportGateway::class);
+        $this->app->bind(OrderReminderReader::class, DatabaseOrderReminderReader::class);
         $this->app->bind(CustomerFollowupGateway::class, DatabaseCustomerFollowupGateway::class);
         $this->app->bind(TreatmentReminderGateway::class, DatabaseTreatmentReminderGateway::class);
         $this->app->bind(StaffNotificationSender::class, DingTalkClient::class);

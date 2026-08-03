@@ -174,6 +174,7 @@ PHPStan、PHPUnit、前端构建和 Composer / npm 安全审计。
 ## 项目文档
 
 - [文档导航与权威性说明](docs/README.md)
+- [前端页面风格与格式](docs/development/frontend-style-guide.md)
 - [当前项目状态](docs/project-status.md)
 - [当前架构概览](docs/architecture/overview.md)
 - [小白运维指南](docs/operations/beginner-operations-guide.md)
