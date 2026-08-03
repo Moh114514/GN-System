@@ -32,19 +32,32 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
 
             $before = $order->only([
                 'institution_id', 'channel', 'agent_id', 'direct_sales_source_id', 'project_name',
-                'amount_krw', 'translator_name', 'translator_language_id', 'notes',
+                'amount_krw', 'treatment_project_id', 'treatment_project_snapshot',
+                'translator_name', 'translator_language_id', 'translator_language_snapshot', 'notes',
             ]);
+            $projectName = trim($data->projectName);
+            $projectSnapshot = $projectName;
+            if ($data->treatmentProjectId !== null && (int) $order->treatment_project_id === $data->treatmentProjectId) {
+                $projectName = (string) $order->project_name;
+                $projectSnapshot = (string) ($order->treatment_project_snapshot ?: $order->project_name);
+            }
+            $languageSnapshot = $data->translatorLanguageId === null
+                ? null
+                : $data->translatorLanguageName;
+            if ($data->translatorLanguageId !== null && (int) $order->translator_language_id === $data->translatorLanguageId) {
+                $languageSnapshot = $order->translator_language_snapshot;
+            }
             $order->update([
                 'institution_id' => $data->institutionId,
                 'channel' => $data->channel,
                 'agent_id' => $data->agentId,
                 'direct_sales_source_id' => $data->directSalesSourceId,
-                'project_name' => trim($data->projectName),
+                'project_name' => $projectName,
                 'amount_krw' => $data->amountKrw,
-                'treatment_project_snapshot' => trim($data->projectName),
+                'treatment_project_snapshot' => $projectSnapshot,
                 'treatment_project_id' => $data->treatmentProjectId,
                 'translator_language_id' => $data->translatorLanguageId,
-                'translator_language_snapshot' => $data->translatorLanguageName,
+                'translator_language_snapshot' => $languageSnapshot,
                 'translator_name' => $data->translatorName,
                 'notes' => $data->notes,
             ]);

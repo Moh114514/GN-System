@@ -4,8 +4,9 @@
         <div>
             <p class="text-xs font-medium text-zinc-400">订单详情 · #{{ $orderId }}</p>
             <h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">编辑订单</h2>
-            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">仅可编辑待完成订单；关联客户、订单状态和完成时间保持不变。</p>
+            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">仅可编辑待完成订单；关联客户和完成时间保持不变。订单状态请通过详情页的状态编辑入口调整。</p>
         </div>
+        <flux:button href="{{ route('orders.show', $orderId) }}#status-editor" wire:navigate variant="ghost">编辑订单状态</flux:button>
     </section>
 
     @error('order') <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div> @enderror
@@ -19,8 +20,8 @@
             @else
                 <flux:select wire:model="directSalesSourceId" label="直销来源" required><flux:select.option value="">请选择</flux:select.option>@foreach ($options['direct_sources'] as $source)<flux:select.option value="{{ $source['id'] }}">{{ $source['name'] }}</flux:select.option>@endforeach</flux:select>
             @endif
-            <flux:select wire:model="treatmentProjectId" label="施术项目字典（可选）"><flux:select.option value="">使用项目名称</flux:select.option>@foreach ($options['treatment_projects'] as $project)<flux:select.option value="{{ $project['id'] }}">{{ $project['name'] }}</flux:select.option>@endforeach</flux:select>
-            <flux:input wire:model="projectName" label="项目名称" required />
+            <flux:select wire:model.live="treatmentProjectId" label="施术项目字典（可选）"><flux:select.option value="">使用项目名称</flux:select.option>@foreach ($options['treatment_projects'] as $project)<flux:select.option value="{{ $project['id'] }}">{{ $project['name'] }}</flux:select.option>@endforeach</flux:select>
+            <flux:input wire:model="projectName" label="项目名称" :readonly="$treatmentProjectId !== ''" required />
             <flux:input wire:model="amountKrw" type="number" min="0" step="1" label="成交金额（KRW）" required />
             <flux:input wire:model="translatorName" label="翻译姓名" />
             <flux:select wire:model="translatorLanguageId" label="翻译语种（可选）"><flux:select.option value="">未选择</flux:select.option>@foreach ($options['translator_languages'] as $language)<flux:select.option value="{{ $language['id'] }}">{{ $language['name'] }}</flux:select.option>@endforeach</flux:select>

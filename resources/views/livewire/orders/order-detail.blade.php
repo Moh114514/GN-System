@@ -22,6 +22,40 @@
     @endif
     @error('action') <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div> @enderror
 
+    <section id="status-editor" class="crm-card mb-6">
+        <div class="flex flex-wrap items-start justify-between gap-3">
+            <div>
+                <h3 class="font-semibold">编辑订单状态</h3>
+                <p class="mt-1 text-sm text-zinc-500">状态变更会记录审计；取消和重新打开需要超级管理员填写原因。</p>
+            </div>
+            @if ($deleted)
+                <span class="text-sm text-zinc-500">回收站订单请先恢复后再重新打开。</span>
+            @elseif ($order['status'] === 'completed')
+                <span class="text-sm text-zinc-500">已完成订单状态不可更正。</span>
+            @elseif ($order['status'] === 'pending' || $isAdmin)
+                <div class="flex flex-wrap items-end gap-2">
+                    <flux:select wire:model.live="statusSelection" label="订单状态" class="min-w-48">
+                        @if ($order['status'] === 'pending')
+                            <flux:select.option value="pending">待完成</flux:select.option>
+                            <flux:select.option value="completed">已完成</flux:select.option>
+                            @if ($isAdmin)<flux:select.option value="cancelled">已取消</flux:select.option>@endif
+                        @elseif ($order['status'] === 'cancelled' && $isAdmin)
+                            <flux:select.option value="cancelled">已取消</flux:select.option>
+                            <flux:select.option value="pending">待完成</flux:select.option>
+                        @endif
+                    </flux:select>
+                    <flux:button wire:click="changeStatus" variant="primary">保存状态</flux:button>
+                </div>
+            @endif
+        </div>
+        @if (! $deleted && $order['status'] !== 'completed' && $isAdmin && in_array($statusSelection, ['cancelled', 'pending'], true) && $statusSelection !== $order['status'])
+            <div class="mt-4 max-w-xl">
+                <flux:textarea wire:model="reason" label="状态变更原因" rows="2" />
+            </div>
+        @endif
+        @error('statusSelection') <p class="mt-2 text-sm text-red-600">{{ $message }}</p> @enderror
+    </section>
+
     <div class="grid gap-6 xl:grid-cols-[minmax(0,1.35fr)_minmax(18rem,0.65fr)]">
         <div class="space-y-6">
             <section class="crm-card">

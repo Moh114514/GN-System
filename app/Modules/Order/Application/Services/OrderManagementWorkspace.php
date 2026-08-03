@@ -12,6 +12,7 @@ use App\Modules\Order\Application\Data\OrderUpdateData;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Reminder\Application\Contracts\OrderReminderReader;
 use App\Modules\Settlement\Application\Contracts\OrderFinancialReader;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 final readonly class OrderManagementWorkspace
@@ -68,8 +69,9 @@ final readonly class OrderManagementWorkspace
      *     created_at: string|null
      * }>
      */
-    public function paginate(array $filters, int $perPage, bool $includeDeleted = false): LengthAwarePaginator
+    public function paginate(array $filters, int $perPage, bool $includeDeleted = false, bool $canViewDeleted = false): LengthAwarePaginator
     {
+        $this->assertCanViewDeleted($includeDeleted, $canViewDeleted);
         $query = $includeDeleted ? Order::onlyTrashed() : Order::query();
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') {
@@ -143,9 +145,9 @@ final readonly class OrderManagementWorkspace
     }
 
     /** @return array<string, mixed> */
-    public function detail(int $orderId): array
+    public function detail(int $orderId, bool $canViewDeleted = false): array
     {
-        $order = Order::withTrashed()->findOrFail($orderId);
+        $order = ($canViewDeleted ? Order::withTrashed() : Order::query())->findOrFail($orderId);
         $customer = $this->customers->customerForOrder((int) $order->customer_id);
         $institution = $this->institutions->institutionsByIds([(int) $order->institution_id])[(int) $order->institution_id] ?? null;
         $agent = $order->agent_id === null ? null : ($this->agents->agentsByIds([(int) $order->agent_id])[(int) $order->agent_id] ?? null);
@@ -230,5 +232,12 @@ final readonly class OrderManagementWorkspace
     public function restore(int $orderId, int $actorId, ?string $ipAddress): int
     {
         return $this->lifecycle->restore($orderId, $actorId, $ipAddress);
+    }
+
+    private function assertCanViewDeleted(bool $includeDeleted, bool $canViewDeleted): void
+    {
+        if ($includeDeleted && ! $canViewDeleted) {
+            throw new AuthorizationException('只有超级管理员可以查看回收站订单。');
+        }
     }
 }

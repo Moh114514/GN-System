@@ -25,8 +25,24 @@ return new class extends Migration
 
     public function down(): void
     {
+        $hasLifecycleData = DB::table('orders')
+            ->where(function ($query): void {
+                $query
+                    ->where('status', 'cancelled')
+                    ->orWhereNotNull('cancelled_at')
+                    ->orWhereNotNull('cancelled_by')
+                    ->orWhereNotNull('cancellation_reason')
+                    ->orWhereNotNull('deleted_at')
+                    ->orWhereNotNull('deleted_by')
+                    ->orWhereNotNull('deletion_reason');
+            })
+            ->exists();
+
+        if ($hasLifecycleData) {
+            throw new RuntimeException('订单生命周期迁移包含已取消或已删除业务数据，拒绝自动回滚以避免丢失业务事实。');
+        }
+
         DB::statement('ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_status_check');
-        DB::table('orders')->where('status', 'cancelled')->update(['status' => 'pending']);
         DB::statement("ALTER TABLE orders ADD CONSTRAINT orders_status_check CHECK (status IN ('pending', 'completed'))");
 
         Schema::table('orders', function (Blueprint $table): void {

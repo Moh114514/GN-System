@@ -210,7 +210,7 @@ class OrderCenter extends Component
             'channel' => $this->channelFilter,
             'institution_id' => $this->institutionFilter === '' ? null : (int) $this->institutionFilter,
             'agent_id' => $this->agentFilter === '' ? null : (int) $this->agentFilter,
-        ], in_array($this->perPage, [20, 50, 100], true) ? $this->perPage : 20, $this->showDeleted);
+        ], in_array($this->perPage, [20, 50, 100], true) ? $this->perPage : 20, $this->showDeleted, (bool) Auth::user()?->is_super_admin);
 
         return view('livewire.orders.order-center', compact('orders'));
     }

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Config\Infrastructure\Models\DictionaryItem;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\DirectSalesSource;
@@ -12,6 +13,7 @@ use App\Modules\Order\Presentation\Livewire\OrderDetail;
 use App\Modules\Order\Presentation\Livewire\OrderEdit;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -133,6 +135,11 @@ class OrderManagementTest extends TestCase
             ->assertSee('返回订单管理')
             ->assertSee('href="'.route('orders.index').'"', false);
 
+        $this->actingAs($user)->get(route('orders.edit', $order))
+            ->assertOk()
+            ->assertSee('编辑订单状态')
+            ->assertSee('href="'.route('orders.show', $order).'#status-editor"', false);
+
         Livewire::actingAs($user)
             ->test(OrderEdit::class, ['order' => $order->id])
             ->set('projectName', '更新后的项目')
@@ -140,9 +147,42 @@ class OrderManagementTest extends TestCase
             ->call('save')
             ->assertHasNoErrors();
 
+        $project = DictionaryItem::query()->create([
+            'type' => 'treatment_project',
+            'code' => 'LASER',
+            'name' => '激光治疗',
+            'is_active' => true,
+        ]);
+        $language = DictionaryItem::query()->create([
+            'type' => 'translator_language',
+            'code' => 'KO',
+            'name' => '韩语',
+            'is_active' => true,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(OrderEdit::class, ['order' => $order->id])
+            ->set('treatmentProjectId', (string) $project->id)
+            ->set('projectName', '手工篡改名称')
+            ->set('translatorLanguageId', (string) $language->id)
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $project->update(['name' => '重命名项目']);
+        $language->update(['name' => '重命名语种']);
+        Livewire::actingAs($user)
+            ->test(OrderEdit::class, ['order' => $order->id])
+            ->set('notes', '仅修改备注')
+            ->call('save')
+            ->assertHasNoErrors();
+
         $this->assertDatabaseHas('orders', [
             'id' => $order->id,
-            'project_name' => '更新后的项目',
+            'project_name' => '激光治疗',
+            'treatment_project_id' => $project->id,
+            'treatment_project_snapshot' => '激光治疗',
+            'translator_language_id' => $language->id,
+            'translator_language_snapshot' => '韩语',
             'amount_krw' => 120000,
             'status' => 'pending',
         ]);
@@ -151,13 +191,16 @@ class OrderManagementTest extends TestCase
             'subject_id' => $order->id,
             'event' => 'updated',
         ]);
+        $latestAudit = DB::table('activity_log')->where('log_name', 'order')->where('subject_id', $order->id)->where('event', 'updated')->latest('id')->value('properties');
+        $this->assertStringContainsString('treatment_project_id', (string) $latestAudit);
+        $this->assertStringContainsString('treatment_project_snapshot', (string) $latestAudit);
     }
 
     public function test_admin_can_cancel_soft_delete_restore_and_reopen_pending_order(): void
     {
         $this->seed(PhaseTwoReferenceDataSeeder::class);
         $user = User::factory()->create();
-        $admin = User::factory()->create(['is_super_admin' => true]);
+        $admin = User::factory()->create(['is_super_admin' => true, 'two_factor_confirmed_at' => now()]);
         $institution = Institution::query()->firstOrFail();
         $source = DirectSalesSource::query()->create([
             'code' => 'WEB',
@@ -185,13 +228,15 @@ class OrderManagementTest extends TestCase
         Livewire::actingAs($user)
             ->test(OrderDetail::class, ['order' => $order->id])
             ->set('reason', '普通用户不应执行取消')
-            ->call('cancel')
+            ->set('statusSelection', 'cancelled')
+            ->call('changeStatus')
             ->assertStatus(403);
 
         Livewire::actingAs($admin)
             ->test(OrderDetail::class, ['order' => $order->id])
             ->set('reason', '客户主动取消')
-            ->call('cancel')
+            ->set('statusSelection', 'cancelled')
+            ->call('changeStatus')
             ->assertHasNoErrors()
             ->set('reason', '取消订单归档')
             ->call('softDelete')
@@ -223,5 +268,75 @@ class OrderManagementTest extends TestCase
         $this->assertDatabaseHas('activity_log', ['log_name' => 'order', 'subject_id' => $order->id, 'event' => 'deleted']);
         $this->assertDatabaseHas('activity_log', ['log_name' => 'order', 'subject_id' => $order->id, 'event' => 'restored']);
         $this->assertDatabaseHas('activity_log', ['log_name' => 'order', 'subject_id' => $order->id, 'event' => 'reopened']);
+    }
+
+    public function test_non_admin_cannot_read_recycle_bin_or_deleted_order_detail(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $admin = User::factory()->create(['is_super_admin' => true, 'two_factor_confirmed_at' => now()]);
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $source = DirectSalesSource::query()->create(['code' => 'RECYC', 'name' => '回收站测试', 'is_active' => true]);
+        $customer = Customer::query()->create([
+            'code' => 'RECYCLE-000001',
+            'name' => '回收站订单客户',
+            'original_channel' => 'direct',
+            'source_direct_sales_id' => $source->id,
+            'owner_id' => $user->id,
+        ]);
+        $order = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'channel' => 'direct',
+            'direct_sales_source_id' => $source->id,
+            'project_name' => '待删除订单',
+            'amount_krw' => 100000,
+            'status' => 'cancelled',
+            'owner_id' => $user->id,
+            'cancellation_reason' => '测试取消',
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test(OrderDetail::class, ['order' => $order->id])
+            ->set('reason', '测试回收站')
+            ->call('softDelete')
+            ->assertHasNoErrors();
+
+        $this->actingAs($user)->get(route('orders.show', $order->id))->assertNotFound();
+        $this->actingAs($user)->get(route('orders.index', ['showDeleted' => 1]))->assertForbidden();
+        $this->actingAs($admin)->get(route('orders.show', $order->id))->assertOk();
+    }
+
+    public function test_order_lifecycle_migration_refuses_rollback_when_business_data_exists(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $source = DirectSalesSource::query()->create(['code' => 'ROLLBK', 'name' => '回滚测试', 'is_active' => true]);
+        $customer = Customer::query()->create([
+            'code' => 'ROLLBACK-0001',
+            'name' => '回滚测试客户',
+            'original_channel' => 'direct',
+            'source_direct_sales_id' => $source->id,
+            'owner_id' => $user->id,
+        ]);
+        $order = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'channel' => 'direct',
+            'direct_sales_source_id' => $source->id,
+            'project_name' => '回滚测试订单',
+            'amount_krw' => 100000,
+            'status' => 'pending',
+            'owner_id' => $user->id,
+        ]);
+        $order->update([
+            'status' => 'cancelled',
+            'cancellation_reason' => '保留业务事实',
+        ]);
+
+        $migration = require database_path('migrations/2026_08_03_000500_add_order_lifecycle_management.php');
+        $this->expectException(\RuntimeException::class);
+        $migration->down();
     }
 }

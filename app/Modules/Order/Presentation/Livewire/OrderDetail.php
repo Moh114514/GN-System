@@ -23,6 +23,8 @@ class OrderDetail extends Component
 
     public string $reason = '';
 
+    public string $statusSelection = '';
+
     public function mount(int $order, OrderManagementWorkspace $workspace): void
     {
         $this->orderId = $order;
@@ -75,9 +77,39 @@ class OrderDetail extends Component
         return view('livewire.orders.order-detail', ['order' => $this->orderDetails]);
     }
 
+    public function changeStatus(DailyOrderWorkspace $dailyOrders, OrderManagementWorkspace $workspace): void
+    {
+        $target = $this->statusSelection;
+
+        if ($target === 'completed') {
+            $this->complete($dailyOrders);
+
+            return;
+        }
+
+        if ($target === 'cancelled') {
+            $this->requireAdmin();
+            $this->validate(['reason' => ['required', 'string', 'max:1000']]);
+            $this->runAction(fn (): int => $workspace->cancel($this->orderId, (int) Auth::id(), $this->reason, request()->ip()), '订单已取消', $workspace);
+
+            return;
+        }
+
+        if ($target === 'pending') {
+            $this->requireAdmin();
+            $this->validate(['reason' => ['required', 'string', 'max:1000']]);
+            $this->runAction(fn (): int => $workspace->reopen($this->orderId, (int) Auth::id(), $this->reason, request()->ip()), '订单已重新打开', $workspace);
+
+            return;
+        }
+
+        $this->addError('statusSelection', '请选择有效的订单状态。');
+    }
+
     private function load(OrderManagementWorkspace $workspace): void
     {
-        $this->orderDetails = $workspace->detail($this->orderId);
+        $this->orderDetails = $workspace->detail($this->orderId, (bool) Auth::user()?->is_super_admin);
+        $this->statusSelection = (string) $this->orderDetails['status'];
     }
 
     private function requireAdmin(): void

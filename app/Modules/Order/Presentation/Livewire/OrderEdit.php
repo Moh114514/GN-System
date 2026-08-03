@@ -103,6 +103,20 @@ class OrderEdit extends Component
         $this->redirectRoute('orders.show', ['order' => $this->orderId], navigate: true);
     }
 
+    public function updatedTreatmentProjectId(): void
+    {
+        if ($this->treatmentProjectId === '') {
+            return;
+        }
+
+        $project = collect($this->options['treatment_projects'] ?? [])
+            ->first(fn (array $item): bool => (int) $item['id'] === (int) $this->treatmentProjectId);
+
+        if ($project !== null) {
+            $this->projectName = (string) $project['name'];
+        }
+    }
+
     public function render(): View
     {
         return view('livewire.orders.order-edit', ['order' => $this->orderDetails]);
