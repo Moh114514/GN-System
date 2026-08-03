@@ -31,7 +31,7 @@
                     <flux:select.option value="{{ $period->end->toDateString() }}">{{ $period->start->format('Y-m-d') }} 至 {{ $period->end->format('Y-m-d') }}</flux:select.option>
                 @endforeach
             </flux:select>
-            <flux:button type="submit" variant="primary">生成往期月结</flux:button>
+            <flux:button class="sm:mt-6" type="submit" variant="primary">生成往期月结</flux:button>
         </form>
         @error('historicalPeriodEnd')<p class="mt-2 text-sm text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
     </section>
