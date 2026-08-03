@@ -262,6 +262,17 @@ class PhaseFiveSettlementTest extends TestCase
             'settled_by' => null,
             'confirmed_at' => null,
         ]);
+        $this->assertDatabaseMissing('settlement_items', ['settlement_id' => $settlement->id]);
+        $this->assertDatabaseMissing('settlement_documents', ['settlement_id' => $settlement->id]);
+        $this->assertDatabaseHas('settlements', [
+            'id' => $settlement->id,
+            'exchange_rate_krw_per_cny' => null,
+            'exchange_rate_quote_source' => null,
+            'total_consumption_krw' => 0,
+            'total_commission_krw' => 0,
+        ]);
+        app(SettlementGenerator::class)->generate((string) $settlement->settlement_run_id, $this->agent->id);
+        $this->assertDatabaseHas('settlement_items', ['settlement_id' => $settlement->id]);
         $this->assertDatabaseHas('activity_log', ['log_name' => 'settlement', 'subject_id' => $settlement->id, 'event' => 'status_corrected']);
     }
 

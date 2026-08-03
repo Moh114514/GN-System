@@ -65,6 +65,7 @@ final readonly class SettlementWorkflow
                 'reviewed_at' => now(),
                 'rejection_reason' => null,
             ]);
+            $this->documents->generate($settlement);
             $this->record($settlement, '月结已审核通过', 'approved', $actorId, $ipAddress, [
                 'exchange_rate_krw_per_cny' => (string) $rate,
                 'exchange_rate_quote_source' => $settlement->exchange_rate_quote_source,
@@ -72,7 +73,6 @@ final readonly class SettlementWorkflow
                 'exchange_rate_manual_override' => $manualOverride,
             ]);
         });
-        $this->documents->generate(Settlement::query()->findOrFail($settlementId));
     }
 
     public function settle(int $settlementId, int $actorId, ?string $ipAddress): void
@@ -100,7 +100,7 @@ final readonly class SettlementWorkflow
             throw new DomainException('状态更正必须填写原因。');
         }
         if (! in_array($targetStatus, ['pending_review', 'approved', 'settled'], true)) {
-            throw new DomainException('月结状态只能更正为已审核或已结清。');
+            throw new DomainException('月结状态只能更正为待审核、已审核或已结清。');
         }
 
         DB::transaction(function () use ($settlementId, $targetStatus, $reason, $actorId, $ipAddress): void {
@@ -113,6 +113,16 @@ final readonly class SettlementWorkflow
             }
 
             $before = $this->statusSnapshot($settlement);
+            $itemsRemoved = 0;
+            $documentsRemoved = 0;
+            if ($targetStatus === 'pending_review') {
+                if (SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->where('status', 'accepted')->exists()) {
+                    throw new DomainException('该月结等级建议已经生效，需先人工处理等级安排后才能回退。');
+                }
+                $itemsRemoved = DB::table('settlement_items')->where('settlement_id', $settlement->id)->delete();
+                $documentsRemoved = $this->documents->discard((int) $settlement->id);
+                SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->delete();
+            }
             $attributes = match ($targetStatus) {
                 'settled' => [
                     'status' => 'settled',
@@ -134,6 +144,14 @@ final readonly class SettlementWorkflow
                     'reviewed_by' => null,
                     'reviewed_at' => null,
                     'rejection_reason' => null,
+                    'exchange_rate_krw_per_cny' => null,
+                    'exchange_rate_quote_source' => null,
+                    'exchange_rate_quoted_at' => null,
+                    'exchange_rate_quote_status' => 'unavailable',
+                    'exchange_rate_quote_error' => null,
+                    'exchange_rate_manual_override' => false,
+                    'total_consumption_krw' => 0,
+                    'total_commission_krw' => 0,
                     'payout_amount_cny_fen' => 0,
                 ],
             };
@@ -146,6 +164,8 @@ final readonly class SettlementWorkflow
                     'before' => $before,
                     'after' => $this->statusSnapshot($settlement),
                     'reason' => $reason,
+                    'items_removed' => $itemsRemoved,
+                    'documents_removed' => $documentsRemoved,
                 ],
                 causerId: $actorId,
                 subject: $settlement,
