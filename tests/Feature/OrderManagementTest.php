@@ -270,6 +270,55 @@ class OrderManagementTest extends TestCase
         $this->assertDatabaseHas('activity_log', ['log_name' => 'order', 'subject_id' => $order->id, 'event' => 'reopened']);
     }
 
+    public function test_super_admin_can_rollback_completed_order_with_reason(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $user = User::factory()->create();
+        $admin = User::factory()->create(['is_super_admin' => true, 'two_factor_confirmed_at' => now()]);
+        $institution = Institution::query()->firstOrFail();
+        $source = DirectSalesSource::query()->create(['code' => 'RBK', 'name' => '回退测试来源', 'is_active' => true]);
+        $customer = Customer::query()->create([
+            'code' => 'ROLLBACK-000001',
+            'name' => '订单回退测试客户',
+            'original_channel' => 'direct',
+            'source_direct_sales_id' => $source->id,
+            'owner_id' => $user->id,
+        ]);
+        $order = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'channel' => 'direct',
+            'direct_sales_source_id' => $source->id,
+            'project_name' => '回退项目',
+            'amount_krw' => 100000,
+            'status' => 'completed',
+            'completed_on' => '2026-08-03',
+            'completed_at' => '2026-08-03 14:00:00',
+            'completion_precision' => 'datetime',
+            'owner_id' => $user->id,
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test(OrderDetail::class, ['order' => $order->id])
+            ->set('statusSelection', 'pending')
+            ->set('reason', '客户要求重新确认成交信息')
+            ->call('changeStatus')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('orders', [
+            'id' => $order->id,
+            'status' => 'pending',
+            'completed_on' => null,
+            'completed_at' => null,
+            'completion_precision' => 'date',
+        ]);
+        $this->assertDatabaseHas('activity_log', [
+            'log_name' => 'order',
+            'subject_id' => $order->id,
+            'event' => 'completion_rolled_back',
+        ]);
+    }
+
     public function test_non_admin_cannot_read_recycle_bin_or_deleted_order_detail(): void
     {
         $this->seed(PhaseTwoReferenceDataSeeder::class);

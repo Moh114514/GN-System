@@ -9,6 +9,8 @@ use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
 use App\Modules\Order\Application\Contracts\OrderLifecycleGateway;
 use App\Modules\Order\Application\Data\OrderUpdateData;
 use App\Modules\Order\Infrastructure\Models\Order;
+use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
+use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 
@@ -18,6 +20,8 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
         private AgentReferenceReader $agents,
         private CustomerOrderReferenceReader $customers,
         private InstitutionReferenceReader $institutions,
+        private DailyCommissionGateway $commissions,
+        private TreatmentReminderGateway $reminders,
         private AuditRecorder $audit,
     ) {}
 
@@ -126,6 +130,41 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                 subject: $order,
                 logName: 'order',
                 event: 'reopened',
+                ipAddress: $ipAddress,
+            );
+
+            return (int) $order->id;
+        });
+    }
+
+    public function rollbackCompleted(int $orderId, int $actorId, string $reason, ?string $ipAddress): int
+    {
+        return DB::transaction(function () use ($orderId, $actorId, $reason, $ipAddress): int {
+            $order = Order::query()->lockForUpdate()->findOrFail($orderId);
+            if ($order->status !== 'completed') {
+                throw new DomainException('只有已完成订单可以受控回退到待完成。');
+            }
+
+            $before = $order->only(['status', 'completed_on', 'completed_at', 'completion_precision']);
+            $this->commissions->rollbackForOrder($orderId);
+            $this->reminders->cancelForOrder($orderId, $actorId, $reason);
+            $order->update([
+                'status' => 'pending',
+                'completed_on' => null,
+                'completed_at' => null,
+                'completion_precision' => 'date',
+            ]);
+            $this->audit->record(
+                description: '订单已受控回退至待完成',
+                properties: [
+                    'before' => $before,
+                    'after' => $order->only(['status', 'completed_on', 'completed_at', 'completion_precision']),
+                    'reason' => trim($reason),
+                ],
+                causerId: $actorId,
+                subject: $order,
+                logName: 'order',
+                event: 'completion_rolled_back',
                 ipAddress: $ipAddress,
             );
 

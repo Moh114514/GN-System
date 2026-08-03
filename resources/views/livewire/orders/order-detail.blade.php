@@ -30,8 +30,8 @@
             </div>
             @if ($deleted)
                 <span class="text-sm text-zinc-500">回收站订单请先恢复后再重新打开。</span>
-            @elseif ($order['status'] === 'completed')
-                <span class="text-sm text-zinc-500">已完成订单状态不可更正。</span>
+            @elseif ($order['status'] === 'completed' && ! $isAdmin)
+                <span class="text-sm text-zinc-500">已完成订单仅允许超级管理员填写原因后受控回退。</span>
             @elseif ($order['status'] === 'pending' || $isAdmin)
                 <div class="flex flex-wrap items-end gap-2">
                     <flux:select wire:model.live="statusSelection" label="订单状态" class="min-w-48">
@@ -39,6 +39,9 @@
                             <flux:select.option value="pending">待完成</flux:select.option>
                             <flux:select.option value="completed">已完成</flux:select.option>
                             @if ($isAdmin)<flux:select.option value="cancelled">已取消</flux:select.option>@endif
+                        @elseif ($order['status'] === 'completed' && $isAdmin)
+                            <flux:select.option value="completed">已完成</flux:select.option>
+                            <flux:select.option value="pending">待完成</flux:select.option>
                         @elseif ($order['status'] === 'cancelled' && $isAdmin)
                             <flux:select.option value="cancelled">已取消</flux:select.option>
                             <flux:select.option value="pending">待完成</flux:select.option>
@@ -48,7 +51,7 @@
                 </div>
             @endif
         </div>
-        @if (! $deleted && $order['status'] !== 'completed' && $isAdmin && in_array($statusSelection, ['cancelled', 'pending'], true) && $statusSelection !== $order['status'])
+        @if (! $deleted && $isAdmin && in_array($statusSelection, ['cancelled', 'pending'], true) && $statusSelection !== $order['status'])
             <div class="mt-4 max-w-xl">
                 <flux:textarea wire:model="reason" label="状态变更原因" rows="2" />
             </div>

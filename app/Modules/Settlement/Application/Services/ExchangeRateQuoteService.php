@@ -1,0 +1,59 @@
+<?php
+
+namespace App\Modules\Settlement\Application\Services;
+
+use App\Modules\Settlement\Application\Contracts\KrwCnyQuoteProvider;
+use App\Modules\Settlement\Application\Data\KrwCnyQuoteData;
+use App\Modules\Settlement\Infrastructure\Models\Settlement;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
+
+final readonly class ExchangeRateQuoteService
+{
+    public function __construct(private KrwCnyQuoteProvider $provider) {}
+
+    public function refreshFor(Settlement $settlement): Settlement
+    {
+        if (! in_array($settlement->status, ['pending_review', 'rejected'], true)) {
+            return $settlement;
+        }
+
+        $cacheKey = 'settlement:exchange-rate:krw-cny:'.sha1(implode(':', [
+            (string) config('services.settlement_exchange_rate.provider'),
+            (string) config('services.settlement_exchange_rate.url'),
+            (string) config('services.settlement_exchange_rate.id'),
+        ]));
+        $quote = Cache::get($cacheKey);
+        if (! $quote instanceof KrwCnyQuoteData) {
+            $quote = $this->provider->quote();
+            if ($quote->available) {
+                Cache::put($cacheKey, $quote, now()->addMinutes(10));
+            }
+        }
+        DB::transaction(function () use ($settlement, $quote): void {
+            $locked = Settlement::query()->lockForUpdate()->findOrFail($settlement->id);
+            if (! in_array($locked->status, ['pending_review', 'rejected'], true)) {
+                return;
+            }
+
+            $locked->update($quote->available ? [
+                'exchange_rate_krw_per_cny' => $quote->rate,
+                'exchange_rate_quote_source' => $quote->source,
+                'exchange_rate_quoted_at' => $quote->quotedAt,
+                'exchange_rate_quote_status' => 'available',
+                'exchange_rate_quote_error' => null,
+                'exchange_rate_manual_override' => false,
+            ] : [
+                'exchange_rate_quote_source' => $quote->source,
+                'exchange_rate_quoted_at' => null,
+                'exchange_rate_quote_status' => 'unavailable',
+                'exchange_rate_quote_error' => (string) str($quote->failureReason)->limit(500, ''),
+                'exchange_rate_manual_override' => false,
+            ]);
+        });
+
+        $settlement->refresh();
+
+        return $settlement;
+    }
+}

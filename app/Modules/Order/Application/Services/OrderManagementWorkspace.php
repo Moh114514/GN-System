@@ -224,6 +224,11 @@ final readonly class OrderManagementWorkspace
         return $this->lifecycle->reopen($orderId, $actorId, $reason, $ipAddress);
     }
 
+    public function rollbackCompleted(int $orderId, int $actorId, string $reason, ?string $ipAddress): int
+    {
+        return $this->lifecycle->rollbackCompleted($orderId, $actorId, $reason, $ipAddress);
+    }
+
     public function softDelete(int $orderId, int $actorId, string $reason, ?string $ipAddress): int
     {
         return $this->lifecycle->softDelete($orderId, $actorId, $reason, $ipAddress);

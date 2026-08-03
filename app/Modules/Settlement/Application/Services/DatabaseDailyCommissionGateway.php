@@ -12,6 +12,7 @@ use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use DomainException;
+use Illuminate\Support\Facades\DB;
 
 final readonly class DatabaseDailyCommissionGateway implements DailyCommissionGateway
 {
@@ -123,5 +124,19 @@ final readonly class DatabaseDailyCommissionGateway implements DailyCommissionGa
         }
 
         return (int) $commission->id;
+    }
+
+    public function rollbackForOrder(int $orderId): void
+    {
+        $commission = OrderCommission::query()->where('order_id', $orderId)->first();
+        if ($commission === null) {
+            return;
+        }
+
+        if (DB::table('settlement_items')->where('order_commission_id', $commission->id)->exists()) {
+            throw new DomainException('订单已进入月结明细，必须先更正或撤回月结后才能回退订单状态。');
+        }
+
+        $commission->delete();
     }
 }

@@ -163,19 +163,20 @@
                     <label class="crm-date-range">
                         <span class="sr-only">查看指定日期的看板</span>
                         <input
+                            data-test="topbar-date-control"
                             type="date"
                             name="date"
                             value="{{ request()->routeIs('dashboard') ? (string) request('date', now('Asia/Shanghai')->format('Y-m-d')) : now('Asia/Shanghai')->format('Y-m-d') }}"
                             aria-label="查看指定日期的看板"
                             onchange="this.form.requestSubmit()"
                         >
-                        <flux:icon.calendar-days aria-hidden="true" />
                     </label>
                 </form>
 
                 <a
                     href="{{ route('reminders.index') }}"
                     class="crm-icon-button crm-notification-button"
+                    data-test="reminder-notification-button"
                     aria-label="查看主动提醒"
                     wire:navigate
                 >
