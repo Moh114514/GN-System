@@ -22,6 +22,7 @@ use App\Modules\Order\Presentation\Livewire\CustomerOrders;
 use App\Modules\Order\Presentation\Livewire\OrderCenter;
 use App\Modules\Order\Presentation\Livewire\OrderDetail;
 use App\Modules\Order\Presentation\Livewire\OrderEdit;
+use App\Modules\Order\Presentation\Livewire\OrderRecycleBin;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
@@ -44,6 +45,7 @@ class OrderServiceProvider extends ServiceProvider
         Route::middleware(['web', 'auth', 'verified', 'super-admin.2fa'])
             ->group(function (): void {
                 Route::get('/orders', OrderCenter::class)->name('orders.index');
+                Route::get('/orders/recycle-bin', OrderRecycleBin::class)->name('orders.recycle-bin');
                 Route::get('/orders/{order}', OrderDetail::class)->whereNumber('order')->name('orders.show');
                 Route::get('/orders/{order}/edit', OrderEdit::class)->whereNumber('order')->name('orders.edit');
                 Route::get('/customers/{customer}/orders', CustomerOrders::class)
