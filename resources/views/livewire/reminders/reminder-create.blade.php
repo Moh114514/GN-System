@@ -1,6 +1,6 @@
 <div>
     <x-page-back :href="route('reminders.index')" label="返回主动提醒" class="mb-4" />
-    <section class="mb-5"><p class="crm-eyebrow">客户跟进</p><h2>新建提醒</h2><p>创建一次性或周期提醒，也可从模板快速开始。</p></section>
+    <section class="mb-5"><p class="text-xs font-medium text-zinc-400">客户跟进</p><h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">新建提醒</h2><p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">创建一次性或周期提醒，也可从模板快速开始。</p></section>
     @error('reminder')<div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div>@enderror
     <form wire:submit="save" class="max-w-3xl space-y-5 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <div class="grid gap-4 sm:grid-cols-2"><flux:select wire:model.live="templateId" label="提醒模板"><flux:select.option value="">不使用模板</flux:select.option>@foreach ($templates as $template)<flux:select.option value="{{ $template->id }}">{{ $template->name }}</flux:select.option>@endforeach</flux:select><flux:select wire:model="customerId" label="关联客户" required><flux:select.option value="">请选择</flux:select.option>@foreach ($customers as $customer)<flux:select.option value="{{ $customer->id }}">{{ $customer->name }}</flux:select.option>@endforeach</flux:select></div>

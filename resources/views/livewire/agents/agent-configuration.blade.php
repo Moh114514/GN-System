@@ -1,9 +1,9 @@
 <div>
     <x-page-back :href="route('configuration.index')" label="返回配置中心" class="mb-4" />
     <section class="mb-6">
-        <p class="crm-eyebrow">配置中心 · 代理商配置</p>
-        <h2>代理商与推广费配置</h2>
-        <p>配置类型、政策等级和按月生效的机构费率；历史月份与推广费快照不会被改写。</p>
+        <p class="text-xs font-medium text-zinc-400">配置中心 · 代理商配置</p>
+        <h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">代理商与推广费配置</h2>
+        <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">配置类型、政策等级和按月生效的机构费率；历史月份与推广费快照不会被改写。</p>
     </section>
 
     @if (session('status'))

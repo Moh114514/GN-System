@@ -2,9 +2,9 @@
     <x-page-back :href="route('configuration.index')" label="返回配置中心" class="mb-4" />
     <section class="crm-section-header">
         <div>
-            <p class="crm-eyebrow">Config · 数据所有者版本</p>
-            <h2>配置历史与回滚</h2>
-            <p>快照分别由 Agent、Customer、Settlement 保存；回滚不会重算历史订单推广费或已结算快照。</p>
+            <p class="text-xs font-medium text-zinc-400">配置中心 · 版本记录</p>
+            <h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">配置历史与回滚</h2>
+            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">配置版本按代理商、客户、结算分别保存；回滚不会重算历史订单的推广费或已结算内容。</p>
         </div>
     </section>
     @if (session('status'))<div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>@endif

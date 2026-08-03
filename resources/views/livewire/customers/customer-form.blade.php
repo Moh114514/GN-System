@@ -7,9 +7,9 @@
 
     <section class="crm-section-header">
         <div>
-            <p class="crm-eyebrow">Phase 3 · 客户档案</p>
-            <h2>{{ $customerId ? '编辑客户' : '新建客户' }}</h2>
-            <p>{{ $customerId ? '客户编号创建后保持不变，敏感字段变更必须再次确认。' : '建档会同时创建首次到店预约并记录审计日志。' }}</p>
+            <p class="text-xs font-medium text-zinc-400">客户档案</p>
+            <h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ $customerId ? '编辑客户' : '新建客户' }}</h2>
+            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ $customerId ? '客户编号创建后保持不变，敏感字段变更必须再次确认。' : '建档会同时创建首次到店预约并记录操作日志。' }}</p>
         </div>
     </section>
 

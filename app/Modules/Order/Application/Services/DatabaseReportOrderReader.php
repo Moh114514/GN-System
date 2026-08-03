@@ -32,6 +32,11 @@ final class DatabaseReportOrderReader implements ReportOrderReader
         );
     }
 
+    public function count(ReportQueryData $query): int
+    {
+        return $this->query($query)->count();
+    }
+
     public function rows(ReportQueryData $query): array
     {
         return $this->query($query)->get()

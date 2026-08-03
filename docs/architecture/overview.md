@@ -39,7 +39,8 @@ Auth 已有完整认证实现；Customer 已交付全生命周期页面；Agent 
 
 仓库提供相互独立的开发 Compose 和单机生产 Compose。生产基线为 Ubuntu Server
 24.04 LTS、不可变 app/web 镜像和 Nginx HTTPS；不运行 Vite、不挂载源码，也不在
-容器启动时生成密钥或迁移数据库。PostgreSQL、Redis 使用命名卷，私有文件与加密
+容器启动时生成密钥或迁移数据库。开发 Compose 的 Laravel 运行时目录使用命名卷，
+PostgreSQL、Redis 使用命名卷，私有文件与加密
 备份使用受控宿主目录，并由 systemd timer 同步至异机挂载点。同机 UAT 复用生产
 镜像和 Compose，但通过独立仓库、Compose 项目、端口、数据、凭据和发布历史隔离；
 当前 UAT 位于 `/srv/gn-system`，Production 位于 `/srv/gn-system/production`，
