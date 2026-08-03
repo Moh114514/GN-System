@@ -1,15 +1,17 @@
 <div>
     <section class="crm-section-header">
         <div>
-            <p class="crm-eyebrow">Report · 订单事实查询</p>
-            <h2>多维查询</h2>
-            <p>九个维度按 AND 组合；护照号只做规范化盲索引精确匹配，不解密扫描。</p>
+            <h2 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">多维查询</h2>
+            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">可按九个维度组合查询；护照号仅支持精确匹配，全程加密、不明文展示。</p>
         </div>
-        <flux:button wire:click="queueExport" variant="primary" icon="arrow-down-tray">异步导出 Excel</flux:button>
+        <flux:button wire:click="downloadExport" wire:loading.attr="disabled" wire:target="downloadExport" variant="primary" icon="arrow-down-tray">导出 Excel</flux:button>
     </section>
 
     @if (session('status'))
         <div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>
+    @endif
+    @if (session('error'))
+        <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ session('error') }}</div>
     @endif
 
     <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
@@ -95,46 +97,17 @@
         </div>
     </section>
 
-    <section class="mt-6 grid gap-6 xl:grid-cols-2">
-        <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-            <h3 class="font-semibold">常用查询</h3>
-            <div class="mt-4 grid gap-3 sm:grid-cols-[1fr_9rem_auto]">
-                <flux:input wire:model="savedQueryName" label="名称" />
-                <flux:select wire:model="savedQueryScope" label="范围">
-                    <option value="personal">个人</option>
-                    <option value="team">团队共享</option>
-                </flux:select>
-                <flux:button wire:click="saveQuery" variant="primary" class="self-end">{{ $editingSavedQueryId === null ? '保存' : '更新' }}</flux:button>
+    <section class="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900" @if ($recentExports->contains(fn ($export) => in_array($export->status, ['queued', 'generating'], true))) wire:poll.3s @endif>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+                <h3 class="font-semibold">最近导出</h3>
+                <p class="mt-1 text-sm text-zinc-500">最近生成的 Excel 文件会保留 24 小时。</p>
             </div>
-            @if ($editingSavedQueryId !== null)
-                <flux:button wire:click="cancelQueryEdit" variant="ghost" size="sm" class="mt-2">取消编辑</flux:button>
-            @endif
-            @error('savedQueryName') <p class="mt-2 text-sm text-red-600">{{ $message }}</p> @enderror
-            <div class="mt-4 space-y-2">
-                @forelse ($savedQueries as $saved)
-                    <div class="flex items-center justify-between rounded-xl border border-zinc-200 p-3">
-                        <button type="button" wire:click="loadQuery({{ $saved->id }})" class="text-left">
-                            <strong>{{ $saved->name }}</strong>
-                            <span class="ml-2 text-xs text-zinc-500">{{ $saved->scope === 'team' ? '团队' : '个人' }}</span>
-                        </button>
-                        @if ($saved->created_by === auth()->id() || (auth()->user()->is_super_admin && $saved->scope === 'team'))
-                            <div class="flex gap-1">
-                                <flux:button wire:click="editQuery({{ $saved->id }})" variant="ghost" size="sm">编辑</flux:button>
-                                <flux:button wire:click="deleteQuery({{ $saved->id }})" wire:confirm="确认删除该常用查询吗？" variant="ghost" size="sm">删除</flux:button>
-                            </div>
-                        @endif
-                    </div>
-                @empty
-                    <p class="text-sm text-zinc-500">尚无可用的常用查询。</p>
-                @endforelse
-            </div>
+            <span class="text-sm text-zinc-500">{{ $recentExports->count() }} 条记录</span>
         </div>
-
-        <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900" @if ($recentExports->contains(fn ($export) => in_array($export->status, ['queued', 'generating'], true))) wire:poll.3s @endif>
-            <h3 class="font-semibold">最近导出</h3>
-            <div class="mt-4 space-y-2">
+        <div class="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                 @forelse ($recentExports as $export)
-                    <div class="rounded-xl border border-zinc-200 p-3 text-sm">
+                    <div class="rounded-xl border border-zinc-200 p-4 text-sm dark:border-zinc-700">
                         <div class="flex items-center justify-between gap-3">
                             <span>{{ $export->created_at?->format('Y-m-d H:i') }} · {{ $export->status }}</span>
                             @if ($export->status === 'completed' && $export->expires_at->isFuture())
@@ -149,7 +122,6 @@
                 @empty
                     <p class="text-sm text-zinc-500">尚无导出任务。</p>
                 @endforelse
-            </div>
         </div>
     </section>
 </div>

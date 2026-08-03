@@ -1,9 +1,9 @@
 <div>
+    <x-page-back :href="route('dashboard')" label="返回总览" class="mb-4" />
     <section class="crm-section-header">
         <div>
-            <p class="crm-eyebrow">全局搜索</p>
-            <h2>全部搜索结果</h2>
-            <p>
+            <h2 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">全部搜索结果</h2>
+            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
                 @if ($query === '')
                     输入关键词后，可同时搜索客户、订单项目和有权限查看的代理商。
                 @else

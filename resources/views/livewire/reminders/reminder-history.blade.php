@@ -1,6 +1,6 @@
 <div>
     <x-page-back :href="route('reminders.index')" label="返回主动提醒" class="mb-4" />
-    <section class="mb-5"><p class="crm-eyebrow">客户跟进</p><h2>提醒历史</h2><p>查看已完成和已关闭的提醒记录。</p></section>
+    <section class="mb-5"><p class="text-xs font-medium text-zinc-400">客户跟进</p><h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">提醒历史</h2><p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">查看已完成和已关闭的提醒记录。</p></section>
     <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <div class="crm-table-wrap"><table class="crm-table"><thead><tr><th>提醒</th><th>客户</th><th>计划时间</th><th>状态</th><th>完成时间</th></tr></thead><tbody>
             @forelse ($reminders as $reminder)

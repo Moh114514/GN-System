@@ -2,9 +2,9 @@
     <x-page-back :href="route('configuration.index')" label="返回配置中心" class="mb-4" />
     <section class="crm-section-header">
         <div>
-            <p class="crm-eyebrow">Config · 基础目录</p>
-            <h2>机构、字典与系统参数</h2>
-            <p>停用项不会出现在新录入下拉框中；历史记录继续使用保存时的名称快照。</p>
+            <p class="text-xs font-medium text-zinc-400">配置中心 · 基础目录</p>
+            <h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">机构、字典与系统参数</h2>
+            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">停用项不会出现在新录入下拉框中；历史记录仍显示保存时的名称。</p>
         </div>
     </section>
     @if (session('status'))<div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>@endif

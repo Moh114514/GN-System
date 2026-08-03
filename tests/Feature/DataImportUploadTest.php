@@ -53,7 +53,7 @@ class DataImportUploadTest extends TestCase
             ->assertSee('CSV 必须使用英文逗号')
             ->assertSee('SZ-JG-0001')
             ->assertSee('WEB-000001')
-            ->assertSee('导入基础数据：已就绪')
+            ->assertSee('基础数据状态：已就绪')
             ->assertSee('下载结构示例')
             ->assertSee('下载可导入模拟数据');
     }

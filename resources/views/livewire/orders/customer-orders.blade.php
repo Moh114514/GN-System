@@ -1,9 +1,9 @@
 <div>
     <x-page-back :href="route('customers.show', $customerId)" label="返回客户详情" class="mb-4" />
     <section class="mb-6">
-        <p class="crm-eyebrow">客户订单 · {{ $context['customer']['code'] }}</p>
-        <h2><span class="font-semibold">{{ $context['customer']['name'] }}</span>的订单</h2>
-        <p>录入待完成或已完成订单；代理商订单完成时会在同一事务中固化推广费。</p>
+        <p class="text-xs font-medium text-zinc-400">客户订单 · {{ $context['customer']['code'] }}</p>
+        <h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50"><span class="font-semibold">{{ $context['customer']['name'] }}</span>的订单</h2>
+        <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">录入待完成或已完成订单；代理商订单完成时会自动核算并锁定推广费。</p>
     </section>
 
     @if (session('status'))
@@ -77,9 +77,9 @@
                 <tbody>
                 @forelse ($context['orders'] as $order)
                     <tr wire:key="order-{{ $order['id'] }}">
-                        <td>{{ $order['projectName'] }}<div class="text-xs text-zinc-500">₩ {{ number_format($order['amountKrw']) }}</div></td>
+                        <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('orders.show', $order['id']) }}" wire:navigate>{{ $order['projectName'] }}</a><div class="text-xs text-zinc-500">₩ {{ number_format($order['amountKrw']) }}</div></td>
                         <td>{{ $order['channel'] === 'agent' ? '代理商' : '直销' }}</td>
-                        <td>{{ $order['status'] === 'completed' ? '已完成' : '待完成' }}</td>
+                        <td>{{ ['pending' => '待完成', 'completed' => '已完成', 'cancelled' => '已取消'][$order['status']] ?? $order['status'] }}</td>
                         <td>{{ $order['commissionAmountKrw'] === null ? '—' : '₩ '.number_format($order['commissionAmountKrw']).' · '.number_format($order['commissionRateBps'] / 100, 2).'%' }}</td>
                         <td>@if ($order['status'] === 'pending')<flux:button wire:click="complete({{ $order['id'] }})" size="sm">标记完成</flux:button>@endif</td>
                     </tr>

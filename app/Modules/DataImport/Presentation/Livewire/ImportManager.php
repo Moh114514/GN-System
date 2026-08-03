@@ -106,7 +106,7 @@ class ImportManager extends Component
         $this->reset('uploads');
         unset($this->batches, $this->selectedBatch);
 
-        session()->flash('status', '文件已加密上传，正在解析和校验。');
+        session()->flash('status', '文件已上传，系统正在检查数据。');
     }
 
     public function downloadStructureExample(ImportTemplateGenerator $templates): BinaryFileResponse
@@ -134,7 +134,7 @@ class ImportManager extends Component
         $batch = $this->ownedBatch();
         ParseImportBatch::dispatch($batch->id);
         unset($this->batches, $this->selectedBatch);
-        session()->flash('status', '批次已重新进入解析和校验。');
+        session()->flash('status', '已重新检查本批次数据。');
     }
 
     public function saveInstitution(ImportReferenceManager $references): void
@@ -151,7 +151,7 @@ class ImportManager extends Component
             preg_split('/[,，\\r\\n]+/u', $validated['institutionAliases']) ?: [],
         );
         $this->reset('institutionCode', 'institutionName', 'institutionAliases');
-        session()->flash('status', '机构正式名称和别名已保存；请重新校验批次。');
+        session()->flash('status', '机构信息已保存，请重新检查本批次。');
     }
 
     public function saveDirectSource(ImportReferenceManager $references): void
@@ -181,7 +181,7 @@ class ImportManager extends Component
         abort_unless(is_int($userId), 403);
         $adjudicator->ignore($row, $userId, $reason);
         unset($this->ignoreReasons[$rowId], $this->batches, $this->selectedBatch);
-        session()->flash('status', '该行已人工裁决为忽略，并写入审计记录。');
+        session()->flash('status', '该行已标记为忽略，并记录操作日志。');
     }
 
     public function commitBatch(ImportBatchCommitter $committer): void
@@ -189,7 +189,7 @@ class ImportManager extends Component
         $batch = $this->ownedBatch();
         $committer->commit($batch);
         unset($this->batches, $this->selectedBatch);
-        session()->flash('status', '导入已完成，24 小时内可回滚。');
+        session()->flash('status', '导入已完成，24 小时内可撤销。');
     }
 
     public function rollback(ImportBatchRollback $rollback): void
@@ -198,7 +198,7 @@ class ImportManager extends Component
         abort_unless(is_int($userId), 403);
         $rollback->rollback($this->ownedBatch(), $userId);
         unset($this->batches, $this->selectedBatch);
-        session()->flash('status', '导入批次已回滚。');
+        session()->flash('status', '本次导入已撤销。');
     }
 
     public function downloadErrors(): BinaryFileResponse

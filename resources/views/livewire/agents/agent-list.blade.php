@@ -1,9 +1,8 @@
 <div>
     <section class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-            <p class="crm-eyebrow">Phase 4 · 渠道合作管理</p>
-            <h2>代理商管理</h2>
-            <p>统一维护合作档案、政策等级与订单推广费依据。</p>
+            <h2 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">代理商管理</h2>
+            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">统一维护合作档案、政策等级与订单推广费依据。</p>
         </div>
         <div class="flex shrink-0 gap-2">
             <flux:button :href="route('agent-configuration.index')" variant="ghost" size="sm" icon="cog-6-tooth" wire:navigate>代理商配置</flux:button>

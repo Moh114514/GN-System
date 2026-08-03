@@ -6,9 +6,9 @@
     />
 
     <section class="mb-6">
-        <p class="crm-eyebrow">代理商档案</p>
-        <h2>{{ $agentId ? '编辑代理商' : '新建代理商' }}</h2>
-        <p>{{ $agentId ? '代理商编号建立后永久不变；等级调整从下月起生效。' : '建立合作档案并分配当前政策等级。' }}</p>
+        <p class="text-xs font-medium text-zinc-400">代理商档案</p>
+        <h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ $agentId ? '编辑代理商' : '新建代理商' }}</h2>
+        <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ $agentId ? '代理商编号建立后永久不变；等级调整从下月起生效。' : '建立合作档案并分配当前政策等级。' }}</p>
     </section>
 
     <form wire:submit="save" class="space-y-6">

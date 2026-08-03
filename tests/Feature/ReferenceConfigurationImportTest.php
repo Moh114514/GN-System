@@ -48,7 +48,7 @@ class ReferenceConfigurationImportTest extends TestCase
         $this->get(route('reference-configuration-imports.index'))
             ->assertOk()
             ->assertSee('返回配置中心')
-            ->assertSee('上传只进行预览和校验')
+            ->assertSee('上传后先预览和检查')
             ->assertSee('基础字典 → 政策等级 → 费率 → 代理商 → 等级分配')
             ->assertSee('wire:submit="stageWorkbook"', false);
 

@@ -3,9 +3,9 @@
 
     <section class="crm-section-header">
         <div>
-            <p class="crm-eyebrow">配置中心 · 客户配置</p>
-            <h2>生命周期状态配置</h2>
-            <p>机器键保持稳定；可调整显示名称、顺序、启用状态和允许的前进路径。</p>
+            <p class="text-xs font-medium text-zinc-400">配置中心 · 客户配置</p>
+            <h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">生命周期状态配置</h2>
+            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">系统内部编码保持不变；可调整显示名称、顺序、启用状态和允许的前进路径。</p>
         </div>
     </section>
 

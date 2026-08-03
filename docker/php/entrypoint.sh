@@ -25,7 +25,9 @@ mkdir -p \
     storage/framework/views \
     storage/logs \
     bootstrap/cache
-chown -R www-data:www-data storage bootstrap/cache
+if [ "$(id -u)" -eq 0 ]; then
+    chown -R www-data:www-data storage bootstrap/cache
+fi
 
 if [ "${APP_ENV:-local}" = "local" ]; then
     php artisan migrate --force --no-interaction

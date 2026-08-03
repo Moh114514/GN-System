@@ -11,6 +11,8 @@ interface ReportOrderReader
 {
     public function paginate(ReportQueryData $query, int $perPage, int $page): ReportPageData;
 
+    public function count(ReportQueryData $query): int;
+
     /** @return array<int, ReportOrderData> */
     public function rows(ReportQueryData $query): array;
 

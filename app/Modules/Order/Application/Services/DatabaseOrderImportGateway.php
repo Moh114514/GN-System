@@ -63,7 +63,7 @@ final class DatabaseOrderImportGateway implements OrderImportGateway
 
     public function deleteImportedByBatch(string $batchId): int
     {
-        $deleted = Order::query()->where('import_batch_id', $batchId)->delete();
+        $deleted = Order::withTrashed()->where('import_batch_id', $batchId)->forceDelete();
         Appointment::query()->where('import_batch_id', $batchId)->delete();
 
         return $deleted;
