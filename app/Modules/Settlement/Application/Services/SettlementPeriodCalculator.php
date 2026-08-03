@@ -52,6 +52,20 @@ final class SettlementPeriodCalculator
         );
     }
 
+    /** @return array<int, SettlementPeriodData> */
+    public function recentClosedPeriods(CarbonImmutable $at, int $limit = 13): array
+    {
+        $periods = [];
+        $cursor = $at;
+        for ($index = 0; $index < max(1, $limit); $index++) {
+            $period = $this->latestClosedPeriod($cursor);
+            $periods[] = $period;
+            $cursor = $period->start->subMicrosecond();
+        }
+
+        return $periods;
+    }
+
     public function isDue(CarbonImmutable $at): bool
     {
         $configuration = $this->activeConfiguration($at);
