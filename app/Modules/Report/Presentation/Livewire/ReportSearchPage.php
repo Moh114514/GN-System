@@ -105,7 +105,20 @@ class ReportSearchPage extends Component
 
     public function downloadExport(ReportExportManager $manager): void
     {
-        $export = $manager->generateSearch($this->user(), $this->criteria());
+        $export = $manager->startSearch($this->user(), $this->criteria());
+
+        if ($export->status === 'queued') {
+            session()->flash('status', '结果较多，导出任务已进入队列；完成后可在最近导出中下载。');
+
+            return;
+        }
+
+        if ($export->status !== 'completed') {
+            session()->flash('error', $export->failure_reason ?? '导出失败，请缩小筛选范围后重试。');
+
+            return;
+        }
+
         $this->redirectRoute('reports.exports.download', ['export' => $export]);
     }
 

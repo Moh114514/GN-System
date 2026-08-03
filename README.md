@@ -100,6 +100,8 @@ docker compose down
 应改用开发专用 SMTP。查询 Excel 和看板 PDF/HTML 导出均写入
 `storage/app/private/reports`，必须由 Queue 与 Scheduler 容器共同保障生成和
 24 小时过期清理，不能把该目录作为公开 Web 目录。
+开发 Compose 将 storage 和 bootstrap/cache 放入 Docker 命名卷，避免 Windows
+源码挂载的文件时间和属主语义影响 Blade 缓存、私有导出及队列任务。
 
 ## 备份
 

@@ -112,7 +112,7 @@ docker compose --env-file .env.production -f compose.production.yaml logs --tail
 
 多维查询 Excel 与看板 PDF/HTML 写入私有磁盘的 `reports/` 子目录，下载必须经过
 应用授权，文件默认 24 小时过期。`PRIVATE_DATA_PATH` 必须持久、不可被 Nginx
-直接公开，并对 app、queue、scheduler 容器可读写。发布后应分别验证异步 Excel
+直接公开，并对 app、queue、scheduler 容器可读写。发布后应分别验证即时/异步 Excel
 成功/失败/重试、非创建者 403、过期清理以及 SHA-256；同时确认 Scheduler 中的
 `app:purge-report-exports` 正常运行。
 

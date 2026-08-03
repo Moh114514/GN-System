@@ -8,12 +8,15 @@ x-app-base: &app-base
       APP_UID: ${APP_UID:-1000}
       APP_GID: ${APP_GID:-1000}
   image: gn-system/app:development
+  user: "${APP_UID:-1000}:${APP_GID:-1000}"
   env_file:
     - .env
   volumes:
     - ./:/var/www/html
     - composer_vendor:/var/www/html/vendor
+    - app_storage:/var/www/html/storage
     - backup_data:/var/www/html/storage/app/backups
+    - app_bootstrap_cache:/var/www/html/bootstrap/cache
   networks:
     - backend
     - egress
@@ -123,6 +126,8 @@ networks:
   egress:
 
 volumes:
+  app_storage:
+  app_bootstrap_cache:
   backup_data:
   composer_vendor:
   node_modules:
