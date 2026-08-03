@@ -6,7 +6,7 @@
 >
 > 适用服务器：Ubuntu Server 24.04 LTS x86-64，地址 `192.168.0.141`
 >
-> 当前 UAT 候选：`v0.5.0-rc.6`
+> 当前 UAT 候选：`v0.5.0-rc.7`
 >
 > 生产状态：目录已初始化，尚未首次部署
 
@@ -510,7 +510,7 @@ cd /srv/gn-system/repository
 test -z "$(git status --porcelain --untracked-files=no)"
 git fetch --tags --prune origin
 
-TARGET_TAG=v0.5.0-rc.6
+TARGET_TAG=v0.5.0-rc.7
 test "$(git cat-file -t "${TARGET_TAG}")" = tag
 git show --no-patch --decorate "${TARGET_TAG}"
 git switch --detach "${TARGET_TAG}"

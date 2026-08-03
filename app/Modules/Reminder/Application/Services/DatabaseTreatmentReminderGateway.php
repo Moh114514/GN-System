@@ -26,29 +26,40 @@ final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
             if ($dueAt->isBefore(CarbonImmutable::now()->startOfDay())) {
                 continue;
             }
+
             $dedupeKey = hash('sha256', "order:{$data->orderId}:post-treatment:{$days}");
-            $reminder = Reminder::query()->firstOrCreate(
-                ['dedupe_key' => $dedupeKey],
-                [
-                    'customer_id' => $data->customerId,
-                    'order_id' => $data->orderId,
-                    'assigned_to' => $data->ownerId,
-                    'created_by' => $data->actorId,
-                    'source_type' => 'system',
-                    'reminder_type' => 'post_treatment',
-                    'title' => "术后第 {$days} 天跟进",
-                    'suggestion' => $suggestion,
-                    'notes' => "关联项目：{$data->projectName}",
-                    'priority' => $days <= 7 ? 1 : 2,
-                    'due_at' => $dueAt,
-                    'status' => 'pending',
-                    'notification_status' => 'pending',
-                ],
-            );
-            if ($reminder->wasRecentlyCreated) {
+            $attributes = [
+                'customer_id' => $data->customerId,
+                'order_id' => $data->orderId,
+                'assigned_to' => $data->ownerId,
+                'created_by' => $data->actorId,
+                'source_type' => 'system',
+                'reminder_type' => 'post_treatment',
+                'title' => "术后第 {$days} 天跟进",
+                'suggestion' => $suggestion,
+                'notes' => "关联项目：{$data->projectName}",
+                'priority' => $days <= 7 ? 1 : 2,
+                'due_at' => $dueAt,
+                'status' => 'pending',
+                'notification_status' => 'pending',
+                'completed_at' => null,
+                'completed_by' => null,
+            ];
+            $reminder = Reminder::query()->where('dedupe_key', $dedupeKey)->first();
+            if ($reminder === null) {
+                $reminder = Reminder::query()->create(['dedupe_key' => $dedupeKey, ...$attributes]);
                 ReminderEvent::query()->create([
                     'reminder_id' => $reminder->id,
                     'event' => 'generated',
+                    'actor_id' => $data->actorId,
+                    'properties' => ['source' => 'order_completed', 'due_at' => $dueAt->toIso8601String()],
+                    'occurred_at' => CarbonImmutable::now(),
+                ]);
+            } elseif ($reminder->status === 'cancelled') {
+                $reminder->update($attributes);
+                ReminderEvent::query()->create([
+                    'reminder_id' => $reminder->id,
+                    'event' => 'reactivated',
                     'actor_id' => $data->actorId,
                     'properties' => ['source' => 'order_completed', 'due_at' => $dueAt->toIso8601String()],
                     'occurred_at' => CarbonImmutable::now(),
