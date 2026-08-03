@@ -24,6 +24,8 @@ class SettlementCenter extends Component
 
     public bool $confirmConfigurationChange = false;
 
+    public string $historicalPeriodEnd = '';
+
     public function mount(SettlementPeriodCalculator $periods): void
     {
         $configuration = $periods->activeConfiguration(CarbonImmutable::now());
@@ -35,6 +37,19 @@ class SettlementCenter extends Component
     {
         $run = $manager->start('manual', (int) Auth::id());
         session()->flash('status', "月结批次 {$run->id} 已进入处理队列。");
+    }
+
+    public function generateHistorical(SettlementRunManager $manager): void
+    {
+        $this->validate([
+            'historicalPeriodEnd' => ['required', 'date_format:Y-m-d'],
+        ]);
+        try {
+            $run = $manager->startHistorical($this->historicalPeriodEnd, (int) Auth::id());
+            session()->flash('status', "往期月结批次 {$run->id} 已进入处理队列。");
+        } catch (DomainException $exception) {
+            $this->addError('historicalPeriodEnd', $exception->getMessage());
+        }
     }
 
     public function retry(string $runId, SettlementRunManager $manager): void
@@ -81,8 +96,11 @@ class SettlementCenter extends Component
 
     public function render(): View
     {
+        $periods = app(SettlementPeriodCalculator::class)->recentClosedPeriods(CarbonImmutable::now(), 13);
+
         return view('livewire.settlements.settlement-center', [
             'runs' => SettlementRun::query()->latest('period_end')->limit(24)->get(),
+            'historicalPeriods' => array_slice($periods, 1),
         ]);
     }
 }

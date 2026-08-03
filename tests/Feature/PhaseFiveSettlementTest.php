@@ -136,6 +136,23 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertDatabaseCount('settlements', 1);
     }
 
+    public function test_historical_period_can_be_selected_and_generated_without_duplicate_run(): void
+    {
+        $calculator = app(SettlementPeriodCalculator::class);
+        $periods = $calculator->recentClosedPeriods(CarbonImmutable::now(), 3);
+        $historical = $periods[1];
+
+        $manager = app(SettlementRunManager::class);
+        $run = $manager->startHistorical($historical->end->toDateString(), $this->admin->id);
+        $same = $manager->startHistorical($historical->end->toDateString(), $this->admin->id);
+
+        $this->assertSame($run->id, $same->id);
+        $this->assertSame('historical', $run->trigger_source);
+        $this->assertSame($historical->start->toDateString(), $run->period_start->toDateString());
+        $this->assertSame($historical->end->toDateString(), $run->period_end->toDateString());
+        $this->assertDatabaseCount('settlement_runs', 1);
+    }
+
     public function test_review_generates_equal_document_snapshots_and_settles(): void
     {
         Storage::fake('local');

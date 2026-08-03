@@ -3,9 +3,11 @@
 namespace App\Modules\Settlement\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
+use App\Modules\Settlement\Application\Data\SettlementPeriodData;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
 use App\Modules\Settlement\Jobs\GenerateAgentSettlement;
 use Carbon\CarbonImmutable;
+use DomainException;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Str;
 
@@ -19,6 +21,26 @@ final readonly class SettlementRunManager
     public function start(string $source, ?int $actorId, ?CarbonImmutable $at = null): SettlementRun
     {
         $period = $this->periods->latestClosedPeriod($at ?? CarbonImmutable::now());
+
+        return $this->startPeriod($period, $source, $actorId);
+    }
+
+    public function startHistorical(string $periodEnd, ?int $actorId, ?CarbonImmutable $at = null): SettlementRun
+    {
+        $periods = $this->periods->recentClosedPeriods($at ?? CarbonImmutable::now(), 25);
+        $selected = collect($periods)->first(
+            fn (SettlementPeriodData $period): bool => $period->end->toDateString() === trim($periodEnd),
+        );
+        $latest = $periods[0] ?? null;
+        if (! $selected instanceof SettlementPeriodData || $latest === null || ! $selected->end->isBefore($latest->end)) {
+            throw new DomainException('往期月结节点无效，或该节点仍属于最新已关闭周期。');
+        }
+
+        return $this->startPeriod($selected, 'historical', $actorId);
+    }
+
+    private function startPeriod(SettlementPeriodData $period, string $source, ?int $actorId): SettlementRun
+    {
         $existing = SettlementRun::query()
             ->whereDate('period_start', $period->start)
             ->whereDate('period_end', $period->end)
