@@ -213,7 +213,27 @@ EXTERNAL_HTTPS_PORT_SUFFIX=
 OFFSITE_BACKUP_MONITOR_ENABLED=true
 ```
 
-### 3.3 密钥与外部服务
+### 3.3 月结自动汇率
+
+月结详情页会按 `SETTLEMENT_EXCHANGE_RATE_PROVIDER` 调用接口盒子汇率服务，成功后预填六位
+小数的 CNY → KRW 汇率；审核人仍可手工覆盖。该服务按文章说明每日更新，并非严格实时，页面
+应展示报价时间。报价不可用时必须明确提示，人工汇率仍可继续审核。UAT 和 Production 必须
+分别确认网络出口、服务配额和报价方向。
+
+```dotenv
+SETTLEMENT_EXCHANGE_RATE_ENABLED=true
+SETTLEMENT_EXCHANGE_RATE_PROVIDER=api_hz
+SETTLEMENT_EXCHANGE_RATE_URL=https://cn.apihz.cn/api/jinrong/huilv.php
+SETTLEMENT_EXCHANGE_RATE_ID=<接口盒子个人ID>
+SETTLEMENT_EXCHANGE_RATE_KEY=<接口盒子个人Key>
+SETTLEMENT_EXCHANGE_RATE_TIMEOUT=10
+```
+
+请求固定使用 `from=CNY`、`to=KRW`、`money=1`，成功响应需包含 `code=200` 和 `rate`；
+`uptime` 作为报价时间保存。ID/Key 只能写入各环境未提交的 `.env`，不得放入仓库。服务不可用时
+不要把旧值伪装成实时值；应在页面人工输入并在月结审计中保留人工覆盖标记。
+
+### 3.4 密钥与外部服务
 
 以下值必须在两套环境分别生成，不能从 UAT 复制到 Production：
 

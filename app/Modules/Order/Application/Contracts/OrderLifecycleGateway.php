@@ -12,6 +12,8 @@ interface OrderLifecycleGateway
 
     public function reopen(int $orderId, int $actorId, string $reason, ?string $ipAddress): int;
 
+    public function rollbackCompleted(int $orderId, int $actorId, string $reason, ?string $ipAddress): int;
+
     public function softDelete(int $orderId, int $actorId, string $reason, ?string $ipAddress): int;
 
     public function restore(int $orderId, int $actorId, ?string $ipAddress): int;

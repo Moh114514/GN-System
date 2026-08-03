@@ -6,6 +6,10 @@
             <h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">内部用户管理</h2>
             <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">新用户通过一次性密码设置链接激活；停用账号后，该用户将无法登录，已登录的也会立即退出。</p>
         </div>
+        <a href="{{ route('audit-logs.index') }}" class="inline-flex items-center gap-1 text-sm font-semibold text-teal-700 hover:underline dark:text-teal-300" wire:navigate>
+            查看全局审计日志
+            <flux:icon.arrow-right class="size-4" aria-hidden="true" />
+        </a>
     </section>
     @if (session('status'))<div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>@endif
     @if (session('error'))<div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ session('error') }}</div>@endif

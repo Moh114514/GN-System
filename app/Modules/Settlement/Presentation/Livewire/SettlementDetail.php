@@ -2,6 +2,7 @@
 
 namespace App\Modules\Settlement\Presentation\Livewire;
 
+use App\Modules\Settlement\Application\Services\ExchangeRateQuoteService;
 use App\Modules\Settlement\Application\Services\SettlementWorkflow;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
@@ -10,6 +11,7 @@ use DomainException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Attributes\Title;
 use Livewire\Component;
@@ -26,10 +28,17 @@ class SettlementDetail extends Component
 
     public string $suggestionReason = '';
 
-    public function mount(int $settlement): void
+    public string $correctionTarget = '';
+
+    public string $correctionReason = '';
+
+    public function mount(int $settlement, ExchangeRateQuoteService $quotes): void
     {
-        Settlement::query()->findOrFail($settlement);
+        $record = Settlement::query()->findOrFail($settlement);
         $this->settlementId = $settlement;
+        $record = $quotes->refreshFor($record);
+        $this->exchangeRate = (string) ($record->exchange_rate_krw_per_cny ?? '');
+        $this->correctionTarget = $record->status === 'approved' ? 'settled' : 'pending_review';
     }
 
     public function reject(SettlementWorkflow $workflow): void
@@ -47,6 +56,18 @@ class SettlementDetail extends Component
     public function settle(SettlementWorkflow $workflow): void
     {
         $this->run(fn () => $workflow->settle($this->settlementId, (int) Auth::id(), request()->ip()), '月结已确认结清。');
+    }
+
+    public function correctStatus(SettlementWorkflow $workflow): void
+    {
+        $this->validate([
+            'correctionTarget' => ['required', 'string', Rule::in(['pending_review', 'approved', 'settled'])],
+            'correctionReason' => ['required', 'string', 'max:2000'],
+        ]);
+        $this->run(
+            fn () => $workflow->correctStatus($this->settlementId, $this->correctionTarget, $this->correctionReason, (int) Auth::id(), request()->ip()),
+            '月结状态已更正，并已记录审计原因。',
+        );
     }
 
     public function regenerateDocuments(SettlementWorkflow $workflow): void

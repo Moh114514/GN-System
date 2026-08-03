@@ -13,11 +13,27 @@
 
     @if (in_array($settlement->status, ['pending_review', 'rejected']))
         <section class="mt-6 grid gap-5 lg:grid-cols-2">
-            <form wire:submit="approve" class="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900"><h3 class="font-semibold">审核通过</h3><flux:input wire:model="exchangeRate" class="mt-3" type="number" step="0.000001" min="0.000001" label="KRW/CNY 结算汇率" required /><flux:button class="mt-3" type="submit" variant="primary">通过并生成 Word/PDF</flux:button></form>
+            <form wire:submit="approve" class="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
+                <h3 class="font-semibold">审核通过</h3>
+                @if ($settlement->exchange_rate_quote_status === 'available')
+                    <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">已自动填入接口盒子报价（每日更新，报价时间：{{ $settlement->exchange_rate_quoted_at?->format('Y-m-d H:i') }}），可按实际结算值直接修改。</p>
+                @else
+                    <p class="mt-2 text-sm text-amber-700 dark:text-amber-300">自动报价不可用，请人工填写结算汇率。{{ $settlement->exchange_rate_quote_error }}</p>
+                @endif
+                <flux:input wire:model="exchangeRate" class="mt-3" type="number" step="0.000001" min="0.000001" label="KRW/CNY 结算汇率" required />
+                <flux:button class="mt-3" type="submit" variant="primary">通过并生成 Word/PDF</flux:button>
+            </form>
             <form wire:submit="reject" class="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900"><h3 class="font-semibold">驳回</h3><flux:textarea wire:model="rejectionReason" class="mt-3" label="问题与退回原因" rows="2" required /><flux:button class="mt-3" type="submit" variant="danger">驳回月结</flux:button></form>
         </section>
     @elseif ($settlement->status === 'approved')
-        <div class="mt-6"><flux:button wire:click="settle" variant="primary">确认外部结算并归档</flux:button></div>
+        <div class="mt-6"><flux:button wire:click="settle" variant="primary">确认信息并结算</flux:button></div>
+    @endif
+
+    @if (in_array($settlement->status, ['approved', 'settled']))
+        <section class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900 dark:bg-amber-950/30">
+            <h3 class="font-semibold">受控状态更正</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-300">仅超级管理员可在“待审核”“已审核”和“已结清”之间更正；历史已结清、已对账记录不在此范围内。回退到待审核会清除审核和结清确认字段，并写入审计。</p>
+            <form wire:submit="correctStatus" class="mt-3 grid gap-3 sm:grid-cols-2"><flux:select wire:model="correctionTarget" label="目标状态" required><flux:select.option value="pending_review">待审核</flux:select.option><flux:select.option value="approved">已审核</flux:select.option><flux:select.option value="settled">已结清</flux:select.option></flux:select><flux:textarea wire:model="correctionReason" label="更正原因" rows="2" required /><div class="sm:col-span-2"><flux:button type="submit" variant="danger">提交状态更正</flux:button></div></form>
+        </section>
     @endif
 
     <section class="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">

@@ -56,4 +56,28 @@ final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
             }
         }
     }
+
+    public function cancelForOrder(int $orderId, int $actorId, string $reason): void
+    {
+        Reminder::query()
+            ->where('order_id', $orderId)
+            ->where('source_type', 'system')
+            ->where('reminder_type', 'post_treatment')
+            ->whereNotIn('status', ['completed', 'cancelled'])
+            ->get()
+            ->each(function (Reminder $reminder) use ($actorId, $reason): void {
+                $reminder->update([
+                    'status' => 'cancelled',
+                    'notification_status' => 'cancelled',
+                    'notes' => trim((string) $reminder->notes)."\n状态回退：".trim($reason),
+                ]);
+                ReminderEvent::query()->create([
+                    'reminder_id' => $reminder->id,
+                    'event' => 'cancelled',
+                    'actor_id' => $actorId,
+                    'properties' => ['reason' => trim($reason), 'source' => 'order_status_rollback'],
+                    'occurred_at' => CarbonImmutable::now(),
+                ]);
+            });
+    }
 }

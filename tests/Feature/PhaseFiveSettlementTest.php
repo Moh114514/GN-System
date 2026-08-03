@@ -26,6 +26,8 @@ use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -49,7 +51,11 @@ class PhaseFiveSettlementTest extends TestCase
     {
         parent::setUp();
         CarbonImmutable::setTestNow('2026-08-01 09:00:00');
-        config(['queue.default' => 'sync', 'dingtalk.enabled' => false]);
+        config([
+            'queue.default' => 'sync',
+            'dingtalk.enabled' => false,
+            'services.settlement_exchange_rate.enabled' => false,
+        ]);
         $this->seed(PhaseTwoReferenceDataSeeder::class);
         $this->user = User::factory()->create();
         $this->admin = User::factory()->superAdmin()->withTwoFactor()->create();
@@ -148,6 +154,10 @@ class PhaseFiveSettlementTest extends TestCase
         foreach ($documents as $document) {
             Storage::disk('local')->assertExists($document->path);
         }
+        $pdf = $documents->firstWhere('format', 'pdf');
+        $this->assertNotNull($pdf);
+        $this->assertStringStartsWith('%PDF-', Storage::disk('local')->get($pdf->path));
+        $this->assertNotEmpty(File::glob(storage_path('framework/cache/dompdf/fonts/gn_cjk_*.ufm')));
         $workflow->settle($settlement->id, $this->admin->id, null);
         $this->assertDatabaseHas('settlements', ['id' => $settlement->id, 'status' => 'settled']);
         $this->assertDatabaseHas('activity_log', ['log_name' => 'settlement', 'subject_id' => $settlement->id, 'event' => 'settled']);
@@ -173,6 +183,86 @@ class PhaseFiveSettlementTest extends TestCase
         $this->expectException(DomainException::class);
         app(SettlementGenerator::class)->generate($run->id, $this->agent->id);
         $this->assertSame('paid', $settlement->refresh()->status);
+    }
+
+    public function test_detail_prefills_a_configured_quote_and_records_manual_override_at_six_decimals(): void
+    {
+        Storage::fake('local');
+        config([
+            'services.settlement_exchange_rate.enabled' => true,
+            'services.settlement_exchange_rate.provider' => 'api_hz',
+            'services.settlement_exchange_rate.url' => 'https://quotes.test/api/jinrong/huilv.php',
+            'services.settlement_exchange_rate.id' => 'test-id',
+            'services.settlement_exchange_rate.key' => 'test-key',
+        ]);
+        Http::fake(['https://quotes.test/*' => Http::response([
+            'code' => 200,
+            'rate' => '200.1234567',
+            'uptime' => '2026-08-03 09:00:00',
+        ])]);
+        $this->createCompletedOrder(10000);
+        $settlement = Settlement::query()->where('settlement_run_id', app(SettlementRunManager::class)->start('manual', $this->admin->id)->id)->firstOrFail();
+
+        $this->actingAs($this->admin)->get(route('settlements.show', $settlement))->assertOk()->assertSee('已自动填入');
+        Http::assertSent(fn ($request): bool => str_starts_with($request->url(), 'https://quotes.test/api/jinrong/huilv.php')
+            && $request['id'] === 'test-id'
+            && $request['key'] === 'test-key'
+            && $request['from'] === 'CNY'
+            && $request['to'] === 'KRW'
+            && $request['money'] === '1');
+        $settlement->refresh();
+        $this->assertSame('200.123457', (string) $settlement->exchange_rate_krw_per_cny);
+        $this->assertSame('available', $settlement->exchange_rate_quote_status);
+        $this->assertSame('api_hz', $settlement->exchange_rate_quote_source);
+
+        app(SettlementWorkflow::class)->approve($settlement->id, '201.9876547', $this->admin->id, '127.0.0.1');
+        $this->assertDatabaseHas('settlements', [
+            'id' => $settlement->id,
+            'exchange_rate_krw_per_cny' => '201.987655',
+            'exchange_rate_manual_override' => true,
+        ]);
+        $properties = DB::table('activity_log')->where('subject_id', $settlement->id)->where('event', 'approved')->value('properties');
+        $properties = is_string($properties) ? json_decode($properties, true, flags: JSON_THROW_ON_ERROR) : $properties;
+        $this->assertSame('201.987655', $properties['exchange_rate_krw_per_cny']);
+        $this->assertSame('api_hz', $properties['exchange_rate_quote_source']);
+        $this->assertNotNull($properties['exchange_rate_quoted_at']);
+        $this->assertTrue($properties['exchange_rate_manual_override']);
+    }
+
+    public function test_quote_failure_keeps_manual_review_available_and_status_correction_is_audited(): void
+    {
+        Storage::fake('local');
+        config([
+            'services.settlement_exchange_rate.enabled' => true,
+            'services.settlement_exchange_rate.provider' => 'api_hz',
+            'services.settlement_exchange_rate.url' => 'https://quotes-failure.test/api/jinrong/huilv.php',
+            'services.settlement_exchange_rate.id' => 'test-id',
+            'services.settlement_exchange_rate.key' => 'test-key',
+        ]);
+        Http::fake(['https://quotes-failure.test/*' => Http::response([], 503)]);
+        $this->createCompletedOrder(10000);
+        $settlement = Settlement::query()->where('settlement_run_id', app(SettlementRunManager::class)->start('manual', $this->admin->id)->id)->firstOrFail();
+
+        $this->actingAs($this->admin)->get(route('settlements.show', $settlement))->assertOk()->assertSee('自动报价不可用');
+        $settlement->refresh();
+        $this->assertSame('unavailable', $settlement->exchange_rate_quote_status);
+        app(SettlementWorkflow::class)->approve($settlement->id, '200', $this->admin->id, '127.0.0.1');
+        app(SettlementWorkflow::class)->settle($settlement->id, $this->admin->id, '127.0.0.1');
+        app(SettlementWorkflow::class)->correctStatus($settlement->id, 'approved', '外部付款尚未确认，撤回结清。', $this->admin->id, '127.0.0.1');
+
+        $this->assertDatabaseHas('settlements', ['id' => $settlement->id, 'status' => 'approved', 'settled_on' => null, 'settled_by' => null, 'confirmed_at' => null]);
+        app(SettlementWorkflow::class)->correctStatus($settlement->id, 'pending_review', '需要重新核对汇率和结算明细。', $this->admin->id, '127.0.0.1');
+        $this->assertDatabaseHas('settlements', [
+            'id' => $settlement->id,
+            'status' => 'pending_review',
+            'reviewed_by' => null,
+            'reviewed_at' => null,
+            'payout_amount_cny_fen' => 0,
+            'settled_on' => null,
+            'settled_by' => null,
+            'confirmed_at' => null,
+        ]);
+        $this->assertDatabaseHas('activity_log', ['log_name' => 'settlement', 'subject_id' => $settlement->id, 'event' => 'status_corrected']);
     }
 
     public function test_settlement_pages_enforce_admin_and_parent_navigation(): void

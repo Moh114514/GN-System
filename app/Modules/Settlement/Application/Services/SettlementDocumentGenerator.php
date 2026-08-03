@@ -5,14 +5,21 @@ namespace App\Modules\Settlement\Application\Services;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
 use Dompdf\Dompdf;
+use Dompdf\Options;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
+use RuntimeException;
 use ZipArchive;
 
 final class SettlementDocumentGenerator
 {
+    private const PDF_FONT_PATH = '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf';
+
+    private const PDF_CACHE_PATH = 'framework/cache/dompdf';
+
     /** @return array<string, mixed> */
     public function viewModel(Settlement $settlement): array
     {
@@ -53,6 +60,7 @@ final class SettlementDocumentGenerator
 
     public function generate(Settlement $settlement): void
     {
+        $dompdf = $this->dompdf();
         $data = $this->viewModel($settlement);
         $directory = "settlements/{$settlement->id}";
         Storage::disk('local')->makeDirectory($directory);
@@ -90,8 +98,7 @@ final class SettlementDocumentGenerator
         IOFactory::createWriter($word, 'Word2007')->save($wordAbsolute);
         $this->record($settlement, 'docx', $wordPath, $data);
 
-        $dompdf = new Dompdf(['isRemoteEnabled' => false]);
-        $dompdf->loadHtml($this->html($data), 'UTF-8');
+        $dompdf->loadHtml($this->html($data, self::PDF_FONT_PATH), 'UTF-8');
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
         $pdfPath = "{$directory}/settlement-{$settlement->id}.pdf";
@@ -137,8 +144,34 @@ final class SettlementDocumentGenerator
         );
     }
 
+    private function dompdf(): Dompdf
+    {
+        if (! is_readable(self::PDF_FONT_PATH)) {
+            throw new RuntimeException('结算 PDF 中文字体不可用，请重新构建应用镜像后重试。');
+        }
+
+        $fontCachePath = storage_path(self::PDF_CACHE_PATH.'/fonts');
+        $tempPath = storage_path(self::PDF_CACHE_PATH.'/temp');
+        File::ensureDirectoryExists($fontCachePath);
+        File::ensureDirectoryExists($tempPath);
+        if (! is_writable($fontCachePath) || ! is_writable($tempPath)) {
+            throw new RuntimeException('结算 PDF 缓存目录不可写，请检查 storage 目录权限后重试。');
+        }
+
+        $options = new Options;
+        $options->setIsRemoteEnabled(false);
+        $options->setChroot([base_path(), dirname(self::PDF_FONT_PATH)]);
+        $options->setDefaultFont('GN CJK');
+        $options->setIsFontSubsettingEnabled(false);
+        $options->setFontDir($fontCachePath);
+        $options->setFontCache($fontCachePath);
+        $options->setTempDir($tempPath);
+
+        return new Dompdf($options);
+    }
+
     /** @param array<string, mixed> $data */
-    private function html(array $data): string
+    private function html(array $data, string $pdfFontPath): string
     {
         $rows = '';
         foreach ($data['items'] as $item) {
@@ -148,8 +181,9 @@ final class SettlementDocumentGenerator
                 .number_format($item['commission_krw']).'</td></tr>';
         }
 
-        return '<!doctype html><html><head><meta charset="UTF-8"><style>'
-            .'body{font-family:sans-serif;color:#222}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:6px;text-align:left}'
+        return '<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><style>'
+            .'@font-face{font-family:"GN CJK";font-style:normal;font-weight:normal;src:url("file://'.e($pdfFontPath).'") format("truetype");}'
+            .'body{font-family:"GN CJK","Microsoft YaHei","PingFang SC","Noto Sans CJK SC",DejaVu Sans,sans-serif;color:#222}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:6px;text-align:left}'
             .'</style></head><body><h1>代理商月结结算单</h1><p>代理商：'.e($data['agent_name']).'（'.e($data['agent_code']).'）</p>'
             .'<p>结算周期：'.$data['period_start'].' 至 '.$data['period_end'].'</p><table><thead><tr>'
             .'<th>订单</th><th>完成日期</th><th>项目</th><th>消费额 KRW</th><th>费率</th><th>推广费 KRW</th>'

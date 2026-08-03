@@ -439,19 +439,13 @@ select:focus[data-flux-control] {
 .crm-date-range {
     display: flex;
     align-items: center;
-    gap: 7px;
     border-radius: 8px;
-    padding: 7px 11px;
+    padding: 5px 9px;
     font-size: 12.5px;
 }
 
-.crm-date-range svg {
-    width: 16px;
-    color: var(--crm-muted);
-}
-
 .crm-date-range input {
-    width: 92px;
+    width: 106px;
     border: 0;
     background: transparent;
     color: inherit;

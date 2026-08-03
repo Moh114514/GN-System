@@ -6,9 +6,11 @@ use App\Modules\Settlement\Application\Contracts\CommissionConfigurationGateway;
 use App\Modules\Settlement\Application\Contracts\ConfigurationHistoryGateway;
 use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
 use App\Modules\Settlement\Application\Contracts\InstitutionUsageReader;
+use App\Modules\Settlement\Application\Contracts\KrwCnyQuoteProvider;
 use App\Modules\Settlement\Application\Contracts\OrderFinancialReader;
 use App\Modules\Settlement\Application\Contracts\ReportSettlementReader;
 use App\Modules\Settlement\Application\Contracts\SettlementImportGateway;
+use App\Modules\Settlement\Application\Services\ApiHzKrwCnyQuoteProvider;
 use App\Modules\Settlement\Application\Services\DatabaseCommissionConfigurationGateway;
 use App\Modules\Settlement\Application\Services\DatabaseConfigurationHistoryGateway;
 use App\Modules\Settlement\Application\Services\DatabaseDailyCommissionGateway;
@@ -21,6 +23,7 @@ use App\Modules\Settlement\Presentation\Livewire\SettlementCenter;
 use App\Modules\Settlement\Presentation\Livewire\SettlementDetail;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use LogicException;
 
 class SettlementServiceProvider extends ServiceProvider
 {
@@ -33,6 +36,12 @@ class SettlementServiceProvider extends ServiceProvider
         $this->app->bind(InstitutionUsageReader::class, DatabaseInstitutionUsageReader::class);
         $this->app->bind(OrderFinancialReader::class, DatabaseOrderFinancialReader::class);
         $this->app->bind(ConfigurationHistoryGateway::class, DatabaseConfigurationHistoryGateway::class);
+        $this->app->bind(KrwCnyQuoteProvider::class, function (): KrwCnyQuoteProvider {
+            return match (config('services.settlement_exchange_rate.provider')) {
+                'api_hz' => new ApiHzKrwCnyQuoteProvider,
+                default => throw new LogicException('未支持的月结自动汇率报价 provider 配置。'),
+            };
+        });
     }
 
     public function boot(): void

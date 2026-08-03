@@ -98,6 +98,11 @@ class OrderDetail extends Component
         if ($target === 'pending') {
             $this->requireAdmin();
             $this->validate(['reason' => ['required', 'string', 'max:1000']]);
+            if ($this->orderDetails['status'] === 'completed') {
+                $this->runAction(fn (): int => $workspace->rollbackCompleted($this->orderId, (int) Auth::id(), $this->reason, request()->ip()), '订单已受控回退至待完成。', $workspace);
+
+                return;
+            }
             $this->runAction(fn (): int => $workspace->reopen($this->orderId, (int) Auth::id(), $this->reason, request()->ip()), '订单已重新打开', $workspace);
 
             return;

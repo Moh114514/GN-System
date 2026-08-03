@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'settlement_exchange_rate' => [
+        'enabled' => env('SETTLEMENT_EXCHANGE_RATE_ENABLED', true),
+        'provider' => env('SETTLEMENT_EXCHANGE_RATE_PROVIDER', 'api_hz'),
+        'url' => env('SETTLEMENT_EXCHANGE_RATE_URL', 'https://cn.apihz.cn/api/jinrong/huilv.php'),
+        'id' => env('SETTLEMENT_EXCHANGE_RATE_ID'),
+        'key' => env('SETTLEMENT_EXCHANGE_RATE_KEY'),
+        'timeout' => env('SETTLEMENT_EXCHANGE_RATE_TIMEOUT', 10),
+    ],
+
 ];
