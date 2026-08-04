@@ -4,6 +4,7 @@ namespace App\Modules\Settlement\Application\Services;
 
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -17,7 +18,8 @@ final readonly class SettlementRunFailureReportGenerator
     public function generate(SettlementRun $run): string
     {
         $spreadsheet = new Spreadsheet;
-        $path = 'reports/settlement-failures/'.$run->id.'.xlsx';
+        $directory = 'reports/settlement-failures/'.$run->id;
+        $path = $directory.'/'.Str::uuid().'.xlsx';
         $disk = Storage::disk('local');
         $absolutePath = $disk->path($path);
 
@@ -53,9 +55,9 @@ final readonly class SettlementRunFailureReportGenerator
             $sheet->getColumnDimension('E')->setWidth(12);
             $sheet->getColumnDimension('F')->setWidth(60);
 
-            $disk->makeDirectory(dirname($path));
-            $directory = dirname($absolutePath);
-            if (! is_dir($directory) || ! is_writable($directory)) {
+            $disk->makeDirectory($directory);
+            $reportDirectory = dirname($absolutePath);
+            if (! is_dir($reportDirectory) || ! is_writable($reportDirectory)) {
                 throw new RuntimeException('报告目录不可写，请联系管理员。');
             }
             (new Xlsx($spreadsheet))->save($absolutePath);

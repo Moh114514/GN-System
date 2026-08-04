@@ -7,7 +7,6 @@
         <flux:button wire:click="generate" icon="play" variant="primary">生成最新月结</flux:button>
     </section>
 
-    @error('configuration')<div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div>@enderror
 
     <section class="mb-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <h3 class="font-semibold">结算周期配置</h3>

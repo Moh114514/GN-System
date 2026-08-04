@@ -8,8 +8,8 @@
             <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ $run->period_start->format('Y-m-d') }} 至 {{ $run->period_end->format('Y-m-d') }}</p>
         </div>
         <div class="flex flex-wrap gap-2">
-            <a class="rounded-lg px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50" href="{{ route('settlements.runs.failures.download', $run->id) }}">下载失败报告</a>
             @if ($failures !== [])
+                <a class="rounded-lg px-3 py-2 text-sm font-semibold text-teal-700 hover:bg-teal-50" href="{{ route('settlements.runs.failures.download', $run->id) }}">下载失败报告</a>
                 <flux:button wire:click="retryAll" wire:loading.attr="disabled" wire:target="retryAll" variant="primary">重试全部失败项</flux:button>
             @endif
         </div>

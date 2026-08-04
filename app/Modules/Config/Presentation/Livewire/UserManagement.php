@@ -72,7 +72,7 @@ class UserManagement extends Component
                 Flux::toast(variant: 'success', text: $success);
             }
         } catch (DomainException $exception) {
-            $this->addError('userManagement', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
         }
     }
 }

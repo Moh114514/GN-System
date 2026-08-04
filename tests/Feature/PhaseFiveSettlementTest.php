@@ -35,6 +35,7 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 use Tests\TestCase;
 
 class PhaseFiveSettlementTest extends TestCase
@@ -688,6 +689,73 @@ class PhaseFiveSettlementTest extends TestCase
         $failures = app(SettlementRunFailureReader::class)->read($run);
         $this->assertCount(1, $failures);
         $this->assertSame($this->agent->code, $failures[0]->agentCode);
+        $generator = app(SettlementRunFailureReportGenerator::class);
+        $path = $generator->generate($run);
+        $secondPath = $generator->generate($run);
+        $this->assertNotSame($path, $secondPath);
+        Storage::disk('local')->assertExists($path);
+        Storage::disk('local')->assertExists($secondPath);
+
+        $spreadsheet = IOFactory::load(Storage::disk('local')->path($path));
+        $sheet = $spreadsheet->getActiveSheet();
+        $this->assertSame('批次编号', $sheet->getCell('A1')->getValue());
+        $this->assertSame('代理商编号', $sheet->getCell('C1')->getValue());
+        $this->assertSame($this->agent->code, $sheet->getCell('C2')->getValue());
+        $this->assertSame('已完成订单 181 缺少推广费快照。', $sheet->getCell('F2')->getValue());
+        $spreadsheet->disconnectWorksheets();
+
+        $this->actingAs($this->admin)->get(route('settlements.runs.failures.download', $run))
+            ->assertOk()
+            ->assertHeader('content-disposition');
+
+        $run->update(['failed_agents' => 0, 'errors' => null]);
+        $this->actingAs($this->admin)->get(route('settlements.runs.failures', $run->fresh()))
+            ->assertOk()
+            ->assertSee('当前没有未解决的失败项')
+            ->assertDontSee('下载失败报告');
+        $this->actingAs($this->admin)->get(route('settlements.runs.failures.download', $run->fresh()))
+            ->assertNotFound();
+    }
+
+    public function test_failed_run_diagnostics_do_not_require_monthly_agent_context(): void
+    {
+        $agentWithoutGrade = $this->createSettlementAgent(99);
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'partial_failed',
+            'total_agents' => 1,
+            'failed_agents' => 1,
+            'errors' => [(string) $agentWithoutGrade->id => '代理商在当月没有生效政策等级。'],
+        ]);
+
+        $this->actingAs($this->admin)->get(route('settlements.runs.failures', $run))
+            ->assertOk()
+            ->assertSee($agentWithoutGrade->code)
+            ->assertSee('代理商在当月没有生效政策等级。');
+    }
+
+    public function test_failed_run_diagnostics_keep_original_id_when_agent_is_missing(): void
+    {
+        Storage::fake('local');
+        $missingAgentId = 987654321;
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'partial_failed',
+            'total_agents' => 1,
+            'failed_agents' => 1,
+            'errors' => [(string) $missingAgentId => '代理商已被删除。'],
+        ]);
+
+        $this->actingAs($this->admin)->get(route('settlements.runs.failures', $run))
+            ->assertOk()
+            ->assertSee('未知')
+            ->assertSee('代理商不存在或已删除')
+            ->assertSee((string) $missingAgentId);
+
         $path = app(SettlementRunFailureReportGenerator::class)->generate($run);
         Storage::disk('local')->assertExists($path);
     }

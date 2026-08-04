@@ -113,7 +113,7 @@ class SettlementDetail extends Component
         if (! in_array($record->status, ['pending_review', 'rejected'], true)
             || ! in_array($record->generation_status, ['pending', 'unverified'], true)
             || $record->settlement_run_id === null) {
-            $this->addError('workflow', '只有存在可用批次的月结可以重新生成，请先核对历史数据。');
+            Flux::toast(variant: 'danger', text: '只有存在可用批次的月结可以重新生成，请先核对历史数据。');
 
             return;
         }

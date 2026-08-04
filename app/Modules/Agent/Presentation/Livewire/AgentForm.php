@@ -108,7 +108,7 @@ class AgentForm extends Component
             }
             $manager->update($this->agentId, $data, (int) Auth::id(), request()->ip());
         } catch (DomainException $exception) {
-            $this->addError('form', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
 
             return null;
         }
