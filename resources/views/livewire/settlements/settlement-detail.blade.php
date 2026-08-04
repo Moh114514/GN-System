@@ -5,12 +5,19 @@
     @if (session('error'))<div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>@endif
     @error('workflow')<div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div>@enderror
 
-    @php($needsRegeneration = $settlement->status === 'pending_review' && $settlement->generation_status !== 'generated' && $settlement->settlement_run_id !== null)
+    @php($needsRegeneration = in_array($settlement->status, ['pending_review', 'rejected']) && $settlement->generation_status !== 'generated' && $settlement->settlement_run_id !== null)
+    @php($generationUnverified = $settlement->generation_status === 'unverified')
     @if ($needsRegeneration)
         <section class="mb-5 rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
             <h3 class="font-semibold">月结明细尚未生成</h3>
             <p class="mt-1 text-sm">当前消费合计和推广费合计暂时显示为 ₩0。请先重新生成月结明细，核对金额和结算汇率后再提交审核。</p>
             <flux:button class="mt-3" wire:click="regenerateSettlement" wire:loading.attr="disabled" wire:target="regenerateSettlement" variant="primary">重新生成月结明细</flux:button>
+        </section>
+    @endif
+    @if ($generationUnverified)
+        <section class="mb-5 rounded-xl border border-red-300 bg-red-50 px-5 py-4 text-red-900 dark:border-red-700 dark:bg-red-950/30 dark:text-red-100">
+            <h3 class="font-semibold">历史月结生成状态无法确认</h3>
+            <p class="mt-1 text-sm">系统没有找到足够的生成批次、明细或结算文档证据，已禁止直接审核。请先由运维核对原始数据，确认后再恢复处理。</p>
         </section>
     @endif
 
@@ -37,7 +44,7 @@
                     <flux:input wire:model="exchangeRate" class="flex-1" type="number" step="0.000001" min="0.000001" label="KRW/CNY 结算汇率" required />
                     <flux:button type="button" wire:click="refreshExchangeRateQuote" wire:loading.attr="disabled" wire:target="refreshExchangeRateQuote" variant="ghost">获取最新报价</flux:button>
                 </div>
-                <flux:button class="mt-3" type="submit" variant="primary" :disabled="$needsRegeneration">通过并生成 Word/PDF</flux:button>
+                <flux:button class="mt-3" type="submit" variant="primary" :disabled="$needsRegeneration || $generationUnverified">通过并生成 Word/PDF</flux:button>
             </form>
             <form wire:submit="reject" class="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900"><h3 class="font-semibold">驳回</h3><flux:textarea wire:model="rejectionReason" class="mt-3" label="问题与退回原因" rows="2" required /><flux:button class="mt-3" type="submit" variant="danger">驳回月结</flux:button></form>
         </section>

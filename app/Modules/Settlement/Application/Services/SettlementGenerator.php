@@ -36,9 +36,12 @@ final readonly class SettlementGenerator
                 throw new DomainException('该代理商周期已存在历史或其他月结记录，禁止覆盖。');
             }
             $rebuild = $existing !== null
-                && $existing->status === 'pending_review'
+                && in_array($existing->status, ['pending_review', 'rejected'], true)
                 && $existing->generation_status !== 'generated';
             if ($existing !== null && $existing->status !== 'rejected' && ! $rebuild) {
+                return;
+            }
+            if ($existing?->status === 'rejected' && $existing->generation_status === 'generated') {
                 return;
             }
 

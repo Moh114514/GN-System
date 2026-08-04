@@ -29,6 +29,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -193,6 +194,95 @@ class PhaseFiveSettlementTest extends TestCase
         app(SettlementWorkflow::class)->approve($settlement->id, '200', $this->admin->id, '127.0.0.1');
 
         $this->assertDatabaseHas('settlements', ['id' => $settlement->id, 'status' => 'approved', 'total_commission_krw' => 0]);
+    }
+
+    public function test_generation_state_migration_backfills_legacy_rows_and_preserves_rollback(): void
+    {
+        $orderId = $this->createCompletedOrder(10000);
+        $orderCommissionId = (int) DB::table('order_commissions')->where('order_id', $orderId)->value('id');
+        $now = now();
+        $completedRun = fn (string $start, string $end): SettlementRun => SettlementRun::query()->create([
+            'period_start' => $start,
+            'period_end' => $end,
+            'trigger_source' => 'manual',
+            'status' => 'completed',
+            'total_agents' => 1,
+            'processed_agents' => 1,
+            'completed_at' => $now,
+            'progress_key' => 'migration-test-'.$start,
+        ]);
+        $approvedRun = $completedRun('2026-03-01', '2026-03-31');
+        $settledRun = $completedRun('2026-04-01', '2026-04-30');
+        $zeroOrderRun = $completedRun('2026-05-01', '2026-05-31');
+
+        $migration = require database_path('migrations/2026_08_04_000100_add_settlement_generation_state.php');
+        $migration->down();
+
+        $insertSettlement = function (string $start, string $end, string $status, ?string $snapshot = null, ?string $runId = null) use ($now): int {
+            return (int) DB::table('settlements')->insertGetId([
+                'agent_id' => $this->agent->id,
+                'settlement_run_id' => $runId,
+                'period_start' => $start,
+                'period_end' => $end,
+                'status' => $status,
+                'snapshot' => $snapshot,
+                'total_consumption_krw' => 10000,
+                'total_commission_krw' => 1000,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        };
+
+        $pendingWithItems = $insertSettlement('2026-01-01', '2026-01-31', 'pending_review');
+        $rejectedWithItems = $insertSettlement('2026-02-01', '2026-02-28', 'rejected');
+        $approved = $insertSettlement('2026-03-01', '2026-03-31', 'approved', null, $approvedRun->id);
+        $settled = $insertSettlement('2026-04-01', '2026-04-30', 'settled', null, $settledRun->id);
+        $zeroOrder = $insertSettlement(
+            '2026-05-01',
+            '2026-05-31',
+            'pending_review',
+            json_encode([
+                'source' => 'phase_five_generation',
+                'generated_at' => '2026-05-10T12:00:00+08:00',
+            ], JSON_THROW_ON_ERROR),
+            $zeroOrderRun->id,
+        );
+        $historical = $insertSettlement(
+            '2026-06-01',
+            '2026-06-30',
+            'paid',
+            json_encode(['source' => 'demo_data'], JSON_THROW_ON_ERROR),
+        );
+        $unverified = $insertSettlement('2026-07-01', '2026-07-31', 'pending_review');
+
+        foreach ([$pendingWithItems, $rejectedWithItems, $historical] as $settlementId) {
+            DB::table('settlement_items')->insert([
+                'settlement_id' => $settlementId,
+                'order_commission_id' => $orderCommissionId,
+                'consumption_krw' => 10000,
+                'commission_krw' => 1000,
+                'rule_snapshot' => json_encode(['rate_bps' => 1000], JSON_THROW_ON_ERROR),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
+        $migration->up();
+
+        $this->assertDatabaseHas('settlements', ['id' => $pendingWithItems, 'generation_status' => 'generated', 'item_count' => 1]);
+        $this->assertDatabaseHas('settlements', ['id' => $rejectedWithItems, 'generation_status' => 'generated', 'item_count' => 1]);
+        $this->assertNotNull(DB::table('settlements')->where('id', $approved)->value('generated_at'));
+        $this->assertNotNull(DB::table('settlements')->where('id', $settled)->value('generated_at'));
+        $this->assertDatabaseHas('settlements', ['id' => $zeroOrder, 'generation_status' => 'generated', 'item_count' => 0]);
+        $this->assertSame('2026-05-10 12:00:00', DB::table('settlements')->where('id', $zeroOrder)->value('generated_at'));
+        $this->assertDatabaseHas('settlements', ['id' => $historical, 'generation_status' => 'not_applicable', 'item_count' => 1]);
+        $this->assertDatabaseHas('settlements', ['id' => $unverified, 'generation_status' => 'unverified', 'item_count' => 0]);
+
+        $migration->down();
+        $this->assertFalse(Schema::hasColumn('settlements', 'generation_status'));
+        $migration->up();
+        $this->assertTrue(Schema::hasColumn('settlements', 'generation_status'));
+        $this->assertDatabaseHas('settlements', ['id' => $unverified, 'generation_status' => 'unverified']);
     }
 
     public function test_historical_period_can_be_selected_and_generated_without_duplicate_run(): void
