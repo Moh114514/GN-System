@@ -90,6 +90,7 @@ class ReminderCreate extends Component
             if ($this->saveAsTemplate) {
                 $rules->saveTemplate(null, $this->templateName, $this->title, $this->suggestion, 'manual', [], (int) Auth::id());
             }
+            Flux::toast(variant: 'success', text: '提醒已创建。');
             $this->redirectRoute('reminders.index', navigate: true);
         } catch (DomainException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());

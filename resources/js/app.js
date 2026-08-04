@@ -189,11 +189,10 @@ function syncBusinessAlerts() {
 }
 
 document.addEventListener('DOMContentLoaded', scheduleDashboardCharts);
-document.addEventListener('livewire:navigated', scheduleDashboardCharts);
 document.addEventListener('dashboard-updated', scheduleDashboardCharts);
-document.addEventListener('DOMContentLoaded', syncBusinessAlerts);
 document.addEventListener('livewire:navigated', () => {
     activeBusinessAlertKeys = new Set();
+    scheduleDashboardCharts();
     syncBusinessAlerts();
 });
 window.addEventListener('business-alert-focus', (event) => {
@@ -204,6 +203,8 @@ window.addEventListener('business-alert-focus', (event) => {
     }
 });
 document.addEventListener('livewire:init', () => {
-    window.Livewire.hook('morph.updated', scheduleDashboardCharts);
-    window.Livewire.hook('morph.updated', syncBusinessAlerts);
+    window.Livewire.hook('morphed', () => {
+        scheduleDashboardCharts();
+        syncBusinessAlerts();
+    });
 });

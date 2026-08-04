@@ -32,10 +32,13 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
+use RuntimeException;
 use Tests\TestCase;
 
 class PhaseFiveSettlementTest extends TestCase
@@ -758,6 +761,69 @@ class PhaseFiveSettlementTest extends TestCase
 
         $path = app(SettlementRunFailureReportGenerator::class)->generate($run);
         Storage::disk('local')->assertExists($path);
+    }
+
+    public function test_failure_report_keeps_formula_like_values_as_strings(): void
+    {
+        Storage::fake('local');
+        $this->agent->update(['name' => '=1+1']);
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'partial_failed',
+            'total_agents' => 1,
+            'failed_agents' => 1,
+            'errors' => [(string) $this->agent->id => '=HYPERLINK("https://example.com","查看")'],
+        ]);
+
+        $path = app(SettlementRunFailureReportGenerator::class)->generate($run);
+        $spreadsheet = IOFactory::load(Storage::disk('local')->path($path));
+        $sheet = $spreadsheet->getActiveSheet();
+
+        $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('D2')->getDataType());
+        $this->assertSame('=1+1', $sheet->getCell('D2')->getValue());
+        $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('F2')->getDataType());
+        $this->assertSame('=HYPERLINK("https://example.com","查看")', $sheet->getCell('F2')->getValue());
+        $spreadsheet->disconnectWorksheets();
+    }
+
+    public function test_unexpected_generation_failures_have_unique_searchable_references(): void
+    {
+        Log::spy();
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'running',
+            'total_agents' => 1,
+        ]);
+        $generator = app(SettlementGenerator::class);
+
+        $generator->markFailed($run->id, $this->agent->id, new RuntimeException('unexpected failure one'));
+        $firstMessage = $run->fresh()->errors[(string) $this->agent->id];
+        $generator->markFailed($run->id, $this->agent->id, new RuntimeException('unexpected failure two'));
+        $secondMessage = $run->fresh()->errors[(string) $this->agent->id];
+
+        preg_match('/参考编号：(.+?)。$/u', $firstMessage, $firstMatches);
+        preg_match('/参考编号：(.+?)。$/u', $secondMessage, $secondMatches);
+        $references = [$firstMatches[1] ?? null, $secondMatches[1] ?? null];
+        $this->assertNotNull($references[0]);
+        $this->assertNotNull($references[1]);
+        $this->assertNotSame($references[0], $references[1]);
+
+        $loggedReferences = [];
+        Log::shouldHaveReceived('error')->twice()->withArgs(function (string $message, array $context) use (&$loggedReferences, $run): bool {
+            if ($message !== 'Settlement generation failed.'
+                || ($context['run_id'] ?? null) !== $run->id
+                || ($context['agent_id'] ?? null) !== $this->agent->id) {
+                return false;
+            }
+            $loggedReferences[] = $context['reference'] ?? null;
+
+            return true;
+        });
+        $this->assertEqualsCanonicalizing($references, $loggedReferences);
     }
 
     public function test_grade_suggestion_requires_manual_review_and_starts_next_month(): void

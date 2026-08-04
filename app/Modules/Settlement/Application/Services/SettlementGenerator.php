@@ -142,12 +142,18 @@ final readonly class SettlementGenerator
                     'agent_id' => $agentId,
                     'message' => $exception->getMessage(),
                 ]);
+                $errorMessage = $exception->getMessage();
             } else {
-                report($exception);
+                $reference = (string) Str::uuid();
+                Log::error('Settlement generation failed.', [
+                    'reference' => $reference,
+                    'run_id' => $runId,
+                    'agent_id' => $agentId,
+                    'exception' => $exception,
+                ]);
+                $errorMessage = "系统处理失败，请联系管理员并提供参考编号：{$reference}。";
             }
-            $errors[(string) $agentId] = $exception instanceof DomainException
-                ? Str::limit($exception->getMessage(), 2000)
-                : "系统处理失败，请联系管理员并提供参考编号：{$runId}-{$agentId}。";
+            $errors[(string) $agentId] = $errorMessage;
             $run->errors = $errors;
             $run->save();
             $this->finishIfComplete($run);

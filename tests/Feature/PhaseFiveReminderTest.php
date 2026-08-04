@@ -18,11 +18,13 @@ use App\Modules\Reminder\Application\Services\ReminderWorkspace;
 use App\Modules\Reminder\Infrastructure\Models\Reminder;
 use App\Modules\Reminder\Infrastructure\Models\ReminderRule;
 use App\Modules\Reminder\Jobs\SendReminderNotification;
+use App\Modules\Reminder\Presentation\Livewire\ReminderCreate;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 class PhaseFiveReminderTest extends TestCase
@@ -210,6 +212,25 @@ class PhaseFiveReminderTest extends TestCase
         $this->actingAs($this->user)->get(route('reminder-configuration.index'))->assertForbidden();
         $this->actingAs($this->admin)->get(route('reminder-configuration.index'))
             ->assertOk()->assertSee('返回配置中心')->assertSee('href="'.route('configuration.index').'"', false);
+    }
+
+    public function test_creating_a_custom_reminder_dispatches_a_success_toast_before_navigation(): void
+    {
+        $this->actingAs($this->user);
+
+        Livewire::test(ReminderCreate::class)
+            ->set('customerId', (string) $this->customer->id)
+            ->set('assignedTo', (string) $this->user->id)
+            ->set('title', '创建后的提醒')
+            ->set('dueAt', CarbonImmutable::now()->addDay()->format('Y-m-d\\TH:i'))
+            ->call('save')
+            ->assertDispatched('toast-show')
+            ->assertRedirect(route('reminders.index'));
+
+        $this->assertDatabaseHas('reminders', [
+            'customer_id' => $this->customer->id,
+            'title' => '创建后的提醒',
+        ]);
     }
 
     public function test_shallow_rule_materializes_birthday_and_template_changes_do_not_rewrite_reminder(): void
