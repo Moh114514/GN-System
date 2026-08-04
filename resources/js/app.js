@@ -22,13 +22,15 @@ function renderDashboardCharts() {
         const values = JSON.parse(element.dataset.chartValues || '[]');
         const key = element.dataset.dashboardChart;
         const colors = dashboardColors(element);
-        chartInstances.get(element)?.dispose();
-        chartObservers.get(element)?.disconnect();
+        const existingChart = chartInstances.get(element);
         if (values.length === 0) {
+            existingChart?.clear();
             return;
         }
-        const chart = echarts.init(element);
-        chartInstances.set(element, chart);
+        const chart = existingChart ?? echarts.init(element);
+        if (!existingChart) {
+            chartInstances.set(element, chart);
+        }
         const categories = values.map((row) => row.key);
         const data = values.map((row) => row.value);
         const isPie = ['grade_distribution', 'source_distribution'].includes(key);
@@ -36,7 +38,7 @@ function renderDashboardCharts() {
         const isRate = ['repurchase_rate', 'followup_completion_rate'].includes(key);
         const isRevenueOrders = key === 'monthly_revenue_orders';
         const palette = [colors.primary, colors.blue, '#8b5cf6', '#f59e0b', '#10b981', '#ef4444'];
-        chart.setOption(isRevenueOrders ? {
+        const option = isRevenueOrders ? {
             tooltip: { trigger: 'axis' },
             grid: { left: 68, right: 48, top: 22, bottom: 42 },
             xAxis: {
@@ -131,10 +133,20 @@ function renderDashboardCharts() {
                 lineStyle: { width: 3, color: colors.primary },
                 areaStyle: isLine ? { color: 'rgba(20, 184, 166, 0.14)' } : undefined,
             }],
-        });
-        const observer = new ResizeObserver(() => chart.resize());
-        observer.observe(element);
-        chartObservers.set(element, observer);
+        };
+        chart.setOption({
+            animation: true,
+            animationDuration: 650,
+            animationDurationUpdate: 850,
+            animationEasing: 'cubicOut',
+            animationEasingUpdate: 'cubicInOut',
+            ...option,
+        }, { notMerge: true, lazyUpdate: false });
+        if (!chartObservers.has(element)) {
+            const observer = new ResizeObserver(() => chart.resize());
+            observer.observe(element);
+            chartObservers.set(element, observer);
+        }
     });
 }
 

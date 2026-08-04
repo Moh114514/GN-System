@@ -6,7 +6,11 @@
     <body class="crm-auth-body">
         <main class="crm-auth-shell">
             <a href="{{ route('home') }}" class="crm-auth-brand" wire:navigate>
-                <span class="crm-brand-mark" aria-hidden="true">G</span>
+                <img
+                    class="crm-brand-logo crm-auth-brand-logo"
+                    src="{{ asset('images/lightyear18-logo.png') }}"
+                    alt="光年拾捌 Lightyear 18"
+                >
                 <span>
                     <strong>GN-System</strong>
                     <small>专业 · 安全 · 高效</small>
