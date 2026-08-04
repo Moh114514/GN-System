@@ -260,7 +260,7 @@ class PhaseFiveSettlementTest extends TestCase
         $this->createCompletedOrder(10000);
         $settlement = Settlement::query()->where('settlement_run_id', app(SettlementRunManager::class)->start('manual', $this->admin->id)->id)->firstOrFail();
 
-        $this->actingAs($this->admin)->get(route('settlements.show', $settlement))->assertOk()->assertSee('自动报价不可用');
+        $this->actingAs($this->admin)->get(route('settlements.show', $settlement))->assertOk()->assertSee('最新报价不可用');
         $settlement->refresh();
         $this->assertSame('unavailable', $settlement->exchange_rate_quote_status);
         app(SettlementWorkflow::class)->approve($settlement->id, '200', $this->admin->id, '127.0.0.1');
@@ -281,14 +281,14 @@ class PhaseFiveSettlementTest extends TestCase
         ]);
         $this->assertDatabaseMissing('settlement_items', ['settlement_id' => $settlement->id]);
         $this->assertDatabaseMissing('settlement_documents', ['settlement_id' => $settlement->id]);
-        $this->assertDatabaseHas('settlements', [
-            'id' => $settlement->id,
-            'exchange_rate_krw_per_cny' => null,
-            'exchange_rate_quote_source' => null,
-            'total_consumption_krw' => 0,
-            'total_commission_krw' => 0,
-        ]);
+        $settlement->refresh();
+        $this->assertSame('200.000000', (string) $settlement->exchange_rate_krw_per_cny);
+        $this->assertSame(0, $settlement->total_consumption_krw);
+        $this->assertSame(0, $settlement->total_commission_krw);
         app(SettlementGenerator::class)->generate((string) $settlement->settlement_run_id, $this->agent->id);
+        $settlement->refresh();
+        $this->assertGreaterThan(0, $settlement->total_consumption_krw);
+        $this->assertGreaterThan(0, $settlement->total_commission_krw);
         $this->assertDatabaseHas('settlement_items', ['settlement_id' => $settlement->id]);
         $this->assertDatabaseHas('activity_log', ['log_name' => 'settlement', 'subject_id' => $settlement->id, 'event' => 'status_corrected']);
     }

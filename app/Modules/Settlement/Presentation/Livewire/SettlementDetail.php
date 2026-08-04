@@ -38,7 +38,9 @@ class SettlementDetail extends Component
     {
         $record = Settlement::query()->findOrFail($settlement);
         $this->settlementId = $settlement;
-        $record = $quotes->refreshFor($record);
+        if ($record->exchange_rate_krw_per_cny === null) {
+            $record = $quotes->refreshFor($record);
+        }
         $this->exchangeRate = (string) ($record->exchange_rate_krw_per_cny ?? '');
         $this->correctionTarget = $record->status === 'approved' ? 'settled' : 'pending_review';
     }
@@ -55,6 +57,17 @@ class SettlementDetail extends Component
         $this->run(fn () => $workflow->approve($this->settlementId, $this->exchangeRate, (int) Auth::id(), request()->ip()), '月结已审核通过，Word/PDF 已生成。');
     }
 
+    public function refreshExchangeRateQuote(ExchangeRateQuoteService $quotes): void
+    {
+        $this->run(
+            function () use ($quotes): void {
+                $record = Settlement::query()->findOrFail($this->settlementId);
+                $quotes->refreshFor($record, true);
+            },
+            '最新汇率报价已更新，请核对后提交审核。',
+        );
+    }
+
     public function settle(SettlementWorkflow $workflow): void
     {
         $this->run(fn () => $workflow->settle($this->settlementId, (int) Auth::id(), request()->ip()), '月结已确认结清。');
@@ -68,7 +81,9 @@ class SettlementDetail extends Component
         ]);
         $this->run(
             fn () => $workflow->correctStatus($this->settlementId, $this->correctionTarget, $this->correctionReason, (int) Auth::id(), request()->ip()),
-            '月结状态已更正，并已记录审计原因。',
+            $this->correctionTarget === 'pending_review'
+                ? '月结已回退到待审核，请先重新生成月结明细并核对汇率。'
+                : '月结状态已更正，并已记录审计原因。',
         );
     }
 

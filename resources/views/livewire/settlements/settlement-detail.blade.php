@@ -3,6 +3,15 @@
     @if (session('status'))<div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>@endif
     @error('workflow')<div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div>@enderror
 
+    @php($needsRegeneration = $settlement->status === 'pending_review' && $items->isEmpty() && $settlement->settlement_run_id !== null)
+    @if ($needsRegeneration)
+        <section class="mb-5 rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
+            <h3 class="font-semibold">月结明细尚未生成</h3>
+            <p class="mt-1 text-sm">当前消费合计和推广费合计暂时显示为 ₩0。请先重新生成月结明细，核对金额和结算汇率后再提交审核。</p>
+            <flux:button class="mt-3" wire:click="regenerateSettlement" wire:loading.attr="disabled" wire:target="regenerateSettlement" variant="primary">重新生成月结明细</flux:button>
+        </section>
+    @endif
+
     <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <div class="flex flex-wrap items-start justify-between gap-4">
             <div><p class="text-xs font-medium text-zinc-400">月结详情</p><h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ data_get($settlement->snapshot, 'agent.name', '代理商') }}</h2><p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ $settlement->period_start->format('Y-m-d') }} 至 {{ $settlement->period_end->format('Y-m-d') }}</p></div>
@@ -15,13 +24,18 @@
         <section class="mt-6 grid gap-5 lg:grid-cols-2">
             <form wire:submit="approve" class="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
                 <h3 class="font-semibold">审核通过</h3>
-                @if ($settlement->exchange_rate_quote_status === 'available')
+                @if ($settlement->exchange_rate_quote_error)
+                    <p class="mt-2 text-sm text-amber-700 dark:text-amber-300">最新报价不可用，已保留当前汇率，请人工核对或修改。{{ $settlement->exchange_rate_quote_error }}</p>
+                @elseif ($settlement->exchange_rate_quote_status === 'available')
                     <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">已自动填入接口盒子报价（每日更新，报价时间：{{ $settlement->exchange_rate_quoted_at?->format('Y-m-d H:i') }}），可按实际结算值直接修改。</p>
                 @else
-                    <p class="mt-2 text-sm text-amber-700 dark:text-amber-300">自动报价不可用，请人工填写结算汇率。{{ $settlement->exchange_rate_quote_error }}</p>
+                    <p class="mt-2 text-sm text-amber-700 dark:text-amber-300">暂无可用报价，请人工填写结算汇率。</p>
                 @endif
-                <flux:input wire:model="exchangeRate" class="mt-3" type="number" step="0.000001" min="0.000001" label="KRW/CNY 结算汇率" required />
-                <flux:button class="mt-3" type="submit" variant="primary">通过并生成 Word/PDF</flux:button>
+                <div class="mt-3 flex items-end gap-3">
+                    <flux:input wire:model="exchangeRate" class="flex-1" type="number" step="0.000001" min="0.000001" label="KRW/CNY 结算汇率" required />
+                    <flux:button type="button" wire:click="refreshExchangeRateQuote" wire:loading.attr="disabled" wire:target="refreshExchangeRateQuote" variant="ghost">获取最新报价</flux:button>
+                </div>
+                <flux:button class="mt-3" type="submit" variant="primary" :disabled="$needsRegeneration">通过并生成 Word/PDF</flux:button>
             </form>
             <form wire:submit="reject" class="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900"><h3 class="font-semibold">驳回</h3><flux:textarea wire:model="rejectionReason" class="mt-3" label="问题与退回原因" rows="2" required /><flux:button class="mt-3" type="submit" variant="danger">驳回月结</flux:button></form>
         </section>
@@ -31,7 +45,7 @@
 
     @if (in_array($settlement->status, ['approved', 'settled']))
         <section class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900 dark:bg-amber-950/30">
-            <h3 class="font-semibold">受控状态更正</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-300">仅超级管理员可在“待审核”“已审核”和“已结清”之间更正；历史已结清、已对账记录不在此范围内。回退到待审核会撤销结算明细、失效文档和等级建议，清空汇率与汇总，并写入审计，可重新生成明细。</p>
+            <h3 class="font-semibold">受控状态更正</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-300">仅超级管理员可在“待审核”“已审核”和“已结清”之间更正；历史已结清、已对账记录不在此范围内。回退到待审核会撤销结算明细、失效文档和汇总，并写入审计；请按页面提示重新生成明细后再审核。</p>
             <form wire:submit="correctStatus" class="mt-3 grid gap-3 sm:grid-cols-2"><flux:select wire:model="correctionTarget" label="目标状态" required><flux:select.option value="pending_review">待审核</flux:select.option><flux:select.option value="approved">已审核</flux:select.option><flux:select.option value="settled">已结清</flux:select.option></flux:select><flux:textarea wire:model="correctionReason" label="更正原因" rows="2" required /><div class="sm:col-span-2"><flux:button type="submit" variant="danger">提交状态更正</flux:button></div></form>
         </section>
     @endif

@@ -48,6 +48,9 @@ final readonly class SettlementWorkflow
             if (! in_array($settlement->status, ['pending_review', 'rejected'], true)) {
                 throw new DomainException('当前月结状态不可审核通过。');
             }
+            if (! DB::table('settlement_items')->where('settlement_id', $settlement->id)->exists()) {
+                throw new DomainException('月结明细尚未生成，请先重新生成月结明细后再审核。');
+            }
             $manualOverride = $settlement->exchange_rate_quote_status !== 'available'
                 || $settlement->exchange_rate_krw_per_cny === null
                 || (string) $settlement->exchange_rate_krw_per_cny !== (string) $rate;
@@ -144,12 +147,6 @@ final readonly class SettlementWorkflow
                     'reviewed_by' => null,
                     'reviewed_at' => null,
                     'rejection_reason' => null,
-                    'exchange_rate_krw_per_cny' => null,
-                    'exchange_rate_quote_source' => null,
-                    'exchange_rate_quoted_at' => null,
-                    'exchange_rate_quote_status' => 'unavailable',
-                    'exchange_rate_quote_error' => null,
-                    'exchange_rate_manual_override' => false,
                     'total_consumption_krw' => 0,
                     'total_commission_krw' => 0,
                     'payout_amount_cny_fen' => 0,

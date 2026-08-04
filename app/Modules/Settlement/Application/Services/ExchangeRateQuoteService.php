@@ -12,7 +12,7 @@ final readonly class ExchangeRateQuoteService
 {
     public function __construct(private KrwCnyQuoteProvider $provider) {}
 
-    public function refreshFor(Settlement $settlement): Settlement
+    public function refreshFor(Settlement $settlement, bool $force = false): Settlement
     {
         if (! in_array($settlement->status, ['pending_review', 'rejected'], true)) {
             return $settlement;
@@ -23,7 +23,7 @@ final readonly class ExchangeRateQuoteService
             (string) config('services.settlement_exchange_rate.url'),
             (string) config('services.settlement_exchange_rate.id'),
         ]));
-        $quote = Cache::get($cacheKey);
+        $quote = $force ? null : Cache::get($cacheKey);
         if (! $quote instanceof KrwCnyQuoteData) {
             $quote = $this->provider->quote();
             if ($quote->available) {
@@ -36,21 +36,31 @@ final readonly class ExchangeRateQuoteService
                 return;
             }
 
-            $locked->update($quote->available ? [
-                'exchange_rate_krw_per_cny' => $quote->rate,
-                'exchange_rate_quote_source' => $quote->source,
-                'exchange_rate_quoted_at' => $quote->quotedAt,
-                'exchange_rate_quote_status' => 'available',
-                'exchange_rate_quote_error' => null,
-                'exchange_rate_manual_override' => false,
-            ] : [
-                'exchange_rate_krw_per_cny' => null,
-                'exchange_rate_quote_source' => $quote->source,
-                'exchange_rate_quoted_at' => null,
-                'exchange_rate_quote_status' => 'unavailable',
+            if ($quote->available) {
+                $locked->update([
+                    'exchange_rate_krw_per_cny' => $quote->rate,
+                    'exchange_rate_quote_source' => $quote->source,
+                    'exchange_rate_quoted_at' => $quote->quotedAt,
+                    'exchange_rate_quote_status' => 'available',
+                    'exchange_rate_quote_error' => null,
+                    'exchange_rate_manual_override' => false,
+                ]);
+
+                return;
+            }
+
+            $attributes = [
                 'exchange_rate_quote_error' => (string) str($quote->failureReason)->limit(500, ''),
-                'exchange_rate_manual_override' => false,
-            ]);
+            ];
+            if ($locked->exchange_rate_krw_per_cny === null) {
+                $attributes += [
+                    'exchange_rate_quote_source' => $quote->source,
+                    'exchange_rate_quoted_at' => null,
+                    'exchange_rate_quote_status' => 'unavailable',
+                    'exchange_rate_manual_override' => false,
+                ];
+            }
+            $locked->update($attributes);
         });
 
         $settlement->refresh();
