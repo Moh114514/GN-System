@@ -194,7 +194,7 @@ class AgentConfiguration extends Component
             $operation();
             Flux::toast(variant: 'success', text: $success);
         } catch (DomainException $exception) {
-            $this->addError('configuration', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
         }
     }
 }

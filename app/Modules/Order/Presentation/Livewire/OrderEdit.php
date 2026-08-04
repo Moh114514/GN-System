@@ -95,7 +95,7 @@ class OrderEdit extends Component
                 translatorLanguageName: null,
             ), (int) Auth::id(), request()->ip());
         } catch (DomainException $exception) {
-            $this->addError('order', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
 
             return;
         }

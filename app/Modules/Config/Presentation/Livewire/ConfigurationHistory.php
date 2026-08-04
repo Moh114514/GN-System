@@ -36,7 +36,7 @@ class ConfigurationHistory extends Component
             $this->showDiff($owner, $snapshotId, $history);
             Flux::toast(variant: 'success', text: '配置已在单一事务中回滚，并生成新的回滚记录。');
         } catch (DomainException $exception) {
-            $this->addError('rollback', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
         }
     }
 

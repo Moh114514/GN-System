@@ -12,7 +12,6 @@
     </section>
 
     <form wire:submit="save" class="space-y-6">
-        @error('form') <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div> @enderror
         <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
             <h3 class="text-lg font-semibold">基本资料</h3>
             <div class="mt-5 grid gap-5 md:grid-cols-2">

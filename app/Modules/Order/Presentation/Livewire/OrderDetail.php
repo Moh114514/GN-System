@@ -38,7 +38,7 @@ class OrderDetail extends Component
         try {
             $workspace->complete($this->orderId, CarbonImmutable::now('Asia/Shanghai'), (int) Auth::id(), request()->ip());
         } catch (DomainException $exception) {
-            $this->addError('action', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
 
             return;
         }
@@ -129,7 +129,7 @@ class OrderDetail extends Component
         try {
             $action();
         } catch (DomainException $exception) {
-            $this->addError('action', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
 
             return;
         }

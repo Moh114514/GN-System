@@ -7,7 +7,6 @@
             <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">停用项不会出现在新录入下拉框中；历史记录仍显示保存时的名称。</p>
         </div>
     </section>
-    @error('configuration')<div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $message }}</div>@enderror
 
     <section class="grid gap-6 xl:grid-cols-[24rem_1fr]">
         <form wire:submit="saveInstitution" class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">

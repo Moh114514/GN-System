@@ -4,6 +4,8 @@ namespace App\Modules\Settlement\Application\Services;
 
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -17,7 +19,8 @@ final readonly class SettlementRunFailureReportGenerator
     public function generate(SettlementRun $run): string
     {
         $spreadsheet = new Spreadsheet;
-        $path = 'reports/settlement-failures/'.$run->id.'.xlsx';
+        $directory = 'reports/settlement-failures/'.$run->id;
+        $path = $directory.'/'.Str::uuid().'.xlsx';
         $disk = Storage::disk('local');
         $absolutePath = $disk->path($path);
 
@@ -33,14 +36,13 @@ final readonly class SettlementRunFailureReportGenerator
                 '失败原因',
             ]]);
             foreach ($this->reader->read($run) as $index => $failure) {
-                $sheet->fromArray([[
-                    $run->id,
-                    $run->period_start->format('Y-m-d').' 至 '.$run->period_end->format('Y-m-d'),
-                    $failure->agentCode,
-                    $failure->agentName,
-                    $failure->agentId,
-                    $failure->reason,
-                ]], null, 'A'.($index + 2));
+                $row = $index + 2;
+                $sheet->setCellValueExplicit('A'.$row, (string) $run->id, DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit('B'.$row, $run->period_start->format('Y-m-d').' 至 '.$run->period_end->format('Y-m-d'), DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit('C'.$row, $failure->agentCode, DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit('D'.$row, $failure->agentName, DataType::TYPE_STRING);
+                $sheet->setCellValue('E'.$row, $failure->agentId);
+                $sheet->setCellValueExplicit('F'.$row, $failure->reason, DataType::TYPE_STRING);
             }
             $sheet->freezePane('A2');
             $sheet->setAutoFilter('A1:F'.max(1, count($run->errors ?? []) + 1));
@@ -53,9 +55,9 @@ final readonly class SettlementRunFailureReportGenerator
             $sheet->getColumnDimension('E')->setWidth(12);
             $sheet->getColumnDimension('F')->setWidth(60);
 
-            $disk->makeDirectory(dirname($path));
-            $directory = dirname($absolutePath);
-            if (! is_dir($directory) || ! is_writable($directory)) {
+            $disk->makeDirectory($directory);
+            $reportDirectory = dirname($absolutePath);
+            if (! is_dir($reportDirectory) || ! is_writable($reportDirectory)) {
                 throw new RuntimeException('报告目录不可写，请联系管理员。');
             }
             (new Xlsx($spreadsheet))->save($absolutePath);

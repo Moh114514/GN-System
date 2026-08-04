@@ -136,15 +136,24 @@ final readonly class SettlementGenerator
             if (! array_key_exists((string) $agentId, $errors)) {
                 $run->failed_agents++;
             }
-            Log::error('Settlement generation failed.', [
-                'run_id' => $runId,
-                'agent_id' => $agentId,
-                'exception' => $exception,
-            ]);
-            report($exception);
-            $errors[(string) $agentId] = $exception instanceof DomainException
-                ? Str::limit($exception->getMessage(), 2000)
-                : "系统处理失败，请联系管理员并提供参考编号：{$runId}-{$agentId}。";
+            if ($exception instanceof DomainException) {
+                Log::warning('Settlement generation rejected by business rule.', [
+                    'run_id' => $runId,
+                    'agent_id' => $agentId,
+                    'message' => $exception->getMessage(),
+                ]);
+                $errorMessage = $exception->getMessage();
+            } else {
+                $reference = (string) Str::uuid();
+                Log::error('Settlement generation failed.', [
+                    'reference' => $reference,
+                    'run_id' => $runId,
+                    'agent_id' => $agentId,
+                    'exception' => $exception,
+                ]);
+                $errorMessage = "系统处理失败，请联系管理员并提供参考编号：{$reference}。";
+            }
+            $errors[(string) $agentId] = $errorMessage;
             $run->errors = $errors;
             $run->save();
             $this->finishIfComplete($run);

@@ -78,7 +78,7 @@ class SettlementCenter extends Component
             $dispatcher->retry($runId);
             Flux::toast(variant: 'success', text: '月结完成通知已重新进入队列。');
         } catch (DomainException $exception) {
-            $this->addError('configuration', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
         }
     }
 
@@ -90,7 +90,7 @@ class SettlementCenter extends Component
         ]);
         $hasUnfinished = SettlementRun::query()->whereIn('status', ['queued', 'running', 'partial_failed'])->exists();
         if ($hasUnfinished && ! $this->confirmConfigurationChange) {
-            $this->addError('configuration', '当前存在未完成月结，请确认当前周期仍按旧配置执行后再保存。');
+            Flux::toast(variant: 'danger', text: '当前存在未完成月结，请确认当前周期仍按旧配置执行后再保存。');
 
             return;
         }
@@ -104,7 +104,7 @@ class SettlementCenter extends Component
             Flux::toast(variant: 'success', text: '新月结周期配置将从 '.$configuration->effective_from->format('Y-m-d').' 起生效。');
             $this->confirmConfigurationChange = false;
         } catch (DomainException $exception) {
-            $this->addError('configuration', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
         }
     }
 

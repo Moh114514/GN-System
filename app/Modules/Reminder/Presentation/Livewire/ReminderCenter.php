@@ -73,7 +73,7 @@ class ReminderCenter extends Component
             $this->reset('actionNotes', 'snoozeUntil', 'snoozeReason', 'assigneeId');
             Flux::toast(variant: 'success', text: $message);
         } catch (DomainException $exception) {
-            $this->addError('reminder', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
         }
     }
 }

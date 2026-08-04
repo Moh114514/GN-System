@@ -32,9 +32,13 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
+use PhpOffice\PhpSpreadsheet\Cell\DataType;
+use PhpOffice\PhpSpreadsheet\IOFactory;
+use RuntimeException;
 use Tests\TestCase;
 
 class PhaseFiveSettlementTest extends TestCase
@@ -688,8 +692,138 @@ class PhaseFiveSettlementTest extends TestCase
         $failures = app(SettlementRunFailureReader::class)->read($run);
         $this->assertCount(1, $failures);
         $this->assertSame($this->agent->code, $failures[0]->agentCode);
+        $generator = app(SettlementRunFailureReportGenerator::class);
+        $path = $generator->generate($run);
+        $secondPath = $generator->generate($run);
+        $this->assertNotSame($path, $secondPath);
+        Storage::disk('local')->assertExists($path);
+        Storage::disk('local')->assertExists($secondPath);
+
+        $spreadsheet = IOFactory::load(Storage::disk('local')->path($path));
+        $sheet = $spreadsheet->getActiveSheet();
+        $this->assertSame('批次编号', $sheet->getCell('A1')->getValue());
+        $this->assertSame('代理商编号', $sheet->getCell('C1')->getValue());
+        $this->assertSame($this->agent->code, $sheet->getCell('C2')->getValue());
+        $this->assertSame('已完成订单 181 缺少推广费快照。', $sheet->getCell('F2')->getValue());
+        $spreadsheet->disconnectWorksheets();
+
+        $this->actingAs($this->admin)->get(route('settlements.runs.failures.download', $run))
+            ->assertOk()
+            ->assertHeader('content-disposition');
+
+        $run->update(['failed_agents' => 0, 'errors' => null]);
+        $this->actingAs($this->admin)->get(route('settlements.runs.failures', $run->fresh()))
+            ->assertOk()
+            ->assertSee('当前没有未解决的失败项')
+            ->assertDontSee('下载失败报告');
+        $this->actingAs($this->admin)->get(route('settlements.runs.failures.download', $run->fresh()))
+            ->assertNotFound();
+    }
+
+    public function test_failed_run_diagnostics_do_not_require_monthly_agent_context(): void
+    {
+        $agentWithoutGrade = $this->createSettlementAgent(99);
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'partial_failed',
+            'total_agents' => 1,
+            'failed_agents' => 1,
+            'errors' => [(string) $agentWithoutGrade->id => '代理商在当月没有生效政策等级。'],
+        ]);
+
+        $this->actingAs($this->admin)->get(route('settlements.runs.failures', $run))
+            ->assertOk()
+            ->assertSee($agentWithoutGrade->code)
+            ->assertSee('代理商在当月没有生效政策等级。');
+    }
+
+    public function test_failed_run_diagnostics_keep_original_id_when_agent_is_missing(): void
+    {
+        Storage::fake('local');
+        $missingAgentId = 987654321;
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'partial_failed',
+            'total_agents' => 1,
+            'failed_agents' => 1,
+            'errors' => [(string) $missingAgentId => '代理商已被删除。'],
+        ]);
+
+        $this->actingAs($this->admin)->get(route('settlements.runs.failures', $run))
+            ->assertOk()
+            ->assertSee('未知')
+            ->assertSee('代理商不存在或已删除')
+            ->assertSee((string) $missingAgentId);
+
         $path = app(SettlementRunFailureReportGenerator::class)->generate($run);
         Storage::disk('local')->assertExists($path);
+    }
+
+    public function test_failure_report_keeps_formula_like_values_as_strings(): void
+    {
+        Storage::fake('local');
+        $this->agent->update(['name' => '=1+1']);
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'partial_failed',
+            'total_agents' => 1,
+            'failed_agents' => 1,
+            'errors' => [(string) $this->agent->id => '=HYPERLINK("https://example.com","查看")'],
+        ]);
+
+        $path = app(SettlementRunFailureReportGenerator::class)->generate($run);
+        $spreadsheet = IOFactory::load(Storage::disk('local')->path($path));
+        $sheet = $spreadsheet->getActiveSheet();
+
+        $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('D2')->getDataType());
+        $this->assertSame('=1+1', $sheet->getCell('D2')->getValue());
+        $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('F2')->getDataType());
+        $this->assertSame('=HYPERLINK("https://example.com","查看")', $sheet->getCell('F2')->getValue());
+        $spreadsheet->disconnectWorksheets();
+    }
+
+    public function test_unexpected_generation_failures_have_unique_searchable_references(): void
+    {
+        Log::spy();
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'running',
+            'total_agents' => 1,
+        ]);
+        $generator = app(SettlementGenerator::class);
+
+        $generator->markFailed($run->id, $this->agent->id, new RuntimeException('unexpected failure one'));
+        $firstMessage = $run->fresh()->errors[(string) $this->agent->id];
+        $generator->markFailed($run->id, $this->agent->id, new RuntimeException('unexpected failure two'));
+        $secondMessage = $run->fresh()->errors[(string) $this->agent->id];
+
+        preg_match('/参考编号：(.+?)。$/u', $firstMessage, $firstMatches);
+        preg_match('/参考编号：(.+?)。$/u', $secondMessage, $secondMatches);
+        $references = [$firstMatches[1] ?? null, $secondMatches[1] ?? null];
+        $this->assertNotNull($references[0]);
+        $this->assertNotNull($references[1]);
+        $this->assertNotSame($references[0], $references[1]);
+
+        $loggedReferences = [];
+        Log::shouldHaveReceived('error')->twice()->withArgs(function (string $message, array $context) use (&$loggedReferences, $run): bool {
+            if ($message !== 'Settlement generation failed.'
+                || ($context['run_id'] ?? null) !== $run->id
+                || ($context['agent_id'] ?? null) !== $this->agent->id) {
+                return false;
+            }
+            $loggedReferences[] = $context['reference'] ?? null;
+
+            return true;
+        });
+        $this->assertEqualsCanonicalizing($references, $loggedReferences);
     }
 
     public function test_grade_suggestion_requires_manual_review_and_starts_next_month(): void

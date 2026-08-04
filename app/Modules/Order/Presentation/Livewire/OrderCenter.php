@@ -170,7 +170,7 @@ class OrderCenter extends Component
                 translatorLanguageId: $this->translatorLanguageId === '' ? null : (int) $this->translatorLanguageId,
             ));
         } catch (DomainException $exception) {
-            $this->addError('order', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
 
             return;
         }
@@ -186,7 +186,7 @@ class OrderCenter extends Component
         try {
             $workspace->complete($orderId, CarbonImmutable::now('Asia/Shanghai'), (int) Auth::id(), request()->ip());
         } catch (DomainException $exception) {
-            $this->addError('completion', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
 
             return;
         }
