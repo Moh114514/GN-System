@@ -243,7 +243,19 @@ SETTLEMENT_EXCHANGE_RATE_TIMEOUT=10
 
 - 能从系统生成快照、明细、结算文档或有效已完成批次确认的记录标记为 `generated`；零订单但有系统生成快照的记录保留 `item_count=0`，仍可审核；
 - `historical_import`/`demo_data` 或带导入批次的历史记录标记为 `not_applicable`，不把导入数据误当成新月结生成；
-- 无法可靠确认来源的记录标记为 `unverified`，详情页禁止直接审核。存在有效批次的待审核/已驳回记录可重新生成；没有批次的记录必须先由运维核对并形成审计结论。
+- 无法可靠确认来源的记录标记为 `unverified`，详情页禁止直接审核。超级管理员必须填写核验依据后选择“核验为历史导入”或“创建恢复批次并重新生成”；两种操作都会记录操作人、修改前后状态和 IP。普通用户和直接调用生成器都不能把 `unverified` 静默改成 `generated`；
+- 只有 `pending`/`unverified` 且有有效批次的待审核/已驳回记录可以重新生成；`generated` 和 `not_applicable` 都是不可重生成状态，历史记录保持只读。
+
+该功能由 `2026_08_04_000200_backfill_settlement_generation_state` 独立执行回填。
+部署前必须在 UAT 和 Production 分别核对：
+
+```sql
+select migration, batch
+from migrations
+where migration = '2026_08_04_000100_add_settlement_generation_state';
+```
+
+如果 `000100` 已经执行，仍必须确认 `000200` 已执行；不能通过重新部署同一个 migration 文件期待旧代码重新运行回填。
 
 在 UAT 或 Production 执行该版本前，必须先完成目标数据库备份并记录备份文件、数据库名、版本、执行人和时间；迁移后核对 `generation_status` 分布、`item_count` 与
 `settlement_items` 实际数量一致，并抽查待审核、已驳回、已通过、已结清、零订单和历史导入记录。

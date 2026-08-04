@@ -215,8 +215,9 @@ class PhaseFiveSettlementTest extends TestCase
         $settledRun = $completedRun('2026-04-01', '2026-04-30');
         $zeroOrderRun = $completedRun('2026-05-01', '2026-05-31');
 
-        $migration = require database_path('migrations/2026_08_04_000100_add_settlement_generation_state.php');
-        $migration->down();
+        $schemaMigration = require database_path('migrations/2026_08_04_000100_add_settlement_generation_state.php');
+        $backfillMigration = require database_path('migrations/2026_08_04_000200_backfill_settlement_generation_state.php');
+        $schemaMigration->down();
 
         $insertSettlement = function (string $start, string $end, string $status, ?string $snapshot = null, ?string $runId = null) use ($now): int {
             return (int) DB::table('settlements')->insertGetId([
@@ -267,7 +268,8 @@ class PhaseFiveSettlementTest extends TestCase
             ]);
         }
 
-        $migration->up();
+        $schemaMigration->up();
+        $backfillMigration->up();
 
         $this->assertDatabaseHas('settlements', ['id' => $pendingWithItems, 'generation_status' => 'generated', 'item_count' => 1]);
         $this->assertDatabaseHas('settlements', ['id' => $rejectedWithItems, 'generation_status' => 'generated', 'item_count' => 1]);
@@ -278,11 +280,117 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertDatabaseHas('settlements', ['id' => $historical, 'generation_status' => 'not_applicable', 'item_count' => 1]);
         $this->assertDatabaseHas('settlements', ['id' => $unverified, 'generation_status' => 'unverified', 'item_count' => 0]);
 
-        $migration->down();
+        $schemaMigration->down();
         $this->assertFalse(Schema::hasColumn('settlements', 'generation_status'));
-        $migration->up();
+        $schemaMigration->up();
+        $backfillMigration->up();
         $this->assertTrue(Schema::hasColumn('settlements', 'generation_status'));
         $this->assertDatabaseHas('settlements', ['id' => $unverified, 'generation_status' => 'unverified']);
+    }
+
+    public function test_unverified_settlement_can_be_audited_as_historical_and_rejects_normal_users(): void
+    {
+        $settlement = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-06-30',
+            'status' => 'pending_review',
+            'generation_status' => 'unverified',
+        ]);
+        $workflow = app(SettlementWorkflow::class);
+        $workflow->recoverUnverifiedAsHistorical($settlement->id, '核对历史导入台账，确认该记录不属于系统生成批次。', $this->admin->id, '127.0.0.1');
+
+        $this->assertDatabaseHas('settlements', [
+            'id' => $settlement->id,
+            'generation_status' => 'not_applicable',
+            'status' => 'pending_review',
+        ]);
+        $this->assertDatabaseHas('activity_log', [
+            'log_name' => 'settlement',
+            'subject_id' => $settlement->id,
+            'event' => 'generation_recovered',
+        ]);
+
+        $blocked = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'pending_review',
+            'generation_status' => 'unverified',
+        ]);
+        $this->expectException(DomainException::class);
+        $workflow->recoverUnverifiedAsHistorical($blocked->id, '普通用户不应执行该操作。', $this->user->id, '127.0.0.1');
+    }
+
+    public function test_unverified_settlement_can_create_a_recovery_run_and_regenerate(): void
+    {
+        $this->createCompletedOrder(10000);
+        $settlement = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'pending_review',
+            'generation_status' => 'unverified',
+            'total_consumption_krw' => 0,
+            'total_commission_krw' => 0,
+        ]);
+
+        app(SettlementWorkflow::class)->recoverUnverifiedWithBatch(
+            $settlement->id,
+            '核对订单完成记录和代理商合作期间，确认需要按系统规则恢复生成。',
+            $this->admin->id,
+            '127.0.0.1',
+        );
+
+        $settlement->refresh();
+        $run = SettlementRun::query()->findOrFail($settlement->settlement_run_id);
+        $this->assertSame('recovery', $run->trigger_source);
+        $this->assertSame('completed', $run->status);
+        $this->assertSame('generated', $settlement->generation_status);
+        $this->assertSame(1, (int) $settlement->item_count);
+        $this->assertDatabaseHas('activity_log', [
+            'log_name' => 'settlement',
+            'subject_id' => $settlement->id,
+            'event' => 'generation_recovered',
+        ]);
+    }
+
+    public function test_not_applicable_settlements_cannot_be_regenerated_or_show_regeneration_actions(): void
+    {
+        $runs = [];
+        $settlements = [];
+        foreach ([['2026-06-01', '2026-06-30', 'pending_review'], ['2026-07-01', '2026-07-31', 'rejected']] as [$start, $end, $status]) {
+            $run = SettlementRun::query()->create([
+                'period_start' => $start,
+                'period_end' => $end,
+                'trigger_source' => 'historical',
+                'status' => 'running',
+                'total_agents' => 1,
+                'progress_key' => 'not-applicable-'.$start,
+            ]);
+            $settlement = Settlement::query()->create([
+                'settlement_run_id' => $run->id,
+                'agent_id' => $this->agent->id,
+                'period_start' => $start,
+                'period_end' => $end,
+                'status' => $status,
+                'generation_status' => 'not_applicable',
+                'snapshot' => ['source' => 'historical_import'],
+            ]);
+            $runs[] = $run;
+            $settlements[] = $settlement;
+        }
+
+        foreach ($settlements as $index => $settlement) {
+            app(SettlementGenerator::class)->generate($runs[$index]->id, $this->agent->id);
+            $settlement->refresh();
+            $this->assertSame('not_applicable', $settlement->generation_status);
+            $this->assertSame('historical_import', data_get($settlement->snapshot, 'source'));
+            $this->actingAs($this->admin)->get(route('settlements.show', $settlement))
+                ->assertOk()
+                ->assertSee('历史月结，仅供查看')
+                ->assertDontSee('wire:click="regenerateSettlement"', false);
+        }
     }
 
     public function test_historical_period_can_be_selected_and_generated_without_duplicate_run(): void

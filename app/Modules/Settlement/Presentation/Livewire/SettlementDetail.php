@@ -34,6 +34,8 @@ class SettlementDetail extends Component
 
     public string $correctionReason = '';
 
+    public string $generationRecoveryBasis = '';
+
     public function mount(int $settlement, ExchangeRateQuoteService $quotes): void
     {
         $record = Settlement::query()->findOrFail($settlement);
@@ -105,7 +107,7 @@ class SettlementDetail extends Component
     {
         $record = Settlement::query()->findOrFail($this->settlementId);
         if (! in_array($record->status, ['pending_review', 'rejected'], true)
-            || $record->generation_status === 'generated'
+            || ! in_array($record->generation_status, ['pending', 'unverified'], true)
             || $record->settlement_run_id === null) {
             $this->addError('workflow', '只有存在可用批次的月结可以重新生成，请先核对历史数据。');
 
@@ -114,6 +116,24 @@ class SettlementDetail extends Component
         $this->run(
             fn () => $generator->generate((string) $record->settlement_run_id, (int) $record->agent_id),
             '月结明细已重新生成。',
+        );
+    }
+
+    public function recoverUnverifiedAsHistorical(SettlementWorkflow $workflow): void
+    {
+        $this->validateRecoveryBasis();
+        $this->run(
+            fn () => $workflow->recoverUnverifiedAsHistorical($this->settlementId, $this->generationRecoveryBasis, (int) Auth::id(), request()->ip()),
+            '历史月结已核验为不适用，并已记录审计。',
+        );
+    }
+
+    public function createRecoveryBatch(SettlementWorkflow $workflow): void
+    {
+        $this->validateRecoveryBasis();
+        $this->run(
+            fn () => $workflow->recoverUnverifiedWithBatch($this->settlementId, $this->generationRecoveryBasis, (int) Auth::id(), request()->ip()),
+            '恢复批次已创建，月结明细已重新生成。',
         );
     }
 
@@ -155,5 +175,12 @@ class SettlementDetail extends Component
         $this->exchangeRate = $record === null
             ? ''
             : (string) ($record->exchange_rate_krw_per_cny ?? '');
+    }
+
+    private function validateRecoveryBasis(): void
+    {
+        $this->validate([
+            'generationRecoveryBasis' => ['required', 'string', 'max:2000'],
+        ]);
     }
 }
