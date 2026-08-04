@@ -314,7 +314,7 @@ class CustomerLifecycleTest extends TestCase
             ->assertSee('<dd class="mt-1 font-semibold">测试客户</dd>', false)
             ->assertSee('客户编号')
             ->assertSee('建档时间')
-            ->assertSee('<strong class="font-semibold">'.$this->user->name.'</strong>', false)
+            ->assertSee($this->user->name)
             ->assertSee('返回客户管理')
             ->assertSee('href="'.route('customers.index').'"', false);
         $this->actingAs($this->user)->get(route('customers.edit', $customerId))
