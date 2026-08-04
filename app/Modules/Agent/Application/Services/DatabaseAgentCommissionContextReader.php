@@ -16,8 +16,9 @@ final class DatabaseAgentCommissionContextReader implements AgentCommissionConte
     public function forMonth(int $agentId, CarbonImmutable $month): AgentCommissionContextData
     {
         $agent = Agent::query()->findOrFail($agentId);
-        if ($agent->cooperation_status !== 'active') {
-            throw new DomainException('代理商当前不是合作中状态，不能产生新订单或推广费。');
+        if (($agent->cooperation_started_on !== null && $agent->cooperation_started_on->startOfMonth()->isAfter($month->startOfMonth()))
+            || ($agent->cooperation_ended_on !== null && $agent->cooperation_ended_on->endOfMonth()->isBefore($month->startOfMonth()))) {
+            throw new DomainException('代理商在订单月份不具备合作资格，不能产生新订单或推广费。');
         }
 
         $effectiveMonth = $month->startOfMonth();

@@ -1,9 +1,11 @@
 <div>
     <x-page-back :href="route('settlements.index')" label="返回月结中心" class="mb-4" />
     @if (session('status'))<div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>@endif
+    @if (session('warning'))<div class="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{{ session('warning') }}</div>@endif
+    @if (session('error'))<div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>@endif
     @error('workflow')<div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div>@enderror
 
-    @php($needsRegeneration = $settlement->status === 'pending_review' && $items->isEmpty() && $settlement->settlement_run_id !== null)
+    @php($needsRegeneration = $settlement->status === 'pending_review' && $settlement->generation_status !== 'generated' && $settlement->settlement_run_id !== null)
     @if ($needsRegeneration)
         <section class="mb-5 rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
             <h3 class="font-semibold">月结明细尚未生成</h3>
@@ -51,7 +53,10 @@
     @endif
 
     <section class="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-        <div class="flex items-center justify-between"><h3 class="font-semibold">结算明细</h3><div class="flex gap-2">@if ($settlement->status === 'pending_review' && $items->isEmpty())<flux:button wire:click="regenerateSettlement" size="sm" variant="primary">重新生成月结明细</flux:button>@elseif (in_array($settlement->status, ['approved', 'settled']))<flux:button wire:click="regenerateDocuments" size="sm" variant="ghost">重新生成</flux:button>@endif @foreach ($documents as $document)<a class="text-sm font-semibold text-teal-700" href="{{ route('settlements.documents.download', $document->id) }}">下载 {{ strtoupper($document->format) }}</a>@endforeach</div></div>
+        <div class="flex items-center justify-between"><h3 class="font-semibold">结算明细</h3><div class="flex gap-2">@if ($needsRegeneration)<flux:button wire:click="regenerateSettlement" size="sm" variant="primary">重新生成月结明细</flux:button>@elseif (in_array($settlement->status, ['approved', 'settled']))<flux:button wire:click="regenerateDocuments" size="sm" variant="ghost">重新生成</flux:button>@endif @foreach ($documents as $document)<a class="text-sm font-semibold text-teal-700" href="{{ route('settlements.documents.download', $document->id) }}">下载 {{ strtoupper($document->format) }}</a>@endforeach</div></div>
+        @if ($settlement->generation_status === 'generated' && $items->isEmpty())
+            <p class="mt-3 text-sm text-zinc-500">本周期没有已完成订单，已正常生成零订单月结。</p>
+        @endif
         <div class="crm-table-wrap mt-4"><table class="crm-table"><thead><tr><th>订单</th><th>项目/完成日期</th><th>消费额</th><th>费率</th><th>推广费</th></tr></thead><tbody>
             @forelse ($items as $item) @php($snapshot = is_string($item->rule_snapshot) ? json_decode($item->rule_snapshot, true) : (array) $item->rule_snapshot)
                 <tr><td>#{{ data_get($snapshot, 'order.id') }}</td><td>{{ data_get($snapshot, 'order.project_name') }}<div class="text-xs text-zinc-500">{{ data_get($snapshot, 'order.completed_on') }}</div></td><td>₩ {{ number_format($item->consumption_krw) }}</td><td>{{ number_format(data_get($snapshot, 'rate_bps', 0) / 100, 2) }}%</td><td>₩ {{ number_format($item->commission_krw) }}</td></tr>

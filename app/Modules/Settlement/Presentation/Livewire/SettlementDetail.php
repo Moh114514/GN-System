@@ -59,13 +59,22 @@ class SettlementDetail extends Component
 
     public function refreshExchangeRateQuote(ExchangeRateQuoteService $quotes): void
     {
-        $this->run(
-            function () use ($quotes): void {
-                $record = Settlement::query()->findOrFail($this->settlementId);
-                $quotes->refreshFor($record, true);
-            },
-            '最新汇率报价已更新，请核对后提交审核。',
-        );
+        try {
+            $record = $quotes->refreshFor(Settlement::query()->findOrFail($this->settlementId), true);
+            $this->refreshExchangeRate();
+            if ($record->exchange_rate_quote_status === 'available') {
+                session()->flash('status', '最新汇率报价已更新，请核对后提交审核。');
+            } elseif ($record->exchange_rate_quote_status === 'failed_retained_old_rate') {
+                session()->flash('warning', '最新汇率报价失败，已保留原汇率，请人工核对。');
+            } else {
+                session()->flash('error', '最新汇率报价失败，当前没有可用汇率，请手动填写。');
+            }
+        } catch (DomainException $exception) {
+            $this->addError('workflow', $exception->getMessage());
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->addError('workflow', '最新汇率报价失败，请检查服务后重试。');
+        }
     }
 
     public function settle(SettlementWorkflow $workflow): void
@@ -95,8 +104,7 @@ class SettlementDetail extends Component
     public function regenerateSettlement(SettlementGenerator $generator): void
     {
         $record = Settlement::query()->findOrFail($this->settlementId);
-        $hasItems = DB::table('settlement_items')->where('settlement_id', $record->id)->exists();
-        if ($record->status !== 'pending_review' || $hasItems || $record->settlement_run_id === null) {
+        if ($record->status !== 'pending_review' || $record->generation_status === 'generated' || $record->settlement_run_id === null) {
             $this->addError('workflow', '只有已撤回明细的待审核月结可以重新生成。');
 
             return;

@@ -37,7 +37,7 @@ final readonly class SettlementGenerator
             }
             $rebuild = $existing !== null
                 && $existing->status === 'pending_review'
-                && ! DB::table('settlement_items')->where('settlement_id', $existing->id)->exists();
+                && $existing->generation_status !== 'generated';
             if ($existing !== null && $existing->status !== 'rejected' && ! $rebuild) {
                 return;
             }
@@ -74,6 +74,9 @@ final readonly class SettlementGenerator
                     'total_commission_krw' => $totalCommission,
                     'payout_amount_cny_fen' => 0,
                     'status' => 'pending_review',
+                    'generation_status' => 'generated',
+                    'generated_at' => now(),
+                    'item_count' => count($orders),
                     'snapshot' => $snapshot,
                     'reviewed_by' => null,
                     'reviewed_at' => null,

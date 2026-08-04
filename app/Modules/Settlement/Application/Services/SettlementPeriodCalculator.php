@@ -31,15 +31,79 @@ final class SettlementPeriodCalculator
 
     public function latestClosedPeriod(CarbonImmutable $at): SettlementPeriodData
     {
-        $configuration = $this->activeConfiguration($at);
-        $local = $at->setTimezone((string) $configuration->timezone);
-        $boundary = $local->startOfMonth()
-            ->addDays(((int) $configuration->boundary_day) - 1)
-            ->setTimeFromTimeString((string) $configuration->trigger_time);
-        if ($local->lessThan($boundary)) {
-            $boundary = $boundary->subMonthNoOverflow();
+        $closingBoundary = $this->boundaryAtOrBefore($at);
+
+        return $this->periodForClosingBoundary($closingBoundary);
+    }
+
+    /** @return array<int, SettlementPeriodData> */
+    public function recentClosedPeriods(CarbonImmutable $at, int $limit = 13): array
+    {
+        $periods = [];
+        $closingBoundary = $this->boundaryAtOrBefore($at);
+        for ($index = 0; $index < max(1, $limit); $index++) {
+            $periods[] = $this->periodForClosingBoundary($closingBoundary);
+            $closingBoundary = $this->boundaryAtOrBefore(($closingBoundary['at'])->subMicrosecond());
         }
-        $start = $boundary->subMonthNoOverflow()->startOfDay();
+
+        return $periods;
+    }
+
+    /**
+     * @return array{at: CarbonImmutable, configuration: SettlementConfiguration}
+     */
+    private function boundaryAtOrBefore(CarbonImmutable $at): array
+    {
+        $this->activeConfiguration($at);
+        $configurations = SettlementConfiguration::query()->orderBy('effective_from')->get();
+        $candidates = [];
+
+        foreach ($configurations as $index => $configuration) {
+            $timezone = (string) $configuration->timezone;
+            $local = $at->setTimezone($timezone);
+            $nextConfiguration = $configurations[$index + 1] ?? null;
+            for ($offset = -2; $offset <= 1; $offset++) {
+                $candidate = $local->startOfMonth()
+                    ->addMonthsNoOverflow($offset)
+                    ->addDays(((int) $configuration->boundary_day) - 1)
+                    ->setTimeFromTimeString((string) $configuration->trigger_time);
+                if ($candidate->isAfter($at)
+                    || $configuration->effective_from->toDateString() > $candidate->toDateString()
+                    || ($nextConfiguration !== null && $candidate->toDateString() >= $nextConfiguration->effective_from->toDateString())) {
+                    continue;
+                }
+
+                $candidates[] = ['at' => $candidate, 'configuration' => $configuration];
+            }
+        }
+
+        usort($candidates, function (array $left, array $right): int {
+            $atComparison = $right['at']->getTimestamp() <=> $left['at']->getTimestamp();
+            if ($atComparison !== 0) {
+                return $atComparison;
+            }
+
+            return $right['configuration']->effective_from->getTimestamp()
+                <=> $left['configuration']->effective_from->getTimestamp();
+        });
+
+        if ($candidates === []) {
+            throw new DomainException('Unable to rebuild settlement period boundaries from the stored configurations.');
+        }
+
+        return $candidates[0];
+    }
+
+    /**
+     * @param  array{at: CarbonImmutable, configuration: SettlementConfiguration}  $closingBoundary
+     */
+    private function periodForClosingBoundary(array $closingBoundary): SettlementPeriodData
+    {
+        $previousBoundary = $this->boundaryAtOrBefore(($closingBoundary['at'])->subMicrosecond());
+        $configuration = $closingBoundary['configuration'];
+        $timezone = (string) $configuration->timezone;
+        $boundary = $closingBoundary['at']->setTimezone($timezone);
+        $start = $previousBoundary['at']->setTimezone($timezone)->startOfDay();
         $end = $boundary->subDay()->endOfDay();
 
         return new SettlementPeriodData(
@@ -47,23 +111,9 @@ final class SettlementPeriodCalculator
             end: $end,
             boundaryDay: (int) $configuration->boundary_day,
             triggerTime: (string) $configuration->trigger_time,
-            timezone: (string) $configuration->timezone,
+            timezone: $timezone,
             configurationId: (int) $configuration->id,
         );
-    }
-
-    /** @return array<int, SettlementPeriodData> */
-    public function recentClosedPeriods(CarbonImmutable $at, int $limit = 13): array
-    {
-        $periods = [];
-        $cursor = $at;
-        for ($index = 0; $index < max(1, $limit); $index++) {
-            $period = $this->latestClosedPeriod($cursor);
-            $periods[] = $period;
-            $cursor = $period->start->subMicrosecond();
-        }
-
-        return $periods;
     }
 
     public function isDue(CarbonImmutable $at): bool
@@ -94,6 +144,7 @@ final class SettlementPeriodCalculator
         if (preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $triggerTime) !== 1) {
             throw new DomainException('月结触发时间格式无效。');
         }
+        $this->activeConfiguration($now);
         $effectiveFrom = $this->nextBoundary($now, $boundaryDay)->toDateString();
         $this->configurationHistory->capture($actorId);
 

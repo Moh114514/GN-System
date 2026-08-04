@@ -36,11 +36,13 @@ final readonly class ExchangeRateQuoteService
                 return;
             }
 
+            $attemptedAt = now();
             if ($quote->available) {
                 $locked->update([
                     'exchange_rate_krw_per_cny' => $quote->rate,
                     'exchange_rate_quote_source' => $quote->source,
                     'exchange_rate_quoted_at' => $quote->quotedAt,
+                    'exchange_rate_quote_attempted_at' => $attemptedAt,
                     'exchange_rate_quote_status' => 'available',
                     'exchange_rate_quote_error' => null,
                     'exchange_rate_manual_override' => false,
@@ -51,12 +53,15 @@ final readonly class ExchangeRateQuoteService
 
             $attributes = [
                 'exchange_rate_quote_error' => (string) str($quote->failureReason)->limit(500, ''),
+                'exchange_rate_quote_attempted_at' => $attemptedAt,
+                'exchange_rate_quote_status' => $locked->exchange_rate_krw_per_cny === null
+                    ? 'unavailable'
+                    : 'failed_retained_old_rate',
             ];
             if ($locked->exchange_rate_krw_per_cny === null) {
                 $attributes += [
                     'exchange_rate_quote_source' => $quote->source,
                     'exchange_rate_quoted_at' => null,
-                    'exchange_rate_quote_status' => 'unavailable',
                     'exchange_rate_manual_override' => false,
                 ];
             }

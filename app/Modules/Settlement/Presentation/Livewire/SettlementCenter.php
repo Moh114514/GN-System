@@ -2,6 +2,7 @@
 
 namespace App\Modules\Settlement\Presentation\Livewire;
 
+use App\Modules\Settlement\Application\Data\SettlementRunStartResult;
 use App\Modules\Settlement\Application\Services\SettlementNotificationDispatcher;
 use App\Modules\Settlement\Application\Services\SettlementPeriodCalculator;
 use App\Modules\Settlement\Application\Services\SettlementRunManager;
@@ -35,8 +36,7 @@ class SettlementCenter extends Component
 
     public function generate(SettlementRunManager $manager): void
     {
-        $run = $manager->start('manual', (int) Auth::id());
-        session()->flash('status', "月结批次 {$run->id} 已进入处理队列。");
+        $this->flashStartResult($manager->startWithResult('manual', (int) Auth::id()), '月结');
     }
 
     public function generateHistorical(SettlementRunManager $manager): void
@@ -45,8 +45,7 @@ class SettlementCenter extends Component
             'historicalPeriodEnd' => ['required', 'date_format:Y-m-d'],
         ]);
         try {
-            $run = $manager->startHistorical($this->historicalPeriodEnd, (int) Auth::id());
-            session()->flash('status', "往期月结批次 {$run->id} 已进入处理队列。");
+            $this->flashStartResult($manager->startHistoricalWithResult($this->historicalPeriodEnd, (int) Auth::id()), '往期月结');
         } catch (DomainException $exception) {
             $this->addError('historicalPeriodEnd', $exception->getMessage());
         }
@@ -102,5 +101,22 @@ class SettlementCenter extends Component
             'runs' => SettlementRun::query()->latest('period_end')->limit(24)->get(),
             'historicalPeriods' => array_slice($periods, 1),
         ]);
+    }
+
+    private function flashStartResult(SettlementRunStartResult $result, string $label): void
+    {
+        $message = match ($result->outcome) {
+            'created_and_dispatched' => "{$label}批次 {$result->run->id} 已进入处理队列。",
+            'created_and_completed' => "{$label}批次 {$result->run->id} 已完成，没有需要处理的代理商。",
+            'created_partial_failed' => "{$label}批次 {$result->run->id} 已创建，但有代理商处理失败，请使用“重试失败项”。",
+            'existing_running' => "该周期已有正在处理的月结批次 {$result->run->id}，没有重复派发任务。",
+            'existing_completed' => "该周期已完成月结批次 {$result->run->id}，没有重复派发任务。",
+            'existing_partial_failed' => "该周期已有部分失败批次 {$result->run->id}，请使用“重试失败项”，没有重复派发任务。",
+            default => "该周期已有月结批次 {$result->run->id}，没有重复派发任务。",
+        };
+        $key = str_starts_with($result->outcome, 'existing_') || $result->outcome === 'created_partial_failed'
+            ? 'warning'
+            : 'status';
+        session()->flash($key, $message);
     }
 }

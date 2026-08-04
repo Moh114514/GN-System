@@ -14,13 +14,20 @@ final readonly class DatabaseSettlementAgentGateway implements SettlementAgentGa
 {
     public function __construct(private DatabaseAgentCommissionContextReader $contexts) {}
 
-    public function activeForMonth(CarbonImmutable $month): array
+    public function eligibleForPeriod(CarbonImmutable $periodStart, CarbonImmutable $periodEnd): array
     {
         return Agent::query()
-            ->where('cooperation_status', 'active')
+            ->where(function ($query) use ($periodEnd): void {
+                $query->whereNull('cooperation_started_on')
+                    ->orWhereDate('cooperation_started_on', '<=', $periodEnd);
+            })
+            ->where(function ($query) use ($periodStart): void {
+                $query->whereNull('cooperation_ended_on')
+                    ->orWhereDate('cooperation_ended_on', '>=', $periodStart);
+            })
             ->orderBy('id')
-            ->get()
-            ->map(fn (Agent $agent): SettlementAgentData => $this->data((int) $agent->id, $month))
+            ->pluck('id')
+            ->map(static fn ($id): int => (int) $id)
             ->all();
     }
 
