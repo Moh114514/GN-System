@@ -34,8 +34,6 @@ class OrderCenter extends Component
 
     public bool $showCreate = false;
 
-    public bool $showDeleted = false;
-
     public string $customerSearch = '';
 
     public string $customerId = '';
@@ -81,7 +79,6 @@ class OrderCenter extends Component
         'institutionFilter' => ['except' => ''],
         'agentFilter' => ['except' => ''],
         'perPage' => ['except' => 20],
-        'showDeleted' => ['except' => false],
     ];
 
     public function mount(OrderManagementWorkspace $workspace): void
@@ -92,7 +89,7 @@ class OrderCenter extends Component
 
     public function updated(string $property): void
     {
-        if (in_array($property, ['search', 'statusFilter', 'channelFilter', 'institutionFilter', 'agentFilter', 'perPage', 'showDeleted'], true)) {
+        if (in_array($property, ['search', 'statusFilter', 'channelFilter', 'institutionFilter', 'agentFilter', 'perPage'], true)) {
             $this->resetPage();
         }
         if ($property === 'customerSearch') {
@@ -197,7 +194,7 @@ class OrderCenter extends Component
 
     public function clearFilters(): void
     {
-        $this->reset('search', 'statusFilter', 'channelFilter', 'institutionFilter', 'agentFilter', 'showDeleted');
+        $this->reset('search', 'statusFilter', 'channelFilter', 'institutionFilter', 'agentFilter');
         $this->perPage = 20;
         $this->resetPage();
     }
@@ -210,7 +207,7 @@ class OrderCenter extends Component
             'channel' => $this->channelFilter,
             'institution_id' => $this->institutionFilter === '' ? null : (int) $this->institutionFilter,
             'agent_id' => $this->agentFilter === '' ? null : (int) $this->agentFilter,
-        ], in_array($this->perPage, [20, 50, 100], true) ? $this->perPage : 20, $this->showDeleted, (bool) Auth::user()?->is_super_admin);
+        ], in_array($this->perPage, [20, 50, 100], true) ? $this->perPage : 20);
 
         return view('livewire.orders.order-center', compact('orders'));
     }

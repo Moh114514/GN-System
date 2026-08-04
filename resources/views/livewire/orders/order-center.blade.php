@@ -4,7 +4,12 @@
             <h2 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">订单管理</h2>
             <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">统一录入和查询订单；订单完成时同步固化推广费与术后提醒。</p>
         </div>
-        <flux:button wire:click="openCreate" variant="primary" size="sm" icon="plus">新建订单</flux:button>
+        <div class="flex flex-wrap gap-2">
+            @if (auth()->user()?->is_super_admin)
+                <flux:button :href="route('orders.recycle-bin')" wire:navigate variant="ghost" size="sm">回收站</flux:button>
+            @endif
+            <flux:button wire:click="openCreate" variant="primary" size="sm" icon="plus">新建订单</flux:button>
+        </div>
     </section>
 
     @if (session('status'))
@@ -128,10 +133,6 @@
                 <flux:select.option value="completed">已完成</flux:select.option>
                 <flux:select.option value="cancelled">已取消</flux:select.option>
             </flux:select>
-            <flux:select class="w-32" wire:model.live="showDeleted" size="sm" aria-label="订单记录范围">
-                <flux:select.option value="0">正常订单</flux:select.option>
-                <flux:select.option value="1">回收站</flux:select.option>
-            </flux:select>
             <flux:select class="w-32" wire:model.live="channelFilter" size="sm" aria-label="订单渠道筛选">
                 <flux:select.option value="">全部渠道</flux:select.option>
                 <flux:select.option value="agent">代理商</flux:select.option>
@@ -182,7 +183,7 @@
                             <td>{{ $order['completed_at'] ?? $order['created_at'] }}<div class="text-xs text-zinc-500">{{ $order['completed_at'] ? '成交时间' : '创建时间' }}</div></td>
                             <td>
                                 <flux:button href="{{ route('orders.show', $order['id']) }}" wire:navigate variant="ghost" size="sm">查看详情</flux:button>
-                                @if (! $showDeleted && $order['status'] === 'pending')
+                                @if ($order['status'] === 'pending')
                                     <flux:button wire:click="complete({{ $order['id'] }})" wire:confirm="确认将此订单标记为已完成？完成后会固化推广费和术后提醒，不能在此页面修改。" size="sm">标记完成</flux:button>
                                 @endif
                             </td>

@@ -12,6 +12,7 @@ use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Order\Application\Contracts\DailyOrderGateway;
 use App\Modules\Order\Application\Data\DailyOrderData;
+use App\Modules\Settlement\Application\Services\ExchangeRateQuoteService;
 use App\Modules\Settlement\Application\Services\SettlementGenerator;
 use App\Modules\Settlement\Application\Services\SettlementPeriodCalculator;
 use App\Modules\Settlement\Application\Services\SettlementRunManager;
@@ -28,6 +29,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -118,10 +120,29 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame(15, $calculator->activeConfiguration(CarbonImmutable::parse('2026-08-15'))->boundary_day);
     }
 
+    public function test_period_history_rebuilds_real_boundaries_across_configuration_changes(): void
+    {
+        $calculator = app(SettlementPeriodCalculator::class);
+        $calculator->saveConfiguration(15, '10:30', $this->admin->id, CarbonImmutable::now());
+
+        $periods = $calculator->recentClosedPeriods(CarbonImmutable::parse('2026-09-20 12:00:00'), 4);
+
+        $this->assertSame(['2026-08-15', '2026-08-01', '2026-07-01', '2026-06-01'], array_map(
+            static fn ($period): string => $period->start->toDateString(),
+            $periods,
+        ));
+        $this->assertSame(['2026-09-14', '2026-08-14', '2026-07-31', '2026-06-30'], array_map(
+            static fn ($period): string => $period->end->toDateString(),
+            $periods,
+        ));
+    }
+
     public function test_monthly_run_aggregates_snapshots_and_is_idempotent(): void
     {
         $orderId = $this->createCompletedOrder(10005);
-        $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
+        $manager = app(SettlementRunManager::class);
+        $result = $manager->startWithResult('manual', $this->admin->id);
+        $run = $result->run;
         $run->refresh();
         $settlement = Settlement::query()->where('settlement_run_id', $run->id)->firstOrFail();
 
@@ -132,8 +153,261 @@ class PhaseFiveSettlementTest extends TestCase
 
         $same = app(SettlementRunManager::class)->start('manual', $this->admin->id);
         $this->assertSame($run->id, $same->id);
+        $this->assertSame('created_and_completed', $result->outcome);
+        $this->assertSame('existing_completed', $manager->startWithResult('manual', $this->admin->id)->outcome);
         $this->assertDatabaseCount('settlement_runs', 1);
         $this->assertDatabaseCount('settlements', 1);
+    }
+
+    public function test_historical_run_uses_period_eligibility_instead_of_current_status(): void
+    {
+        $this->agent->update([
+            'cooperation_status' => 'terminated',
+            'cooperation_ended_on' => '2026-06-30',
+        ]);
+        $type = AgentTypeCode::query()->where('code', 'JG')->firstOrFail();
+        $notYetJoined = Agent::query()->create([
+            'agent_type_code_id' => $type->id,
+            'code' => 'FUTURE-JG',
+            'name' => '历史周期后加入代理商',
+            'cooperation_status' => 'active',
+            'cooperation_started_on' => '2026-07-15',
+        ]);
+
+        $period = app(SettlementPeriodCalculator::class)->recentClosedPeriods(CarbonImmutable::now(), 2)[1];
+        $run = app(SettlementRunManager::class)->startHistorical($period->end->toDateString(), $this->admin->id);
+
+        $this->assertDatabaseHas('settlements', ['settlement_run_id' => $run->id, 'agent_id' => $this->agent->id]);
+        $this->assertDatabaseMissing('settlements', ['settlement_run_id' => $run->id, 'agent_id' => $notYetJoined->id]);
+    }
+
+    public function test_zero_order_settlement_is_generated_and_can_be_approved(): void
+    {
+        Storage::fake('local');
+        $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
+        $settlement = Settlement::query()->where('settlement_run_id', $run->id)->firstOrFail();
+
+        $this->assertSame('generated', $settlement->generation_status);
+        $this->assertSame(0, (int) $settlement->item_count);
+        $this->assertDatabaseCount('settlement_items', 0);
+
+        app(SettlementWorkflow::class)->approve($settlement->id, '200', $this->admin->id, '127.0.0.1');
+
+        $this->assertDatabaseHas('settlements', ['id' => $settlement->id, 'status' => 'approved', 'total_commission_krw' => 0]);
+    }
+
+    public function test_generation_state_migration_backfills_legacy_rows_and_preserves_rollback(): void
+    {
+        $orderId = $this->createCompletedOrder(10000);
+        $orderCommissionId = (int) DB::table('order_commissions')->where('order_id', $orderId)->value('id');
+        $now = now();
+        $completedRun = fn (string $start, string $end): SettlementRun => SettlementRun::query()->create([
+            'period_start' => $start,
+            'period_end' => $end,
+            'trigger_source' => 'manual',
+            'status' => 'completed',
+            'total_agents' => 1,
+            'processed_agents' => 1,
+            'completed_at' => $now,
+            'progress_key' => 'migration-test-'.$start,
+        ]);
+        $approvedRun = $completedRun('2026-03-01', '2026-03-31');
+        $settledRun = $completedRun('2026-04-01', '2026-04-30');
+        $zeroOrderRun = $completedRun('2026-05-01', '2026-05-31');
+
+        $schemaMigration = require database_path('migrations/2026_08_04_000100_add_settlement_generation_state.php');
+        $backfillMigration = require database_path('migrations/2026_08_04_000200_backfill_settlement_generation_state.php');
+        $schemaMigration->down();
+
+        $insertSettlement = function (string $start, string $end, string $status, ?string $snapshot = null, ?string $runId = null) use ($now): int {
+            return (int) DB::table('settlements')->insertGetId([
+                'agent_id' => $this->agent->id,
+                'settlement_run_id' => $runId,
+                'period_start' => $start,
+                'period_end' => $end,
+                'status' => $status,
+                'snapshot' => $snapshot,
+                'total_consumption_krw' => 10000,
+                'total_commission_krw' => 1000,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        };
+
+        $pendingWithItems = $insertSettlement('2026-01-01', '2026-01-31', 'pending_review');
+        $rejectedWithItems = $insertSettlement('2026-02-01', '2026-02-28', 'rejected');
+        $approved = $insertSettlement('2026-03-01', '2026-03-31', 'approved', null, $approvedRun->id);
+        $settled = $insertSettlement('2026-04-01', '2026-04-30', 'settled', null, $settledRun->id);
+        $zeroOrder = $insertSettlement(
+            '2026-05-01',
+            '2026-05-31',
+            'pending_review',
+            json_encode([
+                'source' => 'phase_five_generation',
+                'generated_at' => '2026-05-10T12:00:00+08:00',
+            ], JSON_THROW_ON_ERROR),
+            $zeroOrderRun->id,
+        );
+        $historical = $insertSettlement(
+            '2026-06-01',
+            '2026-06-30',
+            'paid',
+            json_encode(['source' => 'demo_data'], JSON_THROW_ON_ERROR),
+        );
+        $unverified = $insertSettlement('2026-07-01', '2026-07-31', 'pending_review');
+
+        foreach ([$pendingWithItems, $rejectedWithItems, $historical] as $settlementId) {
+            DB::table('settlement_items')->insert([
+                'settlement_id' => $settlementId,
+                'order_commission_id' => $orderCommissionId,
+                'consumption_krw' => 10000,
+                'commission_krw' => 1000,
+                'rule_snapshot' => json_encode(['rate_bps' => 1000], JSON_THROW_ON_ERROR),
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+
+        $schemaMigration->up();
+        $backfillMigration->up();
+
+        $this->assertDatabaseHas('settlements', ['id' => $pendingWithItems, 'generation_status' => 'generated', 'item_count' => 1]);
+        $this->assertDatabaseHas('settlements', ['id' => $rejectedWithItems, 'generation_status' => 'generated', 'item_count' => 1]);
+        $this->assertNotNull(DB::table('settlements')->where('id', $approved)->value('generated_at'));
+        $this->assertNotNull(DB::table('settlements')->where('id', $settled)->value('generated_at'));
+        $this->assertDatabaseHas('settlements', ['id' => $zeroOrder, 'generation_status' => 'generated', 'item_count' => 0]);
+        $this->assertSame('2026-05-10 12:00:00', DB::table('settlements')->where('id', $zeroOrder)->value('generated_at'));
+        $this->assertDatabaseHas('settlements', ['id' => $historical, 'generation_status' => 'not_applicable', 'item_count' => 1]);
+        $this->assertDatabaseHas('settlements', ['id' => $unverified, 'generation_status' => 'unverified', 'item_count' => 0]);
+
+        $schemaMigration->down();
+        $this->assertFalse(Schema::hasColumn('settlements', 'generation_status'));
+        $schemaMigration->up();
+        $backfillMigration->up();
+        $this->assertTrue(Schema::hasColumn('settlements', 'generation_status'));
+        $this->assertDatabaseHas('settlements', ['id' => $unverified, 'generation_status' => 'unverified']);
+    }
+
+    public function test_unverified_settlement_can_be_audited_as_historical_and_rejects_normal_users(): void
+    {
+        $settlement = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-06-30',
+            'status' => 'pending_review',
+            'generation_status' => 'unverified',
+        ]);
+        $workflow = app(SettlementWorkflow::class);
+        $workflow->recoverUnverifiedAsHistorical($settlement->id, '核对历史导入台账，确认该记录不属于系统生成批次。', $this->admin->id, '127.0.0.1');
+
+        $this->assertDatabaseHas('settlements', [
+            'id' => $settlement->id,
+            'generation_status' => 'not_applicable',
+            'status' => 'pending_review',
+        ]);
+        $this->assertDatabaseHas('activity_log', [
+            'log_name' => 'settlement',
+            'subject_id' => $settlement->id,
+            'event' => 'generation_recovered',
+        ]);
+
+        $blocked = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'pending_review',
+            'generation_status' => 'unverified',
+        ]);
+        $this->expectException(DomainException::class);
+        $workflow->recoverUnverifiedAsHistorical($blocked->id, '普通用户不应执行该操作。', $this->user->id, '127.0.0.1');
+    }
+
+    public function test_unverified_settlement_can_create_a_recovery_run_and_regenerate(): void
+    {
+        $this->createCompletedOrder(10000);
+        $settlement = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'pending_review',
+            'generation_status' => 'unverified',
+            'total_consumption_krw' => 0,
+            'total_commission_krw' => 0,
+        ]);
+
+        app(SettlementWorkflow::class)->recoverUnverifiedWithBatch(
+            $settlement->id,
+            '核对订单完成记录和代理商合作期间，确认需要按系统规则恢复生成。',
+            $this->admin->id,
+            '127.0.0.1',
+        );
+
+        $settlement->refresh();
+        $run = SettlementRun::query()->findOrFail($settlement->settlement_run_id);
+        $this->assertSame('recovery', $run->trigger_source);
+        $this->assertSame('completed', $run->status);
+        $this->assertSame('generated', $settlement->generation_status);
+        $this->assertSame(1, (int) $settlement->item_count);
+        $this->assertDatabaseHas('activity_log', [
+            'log_name' => 'settlement',
+            'subject_id' => $settlement->id,
+            'event' => 'generation_recovered',
+        ]);
+    }
+
+    public function test_not_applicable_settlements_cannot_be_regenerated_or_show_regeneration_actions(): void
+    {
+        $runs = [];
+        $settlements = [];
+        foreach ([['2026-06-01', '2026-06-30', 'pending_review'], ['2026-07-01', '2026-07-31', 'rejected']] as [$start, $end, $status]) {
+            $run = SettlementRun::query()->create([
+                'period_start' => $start,
+                'period_end' => $end,
+                'trigger_source' => 'historical',
+                'status' => 'running',
+                'total_agents' => 1,
+                'progress_key' => 'not-applicable-'.$start,
+            ]);
+            $settlement = Settlement::query()->create([
+                'settlement_run_id' => $run->id,
+                'agent_id' => $this->agent->id,
+                'period_start' => $start,
+                'period_end' => $end,
+                'status' => $status,
+                'generation_status' => 'not_applicable',
+                'snapshot' => ['source' => 'historical_import'],
+            ]);
+            $runs[] = $run;
+            $settlements[] = $settlement;
+        }
+
+        foreach ($settlements as $index => $settlement) {
+            app(SettlementGenerator::class)->generate($runs[$index]->id, $this->agent->id);
+            $settlement->refresh();
+            $this->assertSame('not_applicable', $settlement->generation_status);
+            $this->assertSame('historical_import', data_get($settlement->snapshot, 'source'));
+            $this->actingAs($this->admin)->get(route('settlements.show', $settlement))
+                ->assertOk()
+                ->assertSee('历史月结，仅供查看')
+                ->assertDontSee('wire:click="regenerateSettlement"', false);
+        }
+    }
+
+    public function test_historical_period_can_be_selected_and_generated_without_duplicate_run(): void
+    {
+        $calculator = app(SettlementPeriodCalculator::class);
+        $periods = $calculator->recentClosedPeriods(CarbonImmutable::now(), 3);
+        $historical = $periods[1];
+
+        $manager = app(SettlementRunManager::class);
+        $run = $manager->startHistorical($historical->end->toDateString(), $this->admin->id);
+        $same = $manager->startHistorical($historical->end->toDateString(), $this->admin->id);
+
+        $this->assertSame($run->id, $same->id);
+        $this->assertSame('historical', $run->trigger_source);
+        $this->assertSame($historical->start->toDateString(), $run->period_start->toDateString());
+        $this->assertSame($historical->end->toDateString(), $run->period_end->toDateString());
+        $this->assertDatabaseCount('settlement_runs', 1);
     }
 
     public function test_review_generates_equal_document_snapshots_and_settles(): void
@@ -243,7 +517,7 @@ class PhaseFiveSettlementTest extends TestCase
         $this->createCompletedOrder(10000);
         $settlement = Settlement::query()->where('settlement_run_id', app(SettlementRunManager::class)->start('manual', $this->admin->id)->id)->firstOrFail();
 
-        $this->actingAs($this->admin)->get(route('settlements.show', $settlement))->assertOk()->assertSee('自动报价不可用');
+        $this->actingAs($this->admin)->get(route('settlements.show', $settlement))->assertOk()->assertSee('最新报价不可用');
         $settlement->refresh();
         $this->assertSame('unavailable', $settlement->exchange_rate_quote_status);
         app(SettlementWorkflow::class)->approve($settlement->id, '200', $this->admin->id, '127.0.0.1');
@@ -264,16 +538,47 @@ class PhaseFiveSettlementTest extends TestCase
         ]);
         $this->assertDatabaseMissing('settlement_items', ['settlement_id' => $settlement->id]);
         $this->assertDatabaseMissing('settlement_documents', ['settlement_id' => $settlement->id]);
-        $this->assertDatabaseHas('settlements', [
-            'id' => $settlement->id,
-            'exchange_rate_krw_per_cny' => null,
-            'exchange_rate_quote_source' => null,
-            'total_consumption_krw' => 0,
-            'total_commission_krw' => 0,
-        ]);
+        $settlement->refresh();
+        $this->assertSame('200.000000', (string) $settlement->exchange_rate_krw_per_cny);
+        $this->assertSame(0, $settlement->total_consumption_krw);
+        $this->assertSame(0, $settlement->total_commission_krw);
         app(SettlementGenerator::class)->generate((string) $settlement->settlement_run_id, $this->agent->id);
+        $settlement->refresh();
+        $this->assertGreaterThan(0, $settlement->total_consumption_krw);
+        $this->assertGreaterThan(0, $settlement->total_commission_krw);
         $this->assertDatabaseHas('settlement_items', ['settlement_id' => $settlement->id]);
         $this->assertDatabaseHas('activity_log', ['log_name' => 'settlement', 'subject_id' => $settlement->id, 'event' => 'status_corrected']);
+    }
+
+    public function test_quote_failure_with_existing_rate_is_marked_without_success_feedback(): void
+    {
+        config([
+            'services.settlement_exchange_rate.enabled' => true,
+            'services.settlement_exchange_rate.provider' => 'api_hz',
+            'services.settlement_exchange_rate.url' => 'https://quotes-retained.test/api/jinrong/huilv.php',
+            'services.settlement_exchange_rate.id' => 'test-id',
+            'services.settlement_exchange_rate.key' => 'test-key',
+        ]);
+        Http::fake(['https://quotes-retained.test/*' => Http::response([], 503)]);
+        $settlement = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'pending_review',
+            'generation_status' => 'generated',
+            'exchange_rate_krw_per_cny' => '200.000000',
+            'exchange_rate_quote_status' => 'available',
+            'exchange_rate_quote_source' => 'api_hz',
+            'exchange_rate_quoted_at' => '2026-07-31 09:00:00',
+        ]);
+
+        app(ExchangeRateQuoteService::class)->refreshFor($settlement, true);
+        $settlement->refresh();
+
+        $this->assertSame('failed_retained_old_rate', $settlement->exchange_rate_quote_status);
+        $this->assertSame('200.000000', (string) $settlement->exchange_rate_krw_per_cny);
+        $this->assertNotNull($settlement->exchange_rate_quote_attempted_at);
+        $this->assertNotNull($settlement->exchange_rate_quote_error);
     }
 
     public function test_settlement_pages_enforce_admin_and_parent_navigation(): void

@@ -7,8 +7,8 @@ use Carbon\CarbonImmutable;
 
 interface SettlementAgentGateway
 {
-    /** @return array<int, SettlementAgentData> */
-    public function activeForMonth(CarbonImmutable $month): array;
+    /** @return array<int, int> */
+    public function eligibleForPeriod(CarbonImmutable $periodStart, CarbonImmutable $periodEnd): array;
 
     public function forMonth(int $agentId, CarbonImmutable $month): SettlementAgentData;
 

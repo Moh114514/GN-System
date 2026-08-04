@@ -34,11 +34,15 @@ class SettlementDetail extends Component
 
     public string $correctionReason = '';
 
+    public string $generationRecoveryBasis = '';
+
     public function mount(int $settlement, ExchangeRateQuoteService $quotes): void
     {
         $record = Settlement::query()->findOrFail($settlement);
         $this->settlementId = $settlement;
-        $record = $quotes->refreshFor($record);
+        if ($record->exchange_rate_krw_per_cny === null) {
+            $record = $quotes->refreshFor($record);
+        }
         $this->exchangeRate = (string) ($record->exchange_rate_krw_per_cny ?? '');
         $this->correctionTarget = $record->status === 'approved' ? 'settled' : 'pending_review';
     }
@@ -55,6 +59,26 @@ class SettlementDetail extends Component
         $this->run(fn () => $workflow->approve($this->settlementId, $this->exchangeRate, (int) Auth::id(), request()->ip()), '月结已审核通过，Word/PDF 已生成。');
     }
 
+    public function refreshExchangeRateQuote(ExchangeRateQuoteService $quotes): void
+    {
+        try {
+            $record = $quotes->refreshFor(Settlement::query()->findOrFail($this->settlementId), true);
+            $this->refreshExchangeRate();
+            if ($record->exchange_rate_quote_status === 'available') {
+                session()->flash('status', '最新汇率报价已更新，请核对后提交审核。');
+            } elseif ($record->exchange_rate_quote_status === 'failed_retained_old_rate') {
+                session()->flash('warning', '最新汇率报价失败，已保留原汇率，请人工核对。');
+            } else {
+                session()->flash('error', '最新汇率报价失败，当前没有可用汇率，请手动填写。');
+            }
+        } catch (DomainException $exception) {
+            $this->addError('workflow', $exception->getMessage());
+        } catch (Throwable $exception) {
+            report($exception);
+            $this->addError('workflow', '最新汇率报价失败，请检查服务后重试。');
+        }
+    }
+
     public function settle(SettlementWorkflow $workflow): void
     {
         $this->run(fn () => $workflow->settle($this->settlementId, (int) Auth::id(), request()->ip()), '月结已确认结清。');
@@ -68,7 +92,9 @@ class SettlementDetail extends Component
         ]);
         $this->run(
             fn () => $workflow->correctStatus($this->settlementId, $this->correctionTarget, $this->correctionReason, (int) Auth::id(), request()->ip()),
-            '月结状态已更正，并已记录审计原因。',
+            $this->correctionTarget === 'pending_review'
+                ? '月结已回退到待审核，请先重新生成月结明细并核对汇率。'
+                : '月结状态已更正，并已记录审计原因。',
         );
     }
 
@@ -80,15 +106,34 @@ class SettlementDetail extends Component
     public function regenerateSettlement(SettlementGenerator $generator): void
     {
         $record = Settlement::query()->findOrFail($this->settlementId);
-        $hasItems = DB::table('settlement_items')->where('settlement_id', $record->id)->exists();
-        if ($record->status !== 'pending_review' || $hasItems || $record->settlement_run_id === null) {
-            $this->addError('workflow', '只有已撤回明细的待审核月结可以重新生成。');
+        if (! in_array($record->status, ['pending_review', 'rejected'], true)
+            || ! in_array($record->generation_status, ['pending', 'unverified'], true)
+            || $record->settlement_run_id === null) {
+            $this->addError('workflow', '只有存在可用批次的月结可以重新生成，请先核对历史数据。');
 
             return;
         }
         $this->run(
             fn () => $generator->generate((string) $record->settlement_run_id, (int) $record->agent_id),
             '月结明细已重新生成。',
+        );
+    }
+
+    public function recoverUnverifiedAsHistorical(SettlementWorkflow $workflow): void
+    {
+        $this->validateRecoveryBasis();
+        $this->run(
+            fn () => $workflow->recoverUnverifiedAsHistorical($this->settlementId, $this->generationRecoveryBasis, (int) Auth::id(), request()->ip()),
+            '历史月结已核验为不适用，并已记录审计。',
+        );
+    }
+
+    public function createRecoveryBatch(SettlementWorkflow $workflow): void
+    {
+        $this->validateRecoveryBasis();
+        $this->run(
+            fn () => $workflow->recoverUnverifiedWithBatch($this->settlementId, $this->generationRecoveryBasis, (int) Auth::id(), request()->ip()),
+            '恢复批次已创建，月结明细已重新生成。',
         );
     }
 
@@ -130,5 +175,12 @@ class SettlementDetail extends Component
         $this->exchangeRate = $record === null
             ? ''
             : (string) ($record->exchange_rate_krw_per_cny ?? '');
+    }
+
+    private function validateRecoveryBasis(): void
+    {
+        $this->validate([
+            'generationRecoveryBasis' => ['required', 'string', 'max:2000'],
+        ]);
     }
 }

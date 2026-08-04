@@ -8,6 +8,7 @@
     </section>
 
     @if (session('status'))<div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>@endif
+    @if (session('warning'))<div class="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{{ session('warning') }}</div>@endif
     @error('configuration')<div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div>@enderror
 
     <section class="mb-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
@@ -21,6 +22,21 @@
         </form>
     </section>
 
+    <section class="mb-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm dark:border-amber-900 dark:bg-amber-950/30">
+        <h3 class="font-semibold text-amber-900 dark:text-amber-100">生成往期月结</h3>
+        <p class="mt-1 text-sm text-amber-800 dark:text-amber-200">选择已关闭的历史周期，复用现有月结生成、审核和结清流程。已存在的周期不会重复生成。</p>
+        <form wire:submit="generateHistorical" class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end">
+            <flux:select class="sm:min-w-96" wire:model="historicalPeriodEnd" label="往期节点" required>
+                <flux:select.option value="">请选择周期</flux:select.option>
+                @foreach ($historicalPeriods as $period)
+                    <flux:select.option value="{{ $period->end->toDateString() }}">{{ $period->start->format('Y-m-d') }} 至 {{ $period->end->format('Y-m-d') }}</flux:select.option>
+                @endforeach
+            </flux:select>
+            <flux:button class="sm:mt-6" type="submit" variant="primary">生成往期月结</flux:button>
+        </form>
+        @error('historicalPeriodEnd')<p class="mt-2 text-sm text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
+    </section>
+
     <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <div class="flex items-center justify-between"><h3 class="font-semibold">月结批次</h3></div>
         <div class="crm-table-wrap mt-4"><table class="crm-table">
@@ -28,7 +44,7 @@
             <tbody>
             @forelse ($runs as $run)
                 <tr wire:poll.10s>
-                    <td>{{ $run->period_start->format('Y-m-d') }} 至 {{ $run->period_end->format('Y-m-d') }}<div class="text-xs text-zinc-500">{{ $run->trigger_source === 'manual' ? '手动' : '自动' }}</div></td>
+                    <td>{{ $run->period_start->format('Y-m-d') }} 至 {{ $run->period_end->format('Y-m-d') }}<div class="text-xs text-zinc-500">{{ ['manual' => '手动', 'historical' => '往期手动', 'scheduled' => '自动'][$run->trigger_source] ?? $run->trigger_source }}</div></td>
                     <td>{{ $run->processed_agents + $run->failed_agents }}/{{ $run->total_agents }}<div class="text-xs text-red-600">失败 {{ $run->failed_agents }}</div></td>
                     <td>₩ {{ number_format($run->total_consumption_krw) }}<div class="text-xs text-zinc-500">推广费 ₩ {{ number_format($run->total_commission_krw) }}</div></td>
                     <td>{{ ['queued'=>'排队中','running'=>'处理中','completed'=>'已生成','partial_failed'=>'部分失败','failed'=>'失败'][$run->status] ?? $run->status }}<div class="text-xs text-zinc-500">钉钉：{{ ['pending'=>'待下发','queued'=>'队列中','sent'=>'已发送','failed'=>'发送失败','disabled'=>'未启用'][$run->notification_status] ?? $run->notification_status }}</div></td>

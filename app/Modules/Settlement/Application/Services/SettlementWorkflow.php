@@ -2,16 +2,19 @@
 
 namespace App\Modules\Settlement\Application\Services;
 
+use App\Models\User;
 use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementGradeSuggestion;
+use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
 use Brick\Math\BigDecimal;
 use Brick\Math\Exception\MathException;
 use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 final readonly class SettlementWorkflow
 {
@@ -19,6 +22,7 @@ final readonly class SettlementWorkflow
         private SettlementDocumentGenerator $documents,
         private SettlementAgentGateway $agents,
         private AuditRecorder $audit,
+        private SettlementGenerator $generator,
     ) {}
 
     public function reject(int $settlementId, string $reason, int $actorId, ?string $ipAddress): void
@@ -47,6 +51,9 @@ final readonly class SettlementWorkflow
             $settlement = Settlement::query()->lockForUpdate()->findOrFail($settlementId);
             if (! in_array($settlement->status, ['pending_review', 'rejected'], true)) {
                 throw new DomainException('当前月结状态不可审核通过。');
+            }
+            if ($settlement->generation_status !== 'generated') {
+                throw new DomainException('月结明细尚未生成，请先重新生成月结明细后再审核。');
             }
             $manualOverride = $settlement->exchange_rate_quote_status !== 'available'
                 || $settlement->exchange_rate_krw_per_cny === null
@@ -144,15 +151,12 @@ final readonly class SettlementWorkflow
                     'reviewed_by' => null,
                     'reviewed_at' => null,
                     'rejection_reason' => null,
-                    'exchange_rate_krw_per_cny' => null,
-                    'exchange_rate_quote_source' => null,
-                    'exchange_rate_quoted_at' => null,
-                    'exchange_rate_quote_status' => 'unavailable',
-                    'exchange_rate_quote_error' => null,
-                    'exchange_rate_manual_override' => false,
                     'total_consumption_krw' => 0,
                     'total_commission_krw' => 0,
                     'payout_amount_cny_fen' => 0,
+                    'generation_status' => 'pending',
+                    'generated_at' => null,
+                    'item_count' => 0,
                 ],
             };
             $settlement->update($attributes);
@@ -183,6 +187,94 @@ final readonly class SettlementWorkflow
             throw new DomainException('只有已审核月结可以生成结算单。');
         }
         $this->documents->generate($settlement);
+    }
+
+    public function recoverUnverifiedAsHistorical(int $settlementId, string $basis, int $actorId, ?string $ipAddress): void
+    {
+        $this->assertSuperAdmin($actorId);
+        $basis = $this->normaliseRecoveryBasis($basis);
+
+        DB::transaction(function () use ($settlementId, $basis, $actorId, $ipAddress): void {
+            $settlement = Settlement::query()->lockForUpdate()->findOrFail($settlementId);
+            if ($settlement->generation_status !== 'unverified') {
+                throw new DomainException('只有无法确认生成来源的月结可以执行历史核验。');
+            }
+            $before = $this->generationSnapshot($settlement);
+            $settlement->update([
+                'generation_status' => 'not_applicable',
+                'generated_at' => null,
+            ]);
+            $settlement->refresh();
+            $this->audit->record(
+                description: '月结历史生成状态已核验为不适用',
+                properties: [
+                    'settlement_id' => $settlement->id,
+                    'recovery_action' => 'mark_not_applicable',
+                    'recovery_basis' => $basis,
+                    'before' => $before,
+                    'after' => $this->generationSnapshot($settlement),
+                ],
+                causerId: $actorId,
+                subject: $settlement,
+                logName: 'settlement',
+                event: 'generation_recovered',
+                ipAddress: $ipAddress,
+            );
+        });
+    }
+
+    public function recoverUnverifiedWithBatch(int $settlementId, string $basis, int $actorId, ?string $ipAddress): void
+    {
+        $this->assertSuperAdmin($actorId);
+        $basis = $this->normaliseRecoveryBasis($basis);
+
+        DB::transaction(function () use ($settlementId, $basis, $actorId, $ipAddress): void {
+            $settlement = Settlement::query()->lockForUpdate()->findOrFail($settlementId);
+            if ($settlement->generation_status !== 'unverified' || ! in_array($settlement->status, ['pending_review', 'rejected'], true)) {
+                throw new DomainException('只有待审核或已驳回的无法确认月结可以创建恢复批次。');
+            }
+            if ($settlement->settlement_run_id !== null) {
+                throw new DomainException('该月结已有批次，请使用现有批次重试，不要重复创建恢复批次。');
+            }
+
+            $run = SettlementRun::query()
+                ->whereDate('period_start', $settlement->period_start)
+                ->whereDate('period_end', $settlement->period_end)
+                ->lockForUpdate()
+                ->first();
+            if ($run === null) {
+                $run = SettlementRun::query()->create([
+                    'period_start' => $settlement->period_start,
+                    'period_end' => $settlement->period_end,
+                    'trigger_source' => 'recovery',
+                    'status' => 'running',
+                    'total_agents' => 1,
+                    'progress_key' => 'settlement:recovery:'.Str::uuid(),
+                    'initiated_by' => $actorId,
+                    'started_at' => now(),
+                ]);
+            }
+            $before = $this->generationSnapshot($settlement);
+            $settlement->update(['settlement_run_id' => $run->id]);
+            $this->generator->generate((string) $run->id, (int) $settlement->agent_id);
+            $settlement->refresh();
+            $this->audit->record(
+                description: '月结已创建恢复批次并重新生成',
+                properties: [
+                    'settlement_id' => $settlement->id,
+                    'recovery_action' => 'create_recovery_run',
+                    'recovery_basis' => $basis,
+                    'recovery_run_id' => $run->id,
+                    'before' => $before,
+                    'after' => $this->generationSnapshot($settlement),
+                ],
+                causerId: $actorId,
+                subject: $settlement,
+                logName: 'settlement',
+                event: 'generation_recovered',
+                ipAddress: $ipAddress,
+            );
+        });
     }
 
     public function reviewSuggestion(int $suggestionId, bool $accept, string $reason, int $actorId): void
@@ -241,6 +333,39 @@ final readonly class SettlementWorkflow
         }
 
         return $rate;
+    }
+
+    private function assertSuperAdmin(int $actorId): void
+    {
+        $actor = User::query()->find($actorId);
+        if ($actor?->is_super_admin !== true) {
+            throw new DomainException('只有超级管理员可以核验历史月结生成状态。');
+        }
+    }
+
+    private function normaliseRecoveryBasis(string $basis): string
+    {
+        $basis = trim($basis);
+        if ($basis === '') {
+            throw new DomainException('历史月结核验必须填写依据。');
+        }
+        if (mb_strlen($basis) > 2000) {
+            throw new DomainException('历史月结核验依据不能超过 2000 个字符。');
+        }
+
+        return $basis;
+    }
+
+    /** @return array{status: string, generation_status: string, generated_at: string|null, item_count: int, settlement_run_id: string|null} */
+    private function generationSnapshot(Settlement $settlement): array
+    {
+        return [
+            'status' => $settlement->status,
+            'generation_status' => $settlement->generation_status,
+            'generated_at' => $settlement->generated_at?->toIso8601String(),
+            'item_count' => (int) $settlement->item_count,
+            'settlement_run_id' => $settlement->settlement_run_id,
+        ];
     }
 
     /** @return array{status: string, settled_on: string|null, settled_by: int|null, confirmed_at: string|null} */

@@ -8,7 +8,7 @@
             <div class="flex w-full max-w-md flex-col gap-6">
                 <a href="{{ route('home') }}" class="flex flex-col items-center gap-2 font-medium" wire:navigate>
                     <span class="flex h-9 w-9 items-center justify-center rounded-md">
-                        <x-app-logo-icon class="size-9 fill-current text-black dark:text-white" />
+                        <img class="crm-shared-logo size-7" src="{{ asset('images/lightyear18-logo.png') }}" alt="光年拾捌 Lightyear 18">
                     </span>
 
                     <span class="sr-only">{{ config('app.name', 'Laravel') }}</span>

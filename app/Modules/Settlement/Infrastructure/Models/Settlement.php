@@ -12,6 +12,9 @@ use Illuminate\Support\Carbon;
  * @property int $total_commission_krw
  * @property int $payout_amount_cny_fen
  * @property string $status
+ * @property string $generation_status
+ * @property Carbon|null $generated_at
+ * @property int $item_count
  * @property Carbon $period_start
  * @property Carbon $period_end
  * @property Carbon|null $settled_on
@@ -35,8 +38,10 @@ class Settlement extends Model
             'settled_on' => 'date',
             'reviewed_at' => 'datetime',
             'confirmed_at' => 'datetime',
+            'generated_at' => 'datetime',
             'exchange_rate_krw_per_cny' => 'decimal:6',
             'exchange_rate_quoted_at' => 'datetime',
+            'exchange_rate_quote_attempted_at' => 'datetime',
             'exchange_rate_manual_override' => 'boolean',
             'snapshot' => 'array',
         ];

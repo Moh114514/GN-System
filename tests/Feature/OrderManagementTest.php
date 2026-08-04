@@ -352,7 +352,16 @@ class OrderManagementTest extends TestCase
             ->assertHasNoErrors();
 
         $this->actingAs($user)->get(route('orders.show', $order->id))->assertNotFound();
-        $this->actingAs($user)->get(route('orders.index', ['showDeleted' => 1]))->assertForbidden();
+        $this->actingAs($user)->get(route('orders.recycle-bin'))->assertForbidden();
+        $this->actingAs($admin)->get(route('orders.index'))
+            ->assertOk()
+            ->assertSee('回收站')
+            ->assertSee('href="'.route('orders.recycle-bin').'"', false);
+        $this->actingAs($admin)->get(route('orders.recycle-bin'))
+            ->assertOk()
+            ->assertSee('订单回收站')
+            ->assertSee('返回订单管理')
+            ->assertSee('待删除订单');
         $this->actingAs($admin)->get(route('orders.show', $order->id))->assertOk();
     }
 

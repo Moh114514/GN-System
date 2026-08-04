@@ -217,7 +217,7 @@ OFFSITE_BACKUP_MONITOR_ENABLED=true
 
 月结详情页会按 `SETTLEMENT_EXCHANGE_RATE_PROVIDER` 调用接口盒子汇率服务，成功后预填六位
 小数的 CNY → KRW 汇率；审核人仍可手工覆盖。该服务按文章说明每日更新，并非严格实时，页面
-应展示报价时间。报价不可用时必须明确提示，人工汇率仍可继续审核。UAT 和 Production 必须
+应展示报价时间。报价不可用时必须明确提示；已有旧汇率时刷新失败必须标记为“保留旧汇率”，不得显示为成功报价，人工汇率仍可继续审核。UAT 和 Production 必须
 分别确认网络出口、服务配额和报价方向。
 
 ```dotenv
@@ -232,6 +232,34 @@ SETTLEMENT_EXCHANGE_RATE_TIMEOUT=10
 请求固定使用 `from=CNY`、`to=KRW`、`money=1`，成功响应需包含 `code=200` 和 `rate`；
 `uptime` 作为报价时间保存。ID/Key 只能写入各环境未提交的 `.env`，不得放入仓库。服务不可用时
 不要把旧值伪装成实时值；应在页面人工输入并在月结审计中保留人工覆盖标记。
+
+月结中心的“往期月结”可选择最近已关闭的历史周期生成批次。节点按相邻历史配置边界计算，配置切换期间的过渡周期不得被跳过或重叠；参与代理商按周期内合作起止日期判断，不能用当前状态替代历史资格。
+如果该周期已有批次，系统保持幂等并返回原批次，同时明确区分新建、处理中、已完成和部分失败，不覆盖已有明细、审核状态或结算文档。
+
+#### 3.3.1 既有月结生成状态迁移
+
+`2026_08_04_000100_add_settlement_generation_state` 不只是新增字段，还会为既有
+`settlements` 回填生成状态和真实明细数量：
+
+- 能从系统生成快照、明细、结算文档或有效已完成批次确认的记录标记为 `generated`；零订单但有系统生成快照的记录保留 `item_count=0`，仍可审核；
+- `historical_import`/`demo_data` 或带导入批次的历史记录标记为 `not_applicable`，不把导入数据误当成新月结生成；
+- 无法可靠确认来源的记录标记为 `unverified`，详情页禁止直接审核。超级管理员必须填写核验依据后选择“核验为历史导入”或“创建恢复批次并重新生成”；两种操作都会记录操作人、修改前后状态和 IP。普通用户和直接调用生成器都不能把 `unverified` 静默改成 `generated`；
+- 只有 `pending`/`unverified` 且有有效批次的待审核/已驳回记录可以重新生成；`generated` 和 `not_applicable` 都是不可重生成状态，历史记录保持只读。
+
+该功能由 `2026_08_04_000200_backfill_settlement_generation_state` 独立执行回填。
+部署前必须在 UAT 和 Production 分别核对：
+
+```sql
+select migration, batch
+from migrations
+where migration = '2026_08_04_000100_add_settlement_generation_state';
+```
+
+如果 `000100` 已经执行，仍必须确认 `000200` 已执行；不能通过重新部署同一个 migration 文件期待旧代码重新运行回填。
+
+在 UAT 或 Production 执行该版本前，必须先完成目标数据库备份并记录备份文件、数据库名、版本、执行人和时间；迁移后核对 `generation_status` 分布、`item_count` 与
+`settlement_items` 实际数量一致，并抽查待审核、已驳回、已通过、已结清、零订单和历史导入记录。
+如果存在 `unverified`，不得以“迁移成功”作为业务验收通过，必须完成逐条核验或按批准的恢复方案处理。
 
 ### 3.4 密钥与外部服务
 

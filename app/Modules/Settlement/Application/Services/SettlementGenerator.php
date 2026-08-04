@@ -35,11 +35,13 @@ final readonly class SettlementGenerator
             if ($existing !== null && $existing->settlement_run_id !== $runId) {
                 throw new DomainException('该代理商周期已存在历史或其他月结记录，禁止覆盖。');
             }
-            $rebuild = $existing !== null
-                && $existing->status === 'pending_review'
-                && ! DB::table('settlement_items')->where('settlement_id', $existing->id)->exists();
-            if ($existing !== null && $existing->status !== 'rejected' && ! $rebuild) {
-                return;
+            $rebuild = false;
+            if ($existing !== null) {
+                if (! in_array($existing->generation_status, ['pending', 'unverified'], true)
+                    || ! in_array($existing->status, ['pending_review', 'rejected'], true)) {
+                    return;
+                }
+                $rebuild = true;
             }
 
             $periodStart = CarbonImmutable::parse($run->period_start);
@@ -74,6 +76,9 @@ final readonly class SettlementGenerator
                     'total_commission_krw' => $totalCommission,
                     'payout_amount_cny_fen' => 0,
                     'status' => 'pending_review',
+                    'generation_status' => 'generated',
+                    'generated_at' => now(),
+                    'item_count' => count($orders),
                     'snapshot' => $snapshot,
                     'reviewed_by' => null,
                     'reviewed_at' => null,
@@ -115,7 +120,7 @@ final readonly class SettlementGenerator
                 ]);
             }
 
-            if (! $rebuild) {
+            if (! $rebuild || $run->trigger_source === 'recovery') {
                 $this->markProcessed($run, $agentId, $totalConsumption, $totalCommission);
             }
         }, 3);
