@@ -1,12 +1,14 @@
 # GN-System 完整运维手册
 
-> 当前基线：2026-07-31
+> 当前基线：2026-08-04
 >
 > 适用仓库：`Moh114514/GN-System`
 >
 > 适用服务器：Ubuntu Server 24.04 LTS x86-64，地址 `192.168.0.141`
 >
-> 当前 UAT 候选：`v0.5.0-rc.7`
+> 最近已创建的 UAT 候选：`v0.5.0-rc.8`（提交 `8ab9498`）
+>
+> 当前 `main`：合并提交 `2fe5d13`；包含 RC8 之后的月结历史数据治理变更，尚未自动等同于 UAT 已验收版本
 >
 > 生产状态：目录已初始化，尚未首次部署
 
@@ -96,6 +98,23 @@ GitHub CI 和 GHCR 是发布基础设施，不是可登录的业务环境。
 - 私有文件、备份和发布历史；
 - TLS 证书、管理员和普通用户；
 - SMTP、Sentry、钉钉等外部服务凭据。
+
+### 2.5 最近版本记录与运维影响
+
+以下记录来自当前 `main` 的版本历史。提交记录只能说明代码已经合入，不能替代 UAT
+或 Production 的部署、验收和数据库核对。
+
+| 日期/版本 | 提交 | 主要变更 | 运维影响 |
+|---|---|---|---|
+| 2026-08-03，`v0.5.0-rc.8` | `8ab9498` | 前端界面、实时汇率查看、订单中心和受控状态回退进入最近一个 RC | 这是当前最近的已创建 RC；只能按该 annotated tag 部署，不要用后续 `main` 覆盖其验收范围 |
+| 2026-08-03 | `278da6c` | 订单回收站独立为超级管理员页面，支持已删除订单查看与恢复 | 验收时确认普通用户不可读、恢复操作有权限限制和审计，不要用删除代替业务取消 |
+| 2026-08-03 | `d405781`、`9c4ef4f` | 增加往期月结周期选择和历史月结入口 | UAT 必须验证历史周期边界、重复生成和不覆盖已有月结 |
+| 2026-08-04 | `0971130`、`b2ab309` | 汇率失败保留旧值、历史合作资格、周期边界重建、零订单月结、批次幂等和持久化生成状态 | 涉及审核、历史月结和结算数据；UAT 需准备历史暂停/终止代理商、零订单和报价失败场景 |
+| 2026-08-04 | `884f874`、`4aa35d4` | 既有月结状态回填、`unverified` 审计恢复、`not_applicable` 只读门禁 | 必须备份数据库；检查 `000100` 与独立 `000200` migration，核对回填分布和异常记录 |
+| 2026-08-04，当前 `main` | `2fe5d13` | 将上述月结治理和恢复流程合入 `main` | 不得直接部署 `main`；应创建下一个递增 RC，完成 CI、镜像、UAT 和 migration 审计后再发布 |
+
+当前 `main` 高于 `v0.5.0-rc.8`。服务器上的 `releases/current` 和
+`history.tsv` 才能证明 UAT/Production 实际运行版本；本地 Git 日志不能证明目标环境已经升级。
 
 ### 2.3 UAT 当前状态
 
@@ -394,7 +413,7 @@ git pull --ff-only origin main
 test -z "$(git status --porcelain)"
 test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
 
-RC_TAG=v0.5.0-rc.7
+RC_TAG=v0.5.0-rc.9
 test -z "$(git tag --list "${RC_TAG}")"
 git tag -a "${RC_TAG}" -m "GN-System ${RC_TAG} UAT"
 git push origin "${RC_TAG}"
@@ -418,7 +437,7 @@ git fetch --tags --prune origin
 git switch main
 git pull --ff-only origin main
 
-RC_TAG=v0.5.0-rc.7
+RC_TAG=v0.5.0-rc.9
 STABLE_TAG=v0.5.0
 test "$(git rev-parse HEAD)" = "$(git rev-list -n 1 "${RC_TAG}")"
 test -z "$(git tag --list "${STABLE_TAG}")"
@@ -538,7 +557,7 @@ cd /srv/gn-system/repository
 test -z "$(git status --porcelain --untracked-files=no)"
 git fetch --tags --prune origin
 
-TARGET_TAG=v0.5.0-rc.7
+TARGET_TAG=v0.5.0-rc.9
 test "$(git cat-file -t "${TARGET_TAG}")" = tag
 git show --no-patch --decorate "${TARGET_TAG}"
 git switch --detach "${TARGET_TAG}"
