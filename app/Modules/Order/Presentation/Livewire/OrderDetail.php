@@ -6,6 +6,7 @@ use App\Modules\Order\Application\Services\DailyOrderWorkspace;
 use App\Modules\Order\Application\Services\OrderManagementWorkspace;
 use Carbon\CarbonImmutable;
 use DomainException;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -41,7 +42,7 @@ class OrderDetail extends Component
 
             return;
         }
-        session()->flash('status', '订单已完成，推广费与术后提醒已同步固化。');
+        Flux::toast(variant: 'success', text: '订单已完成，推广费与术后提醒已同步固化。');
         $this->load(app(OrderManagementWorkspace::class));
     }
 
@@ -133,7 +134,7 @@ class OrderDetail extends Component
             return;
         }
         $this->reset('reason');
-        session()->flash('status', $message);
+        Flux::toast(variant: 'success', text: $message);
         $this->load($workspace);
     }
 }

@@ -154,9 +154,42 @@ function scheduleDashboardCharts() {
     window.requestAnimationFrame(() => window.requestAnimationFrame(renderDashboardCharts));
 }
 
+const focusedBusinessAlerts = new Set();
+
+function focusBusinessAlert(element) {
+    if (!element) {
+        return;
+    }
+    const key = element.dataset.businessAlertKey || element.id;
+    const rect = element.getBoundingClientRect();
+    const inViewport = rect.top >= 0 && rect.bottom <= window.innerHeight;
+    if (inViewport || focusedBusinessAlerts.has(key)) {
+        focusedBusinessAlerts.add(key);
+        return;
+    }
+    focusedBusinessAlerts.add(key);
+    const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+    element.scrollIntoView({ behavior, block: 'start' });
+    const focusTarget = element.querySelector('button, a, input, textarea, select') || element;
+    focusTarget.focus({ preventScroll: true });
+}
+
+function focusNewBusinessAlerts(alertId = null) {
+    const elements = alertId
+        ? [document.getElementById(alertId)].filter(Boolean)
+        : [...document.querySelectorAll('[data-business-alert]')];
+    elements.forEach(focusBusinessAlert);
+}
+
 document.addEventListener('DOMContentLoaded', scheduleDashboardCharts);
 document.addEventListener('livewire:navigated', scheduleDashboardCharts);
 document.addEventListener('dashboard-updated', scheduleDashboardCharts);
+document.addEventListener('DOMContentLoaded', () => focusNewBusinessAlerts());
+document.addEventListener('livewire:navigated', () => focusNewBusinessAlerts());
+window.addEventListener('business-alert-focus', (event) => {
+    focusNewBusinessAlerts(event.detail?.alertId || null);
+});
 document.addEventListener('livewire:init', () => {
     window.Livewire.hook('morph.updated', scheduleDashboardCharts);
+    window.Livewire.hook('morph.updated', () => focusNewBusinessAlerts());
 });

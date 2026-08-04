@@ -4,6 +4,7 @@ namespace App\Modules\Settlement\Infrastructure\Models;
 
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -29,6 +30,14 @@ class SettlementRun extends Model
     protected $keyType = 'string';
 
     protected $guarded = [];
+
+    /** @return HasMany<Settlement, $this> */
+    public function settlements(): HasMany
+    {
+        return $this->hasMany(Settlement::class)
+            ->orderBy('agent_id')
+            ->orderBy('id');
+    }
 
     protected function casts(): array
     {

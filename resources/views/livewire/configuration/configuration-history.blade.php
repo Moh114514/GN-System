@@ -7,7 +7,6 @@
             <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">配置版本按代理商、客户、结算分别保存；回滚不会重算历史订单的推广费或已结算内容。</p>
         </div>
     </section>
-    @if (session('status'))<div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>@endif
     @error('rollback')<div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{{ $message }}</div>@enderror
     <section class="grid gap-6 xl:grid-cols-[1fr_24rem]">
         <div class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">

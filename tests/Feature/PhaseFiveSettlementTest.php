@@ -15,6 +15,8 @@ use App\Modules\Order\Application\Data\DailyOrderData;
 use App\Modules\Settlement\Application\Services\ExchangeRateQuoteService;
 use App\Modules\Settlement\Application\Services\SettlementGenerator;
 use App\Modules\Settlement\Application\Services\SettlementPeriodCalculator;
+use App\Modules\Settlement\Application\Services\SettlementRunFailureReader;
+use App\Modules\Settlement\Application\Services\SettlementRunFailureReportGenerator;
 use App\Modules\Settlement\Application\Services\SettlementRunManager;
 use App\Modules\Settlement\Application\Services\SettlementWorkflow;
 use App\Modules\Settlement\Infrastructure\Models\CommissionRule;
@@ -22,6 +24,7 @@ use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
 use App\Modules\Settlement\Infrastructure\Models\SettlementGradeSuggestion;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
+use App\Modules\Settlement\Presentation\Livewire\SettlementCenter;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use DomainException;
@@ -31,6 +34,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 class PhaseFiveSettlementTest extends TestCase
@@ -594,6 +598,100 @@ class PhaseFiveSettlementTest extends TestCase
             ->assertSee('href="'.route('settlements.index').'"', false);
     }
 
+    public function test_settlement_detail_navigates_only_within_the_same_run_in_stable_order(): void
+    {
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'completed',
+            'total_agents' => 3,
+            'processed_agents' => 3,
+        ]);
+        $agents = collect(range(1, 3))->map(fn (int $index): Agent => $this->createSettlementAgent($index))->all();
+        $settlements = collect($agents)->map(fn (Agent $agent): Settlement => Settlement::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'pending_review',
+            'generation_status' => 'generated',
+            'snapshot' => ['agent' => ['code' => $agent->code, 'name' => $agent->name]],
+        ]))->all();
+
+        $this->actingAs($this->admin)->get(route('settlements.show', $settlements[1]))
+            ->assertOk()
+            ->assertSee('← 上一条')
+            ->assertSee('下一条 →')
+            ->assertSee('href="'.route('settlements.show', $settlements[0]->id).'"', false)
+            ->assertSee('href="'.route('settlements.show', $settlements[2]->id).'"', false);
+        $this->actingAs($this->admin)->get(route('settlements.show', $settlements[0]))
+            ->assertOk()
+            ->assertSee('← 上一条</span>', false)
+            ->assertSee('href="'.route('settlements.show', $settlements[1]->id).'"', false);
+        $this->actingAs($this->admin)->get(route('settlements.show', $settlements[2]))
+            ->assertOk()
+            ->assertSee('下一条 →</span>', false)
+            ->assertSee('href="'.route('settlements.show', $settlements[1]->id).'"', false);
+    }
+
+    public function test_settlement_center_preloads_and_preserves_collapsed_batch_state(): void
+    {
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'completed',
+            'total_agents' => 1,
+            'processed_agents' => 1,
+        ]);
+        Settlement::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'pending_review',
+            'generation_status' => 'generated',
+            'snapshot' => ['agent' => ['name' => '可折叠代理商']],
+        ]);
+
+        $this->actingAs($this->admin);
+        $component = Livewire::test(SettlementCenter::class);
+        $component->assertSee('可折叠代理商')
+            ->call('toggleRun', $run->id)
+            ->assertDontSee('可折叠代理商')
+            ->call('toggleRun', $run->id)
+            ->assertSee('可折叠代理商');
+    }
+
+    public function test_failed_run_detail_and_xlsx_report_expose_only_current_failures(): void
+    {
+        Storage::fake('local');
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'partial_failed',
+            'total_agents' => 1,
+            'failed_agents' => 1,
+            'errors' => [(string) $this->agent->id => '已完成订单 181 缺少推广费快照。'],
+        ]);
+
+        $this->actingAs($this->user)->get(route('settlements.runs.failures', $run))->assertForbidden();
+        $this->actingAs($this->admin)->get(route('settlements.runs.failures', $run))
+            ->assertOk()
+            ->assertSee($this->agent->code)
+            ->assertSee($this->agent->name)
+            ->assertSee('已完成订单 181 缺少推广费快照。')
+            ->assertSee('下载失败报告');
+
+        $failures = app(SettlementRunFailureReader::class)->read($run);
+        $this->assertCount(1, $failures);
+        $this->assertSame($this->agent->code, $failures[0]->agentCode);
+        $path = app(SettlementRunFailureReportGenerator::class)->generate($run);
+        Storage::disk('local')->assertExists($path);
+    }
+
     public function test_grade_suggestion_requires_manual_review_and_starts_next_month(): void
     {
         $higher = PolicyGrade::query()->create([
@@ -689,5 +787,18 @@ class PhaseFiveSettlementTest extends TestCase
             ownerId: $this->user->id,
             ipAddress: '127.0.0.1',
         ));
+    }
+
+    private function createSettlementAgent(int $index): Agent
+    {
+        $type = AgentTypeCode::query()->where('code', 'JG')->firstOrFail();
+
+        return Agent::query()->create([
+            'agent_type_code_id' => $type->id,
+            'code' => 'SETTLE-JG-'.$index,
+            'name' => '排序代理商 '.$index,
+            'cooperation_status' => 'active',
+            'cooperation_started_on' => '2026-01-01',
+        ]);
     }
 }

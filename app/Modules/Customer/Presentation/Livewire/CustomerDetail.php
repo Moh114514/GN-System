@@ -6,6 +6,7 @@ use App\Modules\Customer\Application\Services\CustomerDirectory;
 use App\Modules\Customer\Application\Services\CustomerFollowupManager;
 use App\Modules\Customer\Application\Services\CustomerStatusManager;
 use Carbon\CarbonImmutable;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -55,7 +56,7 @@ class CustomerDetail extends Component
             ipAddress: request()->ip(),
         );
         $this->reset('targetStatusId', 'statusReason');
-        session()->flash('status', '客户状态已更新。');
+        Flux::toast(variant: 'success', text: '客户状态已更新。');
     }
 
     public function recordFollowup(CustomerFollowupManager $manager): void
@@ -74,7 +75,7 @@ class CustomerDetail extends Component
             ipAddress: request()->ip(),
         );
         $this->followupContent = '';
-        session()->flash('status', '跟进记录已保存。');
+        Flux::toast(variant: 'success', text: '跟进记录已保存。');
     }
 
     public function render(CustomerDirectory $directory): View

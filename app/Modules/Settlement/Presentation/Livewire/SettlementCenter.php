@@ -9,6 +9,7 @@ use App\Modules\Settlement\Application\Services\SettlementRunManager;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
 use Carbon\CarbonImmutable;
 use DomainException;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -19,6 +20,9 @@ use Livewire\Component;
 #[Title('月结中心')]
 class SettlementCenter extends Component
 {
+    /** @var array<int, string> */
+    public array $collapsedRunIds = [];
+
     public string $boundaryDay = '1';
 
     public string $triggerTime = '09:00';
@@ -26,6 +30,17 @@ class SettlementCenter extends Component
     public bool $confirmConfigurationChange = false;
 
     public string $historicalPeriodEnd = '';
+
+    public function toggleRun(string $runId): void
+    {
+        if (in_array($runId, $this->collapsedRunIds, true)) {
+            $this->collapsedRunIds = array_values(array_diff($this->collapsedRunIds, [$runId]));
+
+            return;
+        }
+
+        $this->collapsedRunIds[] = $runId;
+    }
 
     public function mount(SettlementPeriodCalculator $periods): void
     {
@@ -54,14 +69,14 @@ class SettlementCenter extends Component
     public function retry(string $runId, SettlementRunManager $manager): void
     {
         $manager->retryFailed($runId);
-        session()->flash('status', '失败的代理商月结已重新进入队列。');
+        Flux::toast(variant: 'success', text: '失败的代理商月结已重新进入队列。');
     }
 
     public function retryNotification(string $runId, SettlementNotificationDispatcher $dispatcher): void
     {
         try {
             $dispatcher->retry($runId);
-            session()->flash('status', '月结完成通知已重新进入队列。');
+            Flux::toast(variant: 'success', text: '月结完成通知已重新进入队列。');
         } catch (DomainException $exception) {
             $this->addError('configuration', $exception->getMessage());
         }
@@ -86,7 +101,7 @@ class SettlementCenter extends Component
                 (int) Auth::id(),
                 CarbonImmutable::now(),
             );
-            session()->flash('status', '新月结周期配置将从 '.$configuration->effective_from->format('Y-m-d').' 起生效。');
+            Flux::toast(variant: 'success', text: '新月结周期配置将从 '.$configuration->effective_from->format('Y-m-d').' 起生效。');
             $this->confirmConfigurationChange = false;
         } catch (DomainException $exception) {
             $this->addError('configuration', $exception->getMessage());
@@ -98,7 +113,11 @@ class SettlementCenter extends Component
         $periods = app(SettlementPeriodCalculator::class)->recentClosedPeriods(CarbonImmutable::now(), 13);
 
         return view('livewire.settlements.settlement-center', [
-            'runs' => SettlementRun::query()->latest('period_end')->limit(24)->get(),
+            'runs' => SettlementRun::query()
+                ->with(['settlements' => fn ($query) => $query->orderBy('agent_id')->orderBy('id')])
+                ->latest('period_end')
+                ->limit(24)
+                ->get(),
             'historicalPeriods' => array_slice($periods, 1),
         ]);
     }
@@ -117,6 +136,9 @@ class SettlementCenter extends Component
         $key = str_starts_with($result->outcome, 'existing_') || $result->outcome === 'created_partial_failed'
             ? 'warning'
             : 'status';
-        session()->flash($key, $message);
+        Flux::toast(
+            variant: $key === 'warning' ? 'warning' : 'success',
+            text: $message,
+        );
     }
 }

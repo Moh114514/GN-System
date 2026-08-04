@@ -4,6 +4,7 @@ namespace App\Modules\Config\Presentation\Livewire;
 
 use App\Modules\Config\Application\Services\ConfigurationHistoryCoordinator;
 use DomainException;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -33,7 +34,7 @@ class ConfigurationHistory extends Component
         try {
             $history->rollback($owner, $snapshotId, (int) Auth::id(), request()->ip());
             $this->showDiff($owner, $snapshotId, $history);
-            session()->flash('status', '配置已在单一事务中回滚，并生成新的回滚记录。');
+            Flux::toast(variant: 'success', text: '配置已在单一事务中回滚，并生成新的回滚记录。');
         } catch (DomainException $exception) {
             $this->addError('rollback', $exception->getMessage());
         }

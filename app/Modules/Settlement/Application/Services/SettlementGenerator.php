@@ -13,6 +13,8 @@ use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Throwable;
 
 final readonly class SettlementGenerator
@@ -134,7 +136,15 @@ final readonly class SettlementGenerator
             if (! array_key_exists((string) $agentId, $errors)) {
                 $run->failed_agents++;
             }
-            $errors[(string) $agentId] = $exception->getMessage();
+            Log::error('Settlement generation failed.', [
+                'run_id' => $runId,
+                'agent_id' => $agentId,
+                'exception' => $exception,
+            ]);
+            report($exception);
+            $errors[(string) $agentId] = $exception instanceof DomainException
+                ? Str::limit($exception->getMessage(), 2000)
+                : "系统处理失败，请联系管理员并提供参考编号：{$runId}-{$agentId}。";
             $run->errors = $errors;
             $run->save();
             $this->finishIfComplete($run);

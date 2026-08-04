@@ -9,6 +9,7 @@ use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
 use App\Modules\Settlement\Infrastructure\Models\SettlementGradeSuggestion;
 use DomainException;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -45,6 +46,9 @@ class SettlementDetail extends Component
         }
         $this->exchangeRate = (string) ($record->exchange_rate_krw_per_cny ?? '');
         $this->correctionTarget = $record->status === 'approved' ? 'settled' : 'pending_review';
+        if ($this->hasBlockingGenerationState($record)) {
+            $this->dispatch('business-alert-focus', alertId: 'settlement-generation-alert');
+        }
     }
 
     public function reject(SettlementWorkflow $workflow): void
@@ -65,17 +69,17 @@ class SettlementDetail extends Component
             $record = $quotes->refreshFor(Settlement::query()->findOrFail($this->settlementId), true);
             $this->refreshExchangeRate();
             if ($record->exchange_rate_quote_status === 'available') {
-                session()->flash('status', '最新汇率报价已更新，请核对后提交审核。');
+                Flux::toast(variant: 'success', text: '最新汇率报价已更新，请核对后提交审核。');
             } elseif ($record->exchange_rate_quote_status === 'failed_retained_old_rate') {
-                session()->flash('warning', '最新汇率报价失败，已保留原汇率，请人工核对。');
+                Flux::toast(variant: 'warning', text: '最新汇率报价失败，已保留原汇率，请人工核对。');
             } else {
-                session()->flash('error', '最新汇率报价失败，当前没有可用汇率，请手动填写。');
+                Flux::toast(variant: 'danger', text: '最新汇率报价失败，当前没有可用汇率，请手动填写。');
             }
         } catch (DomainException $exception) {
-            $this->addError('workflow', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
         } catch (Throwable $exception) {
             report($exception);
-            $this->addError('workflow', '最新汇率报价失败，请检查服务后重试。');
+            Flux::toast(variant: 'danger', text: '最新汇率报价失败，请检查服务后重试。');
         }
     }
 
@@ -146,12 +150,42 @@ class SettlementDetail extends Component
     {
         $settlement = Settlement::query()->findOrFail($this->settlementId);
         $items = DB::table('settlement_items')->where('settlement_id', $settlement->id)->orderBy('id')->get();
+        $previousSettlement = null;
+        $nextSettlement = null;
+        if ($settlement->settlement_run_id !== null) {
+            $previousSettlement = Settlement::query()
+                ->where('settlement_run_id', $settlement->settlement_run_id)
+                ->where(function ($query) use ($settlement): void {
+                    $query->where('agent_id', '<', $settlement->agent_id)
+                        ->orWhere(function ($query) use ($settlement): void {
+                            $query->where('agent_id', $settlement->agent_id)
+                                ->where('id', '<', $settlement->id);
+                        });
+                })
+                ->orderByDesc('agent_id')
+                ->orderByDesc('id')
+                ->first();
+            $nextSettlement = Settlement::query()
+                ->where('settlement_run_id', $settlement->settlement_run_id)
+                ->where(function ($query) use ($settlement): void {
+                    $query->where('agent_id', '>', $settlement->agent_id)
+                        ->orWhere(function ($query) use ($settlement): void {
+                            $query->where('agent_id', $settlement->agent_id)
+                                ->where('id', '>', $settlement->id);
+                        });
+                })
+                ->orderBy('agent_id')
+                ->orderBy('id')
+                ->first();
+        }
 
         return view('livewire.settlements.settlement-detail', [
             'settlement' => $settlement,
             'items' => $items,
             'documents' => SettlementDocument::query()->where('settlement_id', $settlement->id)->get(),
             'suggestion' => SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->first(),
+            'previousSettlement' => $previousSettlement,
+            'nextSettlement' => $nextSettlement,
         ]);
     }
 
@@ -160,12 +194,12 @@ class SettlementDetail extends Component
         try {
             $operation();
             $this->refreshExchangeRate();
-            session()->flash('status', $message);
+            Flux::toast(variant: 'success', text: $message);
         } catch (DomainException $exception) {
-            $this->addError('workflow', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
         } catch (Throwable $exception) {
             report($exception);
-            $this->addError('workflow', '操作未完成，数据已回滚，请检查文档生成环境后重试。');
+            Flux::toast(variant: 'danger', text: '操作未完成，数据已回滚，请检查文档生成环境后重试。');
         }
     }
 
@@ -182,5 +216,13 @@ class SettlementDetail extends Component
         $this->validate([
             'generationRecoveryBasis' => ['required', 'string', 'max:2000'],
         ]);
+    }
+
+    private function hasBlockingGenerationState(Settlement $settlement): bool
+    {
+        return $settlement->generation_status === 'unverified'
+            || (in_array($settlement->status, ['pending_review', 'rejected'], true)
+                && in_array($settlement->generation_status, ['pending', 'unverified'], true)
+                && $settlement->settlement_run_id !== null);
     }
 }

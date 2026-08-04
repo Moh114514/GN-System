@@ -7,8 +7,6 @@
         <flux:button wire:click="generate" icon="play" variant="primary">生成最新月结</flux:button>
     </section>
 
-    @if (session('status'))<div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>@endif
-    @if (session('warning'))<div class="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{{ session('warning') }}</div>@endif
     @error('configuration')<div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div>@enderror
 
     <section class="mb-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
@@ -37,30 +35,40 @@
         @error('historicalPeriodEnd')<p class="mt-2 text-sm text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
     </section>
 
-    <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+    <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900" wire:poll.10s>
         <div class="flex items-center justify-between"><h3 class="font-semibold">月结批次</h3></div>
         <div class="crm-table-wrap mt-4"><table class="crm-table">
             <thead><tr><th>周期</th><th>进度</th><th>消费/推广费</th><th>状态</th><th></th></tr></thead>
             <tbody>
             @forelse ($runs as $run)
-                <tr wire:poll.10s>
+                @php($isCollapsed = in_array((string) $run->id, $collapsedRunIds, true))
+                <tr wire:key="settlement-run-{{ $run->id }}" class="cursor-pointer" wire:click="toggleRun('{{ $run->id }}')" wire:keydown.enter="toggleRun('{{ $run->id }}')" wire:keydown.space.prevent="toggleRun('{{ $run->id }}')" tabindex="0" role="button" aria-label="{{ $isCollapsed ? '展开' : '收起' }}月结批次">
                     <td>{{ $run->period_start->format('Y-m-d') }} 至 {{ $run->period_end->format('Y-m-d') }}<div class="text-xs text-zinc-500">{{ ['manual' => '手动', 'historical' => '往期手动', 'scheduled' => '自动'][$run->trigger_source] ?? $run->trigger_source }}</div></td>
                     <td>{{ $run->processed_agents + $run->failed_agents }}/{{ $run->total_agents }}<div class="text-xs text-red-600">失败 {{ $run->failed_agents }}</div></td>
                     <td>₩ {{ number_format($run->total_consumption_krw) }}<div class="text-xs text-zinc-500">推广费 ₩ {{ number_format($run->total_commission_krw) }}</div></td>
                     <td>{{ ['queued'=>'排队中','running'=>'处理中','completed'=>'已生成','partial_failed'=>'部分失败','failed'=>'失败'][$run->status] ?? $run->status }}<div class="text-xs text-zinc-500">钉钉：{{ ['pending'=>'待下发','queued'=>'队列中','sent'=>'已发送','failed'=>'发送失败','disabled'=>'未启用'][$run->notification_status] ?? $run->notification_status }}</div></td>
-                    <td class="space-x-2">
-                        @if ($run->failed_agents > 0)<flux:button wire:click="retry('{{ $run->id }}')" size="sm" variant="ghost">重试失败项</flux:button>@endif
-                        @if (in_array($run->notification_status, ['failed', 'disabled'], true))<flux:button wire:click="retryNotification('{{ $run->id }}')" size="sm" variant="ghost">重试钉钉</flux:button>@endif
-                        @if ($run->processed_agents > 0)<a class="text-sm font-semibold text-teal-700" href="{{ route('settlements.archive', $run->id) }}">下载全部</a>@endif
+                    <td class="space-x-2" x-on:keydown.stop>
+                        <button type="button" class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-zinc-700 hover:bg-zinc-100" wire:click.stop="toggleRun('{{ $run->id }}')" aria-expanded="{{ $isCollapsed ? 'false' : 'true' }}">
+                            <flux:icon :name="$isCollapsed ? 'chevron-right' : 'chevron-down'" class="size-4" aria-hidden="true" />
+                            <span>{{ $isCollapsed ? '展开' : '收起' }}</span>
+                        </button>
+                        @if ($run->failed_agents > 0)
+                            <a class="text-sm font-semibold text-red-700 hover:underline" href="{{ route('settlements.runs.failures', $run->id) }}" wire:navigate x-on:click.stop>查看 {{ $run->failed_agents }} 项失败</a>
+                            <flux:button wire:click.stop="retry('{{ $run->id }}')" size="sm" variant="ghost">重试失败项</flux:button>
+                        @endif
+                        @if (in_array($run->notification_status, ['failed', 'disabled'], true))<flux:button wire:click.stop="retryNotification('{{ $run->id }}')" size="sm" variant="ghost">重试钉钉</flux:button>@endif
+                        @if ($run->processed_agents > 0)<a class="text-sm font-semibold text-teal-700" href="{{ route('settlements.archive', $run->id) }}" x-on:click.stop>下载全部</a>@endif
                     </td>
                 </tr>
-                @foreach (\App\Modules\Settlement\Infrastructure\Models\Settlement::query()->where('settlement_run_id', $run->id)->get() as $settlement)
+                @if (! $isCollapsed)
+                @foreach ($run->settlements as $settlement)
                     <tr class="bg-zinc-50/70 dark:bg-zinc-800/40">
                         <td colspan="2"><a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $settlement->id) }}" wire:navigate>{{ data_get($settlement->snapshot, 'agent.name', '代理商') }}</a></td>
                         <td>推广费 ₩ {{ number_format($settlement->total_commission_krw) }}</td>
                         <td colspan="2">{{ ['pending_review'=>'待审核','rejected'=>'已驳回','approved'=>'已通过','settled'=>'已结清'][$settlement->status] ?? $settlement->status }}</td>
                     </tr>
                 @endforeach
+                @endif
             @empty<tr><td colspan="5" class="py-8 text-center text-zinc-500">尚未生成月结批次。</td></tr>@endforelse
             </tbody>
         </table></div>

@@ -3,7 +3,6 @@
         <div><h2 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">主动提醒</h2><p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">集中处理术前、到院、术后及自定义跟进任务；提醒仅发送给内部员工。</p></div>
         <div class="flex gap-2"><flux:button :href="route('reminders.history')" variant="ghost" wire:navigate>提醒历史</flux:button><flux:button :href="route('reminders.create')" icon="plus" variant="primary" wire:navigate>新建提醒</flux:button></div>
     </section>
-    @if (session('status'))<div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>@endif
     @error('reminder')<div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div>@enderror
 
     @if ($stats)

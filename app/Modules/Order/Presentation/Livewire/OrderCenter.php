@@ -7,6 +7,7 @@ use App\Modules\Order\Application\Services\DailyOrderWorkspace;
 use App\Modules\Order\Application\Services\OrderManagementWorkspace;
 use Carbon\CarbonImmutable;
 use DomainException;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -177,7 +178,7 @@ class OrderCenter extends Component
         $this->showCreate = false;
         $this->resetOrderForm();
         $this->resetPage();
-        session()->flash('status', '订单已保存。');
+        Flux::toast(variant: 'success', text: '订单已保存。');
     }
 
     public function complete(int $orderId, DailyOrderWorkspace $workspace): void
@@ -189,7 +190,7 @@ class OrderCenter extends Component
 
             return;
         }
-        session()->flash('status', '订单已完成，推广费与术后提醒已同步固化。');
+        Flux::toast(variant: 'success', text: '订单已完成，推广费与术后提醒已同步固化。');
     }
 
     public function clearFilters(): void

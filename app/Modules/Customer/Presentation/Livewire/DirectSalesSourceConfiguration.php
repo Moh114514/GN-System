@@ -3,6 +3,7 @@
 namespace App\Modules\Customer\Presentation\Livewire;
 
 use App\Modules\Customer\Application\Services\DirectSalesSourceManager;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -27,7 +28,7 @@ class DirectSalesSourceConfiguration extends Component
         ]);
         $manager->save($this->editingId, $this->code, $this->name, (int) Auth::id(), request()->ip());
         $this->reset('editingId', 'code', 'name');
-        session()->flash('status', '直销来源已保存。');
+        Flux::toast(variant: 'success', text: '直销来源已保存。');
     }
 
     public function edit(int $id, DirectSalesSourceManager $manager): void
@@ -41,7 +42,7 @@ class DirectSalesSourceConfiguration extends Component
     public function toggle(int $id, DirectSalesSourceManager $manager): void
     {
         $manager->toggle($id, (int) Auth::id(), request()->ip());
-        session()->flash('status', '直销来源状态已更新。');
+        Flux::toast(variant: 'success', text: '直销来源状态已更新。');
     }
 
     public function render(DirectSalesSourceManager $manager): View
