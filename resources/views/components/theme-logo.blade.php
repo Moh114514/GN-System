@@ -7,17 +7,20 @@
     <img
         src="{{ asset('images/lightyear18-logo-light.png') }}"
         alt="{{ $alt }}"
+        data-test="app-logo-light"
         {{ $attributes->class(['crm-shared-logo']) }}
     >
 @else
     <img
         src="{{ asset('images/lightyear18-logo-light.png') }}"
         alt="{{ $alt }}"
+        data-test="app-logo-light"
         {{ $attributes->class(['crm-shared-logo', 'crm-logo-light']) }}
     >
     <img
         src="{{ asset('images/lightyear18-logo-dark.png') }}"
         alt="{{ $alt }}"
+        data-test="app-logo-dark"
         {{ $attributes->class(['crm-shared-logo', 'crm-logo-dark']) }}
     >
 @endif
