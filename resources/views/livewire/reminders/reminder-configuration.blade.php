@@ -1,8 +1,6 @@
 <div>
     <x-page-back :href="route('configuration.index')" label="返回配置中心" class="mb-4" />
     <section class="mb-5"><p class="text-xs font-medium text-zinc-400">配置中心 · 主动提醒</p><h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">主动提醒规则与模板</h2><p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">从固定的触发类型和适用范围中选择来配置提醒规则，暂不支持自定义脚本或复杂条件。</p></section>
-    @if (session('status'))<div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>@endif
-    @error('configuration')<div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div>@enderror
     <div class="mb-5 rounded-xl border px-4 py-3 text-sm {{ $dingtalkEnabled ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : 'border-amber-200 bg-amber-50 text-amber-800' }}">钉钉通知：{{ $dingtalkEnabled ? '已启用' : '未启用；站内提醒仍正常运行' }}</div>
 
     <section class="grid gap-6 xl:grid-cols-2">

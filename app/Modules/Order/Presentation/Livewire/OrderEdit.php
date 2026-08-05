@@ -5,6 +5,7 @@ namespace App\Modules\Order\Presentation\Livewire;
 use App\Modules\Order\Application\Data\OrderUpdateData;
 use App\Modules\Order\Application\Services\OrderManagementWorkspace;
 use DomainException;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -94,12 +95,12 @@ class OrderEdit extends Component
                 translatorLanguageName: null,
             ), (int) Auth::id(), request()->ip());
         } catch (DomainException $exception) {
-            $this->addError('order', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
 
             return;
         }
 
-        session()->flash('status', '订单已更新。');
+        Flux::toast(variant: 'success', text: '订单已更新。');
         $this->redirectRoute('orders.show', ['order' => $this->orderId], navigate: true);
     }
 

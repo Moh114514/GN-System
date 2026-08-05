@@ -19,8 +19,10 @@ use App\Modules\Settlement\Application\Services\DatabaseOrderFinancialReader;
 use App\Modules\Settlement\Application\Services\DatabaseReportSettlementReader;
 use App\Modules\Settlement\Application\Services\DatabaseSettlementImportGateway;
 use App\Modules\Settlement\Presentation\Http\SettlementDocumentController;
+use App\Modules\Settlement\Presentation\Http\SettlementRunFailureController;
 use App\Modules\Settlement\Presentation\Livewire\SettlementCenter;
 use App\Modules\Settlement\Presentation\Livewire\SettlementDetail;
+use App\Modules\Settlement\Presentation\Livewire\SettlementRunFailureDetail;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 use LogicException;
@@ -53,6 +55,10 @@ class SettlementServiceProvider extends ServiceProvider
                 ->whereNumber('document')->name('settlements.documents.download');
             Route::get('/settlement-runs/{run}/archive', [SettlementDocumentController::class, 'archive'])
                 ->whereUuid('run')->name('settlements.archive');
+            Route::get('/settlement-runs/{run}/failures', SettlementRunFailureDetail::class)
+                ->whereUuid('run')->name('settlements.runs.failures');
+            Route::get('/settlement-runs/{run}/failures/download', [SettlementRunFailureController::class, 'download'])
+                ->whereUuid('run')->name('settlements.runs.failures.download');
         });
     }
 }

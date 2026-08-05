@@ -5,6 +5,7 @@ namespace App\Modules\Report\Presentation\Livewire;
 use App\Models\User;
 use App\Modules\Report\Application\Services\ReportExportManager;
 use App\Modules\Report\Application\Services\ReportSearch;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -108,13 +109,13 @@ class ReportSearchPage extends Component
         $export = $manager->startSearch($this->user(), $this->criteria());
 
         if ($export->status === 'queued') {
-            session()->flash('status', '结果较多，导出任务已进入队列；完成后可在最近导出中下载。');
+            Flux::toast(variant: 'success', text: '结果较多，导出任务已进入队列；完成后可在最近导出中下载。');
 
             return;
         }
 
         if ($export->status !== 'completed') {
-            session()->flash('error', $export->failure_reason ?? '导出失败，请缩小筛选范围后重试。');
+            Flux::toast(variant: 'danger', text: $export->failure_reason ?? '导出失败，请缩小筛选范围后重试。');
 
             return;
         }
@@ -125,7 +126,7 @@ class ReportSearchPage extends Component
     public function retryExport(string $id, ReportExportManager $manager): void
     {
         $manager->retry($this->user(), $id);
-        session()->flash('status', '导出任务已重新进入队列。');
+        Flux::toast(variant: 'success', text: '导出任务已重新进入队列。');
     }
 
     public function render(

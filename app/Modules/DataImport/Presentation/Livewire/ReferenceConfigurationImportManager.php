@@ -9,6 +9,7 @@ use App\Modules\DataImport\Infrastructure\EncryptedImportStorage;
 use App\Modules\DataImport\Infrastructure\Models\ImportBatch;
 use App\Modules\DataImport\Infrastructure\Models\ImportFile;
 use App\Modules\DataImport\Jobs\ParseReferenceConfigurationImport;
+use Flux\Flux;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
@@ -72,7 +73,7 @@ class ReferenceConfigurationImportManager extends Component
         $this->selectedBatchId = $batch->id;
         $this->reset('workbook', 'confirmImport');
         unset($this->batches, $this->selectedBatch);
-        session()->flash('status', '工作簿已加密上传，正在预览、校验和事务预演；此时尚未修改任何配置。');
+        Flux::toast(variant: 'success', text: '工作簿已加密上传，正在预览、校验和事务预演；此时尚未修改任何配置。');
     }
 
     public function downloadExample(ReferenceConfigurationTemplateGenerator $templates): BinaryFileResponse
@@ -159,7 +160,7 @@ class ReferenceConfigurationImportManager extends Component
         ParseReferenceConfigurationImport::dispatch($batch->id);
         $this->confirmImport = false;
         unset($this->batches, $this->selectedBatch);
-        session()->flash('status', '批次已重新进入预览、校验和事务预演。');
+        Flux::toast(variant: 'success', text: '批次已重新进入预览、校验和事务预演。');
     }
 
     public function commitBatch(ReferenceConfigurationImportCommitter $committer): void
@@ -172,7 +173,7 @@ class ReferenceConfigurationImportManager extends Component
         $committer->commit($this->ownedBatch(), request()->ip());
         $this->confirmImport = false;
         unset($this->batches, $this->selectedBatch);
-        session()->flash('status', '基础配置已按既定顺序在一个事务中完成导入，并写入审计记录。');
+        Flux::toast(variant: 'success', text: '基础配置已按既定顺序在一个事务中完成导入，并写入审计记录。');
     }
 
     /** @return Collection<int, ImportBatch> */

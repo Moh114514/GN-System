@@ -17,32 +17,94 @@ class ConfigurationNavigationTest extends TestCase
 
         $this->actingAs($user)->get(route('configuration.index'))->assertForbidden();
 
-        $this->actingAs($admin)->get(route('configuration.index'))
+        $response = $this->actingAs($admin)->get(route('configuration.index'))
             ->assertOk()
-            ->assertSee('配置中心')
-            ->assertSee('客户生命周期状态配置')
+            ->assertSee('data-test="configuration-nav-group"', false)
+            ->assertSee('data-test="configuration-nav-link"', false)
+            ->assertSee('data-test="configuration-nav-toggle"', false)
+            ->assertSee('class="crm-subnav-collapse is-open"', false)
+            ->assertSee('class="crm-subnav-collapse-inner"', false)
+            ->assertSee('x-bind:aria-hidden="(!open).toString()"', false)
+            ->assertSee('x-bind:inert="!open"', false)
+            ->assertSee('配置总览')
+            ->assertSee('机构与字典')
             ->assertSee('href="'.route('customer-statuses.index').'"', false)
-            ->assertSee('代理商与推广费配置')
+            ->assertSee('href="'.route('configuration.catalog').'"', false)
+            ->assertSee('href="'.route('direct-sales-sources.index').'"', false)
             ->assertSee('href="'.route('agent-configuration.index').'"', false)
-            ->assertSee('href="'.route('configuration.index').'" class="crm-nav-item is-active"', false);
+            ->assertSee('href="'.route('reminder-configuration.index').'"', false)
+            ->assertSee('href="'.route('configuration.users').'"', false)
+            ->assertSee('href="'.route('configuration.history').'"', false)
+            ->assertSee('href="'.route('reference-configuration-imports.index').'"', false)
+            ->assertSee('aria-label="展开或收起配置中心"', false)
+            ->assertSee('配置中心')
+            ->assertSee('href="'.route('agent-configuration.index').'"', false)
+            ->assertSee('class="crm-nav-group-head is-active"', false);
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/<div\s+id="configuration-subnav"[^>]*x-show="open"/s',
+            $response->getContent(),
+        );
     }
 
     public function test_configuration_pages_return_to_center_and_keep_configuration_navigation_active(): void
     {
         $admin = User::factory()->superAdmin()->withTwoFactor()->create();
-        $activeNavigation = 'href="'.route('configuration.index').'" class="crm-nav-item is-active"';
 
         $this->actingAs($admin)->get(route('customer-statuses.index'))
             ->assertOk()
             ->assertSee('返回配置中心')
             ->assertSee('href="'.route('configuration.index').'"', false)
-            ->assertSee($activeNavigation, false);
+            ->assertSee('class="crm-nav-group-head is-active"', false)
+            ->assertSee('data-test="configuration-subnav-customer-statuses"', false)
+            ->assertSee('class="crm-subnav-item is-active"', false);
 
         $this->actingAs($admin)->get(route('agent-configuration.index'))
             ->assertOk()
             ->assertSee('返回配置中心')
             ->assertSee('href="'.route('configuration.index').'"', false)
-            ->assertSee($activeNavigation, false);
+            ->assertSee('class="crm-nav-group-head is-active"', false)
+            ->assertSee('data-test="configuration-subnav-agent"', false)
+            ->assertSee('class="crm-subnav-item is-active"', false);
+    }
+
+    public function test_configuration_subpages_auto_expand_and_highlight_only_the_current_shortcut(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+
+        $response = $this->actingAs($admin)->get(route('agent-configuration.index'))
+            ->assertOk()
+            ->assertSee('x-data="{ open: true }"', false)
+            ->assertSee('class="crm-subnav-collapse is-open"', false)
+            ->assertSee('aria-hidden="false"', false)
+            ->assertSee('data-test="configuration-subnav-agent"', false)
+            ->assertSee('data-test="configuration-subnav-customer-statuses"', false);
+
+        $content = $response->getContent();
+
+        $this->assertMatchesRegularExpression(
+            '/<a\s+[^>]*class="crm-subnav-item is-active"[^>]*data-test="configuration-subnav-agent"/s',
+            $content,
+        );
+        $this->assertDoesNotMatchRegularExpression(
+            '/<a\s+[^>]*class="crm-subnav-item is-active"[^>]*data-test="configuration-subnav-customer-statuses"/s',
+            $content,
+        );
+    }
+
+    public function test_non_configuration_pages_render_the_configuration_subnav_collapsed(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+
+        $response = $this->actingAs($admin)->get(route('customers.index'))
+            ->assertOk()
+            ->assertSee('aria-hidden="true"', false)
+            ->assertSee('inert', false);
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/id="configuration-subnav"\s+class="crm-subnav-collapse is-open"/s',
+            $response->getContent(),
+        );
     }
 
     public function test_business_lists_keep_their_configuration_shortcuts(): void

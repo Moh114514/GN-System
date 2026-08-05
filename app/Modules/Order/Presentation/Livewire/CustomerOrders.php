@@ -6,6 +6,7 @@ use App\Modules\Order\Application\Data\DailyOrderData;
 use App\Modules\Order\Application\Services\DailyOrderWorkspace;
 use Carbon\CarbonImmutable;
 use DomainException;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -93,13 +94,13 @@ class CustomerOrders extends Component
                 translatorLanguageId: $this->translatorLanguageId === '' ? null : (int) $this->translatorLanguageId,
             ));
         } catch (DomainException $exception) {
-            $this->addError('order', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
 
             return;
         }
         $this->reset('institutionId', 'projectName', 'treatmentProjectId', 'amountKrw', 'translatorName', 'translatorLanguageId', 'notes');
         $this->status = 'pending';
-        session()->flash('status', '订单已保存。');
+        Flux::toast(variant: 'success', text: '订单已保存。');
         $this->loadContext($workspace);
     }
 
@@ -108,11 +109,11 @@ class CustomerOrders extends Component
         try {
             $workspace->complete($orderId, CarbonImmutable::now('Asia/Shanghai'), (int) Auth::id(), request()->ip());
         } catch (DomainException $exception) {
-            $this->addError('completion', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
 
             return;
         }
-        session()->flash('status', '订单已完成，推广费已按当前有效规则固化。');
+        Flux::toast(variant: 'success', text: '订单已完成，推广费已按当前有效规则固化。');
         $this->loadContext($workspace);
     }
 

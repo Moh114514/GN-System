@@ -12,10 +12,6 @@
         </div>
     </section>
 
-    @if (session('status'))
-        <div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{{ session('status') }}</div>
-    @endif
-    @error('completion') <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div> @enderror
 
     @if ($showCreate)
         <section class="mb-6 rounded-2xl border border-teal-200 bg-white p-5 shadow-sm dark:border-teal-800 dark:bg-zinc-900">
@@ -27,7 +23,6 @@
                 <flux:button wire:click="closeCreate" variant="ghost" size="sm" icon="x-mark">关闭</flux:button>
             </div>
 
-            @error('order') <div class="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div> @enderror
 
             <form wire:submit="save" class="mt-5">
                 <div class="grid gap-5 xl:grid-cols-[20rem_minmax(0,1fr)]">

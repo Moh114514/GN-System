@@ -7,6 +7,7 @@ use App\Modules\Agent\Application\Services\AgentDirectory;
 use App\Modules\Agent\Application\Services\AgentManager;
 use Carbon\CarbonImmutable;
 use DomainException;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -101,17 +102,17 @@ class AgentForm extends Component
         try {
             if ($this->agentId === null) {
                 $id = $manager->create($data, (int) Auth::id(), request()->ip());
-                session()->flash('status', '代理商档案已创建。');
+                Flux::toast(variant: 'success', text: '代理商档案已创建。');
 
                 return $this->redirectRoute('agents.show', ['agent' => $id], navigate: true);
             }
             $manager->update($this->agentId, $data, (int) Auth::id(), request()->ip());
         } catch (DomainException $exception) {
-            $this->addError('form', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
 
             return null;
         }
-        session()->flash('status', '代理商档案已更新；等级变化将在下月生效。');
+        Flux::toast(variant: 'success', text: '代理商档案已更新；等级变化将在下月生效。');
 
         return $this->redirectRoute('agents.show', ['agent' => $this->agentId], navigate: true);
     }

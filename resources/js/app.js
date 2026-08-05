@@ -154,9 +154,57 @@ function scheduleDashboardCharts() {
     window.requestAnimationFrame(() => window.requestAnimationFrame(renderDashboardCharts));
 }
 
+let activeBusinessAlertKeys = new Set();
+
+function businessAlertKey(element) {
+    return element.dataset.businessAlertKey || element.id;
+}
+
+function focusBusinessAlert(element) {
+    if (!element) {
+        return;
+    }
+    const rect = element.getBoundingClientRect();
+    const inViewport = rect.top >= 0 && rect.bottom <= window.innerHeight;
+    if (inViewport) {
+        return;
+    }
+    const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth';
+    element.scrollIntoView({ behavior, block: 'start' });
+    const focusTarget = element.querySelector('button, a, input, textarea, select') || element;
+    focusTarget.focus({ preventScroll: true });
+}
+
+function syncBusinessAlerts() {
+    const elements = [...document.querySelectorAll('[data-business-alert]')];
+    const nextKeys = new Set();
+    elements.forEach((element) => {
+        const key = businessAlertKey(element);
+        nextKeys.add(key);
+        if (!activeBusinessAlertKeys.has(key)) {
+            focusBusinessAlert(element);
+        }
+    });
+    activeBusinessAlertKeys = nextKeys;
+}
+
 document.addEventListener('DOMContentLoaded', scheduleDashboardCharts);
-document.addEventListener('livewire:navigated', scheduleDashboardCharts);
 document.addEventListener('dashboard-updated', scheduleDashboardCharts);
+document.addEventListener('livewire:navigated', () => {
+    activeBusinessAlertKeys = new Set();
+    scheduleDashboardCharts();
+    syncBusinessAlerts();
+});
+window.addEventListener('business-alert-focus', (event) => {
+    const element = document.getElementById(event.detail?.alertId || '');
+    if (element) {
+        focusBusinessAlert(element);
+        activeBusinessAlertKeys.add(businessAlertKey(element));
+    }
+});
 document.addEventListener('livewire:init', () => {
-    window.Livewire.hook('morph.updated', scheduleDashboardCharts);
+    window.Livewire.hook('morphed', () => {
+        scheduleDashboardCharts();
+        syncBusinessAlerts();
+    });
 });

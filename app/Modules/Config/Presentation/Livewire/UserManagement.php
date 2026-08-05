@@ -4,6 +4,7 @@ namespace App\Modules\Config\Presentation\Livewire;
 
 use App\Modules\Config\Application\Services\ConfigurationUserCoordinator;
 use DomainException;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -29,9 +30,9 @@ class UserManagement extends Component
         ]);
         $result = $users->invite($this->name, $this->email, $this->isSuperAdmin, (int) Auth::id(), request()->ip());
         $this->reset('name', 'email', 'isSuperAdmin');
-        session()->flash(
-            $result['invitation_status'] === 'sent' ? 'status' : 'error',
-            $result['invitation_status'] === 'sent'
+        Flux::toast(
+            variant: $result['invitation_status'] === 'sent' ? 'success' : 'danger',
+            text: $result['invitation_status'] === 'sent'
                 ? '用户已创建，一次性密码设置链接已发送。'
                 : '用户已创建，但邀请邮件发送失败；请检查邮件配置后重发。',
         );
@@ -41,9 +42,9 @@ class UserManagement extends Component
     {
         $this->run(function () use ($id, $users): void {
             $status = $users->resend($id, (int) Auth::id(), request()->ip());
-            session()->flash(
-                $status === 'sent' ? 'status' : 'error',
-                $status === 'sent' ? '邀请邮件已重发。' : '邀请邮件仍发送失败，请检查 SMTP 配置。',
+            Flux::toast(
+                variant: $status === 'sent' ? 'success' : 'danger',
+                text: $status === 'sent' ? '邀请邮件已重发。' : '邀请邮件仍发送失败，请检查 SMTP 配置。',
             );
         });
     }
@@ -68,10 +69,10 @@ class UserManagement extends Component
         try {
             $operation();
             if ($success !== null) {
-                session()->flash('status', $success);
+                Flux::toast(variant: 'success', text: $success);
             }
         } catch (DomainException $exception) {
-            $this->addError('userManagement', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
         }
     }
 }

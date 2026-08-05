@@ -8,6 +8,7 @@ use App\Modules\Reminder\Application\Services\ReminderWorkspace;
 use App\Modules\Reminder\Infrastructure\Models\ReminderTemplate;
 use Carbon\CarbonImmutable;
 use DomainException;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -89,9 +90,10 @@ class ReminderCreate extends Component
             if ($this->saveAsTemplate) {
                 $rules->saveTemplate(null, $this->templateName, $this->title, $this->suggestion, 'manual', [], (int) Auth::id());
             }
+            Flux::toast(variant: 'success', text: '提醒已创建。');
             $this->redirectRoute('reminders.index', navigate: true);
         } catch (DomainException $exception) {
-            $this->addError('reminder', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
         }
     }
 

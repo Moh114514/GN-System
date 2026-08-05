@@ -3,7 +3,6 @@
     <section class="crm-section-header">
         <div><p class="text-xs font-medium text-zinc-400">配置中心 · 来源字典</p><h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">直销来源配置</h2><p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">停用来源不再出现在新建客户下拉框中，历史客户来源保持不变。</p></div>
     </section>
-    @if (session('status'))<div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>@endif
     <section class="grid gap-6 xl:grid-cols-[22rem_1fr]">
         <form wire:submit="save" class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
             <h3 class="font-semibold">{{ $editingId === null ? '新增来源' : '编辑来源' }}</h3>

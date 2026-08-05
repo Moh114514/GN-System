@@ -7,6 +7,7 @@ use App\Modules\Customer\Application\Exceptions\CustomerCodeChanged;
 use App\Modules\Customer\Application\Services\CustomerDirectory;
 use App\Modules\Customer\Application\Services\CustomerProfileManager;
 use Carbon\CarbonImmutable;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -162,7 +163,7 @@ class CustomerForm extends Component
                 sensitiveChangeConfirmed: $this->sensitiveConfirmation,
                 ipAddress: request()->ip(),
             );
-            session()->flash('status', '客户档案已更新。');
+            Flux::toast(variant: 'success', text: '客户档案已更新。');
 
             return $this->redirectRoute('customers.show', ['customer' => $this->customerId], navigate: true);
         }
@@ -189,7 +190,7 @@ class CustomerForm extends Component
             return null;
         }
 
-        session()->flash('status', '客户档案已创建。');
+        Flux::toast(variant: 'success', text: '客户档案已创建。');
 
         return $this->redirectRoute('customers.show', ['customer' => $customerId], navigate: true);
     }

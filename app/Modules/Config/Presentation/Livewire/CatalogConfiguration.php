@@ -4,6 +4,7 @@ namespace App\Modules\Config\Presentation\Livewire;
 
 use App\Modules\Config\Application\Services\ConfigurationCatalogManager;
 use DomainException;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -136,7 +137,7 @@ class CatalogConfiguration extends Component
         ]);
         $manager->saveParameter('report_default_per_page', (int) $this->reportDefaultPerPage, (int) Auth::id(), request()->ip());
         $manager->saveParameter('dashboard_refresh_seconds', (int) $this->dashboardRefreshSeconds, (int) Auth::id(), request()->ip());
-        session()->flash('status', '全局系统参数已保存。');
+        Flux::toast(variant: 'success', text: '全局系统参数已保存。');
     }
 
     public function render(ConfigurationCatalogManager $manager): View
@@ -150,9 +151,9 @@ class CatalogConfiguration extends Component
     {
         try {
             $operation();
-            session()->flash('status', $success);
+            Flux::toast(variant: 'success', text: $success);
         } catch (DomainException $exception) {
-            $this->addError('configuration', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
         }
     }
 }

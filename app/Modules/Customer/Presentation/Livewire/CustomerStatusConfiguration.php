@@ -3,6 +3,7 @@
 namespace App\Modules\Customer\Presentation\Livewire;
 
 use App\Modules\Customer\Application\Services\CustomerStatusManager;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -41,7 +42,7 @@ class CustomerStatusConfiguration extends Component
         ]);
         $manager->saveConfiguration($this->stages, $this->statuses, Auth::user(), request()->ip());
         $this->loadConfiguration($manager);
-        session()->flash('status', '客户状态配置已保存。');
+        Flux::toast(variant: 'success', text: '客户状态配置已保存。');
     }
 
     public function render(): View

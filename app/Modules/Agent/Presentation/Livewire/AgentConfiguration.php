@@ -6,6 +6,7 @@ use App\Modules\Agent\Application\Services\AgentConfigurationCoordinator;
 use App\Modules\Agent\Application\Services\AgentManager;
 use Carbon\CarbonImmutable;
 use DomainException;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -191,9 +192,9 @@ class AgentConfiguration extends Component
     {
         try {
             $operation();
-            session()->flash('status', $success);
+            Flux::toast(variant: 'success', text: $success);
         } catch (DomainException $exception) {
-            $this->addError('configuration', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
         }
     }
 }

@@ -10,11 +10,7 @@
             aria-label="主导航"
         >
             <a href="{{ route('dashboard') }}" class="crm-brand" wire:navigate>
-                <img
-                    class="crm-brand-logo"
-                    src="{{ asset('images/lightyear18-logo.png') }}"
-                    alt="光年拾捌 Lightyear 18"
-                >
+                <x-theme-logo class="crm-brand-logo" />
                 <span>
                     <strong>GN-System</strong>
                     <small>专业 · 安全 · 高效</small>
@@ -36,10 +32,145 @@
                         <flux:icon.building-office aria-hidden="true" />
                         <span>代理商</span>
                     </a>
-                    <a href="{{ route('configuration.index') }}" class="crm-nav-item {{ request()->routeIs('configuration.*', 'agent-configuration.*', 'customer-statuses.*', 'direct-sales-sources.*', 'reminder-configuration.*', 'reference-configuration-imports.*') ? 'is-active' : '' }}" wire:navigate>
-                        <flux:icon.cog-6-tooth aria-hidden="true" />
-                        <span>配置中心</span>
-                    </a>
+                    @php
+                        $configurationNavigationActive = request()->routeIs(
+                            'configuration.*',
+                            'agent-configuration.*',
+                            'customer-statuses.*',
+                            'direct-sales-sources.*',
+                            'reminder-configuration.*',
+                            'reference-configuration-imports.*',
+                        );
+                    @endphp
+
+                    <div
+                        class="crm-nav-group"
+                        x-data="{ open: @js($configurationNavigationActive) }"
+                        data-test="configuration-nav-group"
+                    >
+                        <div class="crm-nav-group-head {{ $configurationNavigationActive ? 'is-active' : '' }}">
+                            <a
+                                href="{{ route('configuration.index') }}"
+                                class="crm-nav-group-link"
+                                data-test="configuration-nav-link"
+                                wire:navigate
+                            >
+                                <flux:icon.cog-6-tooth aria-hidden="true" />
+                                <span>配置中心</span>
+                            </a>
+
+                            <button
+                                type="button"
+                                class="crm-nav-group-toggle"
+                                @click="open = !open"
+                                :aria-expanded="open"
+                                aria-controls="configuration-subnav"
+                                aria-label="展开或收起配置中心"
+                                data-test="configuration-nav-toggle"
+                            >
+                                <flux:icon.chevron-down
+                                    class="crm-nav-chevron"
+                                    x-bind:class="{ 'is-open': open }"
+                                    aria-hidden="true"
+                                />
+                            </button>
+                        </div>
+
+                        <div
+                            id="configuration-subnav"
+                            class="crm-subnav-collapse {{ $configurationNavigationActive ? 'is-open' : '' }}"
+                            aria-hidden="{{ $configurationNavigationActive ? 'false' : 'true' }}"
+                            x-bind:class="{ 'is-open': open }"
+                            x-bind:aria-hidden="(!open).toString()"
+                            @if (! $configurationNavigationActive) inert @endif
+                            x-bind:inert="!open"
+                        >
+                            <div class="crm-subnav-collapse-inner">
+                                <div class="crm-subnav">
+                                    <a
+                                        href="{{ route('configuration.index') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('configuration.index') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-overview"
+                                        wire:navigate
+                                    >
+                                        配置总览
+                                    </a>
+
+                                    <a
+                                        href="{{ route('configuration.catalog') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('configuration.catalog') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-catalog"
+                                        wire:navigate
+                                    >
+                                        机构与字典
+                                    </a>
+
+                                    <a
+                                        href="{{ route('direct-sales-sources.index') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('direct-sales-sources.*') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-direct-sales-sources"
+                                        wire:navigate
+                                    >
+                                        直销来源
+                                    </a>
+
+                                    <a
+                                        href="{{ route('customer-statuses.index') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('customer-statuses.*') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-customer-statuses"
+                                        wire:navigate
+                                    >
+                                        客户状态
+                                    </a>
+
+                                    <a
+                                        href="{{ route('agent-configuration.index') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('agent-configuration.*') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-agent"
+                                        wire:navigate
+                                    >
+                                        代理商与推广费
+                                    </a>
+
+                                    <a
+                                        href="{{ route('reminder-configuration.index') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('reminder-configuration.*') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-reminder"
+                                        wire:navigate
+                                    >
+                                        提醒规则
+                                    </a>
+
+                                    <a
+                                        href="{{ route('configuration.users') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('configuration.users') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-users"
+                                        wire:navigate
+                                    >
+                                        用户与权限
+                                    </a>
+
+                                    <a
+                                        href="{{ route('configuration.history') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('configuration.history') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-history"
+                                        wire:navigate
+                                    >
+                                        配置历史
+                                    </a>
+
+                                    <a
+                                        href="{{ route('reference-configuration-imports.index') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('reference-configuration-imports.*') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-reference-imports"
+                                        wire:navigate
+                                    >
+                                        基础配置导入
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 @endif
 
                 <a href="{{ route('customers.index') }}" class="crm-nav-item {{ request()->routeIs('customers.index', 'customers.create', 'customers.show', 'customers.edit') ? 'is-active' : '' }}" wire:navigate>

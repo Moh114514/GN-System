@@ -6,6 +6,7 @@ use App\Modules\Reminder\Application\Services\ReminderRuleManager;
 use App\Modules\Reminder\Infrastructure\Models\ReminderRule;
 use App\Modules\Reminder\Infrastructure\Models\ReminderTemplate;
 use DomainException;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -73,10 +74,10 @@ class ReminderConfiguration extends Component
                 $this->scopeValue === '' ? [] : ['value' => $this->scopeValue],
                 $this->ruleTitle, $this->suggestion, (int) $this->priority, (int) Auth::id(),
             );
-            session()->flash('status', '主动提醒规则已保存。');
+            Flux::toast(variant: 'success', text: '主动提醒规则已保存。');
             $this->reset('editingRuleId', 'ruleName', 'ruleTitle', 'suggestion', 'scopeValue');
         } catch (DomainException $exception) {
-            $this->addError('configuration', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
         }
     }
 
@@ -107,7 +108,7 @@ class ReminderConfiguration extends Component
         $this->validate(['templateName' => ['required', 'string', 'max:255'], 'templateTitle' => ['required', 'string', 'max:255']]);
         $manager->saveTemplate($this->editingTemplateId, $this->templateName, $this->templateTitle, $this->templateSuggestion, 'manual', [], null);
         $this->reset('editingTemplateId', 'templateName', 'templateTitle', 'templateSuggestion');
-        session()->flash('status', '全局提醒模板已保存。');
+        Flux::toast(variant: 'success', text: '全局提醒模板已保存。');
     }
 
     public function editTemplate(int $id): void

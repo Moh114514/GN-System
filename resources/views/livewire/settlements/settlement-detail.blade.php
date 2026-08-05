@@ -1,9 +1,5 @@
 <div>
     <x-page-back :href="route('settlements.index')" label="返回月结中心" class="mb-4" />
-    @if (session('status'))<div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>@endif
-    @if (session('warning'))<div class="mb-5 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">{{ session('warning') }}</div>@endif
-    @if (session('error'))<div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ session('error') }}</div>@endif
-    @error('workflow')<div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div>@enderror
 
     @php($canRegenerateGeneration = in_array($settlement->generation_status, ['pending', 'unverified'], true))
     @php($needsRegeneration = in_array($settlement->status, ['pending_review', 'rejected']) && $canRegenerateGeneration && $settlement->settlement_run_id !== null)
@@ -11,14 +7,14 @@
     @php($generationNotApplicable = $settlement->generation_status === 'not_applicable')
     @php($generationRecoveryRequired = $generationUnverified && $settlement->settlement_run_id === null)
     @if ($needsRegeneration)
-        <section class="mb-5 rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
+        <section id="{{ $needsRegeneration ? 'settlement-generation-alert' : 'settlement-generation-regeneration-note' }}" data-business-alert data-business-alert-key="{{ $settlement->id }}-{{ $settlement->generation_status }}-regeneration" tabindex="-1" class="scroll-mt-20 mb-5 rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
             <h3 class="font-semibold">月结明细尚未生成</h3>
             <p class="mt-1 text-sm">当前消费合计和推广费合计暂时显示为 ₩0。请先重新生成月结明细，核对金额和结算汇率后再提交审核。</p>
             <flux:button class="mt-3" wire:click="regenerateSettlement" wire:loading.attr="disabled" wire:target="regenerateSettlement" variant="primary">重新生成月结明细</flux:button>
         </section>
     @endif
     @if ($generationUnverified)
-        <section class="mb-5 rounded-xl border border-red-300 bg-red-50 px-5 py-4 text-red-900 dark:border-red-700 dark:bg-red-950/30 dark:text-red-100">
+        <section id="{{ $needsRegeneration ? 'settlement-generation-unverified-note' : 'settlement-generation-alert' }}" data-business-alert data-business-alert-key="{{ $settlement->id }}-{{ $settlement->generation_status }}-unverified" tabindex="-1" class="scroll-mt-20 mb-5 rounded-xl border border-red-300 bg-red-50 px-5 py-4 text-red-900 dark:border-red-700 dark:bg-red-950/30 dark:text-red-100">
             <h3 class="font-semibold">历史月结生成状态无法确认</h3>
             <p class="mt-1 text-sm">系统没有找到足够的生成批次、明细或结算文档证据，已禁止直接审核。请由超级管理员填写核验依据，选择按历史导入归档，或创建恢复批次重新生成。</p>
             @if ($generationRecoveryRequired && auth()->user()?->is_super_admin)
@@ -44,7 +40,21 @@
     <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <div class="flex flex-wrap items-start justify-between gap-4">
             <div><p class="text-xs font-medium text-zinc-400">月结详情</p><h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ data_get($settlement->snapshot, 'agent.name', '代理商') }}</h2><p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ $settlement->period_start->format('Y-m-d') }} 至 {{ $settlement->period_end->format('Y-m-d') }}</p></div>
-            <span class="crm-pill tone-blue">{{ ['pending_review'=>'待审核','rejected'=>'已驳回','approved'=>'已通过','settled'=>'已结清','paid'=>'历史已结清','reconciled'=>'历史已对账'][$settlement->status] ?? $settlement->status }}</span>
+            <div class="flex flex-wrap items-center justify-end gap-3">
+                <div class="flex items-center gap-2" aria-label="同批次月结导航">
+                    @if ($previousSettlement)
+                        <a class="text-sm font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $previousSettlement->id) }}" wire:navigate>← 上一条</a>
+                    @else
+                        <span class="text-sm text-zinc-400">← 上一条</span>
+                    @endif
+                    @if ($nextSettlement)
+                        <a class="text-sm font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $nextSettlement->id) }}" wire:navigate>下一条 →</a>
+                    @else
+                        <span class="text-sm text-zinc-400">下一条 →</span>
+                    @endif
+                </div>
+                <span class="crm-pill tone-blue">{{ ['pending_review'=>'待审核','rejected'=>'已驳回','approved'=>'已通过','settled'=>'已结清','paid'=>'历史已结清','reconciled'=>'历史已对账'][$settlement->status] ?? $settlement->status }}</span>
+            </div>
         </div>
         <dl class="mt-5 grid gap-4 sm:grid-cols-3"><div><dt class="text-xs text-zinc-500">消费合计</dt><dd class="font-semibold">₩ {{ number_format($settlement->total_consumption_krw) }}</dd></div><div><dt class="text-xs text-zinc-500">推广费合计</dt><dd class="font-semibold">₩ {{ number_format($settlement->total_commission_krw) }}</dd></div><div><dt class="text-xs text-zinc-500">人民币应付</dt><dd class="font-semibold">{{ $settlement->exchange_rate_krw_per_cny ? '¥ '.number_format($settlement->payout_amount_cny_fen / 100, 2) : '待审核' }}</dd></div></dl>
     </section>

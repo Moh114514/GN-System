@@ -7,6 +7,7 @@ use App\Modules\Reminder\Application\Services\ReminderNotificationDispatcher;
 use App\Modules\Reminder\Application\Services\ReminderWorkspace;
 use Carbon\CarbonImmutable;
 use DomainException;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
@@ -70,9 +71,9 @@ class ReminderCenter extends Component
         try {
             $operation();
             $this->reset('actionNotes', 'snoozeUntil', 'snoozeReason', 'assigneeId');
-            session()->flash('status', $message);
+            Flux::toast(variant: 'success', text: $message);
         } catch (DomainException $exception) {
-            $this->addError('reminder', $exception->getMessage());
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
         }
     }
 }

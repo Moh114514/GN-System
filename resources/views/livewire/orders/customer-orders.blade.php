@@ -6,11 +6,6 @@
         <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">录入待完成或已完成订单；代理商订单完成时会自动核算并锁定推广费。</p>
     </section>
 
-    @if (session('status'))
-        <div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>
-    @endif
-    @error('order') <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div> @enderror
-    @error('completion') <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div> @enderror
 
     <div class="grid gap-6 xl:grid-cols-[24rem_minmax(0,1fr)]">
         <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">

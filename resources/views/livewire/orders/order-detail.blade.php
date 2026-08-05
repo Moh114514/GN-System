@@ -17,10 +17,6 @@
         <span class="crm-pill {{ $deleted ? 'tone-red' : ($statusTone[$order['status']] ?? 'tone-blue') }}">{{ $deleted ? '已删除' : ($statusLabels[$order['status']] ?? $order['status']) }}</span>
     </section>
 
-    @if (session('status'))
-        <div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{{ session('status') }}</div>
-    @endif
-    @error('action') <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div> @enderror
 
     <section id="status-editor" class="crm-card mb-6">
         <div class="flex flex-wrap items-start justify-between gap-3">

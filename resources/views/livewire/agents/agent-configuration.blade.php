@@ -6,10 +6,6 @@
         <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">配置类型、政策等级和按月生效的机构费率；历史月份与推广费快照不会被改写。</p>
     </section>
 
-    @if (session('status'))
-        <div class="mb-5 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">{{ session('status') }}</div>
-    @endif
-    @error('configuration') <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{{ $message }}</div> @enderror
 
     <div class="space-y-6">
         <section class="grid gap-6 xl:grid-cols-2">
