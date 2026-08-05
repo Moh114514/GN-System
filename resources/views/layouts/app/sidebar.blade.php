@@ -82,91 +82,95 @@
 
                         <div
                             id="configuration-subnav"
-                            class="crm-subnav"
-                            x-show="open"
-                            x-cloak
-                            x-transition.opacity.duration.150ms
+                            class="crm-subnav-collapse"
+                            x-bind:class="{ 'is-open': open }"
+                            x-bind:aria-hidden="(!open).toString()"
+                            x-bind:inert="!open"
                         >
-                            <a
-                                href="{{ route('configuration.index') }}"
-                                class="crm-subnav-item {{ request()->routeIs('configuration.index') ? 'is-active' : '' }}"
-                                data-test="configuration-subnav-overview"
-                                wire:navigate
-                            >
-                                配置总览
-                            </a>
+                            <div class="crm-subnav-collapse-inner">
+                                <div class="crm-subnav">
+                                    <a
+                                        href="{{ route('configuration.index') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('configuration.index') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-overview"
+                                        wire:navigate
+                                    >
+                                        配置总览
+                                    </a>
 
-                            <a
-                                href="{{ route('configuration.catalog') }}"
-                                class="crm-subnav-item {{ request()->routeIs('configuration.catalog') ? 'is-active' : '' }}"
-                                data-test="configuration-subnav-catalog"
-                                wire:navigate
-                            >
-                                机构与字典
-                            </a>
+                                    <a
+                                        href="{{ route('configuration.catalog') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('configuration.catalog') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-catalog"
+                                        wire:navigate
+                                    >
+                                        机构与字典
+                                    </a>
 
-                            <a
-                                href="{{ route('direct-sales-sources.index') }}"
-                                class="crm-subnav-item {{ request()->routeIs('direct-sales-sources.*') ? 'is-active' : '' }}"
-                                data-test="configuration-subnav-direct-sales-sources"
-                                wire:navigate
-                            >
-                                直销来源
-                            </a>
+                                    <a
+                                        href="{{ route('direct-sales-sources.index') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('direct-sales-sources.*') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-direct-sales-sources"
+                                        wire:navigate
+                                    >
+                                        直销来源
+                                    </a>
 
-                            <a
-                                href="{{ route('customer-statuses.index') }}"
-                                class="crm-subnav-item {{ request()->routeIs('customer-statuses.*') ? 'is-active' : '' }}"
-                                data-test="configuration-subnav-customer-statuses"
-                                wire:navigate
-                            >
-                                客户状态
-                            </a>
+                                    <a
+                                        href="{{ route('customer-statuses.index') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('customer-statuses.*') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-customer-statuses"
+                                        wire:navigate
+                                    >
+                                        客户状态
+                                    </a>
 
-                            <a
-                                href="{{ route('agent-configuration.index') }}"
-                                class="crm-subnav-item {{ request()->routeIs('agent-configuration.*') ? 'is-active' : '' }}"
-                                data-test="configuration-subnav-agent"
-                                wire:navigate
-                            >
-                                代理商与推广费
-                            </a>
+                                    <a
+                                        href="{{ route('agent-configuration.index') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('agent-configuration.*') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-agent"
+                                        wire:navigate
+                                    >
+                                        代理商与推广费
+                                    </a>
 
-                            <a
-                                href="{{ route('reminder-configuration.index') }}"
-                                class="crm-subnav-item {{ request()->routeIs('reminder-configuration.*') ? 'is-active' : '' }}"
-                                data-test="configuration-subnav-reminder"
-                                wire:navigate
-                            >
-                                提醒规则
-                            </a>
+                                    <a
+                                        href="{{ route('reminder-configuration.index') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('reminder-configuration.*') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-reminder"
+                                        wire:navigate
+                                    >
+                                        提醒规则
+                                    </a>
 
-                            <a
-                                href="{{ route('configuration.users') }}"
-                                class="crm-subnav-item {{ request()->routeIs('configuration.users') ? 'is-active' : '' }}"
-                                data-test="configuration-subnav-users"
-                                wire:navigate
-                            >
-                                用户与权限
-                            </a>
+                                    <a
+                                        href="{{ route('configuration.users') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('configuration.users') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-users"
+                                        wire:navigate
+                                    >
+                                        用户与权限
+                                    </a>
 
-                            <a
-                                href="{{ route('configuration.history') }}"
-                                class="crm-subnav-item {{ request()->routeIs('configuration.history') ? 'is-active' : '' }}"
-                                data-test="configuration-subnav-history"
-                                wire:navigate
-                            >
-                                配置历史
-                            </a>
+                                    <a
+                                        href="{{ route('configuration.history') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('configuration.history') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-history"
+                                        wire:navigate
+                                    >
+                                        配置历史
+                                    </a>
 
-                            <a
-                                href="{{ route('reference-configuration-imports.index') }}"
-                                class="crm-subnav-item {{ request()->routeIs('reference-configuration-imports.*') ? 'is-active' : '' }}"
-                                data-test="configuration-subnav-reference-imports"
-                                wire:navigate
-                            >
-                                基础配置导入
-                            </a>
+                                    <a
+                                        href="{{ route('reference-configuration-imports.index') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('reference-configuration-imports.*') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-reference-imports"
+                                        wire:navigate
+                                    >
+                                        基础配置导入
+                                    </a>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 @endif

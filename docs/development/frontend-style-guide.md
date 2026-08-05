@@ -43,9 +43,9 @@ eyebrow 只用于帮助用户定位当前页面，不重复标题，也不暴露
 
 ## 文案与字体
 
-- 全局默认字体使用 `Alibaba PuHuiTi 2.0`（兼容 `Alibaba PuHuiTi` 字体名），字体文件放在 `public/fonts/AlibabaPuHuiTi.woff2`（可用 `.ttf` 作为回退）；中文回退到 `PingFang SC`、`Microsoft YaHei` 和系统无衬线字体。
+- 全局默认字体使用 `Alibaba PuHuiTi 2.0`（兼容 `Alibaba PuHuiTi` 字体名），字体文件放在 `public/fonts/`；正文使用 Light（300），小标题和控件使用 Regular（400）。中文回退到 `PingFang SC`、`Microsoft YaHei` 和系统无衬线字体。
 - CRM 页面基准字号为 `14px`，行高约 `1.55`。正文优先使用 `text-sm`，辅助信息使用 `text-xs`。
-- 页面主标题统一使用 2xl、粗体、紧字距；卡片标题通常使用约 14.5px、半粗体；表格正文和元数据可使用较小字号。
+- 页面主标题统一使用 2xl、Regular、紧字距；卡片标题通常使用约 14.5px、Regular；表格正文和元数据可使用较小字号。
 - 业务名称、状态和数字应保持易读；只读客户、内部用户和代理商姓名遵循
   [`ui-navigation.md`](ui-navigation.md) 的半粗体规则，录入控件不额外加粗。
 - 标题和描述使用用户能理解的业务语言。描述应说明“能做什么”或“有什么限制”，避免出现

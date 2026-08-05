@@ -17,11 +17,15 @@ class ConfigurationNavigationTest extends TestCase
 
         $this->actingAs($user)->get(route('configuration.index'))->assertForbidden();
 
-        $this->actingAs($admin)->get(route('configuration.index'))
+        $response = $this->actingAs($admin)->get(route('configuration.index'))
             ->assertOk()
             ->assertSee('data-test="configuration-nav-group"', false)
             ->assertSee('data-test="configuration-nav-link"', false)
             ->assertSee('data-test="configuration-nav-toggle"', false)
+            ->assertSee('class="crm-subnav-collapse"', false)
+            ->assertSee('class="crm-subnav-collapse-inner"', false)
+            ->assertSee('x-bind:aria-hidden="(!open).toString()"', false)
+            ->assertSee('x-bind:inert="!open"', false)
             ->assertSee('配置总览')
             ->assertSee('机构与字典')
             ->assertSee('href="'.route('customer-statuses.index').'"', false)
@@ -36,6 +40,11 @@ class ConfigurationNavigationTest extends TestCase
             ->assertSee('配置中心')
             ->assertSee('href="'.route('agent-configuration.index').'"', false)
             ->assertSee('class="crm-nav-group-head is-active"', false);
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/<div\s+id="configuration-subnav"[^>]*x-show="open"/s',
+            $response->getContent(),
+        );
     }
 
     public function test_configuration_pages_return_to_center_and_keep_configuration_navigation_active(): void
