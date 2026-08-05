@@ -25,7 +25,8 @@ class DashboardTest extends TestCase
         $response
             ->assertOk()
             ->assertSee('GN-System')
-            ->assertSee('images/lightyear18-logo.png', false)
+            ->assertSee('data-test="app-logo-light"', false)
+            ->assertSee('data-test="app-logo-dark"', false)
             ->assertSee('数据看板')
             ->assertSee('id="global-search"', false)
             ->assertSee('action="'.route('global-search').'"', false)
@@ -73,7 +74,8 @@ class DashboardTest extends TestCase
         $response
             ->assertOk()
             ->assertSee('GN-System')
-            ->assertSee('images/lightyear18-logo.png', false)
+            ->assertSee('data-test="app-logo-light"', false)
+            ->assertSee('data-test="app-logo-dark"', false)
             ->assertSee('数据看板');
     }
 }
