@@ -10,11 +10,7 @@
             aria-label="主导航"
         >
             <a href="{{ route('dashboard') }}" class="crm-brand" wire:navigate>
-                <img
-                    class="crm-brand-logo"
-                    src="{{ asset('images/lightyear18-logo.png') }}"
-                    alt="光年拾捌 Lightyear 18"
-                >
+                <x-theme-logo class="crm-brand-logo" />
                 <span>
                     <strong>GN-System</strong>
                     <small>专业 · 安全 · 高效</small>
@@ -82,9 +78,11 @@
 
                         <div
                             id="configuration-subnav"
-                            class="crm-subnav-collapse"
+                            class="crm-subnav-collapse {{ $configurationNavigationActive ? 'is-open' : '' }}"
+                            aria-hidden="{{ $configurationNavigationActive ? 'false' : 'true' }}"
                             x-bind:class="{ 'is-open': open }"
                             x-bind:aria-hidden="(!open).toString()"
+                            @if (! $configurationNavigationActive) inert @endif
                             x-bind:inert="!open"
                         >
                             <div class="crm-subnav-collapse-inner">

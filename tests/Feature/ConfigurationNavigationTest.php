@@ -22,7 +22,7 @@ class ConfigurationNavigationTest extends TestCase
             ->assertSee('data-test="configuration-nav-group"', false)
             ->assertSee('data-test="configuration-nav-link"', false)
             ->assertSee('data-test="configuration-nav-toggle"', false)
-            ->assertSee('class="crm-subnav-collapse"', false)
+            ->assertSee('class="crm-subnav-collapse is-open"', false)
             ->assertSee('class="crm-subnav-collapse-inner"', false)
             ->assertSee('x-bind:aria-hidden="(!open).toString()"', false)
             ->assertSee('x-bind:inert="!open"', false)
@@ -75,6 +75,8 @@ class ConfigurationNavigationTest extends TestCase
         $response = $this->actingAs($admin)->get(route('agent-configuration.index'))
             ->assertOk()
             ->assertSee('x-data="{ open: true }"', false)
+            ->assertSee('class="crm-subnav-collapse is-open"', false)
+            ->assertSee('aria-hidden="false"', false)
             ->assertSee('data-test="configuration-subnav-agent"', false)
             ->assertSee('data-test="configuration-subnav-customer-statuses"', false);
 
@@ -87,6 +89,21 @@ class ConfigurationNavigationTest extends TestCase
         $this->assertDoesNotMatchRegularExpression(
             '/<a\s+[^>]*class="crm-subnav-item is-active"[^>]*data-test="configuration-subnav-customer-statuses"/s',
             $content,
+        );
+    }
+
+    public function test_non_configuration_pages_render_the_configuration_subnav_collapsed(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+
+        $response = $this->actingAs($admin)->get(route('customers.index'))
+            ->assertOk()
+            ->assertSee('aria-hidden="true"', false)
+            ->assertSee('inert', false);
+
+        $this->assertDoesNotMatchRegularExpression(
+            '/id="configuration-subnav"\s+class="crm-subnav-collapse is-open"/s',
+            $response->getContent(),
         );
     }
 
