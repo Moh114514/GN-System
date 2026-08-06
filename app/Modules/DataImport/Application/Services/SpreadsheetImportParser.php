@@ -33,11 +33,16 @@ final readonly class SpreadsheetImportParser
         private CatalogImportGateway $catalog,
         private CustomerImportGateway $customers,
         private SpreadsheetCellValueReader $cells,
+        private ImportIssueRecorder $issues,
+        private ImportStageTracker $stages,
     ) {}
 
     public function parse(ImportBatch $batch): void
     {
+        $this->stages->initialize($batch);
+        $this->stages->update($batch, 'file_detection', 'running');
         $batch->update(['status' => ImportBatchStatus::Parsing, 'failure_reason' => null]);
+        $batch->issues()->delete();
         $batch->rows()->delete();
 
         try {
@@ -45,9 +50,20 @@ final readonly class SpreadsheetImportParser
                 $this->parseFile($file);
             }
 
+            $this->stages->update($batch, 'file_detection', 'passed');
+            $this->issues->syncRows($batch, 'field_validation');
             $this->reconcile($batch);
+            $this->issues->syncRows($batch, null, false);
             $this->refreshBatchCounts($batch);
         } catch (Throwable $exception) {
+            $this->stages->update($batch, 'file_detection', 'failed', ['issue_count' => 1]);
+            $this->issues->record(
+                $batch,
+                'file_detection',
+                'error',
+                'file_detection_failed',
+                Str::limit($exception->getMessage(), 2000),
+            );
             $batch->update([
                 'status' => ImportBatchStatus::Failed,
                 'failure_reason' => Str::limit($exception->getMessage(), 2000),
@@ -174,6 +190,17 @@ final readonly class SpreadsheetImportParser
                 'preflight' => $preflight,
             ]);
         } catch (Throwable $exception) {
+            $this->issues->record(
+                $file->batch,
+                'file_detection',
+                'error',
+                'file_detection_failed',
+                Str::limit($exception->getMessage(), 2000),
+                $file,
+                null,
+                null,
+                ['preflight' => $preflight],
+            );
             $file->update([
                 'status' => 'failed',
                 'preflight' => $preflight,
@@ -744,6 +771,22 @@ final readonly class SpreadsheetImportParser
             + (int) ($counts[ImportRowStatus::DuplicateCandidate->value] ?? 0);
         $errors = (int) ($counts[ImportRowStatus::Error->value] ?? 0);
 
+        $summary = $batch->summary ?? [];
+        $summary['profiles'] = $batch->rows()->selectRaw('profile, COUNT(*) AS count')->groupBy('profile')->pluck('count', 'profile');
+        $summary['stages']['field_validation'] = [
+            'status' => $batch->issues()->where('stage', 'field_validation')->exists() ? 'failed' : 'passed',
+            'passed_rows' => $valid,
+            'warning_rows' => $warnings,
+            'error_rows' => $errors,
+        ];
+        foreach (['normalization', 'relation_validation', 'summary_validation'] as $stage) {
+            $issueCount = $batch->issues()->where('stage', $stage)->count();
+            $summary['stages'][$stage] = [
+                'status' => $issueCount > 0 ? 'failed' : 'skipped',
+                'issue_count' => $issueCount,
+            ];
+        }
+
         $batch->update([
             'total_rows' => $batch->rows()->count(),
             'valid_rows' => $valid,
@@ -752,7 +795,7 @@ final readonly class SpreadsheetImportParser
             'status' => ($warnings + $errors) > 0
                 ? ImportBatchStatus::NeedsReview
                 : ImportBatchStatus::Validated,
-            'summary' => ['profiles' => $batch->rows()->selectRaw('profile, COUNT(*) AS count')->groupBy('profile')->pluck('count', 'profile')],
+            'summary' => $summary,
         ]);
     }
 

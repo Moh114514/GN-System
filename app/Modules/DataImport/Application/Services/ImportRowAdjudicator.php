@@ -19,6 +19,11 @@ final readonly class ImportRowAdjudicator
             throw new RuntimeException('只有待处理批次可以执行人工裁决。');
         }
 
+        $issues = $row->issues()->get();
+        if ($issues->isEmpty() || $issues->contains(static fn ($issue): bool => ! $issue->is_ignorable)) {
+            throw new RuntimeException('Import issue is not ignorable.');
+        }
+
         $row->update([
             'status' => ImportRowStatus::Ignored,
             'resolution' => [

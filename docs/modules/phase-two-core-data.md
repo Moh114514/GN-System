@@ -89,3 +89,8 @@ docker compose exec app php artisan db:seed --class=PhaseTwoDemoDataSeeder
 Seeder 生成 12 个 `DM` 编号代理商、144 个模拟客户、144 笔预约和订单，以及推广费、
 近三个月月结、跟进和跨渠道订单。名称均含“【模拟】”，联系方式和证件也是无真实
 含义的固定测试值。Seeder 可重复执行而不增加记录，并会拒绝在 production 环境运行。
+## PR-B import issues and stage state
+
+Import batches use `import_issues` to record file detection, field validation, normalization, relation validation, summary validation, dry-run, and commit issues. Encrypted context is retained for diagnostics; XLSX reports read only from this table and write explicit string cells. `summary.stages` persists each stage status and counters for the Livewire page.
+
+Only explicitly ignorable optional-data issues may be adjudicated. Unresolved agents, customer-agent conflicts, unresolved settlement periods, summary/detail mismatches, dry-run failures, and database constraint exceptions remain non-ignorable.

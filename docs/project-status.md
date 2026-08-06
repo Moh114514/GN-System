@@ -102,3 +102,4 @@ Report 与 Config 的 Phase 6 范围已实现，但不等同于通用数据字�
 
 功能首次落地、能力移除或阶段变化时，必须在同一变更中更新本页。描述必须能由
 代码、配置、迁移或测试验证；纯计划不得进入“已实现”。
+2026-08-06: PR-B added the unified import issue table, persisted stage statuses, unified issue reports, and non-ignorable issue guards. Real historical-file migration and sampling remain pre-release acceptance work.

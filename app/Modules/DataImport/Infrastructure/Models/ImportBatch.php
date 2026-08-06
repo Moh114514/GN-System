@@ -57,6 +57,12 @@ class ImportBatch extends Model
         return $this->hasMany(ImportRow::class);
     }
 
+    /** @return HasMany<ImportIssue, $this> */
+    public function issues(): HasMany
+    {
+        return $this->hasMany(ImportIssue::class, 'import_batch_id');
+    }
+
     /** @return BelongsTo<User, $this> */
     public function creator(): BelongsTo
     {

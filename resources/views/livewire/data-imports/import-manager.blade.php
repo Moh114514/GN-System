@@ -173,7 +173,7 @@
                             </p>
                         </div>
                         <div class="flex gap-2">
-                            @if ($batch->error_rows > 0 || $batch->warning_rows > 0)
+                            @if ($batch->error_rows > 0 || $batch->warning_rows > 0 || $batch->failure_reason || $batch->issues->isNotEmpty())
                                 <flux:button wire:click="downloadErrors" variant="ghost">下载错误报告</flux:button>
                                 <flux:button wire:click="reparse" variant="ghost">重新检查</flux:button>
                             @endif
@@ -192,6 +192,31 @@
 
                     @if ($batch->failure_reason)
                         <p class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{{ $batch->failure_reason }}</p>
+                    @endif
+
+                    @if (! empty(($batch->summary ?? [])['stages']))
+                        <div class="mt-5 overflow-x-auto">
+                            <table class="min-w-full text-left text-sm">
+                                <thead class="border-b border-zinc-200 text-zinc-500">
+                                    <tr>
+                                        <th class="px-3 py-2">阶段</th>
+                                        <th class="px-3 py-2">状态</th>
+                                        <th class="px-3 py-2">指标</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-zinc-100">
+                                    @foreach (($batch->summary['stages'] ?? []) as $stage => $state)
+                                        <tr>
+                                            <td class="px-3 py-2 font-medium">{{ $stage }}</td>
+                                            <td class="px-3 py-2">{{ $state['status'] ?? 'pending' }}</td>
+                                            <td class="px-3 py-2 text-zinc-500">
+                                                {{ collect($state)->except('status')->map(fn ($value, $key) => $key.': '.$value)->implode(' / ') ?: '-' }}
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
                     @endif
 
                     <div class="mt-5 overflow-x-auto">
@@ -263,11 +288,13 @@
                                         <td class="px-3 py-2">{{ $rowStatusLabels[$row->status->value] ?? $row->status->value }}</td>
                                         <td class="px-3 py-2 text-red-600">{{ implode('；', $row->errors ?? []) }}</td>
                                         <td class="min-w-64 px-3 py-2">
+                                            @php($rowIssues = $batch->issues->where('import_row_id', $row->id))
+                                            @php($canIgnore = $rowIssues->isNotEmpty() && $rowIssues->every(fn ($issue) => $issue->is_ignorable))
                                             @if (in_array($row->status, [
                                                 \App\Modules\DataImport\Domain\ImportRowStatus::Error,
                                                 \App\Modules\DataImport\Domain\ImportRowStatus::Warning,
                                                 \App\Modules\DataImport\Domain\ImportRowStatus::DuplicateCandidate,
-                                            ], true))
+                                            ], true) && $canIgnore)
                                                 <div class="flex gap-2">
                                                     <input
                                                         wire:model="ignoreReasons.{{ $row->id }}"

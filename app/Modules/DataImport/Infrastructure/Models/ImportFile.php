@@ -4,6 +4,7 @@ namespace App\Modules\DataImport\Infrastructure\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -36,5 +37,11 @@ class ImportFile extends Model
     public function batch(): BelongsTo
     {
         return $this->belongsTo(ImportBatch::class, 'import_batch_id');
+    }
+
+    /** @return HasMany<ImportIssue, $this> */
+    public function issues(): HasMany
+    {
+        return $this->hasMany(ImportIssue::class, 'import_file_id');
     }
 }

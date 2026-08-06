@@ -22,6 +22,7 @@ use App\Modules\Settlement\Application\Contracts\SettlementImportGateway;
 use App\Modules\Settlement\Application\Data\CommissionImportData;
 use App\Modules\Settlement\Application\Data\SettlementImportData;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -35,15 +36,18 @@ final readonly class ImportBatchCommitter
         private FollowupImportGateway $followups,
         private SettlementImportGateway $settlements,
         private AuditRecorder $audit,
+        private ImportIssueRecorder $issues,
+        private ImportStageTracker $stages,
     ) {}
 
     public function dryRun(ImportBatch $batch, int $limit = 100): void
     {
-        if (($batch->kind ?? 'historical') !== 'historical' || $batch->status !== ImportBatchStatus::Validated) {
-            throw new RuntimeException('只有已验证批次可以执行事务预演。');
-        }
-
+        $this->stages->update($batch, 'dry_run', 'running');
         try {
+            if (($batch->kind ?? 'historical') !== 'historical' || $batch->status !== ImportBatchStatus::Validated) {
+                throw new RuntimeException('只有已验证批次可以执行事务预演。');
+            }
+
             DB::transaction(function () use ($batch, $limit): void {
                 $includedIds = $batch->rows()
                     ->where('status', ImportRowStatus::Valid)
@@ -67,19 +71,29 @@ final readonly class ImportBatchCommitter
             $summary = $batch->summary ?? [];
             $summary['dry_run_rows'] = min($batch->valid_rows, $limit);
             $summary['dry_run_completed_at'] = now()->toIso8601String();
+            $summary['stages']['dry_run'] = [
+                'status' => 'passed',
+                'passed_rows' => min($batch->valid_rows, $limit),
+            ];
             $batch->update(['summary' => $summary]);
+        } catch (\Throwable $exception) {
+            $this->issues->record($batch, 'dry_run', 'error', 'dry_run_failed', $exception->getMessage(), null, null, null, [
+                'exception' => $exception::class,
+            ]);
+            $this->stages->update($batch, 'dry_run', 'failed', ['issue_count' => 1]);
+            throw $exception;
         }
     }
 
     public function commit(ImportBatch $batch): void
     {
-        if (($batch->kind ?? 'historical') !== 'historical' || $batch->status !== ImportBatchStatus::Validated) {
-            throw new RuntimeException('只有零错误、零待处理项的已验证批次可以正式导入。');
-        }
-
-        $batch->update(['status' => ImportBatchStatus::Committing]);
-
         try {
+            if (($batch->kind ?? 'historical') !== 'historical' || $batch->status !== ImportBatchStatus::Validated) {
+                throw new RuntimeException('只有零错误、零待处理项的已验证批次可以正式导入。');
+            }
+
+            $batch->update(['status' => ImportBatchStatus::Committing]);
+            $this->stages->update($batch, 'commit', 'running');
             DB::transaction(function () use ($batch): void {
                 $this->commitAgents($batch);
                 $this->commitCustomers($batch);
@@ -98,7 +112,12 @@ final readonly class ImportBatchCommitter
                     'valid_rows' => $batch->valid_rows,
                 ], $batch->created_by);
             }, 3);
+            $this->stages->update($batch, 'commit', 'passed', ['passed_rows' => $batch->valid_rows]);
         } catch (\Throwable $exception) {
+            $this->issues->record($batch, 'commit', 'error', $exception instanceof QueryException ? 'database_constraint_exception' : 'commit_failed', $exception->getMessage(), null, null, null, [
+                'exception' => $exception::class,
+            ]);
+            $this->stages->update($batch, 'commit', 'failed', ['issue_count' => 1]);
             $batch->update([
                 'status' => ImportBatchStatus::Failed,
                 'failure_reason' => $exception->getMessage(),

@@ -165,6 +165,8 @@ class ReferenceConfigurationImportTest extends TestCase
         app(ReferenceConfigurationImportParser::class)->parse($invalidBatch);
 
         $this->assertSame(ImportBatchStatus::NeedsReview, $invalidBatch->fresh()->status);
+        $this->assertSame('failed', $invalidBatch->fresh()->summary['stages']['relation_validation']['status']);
+        $this->assertSame('skipped', $invalidBatch->fresh()->summary['stages']['normalization']['status']);
         $this->assertDatabaseHas('import_rows', [
             'import_batch_id' => $invalidBatch->id,
             'sheet_name' => '机构费率规则',
@@ -182,7 +184,7 @@ class ReferenceConfigurationImportTest extends TestCase
             ->assertSee('机构费率规则 #2')
             ->assertSee('机构代码“MISSING”不存在')
             ->call('downloadErrors')
-            ->assertFileDownloaded("基础配置导入错误-{$invalidBatch->id}.xlsx");
+            ->assertFileDownloaded("import-issues-{$invalidBatch->id}.xlsx");
 
         $manager = app(ReferenceConfigurationImportManager::class);
         $manager->selectedBatchId = $invalidBatch->id;
@@ -190,11 +192,11 @@ class ReferenceConfigurationImportTest extends TestCase
         $reportPath = $response->getFile()->getPathname();
         $report = IOFactory::load($reportPath);
         $sheet = $report->getActiveSheet();
-        $this->assertSame('工作表', $sheet->getCell('A1')->getValue());
-        $this->assertSame('机构费率规则', $sheet->getCell('A2')->getValue());
-        $this->assertSame(2, $sheet->getCell('B2')->getValue());
-        $this->assertStringContainsString('机构代码“MISSING”不存在', (string) $sheet->getCell('D2')->getValue());
-        $this->assertStringContainsString('机构代码：MISSING', (string) $sheet->getCell('E2')->getValue());
+        $this->assertSame('stage', $sheet->getCell('A1')->getValue());
+        $this->assertSame('relation_validation', $sheet->getCell('A2')->getValue());
+        $this->assertSame('error', $sheet->getCell('B2')->getValue());
+        $this->assertSame('机构费率规则', $sheet->getCell('E2')->getValue());
+        $this->assertStringContainsString('机构代码“MISSING”不存在', (string) $sheet->getCell('N2')->getValue());
         $report->disconnectWorksheets();
         unlink($reportPath);
     }
@@ -213,7 +215,7 @@ class ReferenceConfigurationImportTest extends TestCase
             ->assertSee('工作簿处理失败')
             ->assertSee('缺少工作表：代理商类型')
             ->call('downloadErrors')
-            ->assertFileDownloaded("基础配置导入错误-{$batch->id}.xlsx");
+            ->assertFileDownloaded("import-issues-{$batch->id}.xlsx");
     }
 
     public function test_field_validation_errors_include_field_value_and_allowed_format(): void

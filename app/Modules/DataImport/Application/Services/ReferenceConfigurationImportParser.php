@@ -37,11 +37,16 @@ final readonly class ReferenceConfigurationImportParser
         private AgentImportGateway $agentCodes,
         private AgentReferences $agents,
         private ConfigReferences $config,
+        private ImportIssueRecorder $issues,
+        private ImportStageTracker $stages,
     ) {}
 
     public function parse(ImportBatch $batch): void
     {
+        $this->stages->initialize($batch);
+        $this->stages->update($batch, 'file_detection', 'running');
         $batch->update(['status' => ImportBatchStatus::Parsing, 'failure_reason' => null]);
+        $batch->issues()->delete();
         $batch->rows()->delete();
 
         try {
@@ -112,9 +117,14 @@ final readonly class ReferenceConfigurationImportParser
                 }
             }
 
+            $this->issues->syncRows($batch, 'field_validation');
             $this->validateRelationships($batch);
+            $this->stages->update($batch, 'file_detection', 'passed');
+            $this->issues->syncRows($batch, 'relation_validation', false);
             $this->refreshCounts($batch);
         } catch (Throwable $exception) {
+            $this->stages->update($batch, 'file_detection', 'failed', ['issue_count' => 1]);
+            $this->issues->record($batch, 'file_detection', 'error', 'file_detection_failed', Str::limit($exception->getMessage(), 2000));
             $batch->update([
                 'status' => ImportBatchStatus::Failed,
                 'failure_reason' => Str::limit($exception->getMessage(), 2000),
@@ -249,9 +259,22 @@ final readonly class ReferenceConfigurationImportParser
         $total = $batch->rows()->count();
         $valid = $batch->rows()->where('status', ImportRowStatus::Valid)->count();
         $errors = $batch->rows()->where('status', ImportRowStatus::Error)->count();
-        $summary = [];
+        $summary = $batch->summary ?? [];
         foreach (self::PROFILES as $profile) {
             $summary[$profile->value] = $batch->rows()->where('profile', $profile)->count();
+        }
+        $summary['stages']['field_validation'] = [
+            'status' => $batch->issues()->where('stage', 'field_validation')->exists() ? 'failed' : 'passed',
+            'passed_rows' => $valid,
+            'warning_rows' => 0,
+            'error_rows' => $errors,
+        ];
+        foreach (['normalization', 'relation_validation', 'summary_validation'] as $stage) {
+            $issueCount = $batch->issues()->where('stage', $stage)->count();
+            $summary['stages'][$stage] = [
+                'status' => $issueCount > 0 ? 'failed' : 'skipped',
+                'issue_count' => $issueCount,
+            ];
         }
         $batch->update([
             'total_rows' => $total,

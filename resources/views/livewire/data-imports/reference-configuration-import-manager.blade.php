@@ -95,6 +95,19 @@
                         </div>
                     @endif
 
+                    @if (! empty(($batch->summary ?? [])['stages']))
+                        <div class="mt-5 overflow-x-auto">
+                            <table class="min-w-full text-left text-sm">
+                                <thead class="border-b border-zinc-200 text-zinc-500"><tr><th class="px-3 py-2">阶段</th><th class="px-3 py-2">状态</th><th class="px-3 py-2">指标</th></tr></thead>
+                                <tbody class="divide-y divide-zinc-100">
+                                    @foreach (($batch->summary['stages'] ?? []) as $stage => $state)
+                                        <tr><td class="px-3 py-2 font-medium">{{ $stage }}</td><td class="px-3 py-2">{{ $state['status'] ?? 'pending' }}</td><td class="px-3 py-2 text-zinc-500">{{ collect($state)->except('status')->map(fn ($value, $key) => $key.': '.$value)->implode(' / ') ?: '-' }}</td></tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+
                     @foreach ($batch->files as $file)
                         @if ($file->preflight)
                             <div class="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
