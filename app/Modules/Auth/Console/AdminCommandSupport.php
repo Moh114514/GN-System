@@ -2,25 +2,11 @@
 
 namespace App\Modules\Auth\Console;
 
-use App\Models\User;
 use Illuminate\Console\Command;
 use InvalidArgumentException;
 
 final class AdminCommandSupport
 {
-    public static function resolve(string $identifier): User
-    {
-        $query = User::query()->where('is_super_admin', true);
-
-        if (ctype_digit($identifier)) {
-            $query->whereKey((int) $identifier);
-        } else {
-            $query->whereRaw('lower(email) = ?', [mb_strtolower($identifier)]);
-        }
-
-        return $query->firstOrFail();
-    }
-
     public static function reason(Command $command): string
     {
         $reason = trim((string) $command->option('reason'));

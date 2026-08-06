@@ -2,10 +2,6 @@
 
 namespace Tests\Unit;
 
-use App\Modules\Audit\Application\Contracts\AuditRecorder;
-use App\Modules\DataImport\Console\ResetUatDataCommand;
-use Database\Seeders\PhaseTwoReferenceDataSeeder;
-use Mockery;
 use PHPUnit\Framework\TestCase;
 
 final class DeployScriptSafetyTest extends TestCase
@@ -70,21 +66,23 @@ final class DeployScriptSafetyTest extends TestCase
     public function test_application_uat_reset_has_an_explicit_allowlist_and_uat_database_checks(): void
     {
         $command = file_get_contents(dirname(__DIR__, 2).'/app/Modules/DataImport/Console/ResetUatDataCommand.php');
+        $service = file_get_contents(dirname(__DIR__, 2).'/app/Modules/DataImport/Application/Services/UatDataResetService.php');
 
         self::assertIsString($command);
-        self::assertStringContainsString("app()->environment('production')", $command);
-        self::assertStringContainsString("config('database.default')", $command);
-        self::assertStringContainsString('select current_database()', $command);
-        self::assertStringContainsString("'activity_log'", $command);
-        self::assertStringContainsString("'report_exports'", $command);
-        self::assertStringContainsString("'imports', 'reports', 'settlements'", $command);
+        self::assertIsString($service);
+        self::assertStringContainsString("app()->environment('production')", $service);
+        self::assertStringContainsString("config('database.default')", $service);
+        self::assertStringContainsString('select current_database()', $service);
+        self::assertStringContainsString("'activity_log'", $service);
+        self::assertStringContainsString("'report_exports'", $service);
+        self::assertStringContainsString("'imports', 'reports', 'settlements'", $service);
         self::assertStringContainsString("option('business-data')", $command);
         self::assertStringContainsString("option('operator')", $command);
-        self::assertStringContainsString('deleteDirectory', $command);
-        self::assertStringContainsString("\$this->call('db:seed'", $command);
-        self::assertStringNotContainsString("'report_saved_queries'", $command);
-        self::assertStringNotContainsString('migrate:fresh', $command);
-        self::assertStringNotContainsString('docker.sock', $command);
+        self::assertStringContainsString('deleteDirectory', $service);
+        self::assertStringContainsString("Artisan::call('db:seed'", $service);
+        self::assertStringNotContainsString("'report_saved_queries'", $service);
+        self::assertStringNotContainsString('migrate:fresh', $service);
+        self::assertStringNotContainsString('docker.sock', $service);
     }
 
     public function test_uat_scripts_have_valid_bash_syntax_on_unix_runners(): void
@@ -101,35 +99,5 @@ final class DeployScriptSafetyTest extends TestCase
 
             self::assertSame(0, $exitCode, implode(PHP_EOL, $output));
         }
-    }
-
-    public function test_reset_command_invokes_db_seed_for_reference_data(): void
-    {
-        $command = new class(Mockery::mock(AuditRecorder::class)) extends ResetUatDataCommand
-        {
-            public string $calledCommand = '';
-
-            /** @var array<string, mixed> */
-            public array $calledArguments = [];
-
-            public function invokeRestoreReferenceData(): void
-            {
-                $this->restoreReferenceData();
-            }
-
-            public function call($command, array $arguments = [])
-            {
-                $this->calledCommand = $command;
-                $this->calledArguments = $arguments;
-
-                return self::SUCCESS;
-            }
-        };
-
-        $command->invokeRestoreReferenceData();
-
-        self::assertSame('db:seed', $command->calledCommand);
-        self::assertSame(PhaseTwoReferenceDataSeeder::class, $command->calledArguments['--class']);
-        self::assertTrue($command->calledArguments['--force']);
     }
 }

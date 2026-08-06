@@ -2,11 +2,9 @@
 
 namespace App\Modules\Auth\Console;
 
-use App\Models\User;
-use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Application\Services\AdminMaintenanceService;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
-use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 
 final class EnableAdminCommand extends Command
@@ -15,7 +13,7 @@ final class EnableAdminCommand extends Command
 
     protected $description = 'Enable a previously disabled super administrator';
 
-    public function __construct(private readonly AuditRecorder $audit)
+    public function __construct(private readonly AdminMaintenanceService $maintenance)
     {
         parent::__construct();
     }
@@ -25,19 +23,7 @@ final class EnableAdminCommand extends Command
         try {
             $reason = AdminCommandSupport::reason($this);
             $operator = AdminCommandSupport::operator($this);
-            $admin = AdminCommandSupport::resolve((string) $this->argument('admin'));
-
-            DB::transaction(function () use ($admin, $reason, $operator): void {
-                $locked = User::query()->whereKey($admin->id)->lockForUpdate()->firstOrFail();
-                $locked->forceFill(['is_active' => true, 'disabled_at' => null, 'disabled_by' => null])->save();
-                $this->audit->record(
-                    description: 'Super administrator enabled',
-                    properties: ['user_id' => $locked->id, 'reason' => $reason, 'operator' => $operator],
-                    subject: $locked,
-                    logName: 'security',
-                    event: 'admin_enabled',
-                );
-            });
+            $this->maintenance->enable((string) $this->argument('admin'), $reason, $operator);
 
             $this->info('Administrator enabled.');
 
