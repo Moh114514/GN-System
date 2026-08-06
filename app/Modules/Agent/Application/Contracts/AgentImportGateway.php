@@ -3,6 +3,7 @@
 namespace App\Modules\Agent\Application\Contracts;
 
 use App\Modules\Agent\Application\Data\AgentImportData;
+use App\Modules\Agent\Application\Data\ResolvedAgentImportReference;
 use DateTimeInterface;
 
 interface AgentImportGateway
@@ -15,6 +16,8 @@ interface AgentImportGateway
     public function normalizeCustomerCode(string $code): string;
 
     public function resolveAgentId(string $codeOrName): ?int;
+
+    public function resolveAgentReference(string $codeOrName): ?ResolvedAgentImportReference;
 
     public function upsertAgent(AgentImportData $data): int;
 

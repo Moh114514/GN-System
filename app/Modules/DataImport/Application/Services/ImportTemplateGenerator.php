@@ -129,6 +129,7 @@ final readonly class ImportTemplateGenerator
             $agentCode,
             '【模拟】历史导入代理商',
             '',
+            $completedOn->format('Y-m'),
             1,
             1000000,
             100000,
@@ -224,7 +225,7 @@ final readonly class ImportTemplateGenerator
     private function settlementHeaders(): array
     {
         return [
-            '代理商编号', '代理商名称', '代理商等级', '月客户总数', '消费总额（KRW)',
+            '代理商编号', '代理商名称', '代理商等级', '结算周期', '月客户总数', '消费总额（KRW)',
             '推广费总额（KRW)', '结算日期', '结算汇率', '推广费总额（RMB 元）', '结算状态', '备注',
         ];
     }
