@@ -24,6 +24,10 @@ return Application::configure(basePath: dirname(__DIR__))
         },
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->encryptCookies(except: [
+            'flux_resolved_appearance',
+        ]);
+
         $middleware->appendToGroup('web', EnsureUserIsActive::class);
         $middleware->alias([
             'super-admin' => EnsureSuperAdmin::class,
