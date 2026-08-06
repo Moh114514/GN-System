@@ -14,12 +14,19 @@ class ModuleBoundaryTest extends TestCase
             new RecursiveDirectoryIterator(__DIR__.'/../../app/Modules'),
         );
 
+        $violations = [];
+
         foreach ($iterator as $file) {
             if (! $file->isFile() || $file->getExtension() !== 'php') {
                 continue;
             }
 
             $contents = file_get_contents($file->getPathname());
+            if (! is_string($contents)) {
+                $violations[] = "Unable to read {$file->getPathname()}";
+
+                continue;
+            }
             $relativePath = str_replace('\\', '/', $file->getPathname());
 
             preg_match('/namespace App\\\\Modules\\\\([^;\\\\]+)([^;]*);/', $contents, $namespace);
@@ -41,11 +48,21 @@ class ModuleBoundaryTest extends TestCase
                         || str_starts_with($importedNamespace, 'Application\\Data\\')
                     );
 
-                $this->assertTrue(
-                    $allowed,
-                    "Disallowed cross-module import [{$importedModule}\\{$importedNamespace}] found in {$relativePath}",
-                );
+                if (! $allowed) {
+                    $violations[] = sprintf(
+                        'Disallowed cross-module import [%s\\%s] found in %s',
+                        $importedModule,
+                        $importedNamespace,
+                        $relativePath,
+                    );
+                }
             }
         }
+
+        self::assertSame(
+            [],
+            $violations,
+            "Module boundary violations:\n- ".implode("\n- ", $violations),
+        );
     }
 }

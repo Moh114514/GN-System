@@ -81,7 +81,11 @@
             "@docs:check",
             "@lint:check",
             "@types:check",
+            "@architecture:check",
             "@php scripts/run-tests.php"
+        ],
+        "architecture:check": [
+            "@php artisan test tests/Unit/ModuleBoundaryTest.php"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",

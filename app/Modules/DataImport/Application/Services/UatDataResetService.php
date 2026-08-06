@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
+use Throwable;
 
 final readonly class UatDataResetService
 {
@@ -44,38 +45,55 @@ final readonly class UatDataResetService
         $this->assertUat();
         $this->privateStorageRoot();
 
-        DB::transaction(function (): void {
-            $tables = array_values(array_filter(
-                self::BUSINESS_TABLES,
-                static fn (string $table): bool => Schema::hasTable($table),
-            ));
-            if ($tables === []) {
-                throw new RuntimeException('No resettable business tables were found.');
-            }
+        try {
+            DB::transaction(function (): void {
+                $tables = array_values(array_filter(
+                    self::BUSINESS_TABLES,
+                    static fn (string $table): bool => Schema::hasTable($table),
+                ));
+                if ($tables === []) {
+                    throw new RuntimeException('No resettable business tables were found.');
+                }
 
-            DB::statement('TRUNCATE TABLE '.implode(', ', $tables).' RESTART IDENTITY CASCADE');
-            $exitCode = Artisan::call('db:seed', [
-                '--class' => PhaseTwoReferenceDataSeeder::class,
-                '--force' => true,
-            ]);
-            if ($exitCode !== 0) {
-                throw new RuntimeException('基础参考数据恢复失败。');
-            }
-        });
-        $this->clearPrivateBusinessFiles();
+                DB::statement('TRUNCATE TABLE '.implode(', ', $tables).' RESTART IDENTITY CASCADE');
+                $exitCode = Artisan::call('db:seed', [
+                    '--class' => PhaseTwoReferenceDataSeeder::class,
+                    '--force' => true,
+                ]);
+                if ($exitCode !== 0) {
+                    throw new RuntimeException('基础参考数据恢复失败。');
+                }
+            });
+        } catch (Throwable $exception) {
+            $this->recordFailure($operator, 'database_reset', $exception);
 
-        $this->audit->record(
-            description: 'UAT business data reset completed',
-            properties: [
-                'environment' => 'uat',
-                'database' => 'gn_system_uat',
-                'scope' => 'business-data',
-                'tables' => self::BUSINESS_TABLES,
-                'operator' => $operator,
-            ],
-            logName: 'uat-operations',
-            event: 'business_data_reset',
-        );
+            throw $exception;
+        }
+
+        try {
+            $this->recordPhase($operator, 'database_reset_completed', 'Database reset completed.');
+        } catch (Throwable $exception) {
+            $this->recordFailure($operator, 'database_reset_audit', $exception);
+
+            throw $exception;
+        }
+
+        try {
+            $this->clearPrivateBusinessFiles();
+        } catch (Throwable $exception) {
+            $this->recordFailure($operator, 'private_files_cleanup', $exception);
+
+            throw $exception;
+        }
+
+        try {
+            $this->recordPhase($operator, 'private_files_cleanup_completed', 'Private business files cleanup completed.');
+            $this->recordPhase($operator, 'reset_completed', 'UAT business data reset completed.');
+        } catch (Throwable $exception) {
+            $this->recordFailure($operator, 'completion_audit', $exception);
+
+            throw $exception;
+        }
     }
 
     private function assertUat(): void
@@ -129,6 +147,43 @@ final readonly class UatDataResetService
             if (! $disk->deleteDirectory($directory)) {
                 throw new RuntimeException("Unable to clear private business directory [{$directory}].");
             }
+        }
+    }
+
+    private function recordPhase(string $operator, string $event, string $description): void
+    {
+        $this->audit->record(
+            description: $description,
+            properties: [
+                'environment' => 'uat',
+                'database' => 'gn_system_uat',
+                'scope' => 'business-data',
+                'tables' => self::BUSINESS_TABLES,
+                'operator' => $operator,
+            ],
+            logName: 'uat-operations',
+            event: $event,
+        );
+    }
+
+    private function recordFailure(string $operator, string $phase, Throwable $exception): void
+    {
+        try {
+            $this->audit->record(
+                description: 'UAT business data reset failed',
+                properties: [
+                    'environment' => 'uat',
+                    'database' => 'gn_system_uat',
+                    'scope' => 'business-data',
+                    'operator' => $operator,
+                    'phase' => $phase,
+                    'error' => $exception->getMessage(),
+                ],
+                logName: 'uat-operations',
+                event: 'reset_failed',
+            );
+        } catch (Throwable) {
+            // Preserve the original reset failure if the audit backend is unavailable.
         }
     }
 }

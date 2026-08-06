@@ -80,6 +80,11 @@ final class DeployScriptSafetyTest extends TestCase
         self::assertStringContainsString("option('operator')", $command);
         self::assertStringContainsString('deleteDirectory', $service);
         self::assertStringContainsString("Artisan::call('db:seed'", $service);
+        self::assertStringContainsString("'database_reset_completed'", $service);
+        self::assertStringContainsString("'private_files_cleanup_completed'", $service);
+        self::assertStringContainsString("'reset_completed'", $service);
+        self::assertStringContainsString("'reset_failed'", $service);
+        self::assertStringContainsString("'phase' => \$phase", $service);
         self::assertStringNotContainsString("'report_saved_queries'", $service);
         self::assertStringNotContainsString('migrate:fresh', $service);
         self::assertStringNotContainsString('docker.sock', $service);

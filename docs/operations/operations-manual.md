@@ -1252,6 +1252,8 @@ cd /srv/gn-system/repository
 
 `--business-data` creates a database backup, stops queue and scheduler, invokes `app:reset-uat-data`, removes only the approved private `imports`, `reports`, and `settlements` directories, flushes only the UAT Redis container, restores services, and checks `/up`, `/health`, and `/health/operations`. The checks use `TLS_CERT_PATH`, seed queue/scheduler heartbeats, and retry for up to 180 seconds. It preserves users, institutions, reference configuration, saved queries, and migrations. The application command verifies `APP_ENV`, UAT `APP_URL`, configured PostgreSQL, `current_database()`, and the private storage root before truncating the approved business tables.
 
+UAT reset audit events are written by phase after the database transaction so they are not removed when `activity_log` is reset: `database_reset_completed`, `private_files_cleanup_completed`, and `reset_completed`. A failure records `reset_failed` with the failing phase when the audit backend remains available.
+
 Use `./deploy/reset-uat.sh --full` only for explicit UAT initialization. It requires the exact interactive phrase `RESET gn_system_uat`, creates a full backup, rebuilds only the UAT database, migrates, restores reference data, and interactively creates an administrator. The script rejects the production directory, the `gn_system` database, a non-UAT URL, and a different Compose project. Never mount the Docker socket into the application container and never use `docker compose down -v`.
 
 Administrator maintenance is non-destructive:
