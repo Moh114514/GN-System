@@ -60,7 +60,7 @@ GN-System 当前有两套服务器环境，不能混用：
 | `v0.5.0-rc.8` / `8ab9498` | 最近一个已经创建的 UAT 候选，包含界面、实时汇率、订单和受控回退 | 只能部署这个明确标签，不能用 `main` 代替 |
 | `d405781`、`0971130`、`b2ab309` | 增加往期月结、历史合作资格、周期边界、零订单、汇率失败提示和生成状态 | UAT 要准备历史代理商、零订单、重复点击和报价失败数据 |
 | `884f874`、`4aa35d4` | 增加既有月结回填、`unverified` 审计恢复和 `not_applicable` 只读保护 | 部署前必须备份，并确认 `000100` 和 `000200` 两个 migration |
-| `main` `2fe5d13` | 已把上述变更合入主分支，但不是已经验收的 RC | 需要创建下一个递增 RC（预计 `v0.5.0-rc.9`）后才能部署 UAT |
+| `main` `2fe5d13` | 已把上述变更合入主分支，但不是已经验收的 RC | 需要创建下一个递增 RC（预计 `v0.5.0-rc.11`）后才能部署 UAT |
 
 服务器实际版本以 `/srv/gn-system/releases/current` 和
 `/srv/gn-system/releases/history.tsv` 为准。GitHub 上看到提交，不代表服务器已经运行该提交。
@@ -370,7 +370,7 @@ docs/operations/beginner-operations-guide.md。
 
 ```text
 请先阅读本机 AGENTS.md、服务器仓库 AGENTS.md，以及完整运维手册和发布管理手册。
-目标是把 <明确标签，例如 v0.5.0-rc.9> 部署到 <UAT 或 Production>；如果该标签尚未创建，先停止并确认发布流程。
+目标是把 <明确标签，例如 v0.5.0-rc.11> 部署到 <UAT 或 Production>；如果该标签尚未创建，先停止并确认发布流程。
 
 本轮先只读核对 GitHub Actions、标签、镜像、服务器当前版本、目标环境、环境文件权限、
 容器状态和可用备份。请汇报部署步骤、影响、验证和回退方案，等我确认后再执行。
@@ -710,12 +710,15 @@ GN-System 的服务器版本来自已经发布的标签和 GHCR 镜像，不是�
 ```
 
 UAT 只部署 `vX.Y.Z-rc.N`，Production 只部署 `vX.Y.Z`。版本部署前必须确认标签、
-镜像、环境、备份和回退方式。
+镜像、环境、备份和回退方式。服务器访问 GHCR 不稳定时，不要反复执行标准部署脚本；
+应阅读[局域网离线镜像部署](offline-deployment.md)，由办公电脑下载明确版本镜像，
+通过局域网传到服务器并使用 `--pull never` 完成部署。
 
 实际部署时阅读：
 
 - [GN-System 完整运维手册](operations-manual.md)
 - [UAT 测试版本与正式发布流程](release-management.md)
+- [局域网离线镜像部署](offline-deployment.md)
 - [局域网生产部署与恢复](production-deployment.md)
 
 ## 12. Windows 浏览器访问 UAT

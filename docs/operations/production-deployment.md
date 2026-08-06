@@ -5,7 +5,8 @@
 
 当前 Production 根目录为 `/srv/gn-system/production`，尚未首次部署。UAT 已使用
 `/srv/gn-system`，两者不能交换或共用。环境对照、UAT 更新、日常命令和故障处理见
-[完整运维手册](operations-manual.md)。
+[完整运维手册](operations-manual.md)。GHCR 不稳定时，镜像传输和离线部署按
+[局域网离线镜像部署](offline-deployment.md)执行，并替换为 Production 的独立路径和环境文件。
 
 ## 1. 容量与网络
 
@@ -81,6 +82,10 @@ RC 标签 `vX.Y.Z-rc.N` 通过完整门禁后构建 GHCR 镜像；UAT 验收通�
 `deploy/deploy.sh` 会检查环境、记录旧版本、执行部署前全量备份、进入维护状态、
 拉取镜像、执行 `migrate --force --isolated`、启动服务，并等待三个健康接口通过。
 为它预留 5～10 分钟维护窗口。
+
+当前脚本固定执行镜像拉取，尚未支持离线参数。若 Production 未来需要采用局域网离线
+部署，必须先按离线流程导入并核对 app/web 镜像，再使用 `--pull never` 完成迁移和启动，
+不得在导入后直接再次运行当前版本的 `deploy.sh`。
 
 所有后续 migration 必须采用 expand/contract：
 

@@ -16,7 +16,8 @@
 [小白运维指南](beginner-operations-guide.md)。版本标签与镜像晋级的细节见
 [发布管理手册](release-management.md)，生产首次部署和灾难恢复的原则见
 [生产部署与恢复](production-deployment.md)，Phase 5 业务验收见
-[Phase 5 UAT 验收手册](phase-five-uat-acceptance.md)。
+[Phase 5 UAT 验收手册](phase-five-uat-acceptance.md)。GHCR 访问不稳定时，按
+[局域网离线镜像部署](offline-deployment.md)执行。
 
 出现冲突时，按以下顺序确认事实：
 
@@ -417,7 +418,7 @@ git pull --ff-only origin main
 test -z "$(git status --porcelain)"
 test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
 
-RC_TAG=v0.5.0-rc.9
+RC_TAG=v0.5.0-rc.11
 test -z "$(git tag --list "${RC_TAG}")"
 git tag -a "${RC_TAG}" -m "GN-System ${RC_TAG} UAT"
 git push origin "${RC_TAG}"
@@ -441,7 +442,7 @@ git fetch --tags --prune origin
 git switch main
 git pull --ff-only origin main
 
-RC_TAG=v0.5.0-rc.9
+RC_TAG=v0.5.0-rc.11
 STABLE_TAG=v0.5.0
 test "$(git rev-parse HEAD)" = "$(git rev-list -n 1 "${RC_TAG}")"
 test -z "$(git tag --list "${STABLE_TAG}")"
@@ -561,7 +562,7 @@ cd /srv/gn-system/repository
 test -z "$(git status --porcelain --untracked-files=no)"
 git fetch --tags --prune origin
 
-TARGET_TAG=v0.5.0-rc.9
+TARGET_TAG=v0.5.0-rc.11
 test "$(git cat-file -t "${TARGET_TAG}")" = tag
 git show --no-patch --decorate "${TARGET_TAG}"
 git switch --detach "${TARGET_TAG}"
@@ -592,6 +593,10 @@ sudo docker compose \
 ```bash
 sudo ./deploy/deploy.sh .env.uat
 ```
+
+如果服务器访问 GHCR 不稳定，不要反复运行上面的脚本。当前脚本固定执行
+`docker compose pull`，离线镜像导入、失败阶段判断、`--pull never` 迁移/启动和部署后
+验收见[局域网离线镜像部署](offline-deployment.md)。
 
 脚本会依次：
 
@@ -1094,7 +1099,8 @@ sudo docker pull ghcr.io/moh114514/gn-system-web:<明确标签>
 ```
 
 检查标签是否由成功的发布工作流生成、令牌是否有 `read:packages`、服务器时间和 DNS
-是否正常。不要改为 `latest` 绕过。
+是否正常。不要改为 `latest` 绕过。若确认是 GHCR/CDN 网络不稳定，停止重复重试，按
+[局域网离线镜像部署](offline-deployment.md)从办公电脑下载、传输和导入同一明确版本。
 
 ### 14.7 app、PostgreSQL 或 Redis unhealthy
 
@@ -1194,6 +1200,14 @@ namei -l /srv/gn-system/data/private
 - [ ] HTTP 跳转到带 `:8443` 的 HTTPS
 - [ ] 本次业务功能通过验收
 - [ ] 记录 RC、提交、镜像摘要和证据
+
+GHCR 网络不稳定时，另确认：
+
+- [ ] 办公电脑使用 `linux/amd64` 拉取 app/web 目标镜像
+- [ ] tar 文件通过局域网传输并在服务器 `docker load` 成功
+- [ ] 服务器 app/web 镜像标签和架构与 `RELEASE_TAG` 一致
+- [ ] 离线 Compose 操作使用 `--pull never`
+- [ ] 健康检查成功后才写入 `releases/current` 和 `history.tsv`
 
 ### 16.3 Production 首次部署或更新
 
