@@ -4,6 +4,7 @@ namespace App\Modules\DataImport\Presentation\Livewire;
 
 use App\Modules\DataImport\Application\Services\ImportBatchCommitter;
 use App\Modules\DataImport\Application\Services\ImportBatchRollback;
+use App\Modules\DataImport\Application\Services\ImportIssueReportGenerator;
 use App\Modules\DataImport\Application\Services\ImportReferenceManager;
 use App\Modules\DataImport\Application\Services\ImportReferenceReadiness;
 use App\Modules\DataImport\Application\Services\ImportRowAdjudicator;
@@ -23,8 +24,6 @@ use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
-use PhpOffice\PhpSpreadsheet\Spreadsheet;
-use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 #[Layout('layouts.app')]
@@ -202,47 +201,9 @@ class ImportManager extends Component
         Flux::toast(variant: 'success', text: '本次导入已撤销。');
     }
 
-    public function downloadErrors(): BinaryFileResponse
+    public function downloadErrors(?ImportIssueReportGenerator $reports = null): BinaryFileResponse
     {
-        $batch = $this->ownedBatch();
-        $rows = $batch->rows()
-            ->whereIn('status', ['error', 'warning', 'duplicate_candidate'])
-            ->orderBy('import_file_id')
-            ->orderBy('source_row')
-            ->get();
-
-        $spreadsheet = new Spreadsheet;
-        $sheet = $spreadsheet->getActiveSheet();
-        $sheet->setTitle('导入错误');
-        $sheet->fromArray([
-            ['文件', '工作表', '源行号', '类型', '状态', '错误原因', '原始数据'],
-        ]);
-
-        $line = 2;
-        foreach ($rows as $row) {
-            $sheet->fromArray([[
-                $row->file()->value('original_name'),
-                $row->sheet_name,
-                $row->source_row,
-                $row->profile->value,
-                $row->status->value,
-                implode('；', $row->errors ?? []),
-                json_encode($row->raw_payload_encrypted, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-            ]], null, "A{$line}");
-            $line++;
-        }
-
-        $sheet->freezePane('A2');
-        $sheet->getStyle('A1:G1')->getFont()->setBold(true);
-        foreach (range('A', 'G') as $column) {
-            $sheet->getColumnDimension($column)->setAutoSize(true);
-        }
-
-        $path = storage_path("app/private/import-errors-{$batch->id}.xlsx");
-        (new Xlsx($spreadsheet))->save($path);
-        $spreadsheet->disconnectWorksheets();
-
-        return response()->download($path, "导入错误-{$batch->id}.xlsx")->deleteFileAfterSend();
+        return ($reports ?? app(ImportIssueReportGenerator::class))->download($this->ownedBatch());
     }
 
     /** @return Collection<int, ImportBatch> */
@@ -266,7 +227,7 @@ class ImportManager extends Component
 
         return ImportBatch::query()
             ->where('kind', 'historical')
-            ->with(['files', 'rows' => fn ($query) => $query->orderBy('id')->limit(50)])
+            ->with(['files', 'issues' => fn ($query) => $query->latest('id')->limit(100), 'rows' => fn ($query) => $query->orderBy('id')->limit(50)])
             ->find($this->selectedBatchId);
     }
 

@@ -3,6 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Agent\Application\Contracts\AgentImportGateway;
+use App\Modules\Agent\Infrastructure\Models\Agent;
+use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Customer\Infrastructure\Models\DirectSalesSource;
 use App\Modules\DataImport\Application\Services\ImportTemplateGenerator;
 use App\Modules\DataImport\Application\Services\SpreadsheetImportParser;
@@ -13,15 +16,131 @@ use App\Modules\DataImport\Infrastructure\EncryptedImportStorage;
 use App\Modules\DataImport\Infrastructure\Models\ImportBatch;
 use App\Modules\DataImport\Infrastructure\Models\ImportFile;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
+use DateTimeImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
 use Throwable;
 
 class SpreadsheetImportParserTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_xlsx_date_cells_are_read_from_the_cell_value_and_format(): void
+    {
+        Storage::fake('local');
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
+        $batch = ImportBatch::query()->create([
+            'created_by' => $user->id,
+            'status' => ImportBatchStatus::Uploaded,
+        ]);
+
+        $spreadsheet = new Spreadsheet;
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->fromArray([[
+            '代理商编号', '代理商名称', '代理类型', '联系人', '联系方式', '代理等级', '等级体系', '等级起始月',
+            '合作开始月份', '合作状态', '备注', '合同编号', '合同有效期',
+        ]]);
+        $sheet->fromArray([['SZ-JG', '测试机构代理商', '旅行社', '测试联系人', '13800000000', '', '', null, null, '合作中', '', '', '']], null, 'A2');
+        $sheet->setCellValue('H2', ExcelDate::PHPToExcel(new DateTimeImmutable('2026-06-10')));
+        $sheet->setCellValue('I2', ExcelDate::PHPToExcel(new DateTimeImmutable('2026-06-11')));
+        $sheet->getStyle('H2:I2')->getNumberFormat()->setFormatCode('yyyy/m/d');
+
+        $path = storage_path('app/private/import-date-test.xlsx');
+        (new Xlsx($spreadsheet))->save($path);
+        $spreadsheet->disconnectWorksheets();
+
+        try {
+            $this->attach($batch, '日期单元格.xlsx', (string) file_get_contents($path));
+        } finally {
+            @unlink($path);
+        }
+
+        app(SpreadsheetImportParser::class)->parse($batch->fresh('files'));
+
+        $row = $batch->rows()->firstOrFail();
+        $this->assertSame(ImportRowStatus::Valid, $row->status);
+        $this->assertSame('2026-06-10', $row->normalized_data['grade_effective_month']);
+        $this->assertSame('2026-06-11', $row->normalized_data['cooperation_started_on']);
+        $this->assertEquals(ExcelDate::PHPToExcel(new DateTimeImmutable('2026-06-10')), $row->raw_payload_encrypted['cells']['等级起始月']['raw_value']);
+        $this->assertSame('yyyy/m/d', $row->raw_payload_encrypted['cells']['等级起始月']['number_format']);
+    }
+
+    public function test_incremental_detail_resolves_existing_agent_name_to_its_normalized_code(): void
+    {
+        Storage::fake('local');
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $type = AgentTypeCode::query()->where('code', 'GT')->firstOrFail();
+        Agent::query()->create([
+            'agent_type_code_id' => $type->id,
+            'code' => 'ZH-GT',
+            'name' => '张先生（个体户）',
+            'business_role' => '个体户',
+        ]);
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
+        $batch = ImportBatch::query()->create([
+            'created_by' => $user->id,
+            'status' => ImportBatchStatus::Uploaded,
+        ]);
+
+        $this->attach($batch, '月明细.csv', "代理商名称,客户编号,姓名,联系方式,意向机构,项目,预约到院,消费金额（KRW 韩币）,推广费比例,推广费金额（KRW 韩币）,翻译负责人,负责人,备注\n张先生（个体户）,ZH-GT-0001,测试客户,,DOD,测试项目,2026-07-10,1000000,10%,100000,,,\n");
+        $this->attach($batch, '月结汇总.csv', "代理商编号,代理商名称,代理商等级,结算周期,月客户总数,消费总额（KRW),推广费总额（KRW),结算日期,结算汇率,推广费总额（RMB 元）,结算状态,备注\nZH-GT,张先生（个体户）,黄金代理,2026-07,1,1000000,100000,2026-08-10,200,500,已对账,\n");
+
+        app(SpreadsheetImportParser::class)->parse($batch->fresh('files'));
+
+        $detail = $batch->rows()->where('profile', ImportProfile::MonthlyDetail)->firstOrFail();
+        $summary = $batch->rows()->where('profile', ImportProfile::SettlementSummary)->firstOrFail();
+        $this->assertSame('ZH-GT', $detail->normalized_data['agent_code']);
+        $this->assertSame('ZH-GT', $summary->normalized_data['agent_code']);
+        $this->assertSame('2026-07', $summary->normalized_data['settlement_period']);
+        $this->assertSame(ImportRowStatus::Valid, $summary->status);
+    }
+
+    public function test_agent_reference_resolution_rejects_cross_field_ambiguity(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $type = AgentTypeCode::query()->where('code', 'GT')->firstOrFail();
+        Agent::query()->create([
+            'agent_type_code_id' => $type->id,
+            'code' => 'SHARED-GT',
+            'name' => '第一代理商',
+        ]);
+        Agent::query()->create([
+            'agent_type_code_id' => $type->id,
+            'code' => 'OTHER-GT',
+            'legacy_code' => 'SHARED-GT',
+            'name' => '第二代理商',
+        ]);
+
+        $gateway = app(AgentImportGateway::class);
+        $this->expectExceptionMessage('代理商匹配不唯一：SHARED-GT');
+        $gateway->resolveAgentReference('SHARED-GT');
+    }
+
+    public function test_agent_reference_resolution_rejects_normalized_name_ambiguity(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $type = AgentTypeCode::query()->where('code', 'GT')->firstOrFail();
+        Agent::query()->create([
+            'agent_type_code_id' => $type->id,
+            'code' => 'FULL-GT',
+            'name' => '张三（韩国）',
+        ]);
+        Agent::query()->create([
+            'agent_type_code_id' => $type->id,
+            'code' => 'HALF-GT',
+            'name' => '张三(韩国)',
+        ]);
+
+        $gateway = app(AgentImportGateway::class);
+        $this->expectExceptionMessage('代理商匹配不唯一：张三（韩国）');
+        $gateway->resolveAgentReference('张三（韩国）');
+    }
 
     public function test_it_recalculates_details_and_reports_summary_differences(): void
     {

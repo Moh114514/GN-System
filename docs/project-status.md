@@ -1,5 +1,9 @@
 # GN-System 项目状态
 
+## PR-C 运维工具
+
+已实现 UAT 宿主机双层重置、配置重载脚本和非破坏性管理员维护命令。UAT 重置与配置重载均已加入目录、Compose 项目、环境文件权限、UAT URL、数据库名称和 PostgreSQL `current_database()` 防护；真实 UAT/Production 执行结果仍须在目标服务器按运维手册验收，不能由本机静态检查替代。
+
 > 最后核验：2026-08-04
 > 核验依据：Phase 6、订单中心、发布门禁、`v0.5.0-rc.8`、当前 `main` 提交记录和服务器环境记录
 > 当前阶段：Phase 6、订单中心和 Phase 5 月结工作流优化已完成代码交付和完整门禁；当前 `main` 为 `2fe5d13`，包含 RC8 之后的历史资格、周期边界、生成状态回填和审计恢复变更，UAT/生产历史数据升级仍未完成
@@ -11,6 +15,8 @@
 
 - Phase 2 的代码交付已结束：核心数据模型、导入契约、加密上传、解析校验、事务
   预演、人工裁决、原子提交、回滚、清理和模拟数据均已实现并通过自动化验证。
+- 2026-08-06 已补强历史导入正确性：XLSX 日期单元格保留原始元数据，代理商引用统一
+  写入规范编号，月结汇总按代理商和结算周期核对；跨字段或规范化名称歧义会阻止导入。
 - Phase 3 已完成客户建档、档案编辑、列表筛选、详情聚合、跟进登记、状态流转、
   生命周期时间轴、状态配置、敏感字段脱敏和操作审计。
 - Phase 4 已完成代理商档案、类型代码、政策等级、机构费率、代理商特批、最小订单
@@ -100,3 +106,4 @@ Report 与 Config 的 Phase 6 范围已实现，但不等同于通用数据字�
 
 功能首次落地、能力移除或阶段变化时，必须在同一变更中更新本页。描述必须能由
 代码、配置、迁移或测试验证；纯计划不得进入“已实现”。
+2026-08-06: PR-B added the unified import issue table, persisted stage statuses, unified issue reports, and non-ignorable issue guards. Real historical-file migration and sampling remain pre-release acceptance work.

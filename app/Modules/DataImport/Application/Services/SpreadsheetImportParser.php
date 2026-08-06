@@ -22,6 +22,7 @@ use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Reader\Csv;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use Throwable;
 
 final readonly class SpreadsheetImportParser
@@ -31,28 +32,67 @@ final readonly class SpreadsheetImportParser
         private AgentImportGateway $agents,
         private CatalogImportGateway $catalog,
         private CustomerImportGateway $customers,
+        private SpreadsheetCellValueReader $cells,
+        private ImportIssueRecorder $issues,
+        private ImportStageTracker $stages,
     ) {}
 
     public function parse(ImportBatch $batch): void
     {
+        $this->stages->initialize($batch);
+        $this->stages->update($batch, 'file_detection', 'running');
         $batch->update(['status' => ImportBatchStatus::Parsing, 'failure_reason' => null]);
+        $batch->issues()->delete();
         $batch->rows()->delete();
 
         try {
             foreach ($batch->files as $file) {
                 $this->parseFile($file);
             }
-
-            $this->reconcile($batch);
-            $this->refreshBatchCounts($batch);
+            $this->stages->update($batch, 'file_detection', 'passed');
         } catch (Throwable $exception) {
-            $batch->update([
-                'status' => ImportBatchStatus::Failed,
-                'failure_reason' => Str::limit($exception->getMessage(), 2000),
-            ]);
-
+            $this->failStage($batch, 'file_detection', 'file_detection_failed', $exception);
             throw $exception;
         }
+
+        try {
+            $this->issues->syncRows($batch, 'field_validation');
+        } catch (Throwable $exception) {
+            $this->failStage($batch, 'field_validation', 'field_validation_failed', $exception);
+            throw $exception;
+        }
+
+        try {
+            $this->reconcile($batch);
+        } catch (Throwable $exception) {
+            $this->failStage($batch, 'relation_validation', 'relation_validation_failed', $exception);
+            throw $exception;
+        }
+
+        try {
+            $this->issues->syncRows($batch, null, false);
+        } catch (Throwable $exception) {
+            $this->failStage($batch, 'normalization', 'normalization_failed', $exception);
+            throw $exception;
+        }
+
+        try {
+            $this->refreshBatchCounts($batch);
+        } catch (Throwable $exception) {
+            $this->failStage($batch, 'summary_validation', 'summary_validation_failed', $exception);
+            throw $exception;
+        }
+    }
+
+    private function failStage(ImportBatch $batch, string $stage, string $code, Throwable $exception): void
+    {
+        $message = Str::limit($exception->getMessage(), 2000);
+        $this->stages->update($batch, $stage, 'failed', ['issue_count' => 1]);
+        $this->issues->record($batch, $stage, 'error', $code, $message);
+        $batch->update([
+            'status' => ImportBatchStatus::Failed,
+            'failure_reason' => $message,
+        ]);
     }
 
     private function parseFile(ImportFile $file): void
@@ -138,7 +178,7 @@ final readonly class SpreadsheetImportParser
                         continue;
                     }
 
-                    $raw = $this->mapRow($headers, $row);
+                    [$raw, $cellMetadata] = $this->mapRow($headers, $worksheet, $profile, (int) $rowNumber);
                     if ($this->isBlank($raw) || $this->isTemplateRow($raw)) {
                         continue;
                     }
@@ -156,7 +196,10 @@ final readonly class SpreadsheetImportParser
                         'source_row' => $rowNumber,
                         'profile' => $profile,
                         'status' => $status,
-                        'raw_payload_encrypted' => $raw,
+                        'raw_payload_encrypted' => [
+                            'values' => $raw,
+                            'cells' => $cellMetadata,
+                        ],
                         'normalized_data' => $normalized,
                         'errors' => $errors,
                     ]);
@@ -276,17 +319,33 @@ final readonly class SpreadsheetImportParser
 
     /**
      * @param  array<string, string>  $headers
-     * @param  array<string, mixed>  $row
-     * @return array<string, mixed>
+     * @return array{array<string, mixed>, array<string, array<string, mixed>>}
      */
-    private function mapRow(array $headers, array $row): array
+    private function mapRow(array $headers, Worksheet $worksheet, ImportProfile $profile, int $rowNumber): array
     {
         $mapped = [];
+        $metadata = [];
         foreach ($headers as $column => $header) {
-            $mapped[$header] = $row[$column] ?? null;
+            $cell = $worksheet->getCell($column.$rowNumber);
+            $details = $this->cells->read($cell, $this->isDateField($header, $profile));
+            $mapped[$header] = $details['normalized_value'];
+            $metadata[$header] = $details;
         }
 
-        return $mapped;
+        return [$mapped, $metadata];
+    }
+
+    private function isDateField(string $header, ImportProfile $profile): bool
+    {
+        if ($profile === ImportProfile::SettlementSummary && str_contains($header, '结算周期')) {
+            return false;
+        }
+
+        return str_contains($header, '日期')
+            || str_contains($header, '月份')
+            || str_contains($header, '到院')
+            || str_contains($header, '起始')
+            || str_contains($header, '有效期');
     }
 
     /**
@@ -431,17 +490,25 @@ final readonly class SpreadsheetImportParser
     {
         $exchangeRate = $this->decimal($raw['结算汇率'] ?? null);
         $settledOn = $this->date($raw['结算日期'] ?? null);
+        $settlementPeriod = $this->settlementPeriod($this->findValue($raw, '结算周期'));
+        [$periodStart, $periodEnd] = $settlementPeriod !== null
+            ? $this->periodBounds($settlementPeriod)
+            : [
+                $settledOn?->subMonthNoOverflow()->startOfMonth()->format('Y-m-d'),
+                $settledOn?->subMonthNoOverflow()->endOfMonth()->format('Y-m-d'),
+            ];
 
         return [ImportRowStatus::Valid, [
             'agent_code' => $this->agents->normalizeAgentCode($this->requiredText($raw, '代理商编号')),
             'agent_name' => $this->text($raw, '代理商名称'),
             'policy_grade' => $this->text($raw, '代理商等级'),
+            'settlement_period' => $settlementPeriod,
             'customer_count' => $this->integer($raw['月客户总数'] ?? null),
             'consumption_krw' => $this->money($this->findValue($raw, '消费总额')),
             'commission_krw' => $this->money($this->findValue($raw, '推广费总额（KRW')),
             'settled_on' => $settledOn?->format('Y-m-d'),
-            'period_start' => $settledOn?->subMonthNoOverflow()->startOfMonth()->format('Y-m-d'),
-            'period_end' => $settledOn?->subMonthNoOverflow()->endOfMonth()->format('Y-m-d'),
+            'period_start' => $periodStart,
+            'period_end' => $periodEnd,
             'exchange_rate_krw_per_cny' => $exchangeRate,
             'payout_cny_fen' => $this->cnyFen($this->findValue($raw, '推广费总额（RMB')),
             'status' => $this->settlementStatus($this->text($raw, '结算状态')),
@@ -451,13 +518,14 @@ final readonly class SpreadsheetImportParser
 
     private function reconcile(ImportBatch $batch): void
     {
+        /** @var array<string, string|null> $agentMap */
         $agentMap = [];
         foreach ($batch->rows()->where('profile', ImportProfile::AgentArchive)->get() as $row) {
             $data = $row->normalized_data ?? [];
             if (isset($data['name'], $data['code'])) {
-                $agentMap[(string) $data['name']] = (string) $data['code'];
-                $agentMap[(string) ($data['source_code'] ?? $data['code'])] = (string) $data['code'];
-                $agentMap[(string) $data['code']] = (string) $data['code'];
+                foreach ([(string) $data['name'], (string) ($data['source_code'] ?? $data['code']), (string) $data['code']] as $reference) {
+                    $this->addBatchAgentReference($agentMap, $reference, (string) $data['code']);
+                }
             }
         }
 
@@ -476,8 +544,14 @@ final readonly class SpreadsheetImportParser
                 }
             } elseif (preg_match('/^(.+)-\d{4}$/', $code, $matches) === 1) {
                 $agentReference = $matches[1];
-                if (! isset($agentMap[$agentReference])
-                    && $this->agents->resolveAgentId($agentReference) === null) {
+                try {
+                    $resolved = $this->batchAgentCode($agentMap, $agentReference)
+                        ?? $this->agents->resolveAgentReference($agentReference)?->code;
+                } catch (InvalidArgumentException $exception) {
+                    $resolved = null;
+                    $errors[] = $exception->getMessage();
+                }
+                if ($resolved === null) {
                     $errors[] = "未知客户来源代理商：{$agentReference}";
                 }
             }
@@ -493,28 +567,38 @@ final readonly class SpreadsheetImportParser
             ]);
         }
 
+        /** @var array<string, array{count: int, consumption_krw: int, commission_krw: int, source_rows: array<int, int>}> $aggregates */
         $aggregates = [];
+        /** @var array<string, array{total: int, valid: int, periods: array<string, bool>}> $detailStats */
+        $detailStats = [];
         foreach ($batch->rows()->where('profile', ImportProfile::MonthlyDetail)->get() as $row) {
-            if ($row->status === ImportRowStatus::Error) {
-                continue;
-            }
-
             $data = $row->normalized_data ?? [];
             $reference = (string) ($data['agent_ref'] ?? '');
-            $agentCode = $agentMap[$reference] ?? null;
-
-            if ($agentCode === null) {
-                try {
-                    $agentCode = $this->agents->normalizeAgentCode($reference);
-                } catch (InvalidArgumentException) {
-                    $agentId = $this->agents->resolveAgentId($reference);
-                    $agentCode = $agentId === null ? null : $reference;
+            $errors = $row->errors ?? [];
+            try {
+                $agentCode = $this->batchAgentCode($agentMap, $reference);
+                if ($agentCode === null) {
+                    $agentCode = $this->agents->resolveAgentReference($reference)?->code;
                 }
+            } catch (InvalidArgumentException $exception) {
+                $agentCode = null;
+                $errors[] = $exception->getMessage();
             }
 
-            $errors = $row->errors ?? [];
             if ($agentCode === null) {
                 $errors[] = "无法识别代理商：{$reference}";
+            }
+
+            if ($agentCode !== null) {
+                $detailStats[$agentCode] ??= ['total' => 0, 'valid' => 0, 'periods' => []];
+                $detailStats[$agentCode]['total']++;
+            }
+
+            $period = $this->monthFromDate($data['scheduled_on'] ?? null);
+            if ($period === null) {
+                $errors[] = '消费日期无法确定结算周期。';
+            } elseif ($agentCode !== null) {
+                $detailStats[$agentCode]['periods'][$period] = true;
             }
 
             $expected = BigDecimal::of((int) ($data['amount_krw'] ?? 0))
@@ -533,35 +617,157 @@ final readonly class SpreadsheetImportParser
             $data['agent_code'] = $agentCode;
             $row->update([
                 'normalized_data' => $data,
-                'errors' => $errors,
+                'errors' => array_values(array_unique($errors)),
                 'status' => $errors === [] ? ImportRowStatus::Valid : ImportRowStatus::Error,
             ]);
 
             if ($errors === [] && $agentCode !== null) {
-                $aggregates[$agentCode] ??= ['count' => 0, 'consumption_krw' => 0, 'commission_krw' => 0];
-                $aggregates[$agentCode]['count']++;
-                $aggregates[$agentCode]['consumption_krw'] += (int) $data['amount_krw'];
-                $aggregates[$agentCode]['commission_krw'] += (int) $data['commission_krw'];
+                $detailStats[$agentCode]['valid']++;
+                if ($period !== null) {
+                    $key = $agentCode.'|'.$period;
+                    $aggregates[$key] ??= ['count' => 0, 'consumption_krw' => 0, 'commission_krw' => 0, 'source_rows' => []];
+                    $aggregates[$key]['count']++;
+                    $aggregates[$key]['consumption_krw'] += (int) $data['amount_krw'];
+                    $aggregates[$key]['commission_krw'] += (int) $data['commission_krw'];
+                    $aggregates[$key]['source_rows'][] = (int) $row->source_row;
+                }
             }
         }
 
         foreach ($batch->rows()->where('profile', ImportProfile::SettlementSummary)->get() as $row) {
-            $data = $row->normalized_data ?? [];
-            $code = (string) ($data['agent_code'] ?? '');
-            $actual = $aggregates[$code] ?? ['count' => 0, 'consumption_krw' => 0, 'commission_krw' => 0];
-            $errors = $row->errors ?? [];
+            if ($row->status === ImportRowStatus::Error) {
+                continue;
+            }
 
-            foreach (['count' => 'customer_count', 'consumption_krw' => 'consumption_krw', 'commission_krw' => 'commission_krw'] as $actualKey => $sourceKey) {
-                if ((int) $actual[$actualKey] !== (int) ($data[$sourceKey] ?? 0)) {
-                    $errors[] = "月结汇总与明细不一致：{$sourceKey} 应为 {$actual[$actualKey]}。";
+            $data = $row->normalized_data ?? [];
+            $errors = $row->errors ?? [];
+            $reference = (string) ($data['agent_code'] ?? '');
+            $batchCode = null;
+            try {
+                $batchCode = $this->batchAgentCode($agentMap, $reference);
+                if ($batchCode === null && ! empty($data['agent_name'])) {
+                    $batchCode = $this->batchAgentCode($agentMap, (string) $data['agent_name']);
                 }
+                $resolved = $batchCode === null ? $this->agents->resolveAgentReference($reference) : null;
+                if ($resolved === null && $batchCode === null && ! empty($data['agent_name'])) {
+                    $resolved = $this->agents->resolveAgentReference((string) $data['agent_name']);
+                }
+            } catch (InvalidArgumentException $exception) {
+                $resolved = null;
+                $errors[] = $exception->getMessage();
+            }
+
+            if ($resolved === null && $batchCode === null) {
+                $errors[] = "代理商无法匹配：{$reference}";
+                $row->update([
+                    'errors' => array_values(array_unique($errors)),
+                    'status' => ImportRowStatus::Error,
+                ]);
+
+                continue;
+            }
+
+            $code = $batchCode ?? $resolved->code;
+            $data['agent_code'] = $code;
+            $stats = $detailStats[$code] ?? ['total' => 0, 'valid' => 0, 'periods' => []];
+            $period = $this->settlementPeriod($data['settlement_period'] ?? null);
+            $resolution = $row->resolution ?? [];
+
+            if ($stats['total'] === 0) {
+                $errors[] = "代理商 {$code} 的月结汇总无法校验。原因：没有找到可参与汇总的有效月明细。";
+            } elseif ($stats['valid'] === 0) {
+                $errors[] = "代理商 {$code} 的月结汇总无法校验。原因：该代理商的月明细全部无效。";
+            } elseif ($period === null && count($stats['periods']) === 1) {
+                $period = (string) array_key_first($stats['periods']);
+                $data['settlement_period'] = $period;
+                [$data['period_start'], $data['period_end']] = $this->periodBounds($period);
+                $resolution['settlement_period'] = [
+                    'source' => 'detail_rows',
+                    'value' => $period,
+                    'warning' => '旧模板未提供结算周期，已根据唯一消费月份推导。',
+                ];
+            } elseif ($period === null) {
+                $errors[] = "代理商 {$code} 的结算周期无法确定。";
+            }
+
+            $actual = $period === null ? null : ($aggregates[$code.'|'.$period] ?? null);
+            if ($actual === null && $errors === []) {
+                $errors[] = "代理商 {$code} 的 {$period} 月结汇总无法校验。原因：没有找到对应消费月份的有效月明细。";
+            }
+
+            if ($actual !== null) {
+                foreach (['count' => 'customer_count', 'consumption_krw' => 'consumption_krw', 'commission_krw' => 'commission_krw'] as $actualKey => $sourceKey) {
+                    if ((int) $actual[$actualKey] !== (int) ($data[$sourceKey] ?? 0)) {
+                        $difference = (int) $data[$sourceKey] - (int) $actual[$actualKey];
+                        $errors[] = "代理商 {$code} 的 {$period} 月结汇总与月明细不一致。月结汇总填写：{$data[$sourceKey]}；月明细计算结果：{$actual[$actualKey]}；差额：{$difference}；参与计算的明细行：".implode('、', $actual['source_rows']).'。';
+                    }
+                }
+                $resolution['aggregate'] = $actual;
             }
 
             $row->update([
+                'normalized_data' => $data,
                 'errors' => $errors,
+                'resolution' => $resolution,
                 'status' => $errors === [] ? ImportRowStatus::Valid : ImportRowStatus::Error,
             ]);
         }
+    }
+
+    /** @param array<string, string|null> $agentMap */
+    private function addBatchAgentReference(array &$agentMap, string $reference, string $code): void
+    {
+        foreach ([$reference, $this->agentNameKey($reference)] as $key) {
+            if ($key === '') {
+                continue;
+            }
+
+            if (array_key_exists($key, $agentMap) && $agentMap[$key] !== $code) {
+                $agentMap[$key] = null;
+
+                continue;
+            }
+
+            $agentMap[$key] = $code;
+        }
+    }
+
+    /** @param array<string, string|null> $agentMap */
+    private function batchAgentCode(array $agentMap, string $reference): ?string
+    {
+        $codes = [];
+        foreach ([$reference, $this->agentNameKey($reference)] as $key) {
+            if (array_key_exists($key, $agentMap)) {
+                if ($agentMap[$key] === null) {
+                    throw new InvalidArgumentException("代理商匹配不唯一：{$reference}");
+                }
+
+                $codes[$agentMap[$key]] = true;
+            }
+        }
+
+        if (count($codes) > 1) {
+            throw new InvalidArgumentException("代理商匹配不唯一：{$reference}");
+        }
+
+        return $codes === [] ? null : (string) array_key_first($codes);
+    }
+
+    private function agentNameKey(string $value): string
+    {
+        $value = trim($value);
+        if (class_exists(\Normalizer::class)) {
+            $value = \Normalizer::normalize($value, \Normalizer::FORM_KC) ?: $value;
+        }
+
+        return strtoupper((string) preg_replace('/\s+/u', ' ', str_replace(['（', '）'], ['(', ')'], $value)));
+    }
+
+    private function monthFromDate(mixed $value): ?string
+    {
+        $value = $this->cleanText($value);
+
+        return $value === '' ? null : CarbonImmutable::parse($value)->format('Y-m');
     }
 
     private function refreshBatchCounts(ImportBatch $batch): void
@@ -576,6 +782,27 @@ final readonly class SpreadsheetImportParser
             + (int) ($counts[ImportRowStatus::DuplicateCandidate->value] ?? 0);
         $errors = (int) ($counts[ImportRowStatus::Error->value] ?? 0);
 
+        $summary = $batch->summary ?? [];
+        $summary['profiles'] = $batch->rows()->selectRaw('profile, COUNT(*) AS count')->groupBy('profile')->pluck('count', 'profile');
+        $fieldIssues = $batch->issues()->where('stage', 'field_validation');
+        $fieldErrorIssues = (clone $fieldIssues)->where('severity', 'error');
+        $fieldWarnings = (clone $fieldIssues)->where('severity', 'warning')->whereNotNull('import_row_id')->distinct()->count('import_row_id');
+        $fieldErrors = (clone $fieldErrorIssues)->whereNotNull('import_row_id')->distinct()->count('import_row_id');
+        $fieldIssueRows = (clone $fieldIssues)->whereNotNull('import_row_id')->distinct()->count('import_row_id');
+        $summary['stages']['field_validation'] = [
+            'status' => $fieldErrorIssues->exists() ? 'failed' : 'passed',
+            'passed_rows' => max(0, $batch->rows()->count() - $fieldIssueRows),
+            'warning_rows' => $fieldWarnings,
+            'error_rows' => $fieldErrors,
+        ];
+        foreach (['normalization', 'relation_validation', 'summary_validation'] as $stage) {
+            $issueCount = $batch->issues()->where('stage', $stage)->count();
+            $summary['stages'][$stage] = [
+                'status' => $issueCount > 0 ? 'failed' : 'passed',
+                'issue_count' => $issueCount,
+            ];
+        }
+
         $batch->update([
             'total_rows' => $batch->rows()->count(),
             'valid_rows' => $valid,
@@ -584,7 +811,7 @@ final readonly class SpreadsheetImportParser
             'status' => ($warnings + $errors) > 0
                 ? ImportBatchStatus::NeedsReview
                 : ImportBatchStatus::Validated,
-            'summary' => ['profiles' => $batch->rows()->selectRaw('profile, COUNT(*) AS count')->groupBy('profile')->pluck('count', 'profile')],
+            'summary' => $summary,
         ]);
     }
 
@@ -758,6 +985,37 @@ final readonly class SpreadsheetImportParser
         }
 
         return $amount;
+    }
+
+    private function settlementPeriod(mixed $value): ?string
+    {
+        $text = $this->cleanText($value);
+        if ($text === '') {
+            return null;
+        }
+
+        if (preg_match('/^(\d{4})[-\/.](\d{1,2})$/', $text, $matches) !== 1) {
+            throw new InvalidArgumentException("无效结算周期：{$value}");
+        }
+
+        $month = (int) $matches[2];
+        if ($month < 1 || $month > 12) {
+            throw new InvalidArgumentException("无效结算周期：{$value}");
+        }
+
+        return sprintf('%04d-%02d', (int) $matches[1], $month);
+    }
+
+    /** @return array{string|null, string|null} */
+    private function periodBounds(?string $period): array
+    {
+        if ($period === null) {
+            return [null, null];
+        }
+
+        $month = CarbonImmutable::createFromFormat('!Y-m', $period);
+
+        return [$month->startOfMonth()->format('Y-m-d'), $month->endOfMonth()->format('Y-m-d')];
     }
 
     private function date(mixed $value): ?CarbonImmutable

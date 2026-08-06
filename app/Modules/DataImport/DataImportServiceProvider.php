@@ -3,6 +3,7 @@
 namespace App\Modules\DataImport;
 
 use App\Modules\DataImport\Console\PurgeExpiredImportsCommand;
+use App\Modules\DataImport\Console\ResetUatDataCommand;
 use App\Modules\DataImport\Presentation\Livewire\ImportManager;
 use App\Modules\DataImport\Presentation\Livewire\ReferenceConfigurationImportManager;
 use Illuminate\Support\Facades\Route;
@@ -28,7 +29,7 @@ class DataImportServiceProvider extends ServiceProvider
         });
 
         if ($this->app->runningInConsole()) {
-            $this->commands([PurgeExpiredImportsCommand::class]);
+            $this->commands([PurgeExpiredImportsCommand::class, ResetUatDataCommand::class]);
         }
     }
 }

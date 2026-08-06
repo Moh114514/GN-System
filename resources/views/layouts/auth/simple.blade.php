@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="{{ request()->cookie('flux_resolved_appearance') === 'dark' ? 'dark' : '' }}">
     <head>
         @include('partials.head')
     </head>

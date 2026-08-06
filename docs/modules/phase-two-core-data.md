@@ -41,9 +41,13 @@ GB18030，并固定使用英文逗号作为分隔符，不依赖自动推断。
 
 上传前会检查启用中的代理类型、机构和直销来源是否齐全。解析阶段保存每个文件的
 格式、编码、分隔符、工作表、表头行和识别类型；无法识别的表头会明确失败，不再
-静默归类为代码表。解析结果先进入 staging；页面展示批次计数、前 50 行和错误报告。
-未知机构、未知代理商、未知代理类型或直销来源、编号冲突、重复候选和月明细/汇总
-差异会阻止正式提交。零待处理项时先取
+静默归类为代码表。解析结果先进入 staging；XLSX 日期字段按单元格原值、日期格式和
+数据类型读取，并在 staging 中保留原值、格式化值、规范化值、单元格类型和数字格式；
+页面展示批次计数、前 50 行和错误报告。代理商引用按当前规范编号、历史编号、名称和
+安全名称规范化顺序匹配，写入明细和汇总的始终是规范编号；多个候选会阻止提交。未知
+机构、未知代理商、未知代理类型或直销来源、编号冲突、重复候选和月明细/汇总差异会阻止
+正式提交。月结汇总使用“代理商编号 + 结算周期”核对月明细；旧模板缺少结算周期时，
+仅在消费月份唯一时推导并记录提示，多个消费月份或无有效明细会阻止提交。零待处理项时先取
 最多 100 条有效数据完成一次强制回滚的事务预演；正式提交在一个数据库事务内完成，
 任一错误使整批不落库。
 
@@ -85,3 +89,8 @@ docker compose exec app php artisan db:seed --class=PhaseTwoDemoDataSeeder
 Seeder 生成 12 个 `DM` 编号代理商、144 个模拟客户、144 笔预约和订单，以及推广费、
 近三个月月结、跟进和跨渠道订单。名称均含“【模拟】”，联系方式和证件也是无真实
 含义的固定测试值。Seeder 可重复执行而不增加记录，并会拒绝在 production 环境运行。
+## PR-B import issues and stage state
+
+Import batches use `import_issues` to record file detection, field validation, normalization, relation validation, summary validation, dry-run, and commit issues. Encrypted context is retained for diagnostics; XLSX reports read only from this table and write explicit string cells. `summary.stages` persists each stage status and counters for the Livewire page.
+
+Only explicitly ignorable optional-data issues may be adjudicated. Unresolved agents, customer-agent conflicts, unresolved settlement periods, summary/detail mismatches, dry-run failures, and database constraint exceptions remain non-ignorable.

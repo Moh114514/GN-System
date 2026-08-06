@@ -91,16 +91,16 @@
         </a>
 
         <a
-            href="{{ route('reference-configuration-imports.index') }}"
+            href="{{ route('configuration.data-maintenance') }}"
             class="group rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:border-teal-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-teal-700"
             wire:navigate
         >
             <span class="flex size-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300">
                 <flux:icon.arrow-up-tray aria-hidden="true" />
             </span>
-            <h3 class="mt-5 text-lg font-semibold">基础配置导入</h3>
-            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">通过单个 XLSX 预览、检查并批量维护基础字典、政策、费率、代理商和等级分配。</p>
-            <span class="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-teal-700 dark:text-teal-300">进入导入<flux:icon.arrow-right class="size-4" aria-hidden="true" /></span>
+            <h3 class="mt-5 text-lg font-semibold">数据导入与迁移</h3>
+            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">统一进入基础配置导入和历史业务数据迁移，并查看各类导入批次。</p>
+            <span class="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-teal-700 dark:text-teal-300">进入数据维护<flux:icon.arrow-right class="size-4" aria-hidden="true" /></span>
         </a>
     </section>
 </div>

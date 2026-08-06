@@ -821,3 +821,20 @@ exit
 
 停下来核对不会让问题变严重；在环境不明时继续尝试，才容易把小问题变成数据或服务
 事故。
+## PR-C UAT reset and configuration reload
+
+These commands must be run on the UAT host from the repository `/srv/gn-system/repository`, not from Production. The UAT root is `/srv/gn-system`:
+
+```bash
+cd /srv/gn-system/repository
+./deploy/reset-uat.sh --business-data
+./deploy/reload-config.sh uat
+```
+
+Business-data reset keeps administrator accounts and base configuration. It asks for `RESET gn_system_uat`, makes a backup, clears approved UAT business records and private business files, flushes UAT Redis, restarts services, and checks all three health URLs with the UAT certificate and a bounded 180-second retry for worker heartbeats. For a complete first-time UAT initialization use `./deploy/reset-uat.sh --full` only after confirming the target and accepting that the UAT database will be rebuilt. It also requires the same exact phrase and asks you to create a new administrator.
+
+The reset writes phase audit records after the database cleanup: database cleanup completed, private files cleanup completed, and reset completed. If a later phase fails, it records reset failed and the phase when the audit backend is available.
+
+Use the administrator commands to disable or enable accounts and rotate passwords. Always provide both a reason and an operator or ticket identifier. Passwords are entered at a hidden prompt; do not put them in shell history. The last active super administrator cannot be disabled, and there is no delete-admin command.
+
+Never run these operations in `/srv/gn-system/production`, against `gn_system`, or with `docker compose down -v`. Do not copy secrets into chat or expect the reload script to print them.

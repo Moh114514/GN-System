@@ -77,6 +77,7 @@ class DataImportCommitTest extends TestCase
         $this->agentRow($batch, $file);
         $this->detailRow($batch, $file, 'SZ-JG');
         $this->detailRow($batch, $file, 'UNKNOWN-JG', 'UNKNOWN-JG-0001', 4);
+        $batch->update(['summary' => ['stages' => ['dry_run' => ['status' => 'passed']]]]);
 
         try {
             app(ImportBatchCommitter::class)->commit($batch);
@@ -90,6 +91,15 @@ class DataImportCommitTest extends TestCase
         $this->assertDatabaseCount('customers', 0);
         $this->assertDatabaseCount('orders', 0);
         $this->assertDatabaseCount('order_commissions', 0);
+    }
+
+    public function test_commit_rejects_a_validated_batch_without_a_passed_dry_run(): void
+    {
+        [, $batch] = $this->batch();
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('事务预演');
+
+        app(ImportBatchCommitter::class)->commit($batch);
     }
 
     /** @return array{User, ImportBatch, ImportFile} */

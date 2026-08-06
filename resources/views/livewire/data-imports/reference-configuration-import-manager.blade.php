@@ -1,5 +1,5 @@
 <div @if (in_array($this->selectedBatch?->status, [\App\Modules\DataImport\Domain\ImportBatchStatus::Uploaded, \App\Modules\DataImport\Domain\ImportBatchStatus::Parsing], true)) wire:poll.3s @endif>
-    <x-page-back :href="route('configuration.index')" label="返回配置中心" class="mb-4" />
+    <x-page-back :href="route('configuration.data-maintenance')" label="返回数据导入与迁移" class="mb-4" />
 
     @php
         $batchStatusLabels = [
@@ -92,6 +92,19 @@
                         <div class="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                             <p class="font-semibold">发现 {{ $batch->error_rows }} 行错误，当前批次不能写入。</p>
                             <p class="mt-1">请根据下方工作表、源行号和错误详情修改 XLSX；也可以下载错误报告集中处理。</p>
+                        </div>
+                    @endif
+
+                    @if (! empty(($batch->summary ?? [])['stages']))
+                        <div class="mt-5 overflow-x-auto">
+                            <table class="min-w-full text-left text-sm">
+                                <thead class="border-b border-zinc-200 text-zinc-500"><tr><th class="px-3 py-2">阶段</th><th class="px-3 py-2">状态</th><th class="px-3 py-2">指标</th></tr></thead>
+                                <tbody class="divide-y divide-zinc-100">
+                                    @foreach (($batch->summary['stages'] ?? []) as $stage => $state)
+                                        <tr><td class="px-3 py-2 font-medium">{{ match ($stage) { 'file_detection' => '文件识别', 'field_validation' => '字段校验', 'normalization' => '数据标准化', 'relation_validation' => '关联校验', 'summary_validation' => '汇总校验', 'dry_run' => '事务预演', 'commit' => '正式写入', default => $stage } }}</td><td class="px-3 py-2">{{ match ($state['status'] ?? 'pending') { 'pending' => '待处理', 'running' => '进行中', 'passed' => '通过', 'failed' => '失败', 'not_started' => '未开始', default => $state['status'] ?? 'pending' } }}</td><td class="px-3 py-2 text-zinc-500">{{ collect($state)->except('status')->map(fn ($value, $key) => (match ($key) { 'issue_count' => '问题数', 'passed_rows' => '通过行数', 'warning_rows' => '警告行数', 'error_rows' => '错误行数', default => $key }).': '.$value)->implode(' / ') ?: '-' }}</td></tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
                         </div>
                     @endif
 

@@ -31,6 +31,33 @@ class ProfileUpdateTest extends TestCase
             ->assertSee('href="'.route('dashboard').'"', false);
     }
 
+    public function test_resolved_dark_appearance_is_rendered_on_the_document_root(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $locale = str_replace('_', '-', app()->getLocale());
+
+        $this->withUnencryptedCookie('flux_resolved_appearance', 'dark')
+            ->get(route('appearance.edit'))
+            ->assertOk()
+            ->assertSee('<html lang="'.$locale.'" class="dark">', false)
+            ->assertSee('window.Flux.applyAppearance =', false)
+            ->assertDontSee('MutationObserver', false)
+            ->assertDontSee('livewire:navigating', false);
+    }
+
+    public function test_non_dark_appearance_cookie_does_not_render_the_dark_class(): void
+    {
+        $this->actingAs(User::factory()->create());
+
+        $locale = str_replace('_', '-', app()->getLocale());
+
+        $this->withUnencryptedCookie('flux_resolved_appearance', 'light')
+            ->get(route('appearance.edit'))
+            ->assertOk()
+            ->assertSee('<html lang="'.$locale.'" class="">', false);
+    }
+
     public function test_profile_information_can_be_updated(): void
     {
         $user = User::factory()->create();

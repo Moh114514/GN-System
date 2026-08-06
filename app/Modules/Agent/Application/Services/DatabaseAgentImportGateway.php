@@ -4,6 +4,7 @@ namespace App\Modules\Agent\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\AgentImportGateway;
 use App\Modules\Agent\Application\Data\AgentImportData;
+use App\Modules\Agent\Application\Data\ResolvedAgentImportReference;
 use App\Modules\Agent\Domain\AgentCodeNormalizer;
 use App\Modules\Agent\Infrastructure\Models\Agent;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
@@ -41,7 +42,15 @@ final readonly class DatabaseAgentImportGateway implements AgentImportGateway
 
     public function resolveAgentId(string $codeOrName): ?int
     {
+        return $this->resolveAgentReference($codeOrName)?->id;
+    }
+
+    public function resolveAgentReference(string $codeOrName): ?ResolvedAgentImportReference
+    {
         $value = trim($codeOrName);
+        if ($value === '') {
+            return null;
+        }
 
         try {
             $code = $this->normalizer->agent($value);
@@ -49,15 +58,56 @@ final readonly class DatabaseAgentImportGateway implements AgentImportGateway
             $code = null;
         }
 
-        return Agent::query()
-            ->where(function ($query) use ($code, $value): void {
-                if ($code !== null) {
-                    $query->where('code', $code)->orWhere('legacy_code', strtoupper($value));
-                }
+        /** @var array<string, Agent> $candidates */
+        $candidates = [];
+        $addCandidates = static function (iterable $agents) use (&$candidates): void {
+            foreach ($agents as $agent) {
+                $candidates[(string) $agent->id] = $agent;
+            }
+        };
 
-                $query->orWhere('name', $value);
-            })
-            ->value('id');
+        if ($code !== null) {
+            $addCandidates(Agent::query()->where('code', $code)->get(['id', 'code', 'legacy_code', 'name']));
+        }
+
+        $addCandidates(Agent::query()->where('legacy_code', strtoupper($value))->get(['id', 'code', 'legacy_code', 'name']));
+        $addCandidates(Agent::query()->where('name', $value)->get(['id', 'code', 'legacy_code', 'name']));
+
+        $normalizedName = $this->normalizeAgentName($value);
+        if ($normalizedName !== '') {
+            $normalizedMatches = Agent::query()
+                ->get(['id', 'code', 'legacy_code', 'name'])
+                ->filter(fn (Agent $agent): bool => $this->normalizeAgentName($agent->name) === $normalizedName);
+            $addCandidates($normalizedMatches);
+        }
+
+        if (count($candidates) > 1) {
+            throw new \InvalidArgumentException("代理商匹配不唯一：{$value}");
+        }
+
+        return $candidates === [] ? null : $this->reference(array_values($candidates)[0]);
+    }
+
+    private function reference(Agent $agent): ResolvedAgentImportReference
+    {
+        return new ResolvedAgentImportReference(
+            id: (int) $agent->id,
+            code: (string) $agent->code,
+            name: (string) $agent->name,
+            legacyCode: $agent->legacy_code !== null ? (string) $agent->legacy_code : null,
+        );
+    }
+
+    private function normalizeAgentName(string $value): string
+    {
+        $value = trim($value);
+        if (class_exists(\Normalizer::class)) {
+            $value = \Normalizer::normalize($value, \Normalizer::FORM_KC) ?: $value;
+        }
+
+        $value = str_replace(['（', '）'], ['(', ')'], $value);
+
+        return strtoupper((string) preg_replace('/\s+/u', ' ', $value));
     }
 
     public function upsertAgent(AgentImportData $data): int

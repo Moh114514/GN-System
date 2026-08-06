@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use RuntimeException;
 use Tests\TestCase;
 
 class ReferenceConfigurationImportTest extends TestCase
@@ -42,12 +43,20 @@ class ReferenceConfigurationImportTest extends TestCase
 
         $this->actingAs($this->admin)->get(route('configuration.index'))
             ->assertOk()
+            ->assertSee('数据导入与迁移')
+            ->assertSee('href="'.route('configuration.data-maintenance').'"', false);
+
+        $this->get(route('configuration.data-maintenance'))
+            ->assertOk()
             ->assertSee('基础配置导入')
-            ->assertSee('href="'.route('reference-configuration-imports.index').'"', false);
+            ->assertSee('历史数据迁移')
+            ->assertSee('href="'.route('reference-configuration-imports.index').'"', false)
+            ->assertSee('href="'.route('data-imports.index').'"', false);
 
         $this->get(route('reference-configuration-imports.index'))
             ->assertOk()
-            ->assertSee('返回配置中心')
+            ->assertSee('返回数据导入与迁移')
+            ->assertSee('href="'.route('configuration.data-maintenance').'"', false)
             ->assertSee('上传后先预览和检查')
             ->assertSee('基础字典 → 政策等级 → 费率 → 代理商 → 等级分配')
             ->assertSee('wire:submit="stageWorkbook"', false);
@@ -139,6 +148,20 @@ class ReferenceConfigurationImportTest extends TestCase
         $this->assertNotNull($batch->fresh()->completed_at);
     }
 
+    public function test_commit_rejects_a_validated_batch_without_a_passed_dry_run(): void
+    {
+        $batch = ImportBatch::query()->create([
+            'created_by' => $this->admin->id,
+            'kind' => 'reference_configuration',
+            'status' => ImportBatchStatus::Validated,
+        ]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('事务预演');
+
+        app(ReferenceConfigurationImportCommitter::class)->commit($batch, null);
+    }
+
     public function test_relationship_errors_block_confirmation_and_identify_the_source_row(): void
     {
         Livewire::test(ReferenceConfigurationImportManager::class)
@@ -165,6 +188,9 @@ class ReferenceConfigurationImportTest extends TestCase
         app(ReferenceConfigurationImportParser::class)->parse($invalidBatch);
 
         $this->assertSame(ImportBatchStatus::NeedsReview, $invalidBatch->fresh()->status);
+        $this->assertSame(0, $invalidBatch->fresh()->summary['stages']['field_validation']['error_rows']);
+        $this->assertSame('failed', $invalidBatch->fresh()->summary['stages']['relation_validation']['status']);
+        $this->assertSame('passed', $invalidBatch->fresh()->summary['stages']['normalization']['status']);
         $this->assertDatabaseHas('import_rows', [
             'import_batch_id' => $invalidBatch->id,
             'sheet_name' => '机构费率规则',
@@ -182,7 +208,7 @@ class ReferenceConfigurationImportTest extends TestCase
             ->assertSee('机构费率规则 #2')
             ->assertSee('机构代码“MISSING”不存在')
             ->call('downloadErrors')
-            ->assertFileDownloaded("基础配置导入错误-{$invalidBatch->id}.xlsx");
+            ->assertFileDownloaded("import-issues-{$invalidBatch->id}.xlsx");
 
         $manager = app(ReferenceConfigurationImportManager::class);
         $manager->selectedBatchId = $invalidBatch->id;
@@ -190,11 +216,11 @@ class ReferenceConfigurationImportTest extends TestCase
         $reportPath = $response->getFile()->getPathname();
         $report = IOFactory::load($reportPath);
         $sheet = $report->getActiveSheet();
-        $this->assertSame('工作表', $sheet->getCell('A1')->getValue());
-        $this->assertSame('机构费率规则', $sheet->getCell('A2')->getValue());
-        $this->assertSame(2, $sheet->getCell('B2')->getValue());
-        $this->assertStringContainsString('机构代码“MISSING”不存在', (string) $sheet->getCell('D2')->getValue());
-        $this->assertStringContainsString('机构代码：MISSING', (string) $sheet->getCell('E2')->getValue());
+        $this->assertSame('stage', $sheet->getCell('A1')->getValue());
+        $this->assertSame('relation_validation', $sheet->getCell('A2')->getValue());
+        $this->assertSame('error', $sheet->getCell('B2')->getValue());
+        $this->assertSame('机构费率规则', $sheet->getCell('E2')->getValue());
+        $this->assertStringContainsString('机构代码“MISSING”不存在', (string) $sheet->getCell('N2')->getValue());
         $report->disconnectWorksheets();
         unlink($reportPath);
     }
@@ -213,7 +239,7 @@ class ReferenceConfigurationImportTest extends TestCase
             ->assertSee('工作簿处理失败')
             ->assertSee('缺少工作表：代理商类型')
             ->call('downloadErrors')
-            ->assertFileDownloaded("基础配置导入错误-{$batch->id}.xlsx");
+            ->assertFileDownloaded("import-issues-{$batch->id}.xlsx");
     }
 
     public function test_field_validation_errors_include_field_value_and_allowed_format(): void

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+repo_root="$(git rev-parse --show-toplevel)"
+cd "$repo_root"
+
+echo "Running local CI checks before push..."
+
+docker compose exec -T app composer ci:check
+docker compose exec -T vite npm run build
+
+echo "Local CI checks passed."

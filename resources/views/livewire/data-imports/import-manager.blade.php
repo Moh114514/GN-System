@@ -1,4 +1,10 @@
 <div class="crm-content">
+    <x-page-back
+        :href="route('configuration.data-maintenance')"
+        label="返回数据导入与迁移"
+        class="mb-4"
+    />
+
     @php
         $batchStatusLabels = [
             'uploaded' => '已上传',
@@ -173,7 +179,7 @@
                             </p>
                         </div>
                         <div class="flex gap-2">
-                            @if ($batch->error_rows > 0 || $batch->warning_rows > 0)
+                            @if ($batch->error_rows > 0 || $batch->warning_rows > 0 || $batch->failure_reason || $batch->issues->isNotEmpty())
                                 <flux:button wire:click="downloadErrors" variant="ghost">下载错误报告</flux:button>
                                 <flux:button wire:click="reparse" variant="ghost">重新检查</flux:button>
                             @endif
@@ -192,6 +198,31 @@
 
                     @if ($batch->failure_reason)
                         <p class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{{ $batch->failure_reason }}</p>
+                    @endif
+
+                    @if (! empty(($batch->summary ?? [])['stages']))
+                        <div class="mt-5 overflow-x-auto">
+                            <table class="min-w-full text-left text-sm">
+                                <thead class="border-b border-zinc-200 text-zinc-500">
+                                    <tr>
+                                        <th class="px-3 py-2">阶段</th>
+                                        <th class="px-3 py-2">状态</th>
+                                        <th class="px-3 py-2">指标</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-zinc-100">
+                                    @foreach (($batch->summary['stages'] ?? []) as $stage => $state)
+                                        <tr>
+                                            <td class="px-3 py-2 font-medium">{{ match ($stage) { 'file_detection' => '文件识别', 'field_validation' => '字段校验', 'normalization' => '数据标准化', 'relation_validation' => '关联校验', 'summary_validation' => '汇总校验', 'dry_run' => '事务预演', 'commit' => '正式写入', default => $stage } }}</td>
+                                            <td class="px-3 py-2">{{ match ($state['status'] ?? 'pending') { 'pending' => '待处理', 'running' => '进行中', 'passed' => '通过', 'failed' => '失败', 'not_started' => '未开始', default => $state['status'] ?? 'pending' } }}</td>
+                                            <td class="px-3 py-2 text-zinc-500">
+                                                {{ collect($state)->except('status')->map(fn ($value, $key) => (match ($key) { 'issue_count' => '问题数', 'passed_rows' => '通过行数', 'warning_rows' => '警告行数', 'error_rows' => '错误行数', default => $key }).': '.$value)->implode(' / ') ?: '-' }}
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
                     @endif
 
                     <div class="mt-5 overflow-x-auto">
@@ -263,11 +294,13 @@
                                         <td class="px-3 py-2">{{ $rowStatusLabels[$row->status->value] ?? $row->status->value }}</td>
                                         <td class="px-3 py-2 text-red-600">{{ implode('；', $row->errors ?? []) }}</td>
                                         <td class="min-w-64 px-3 py-2">
+                                            @php($rowIssues = $batch->issues->where('import_row_id', $row->id))
+                                            @php($canIgnore = $rowIssues->isNotEmpty() && $rowIssues->every(fn ($issue) => $issue->is_ignorable))
                                             @if (in_array($row->status, [
                                                 \App\Modules\DataImport\Domain\ImportRowStatus::Error,
                                                 \App\Modules\DataImport\Domain\ImportRowStatus::Warning,
                                                 \App\Modules\DataImport\Domain\ImportRowStatus::DuplicateCandidate,
-                                            ], true))
+                                            ], true) && $canIgnore)
                                                 <div class="flex gap-2">
                                                     <input
                                                         wire:model="ignoreReasons.{{ $row->id }}"

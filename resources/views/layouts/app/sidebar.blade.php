@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
+<html lang="{{ str_replace('_', '-', app()->getLocale()) }}" class="{{ request()->cookie('flux_resolved_appearance') === 'dark' ? 'dark' : '' }}">
     <head>
         @include('partials.head')
     </head>
@@ -23,14 +23,34 @@
                     <span>总览</span>
                 </a>
 
+                <a href="{{ route('reminders.index') }}" class="crm-nav-item {{ request()->routeIs('reminders.*') ? 'is-active' : '' }}" wire:navigate>
+                    <flux:icon.bell-alert aria-hidden="true" />
+                    <span>主动提醒</span>
+                </a>
+
+                <a href="{{ route('customers.index') }}" class="crm-nav-item {{ request()->routeIs('customers.index', 'customers.create', 'customers.show', 'customers.edit') ? 'is-active' : '' }}" wire:navigate>
+                    <flux:icon.users aria-hidden="true" />
+                    <span>客户管理</span>
+                </a>
+
+                <a href="{{ route('orders.index') }}" class="crm-nav-item {{ request()->routeIs('orders.*', 'customers.orders') ? 'is-active' : '' }}" wire:navigate>
+                    <flux:icon.clipboard-document-list aria-hidden="true" />
+                    <span>订单</span>
+                </a>
+
+                <a href="{{ route('reports.search') }}" class="crm-nav-item {{ request()->routeIs('reports.search', 'reports.exports.*') ? 'is-active' : '' }}" wire:navigate>
+                    <flux:icon.magnifying-glass aria-hidden="true" />
+                    <span>多维查询</span>
+                </a>
+
                 @if (auth()->user()->is_super_admin)
-                    <a href="{{ route('data-imports.index') }}" class="crm-nav-item {{ request()->routeIs('data-imports.*') ? 'is-active' : '' }}" wire:navigate>
-                        <flux:icon.arrow-up-tray aria-hidden="true" />
-                        <span>数据迁移</span>
-                    </a>
                     <a href="{{ route('agents.index') }}" class="crm-nav-item {{ request()->routeIs('agents.*') ? 'is-active' : '' }}" wire:navigate>
                         <flux:icon.building-office aria-hidden="true" />
                         <span>代理商</span>
+                    </a>
+                    <a href="{{ route('settlements.index') }}" class="crm-nav-item {{ request()->routeIs('settlements.*') ? 'is-active' : '' }}" wire:navigate>
+                        <flux:icon.banknotes aria-hidden="true" />
+                        <span>月结中心</span>
                     </a>
                     @php
                         $configurationNavigationActive = request()->routeIs(
@@ -40,6 +60,7 @@
                             'direct-sales-sources.*',
                             'reminder-configuration.*',
                             'reference-configuration-imports.*',
+                            'data-imports.*',
                         );
                     @endphp
 
@@ -160,12 +181,12 @@
                                     </a>
 
                                     <a
-                                        href="{{ route('reference-configuration-imports.index') }}"
-                                        class="crm-subnav-item {{ request()->routeIs('reference-configuration-imports.*') ? 'is-active' : '' }}"
-                                        data-test="configuration-subnav-reference-imports"
+                                        href="{{ route('configuration.data-maintenance') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('configuration.data-maintenance', 'reference-configuration-imports.*', 'data-imports.*') ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-data-maintenance"
                                         wire:navigate
                                     >
-                                        基础配置导入
+                                        数据导入与迁移
                                     </a>
                                 </div>
                             </div>
@@ -173,32 +194,6 @@
                     </div>
                 @endif
 
-                <a href="{{ route('customers.index') }}" class="crm-nav-item {{ request()->routeIs('customers.index', 'customers.create', 'customers.show', 'customers.edit') ? 'is-active' : '' }}" wire:navigate>
-                    <flux:icon.users aria-hidden="true" />
-                    <span>客户管理</span>
-                </a>
-
-                <a href="{{ route('reports.search') }}" class="crm-nav-item {{ request()->routeIs('reports.search', 'reports.exports.*') ? 'is-active' : '' }}" wire:navigate>
-                    <flux:icon.magnifying-glass aria-hidden="true" />
-                    <span>多维查询</span>
-                </a>
-
-                @if (auth()->user()->is_super_admin)
-                    <a href="{{ route('settlements.index') }}" class="crm-nav-item {{ request()->routeIs('settlements.*') ? 'is-active' : '' }}" wire:navigate>
-                        <flux:icon.banknotes aria-hidden="true" />
-                        <span>月结中心</span>
-                    </a>
-                @endif
-
-                <a href="{{ route('reminders.index') }}" class="crm-nav-item {{ request()->routeIs('reminders.*') ? 'is-active' : '' }}" wire:navigate>
-                    <flux:icon.bell-alert aria-hidden="true" />
-                    <span>主动提醒</span>
-                </a>
-
-                <a href="{{ route('orders.index') }}" class="crm-nav-item {{ request()->routeIs('orders.*', 'customers.orders') ? 'is-active' : '' }}" wire:navigate>
-                    <flux:icon.clipboard-document-list aria-hidden="true" />
-                    <span>订单</span>
-                </a>
             </nav>
 
             <div class="crm-sidebar-footer">

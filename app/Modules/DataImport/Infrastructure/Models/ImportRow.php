@@ -6,6 +6,7 @@ use App\Modules\DataImport\Domain\ImportProfile;
 use App\Modules\DataImport\Domain\ImportRowStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * @property int $id
@@ -49,5 +50,11 @@ class ImportRow extends Model
     public function file(): BelongsTo
     {
         return $this->belongsTo(ImportFile::class, 'import_file_id');
+    }
+
+    /** @return HasMany<ImportIssue, $this> */
+    public function issues(): HasMany
+    {
+        return $this->hasMany(ImportIssue::class, 'import_row_id');
     }
 }
