@@ -27,7 +27,7 @@ final class ImportIssueRecorder
 
         return ImportIssue::query()->create([
             'import_batch_id' => $batch->id,
-            'import_file_id' => $file?->id ?? $row?->import_file_id,
+            'import_file_id' => $file->id ?? $row?->import_file_id,
             'import_row_id' => $row?->id,
             'stage' => $stage,
             'severity' => $severity,
@@ -110,7 +110,7 @@ final class ImportIssueRecorder
     {
         $payload = $row->raw_payload_encrypted ?? [];
 
-        return is_array($payload) && array_key_exists('values', $payload) ? $payload['values'] : $payload;
+        return array_key_exists('values', $payload) ? $payload['values'] : $payload;
     }
 
     private function isIgnorable(ImportRow $row): bool

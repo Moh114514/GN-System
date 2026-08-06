@@ -40,7 +40,7 @@ if [[ ! -d "$UAT_ROOT" || ! -d "$REPOSITORY_DIR" || ! -f "$ENV_FILE" || ! -f "$C
     printf 'UAT repository, environment file, or Compose file is missing.\n' >&2
     exit 1
 fi
-if [[ "$(stat -c '%a' "$UAT_ROOT/$ENV_FILE")" != '600' ]]; then
+if [[ "$(stat -c '%a' "$ENV_FILE")" != '600' ]]; then
     printf '%s must have mode 0600.\n' "$ENV_FILE" >&2
     exit 1
 fi

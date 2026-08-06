@@ -62,6 +62,14 @@ final readonly class ImportRowAdjudicator
             'summary' => $summary,
         ]);
 
+        $this->audit->record('人工裁决导入行', [
+            'import_batch_id' => $row->import_batch_id,
+            'import_row_id' => $row->id,
+            'action' => 'ignored',
+            'reason' => trim($reason),
+            'dry_run_status' => 'pending',
+        ], $userId);
+
         if (($warnings + $errors) === 0) {
             try {
                 $this->committer->dryRun($batch);
@@ -75,11 +83,5 @@ final readonly class ImportRowAdjudicator
             }
         }
 
-        $this->audit->record('人工裁决导入行', [
-            'import_batch_id' => $row->import_batch_id,
-            'import_row_id' => $row->id,
-            'action' => 'ignored',
-            'reason' => trim($reason),
-        ], $userId);
     }
 }

@@ -119,6 +119,7 @@ final readonly class ReferenceConfigurationImportParser
             }
 
             $this->stages->update($batch, 'file_detection', 'passed');
+            $failureStage = 'field_validation';
             $this->issues->syncRows($batch, 'field_validation');
             $failureStage = 'relation_validation';
             $this->validateRelationships($batch);

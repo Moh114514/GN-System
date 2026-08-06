@@ -156,4 +156,75 @@ class DataImportRollbackTest extends TestCase
         $this->expectException(RuntimeException::class);
         app(ImportRowAdjudicator::class)->ignore($row, $user->id, 'not allowed');
     }
+
+    public function test_manual_ignore_is_audited_when_the_following_dry_run_fails(): void
+    {
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
+        $batch = ImportBatch::query()->create([
+            'created_by' => $user->id,
+            'status' => ImportBatchStatus::NeedsReview,
+            'total_rows' => 2,
+            'error_rows' => 1,
+        ]);
+        $file = ImportFile::query()->create([
+            'import_batch_id' => $batch->id,
+            'original_name' => 'summary.csv',
+            'extension' => 'csv',
+            'mime_type' => 'text/csv',
+            'size_bytes' => 10,
+            'sha256' => str_repeat('c', 64),
+            'encrypted_path' => 'imports/test.enc',
+            'status' => 'parsed',
+        ]);
+        $row = ImportRow::query()->create([
+            'import_batch_id' => $batch->id,
+            'import_file_id' => $file->id,
+            'source_row' => 2,
+            'profile' => ImportProfile::SettlementSummary,
+            'status' => ImportRowStatus::Error,
+            'errors' => ['summary mismatch'],
+        ]);
+        ImportIssue::query()->create([
+            'import_batch_id' => $batch->id,
+            'import_file_id' => $file->id,
+            'import_row_id' => $row->id,
+            'stage' => 'summary_validation',
+            'severity' => 'warning',
+            'code' => 'summary_mismatch',
+            'profile' => ImportProfile::SettlementSummary,
+            'source_row' => $row->source_row,
+            'message' => 'summary mismatch',
+            'is_ignorable' => true,
+        ]);
+        ImportRow::query()->create([
+            'import_batch_id' => $batch->id,
+            'import_file_id' => $file->id,
+            'source_row' => 3,
+            'profile' => ImportProfile::MonthlyDetail,
+            'status' => ImportRowStatus::Valid,
+            'normalized_data' => [
+                'agent_code' => 'UNKNOWN',
+                'customer_code' => 'UNKNOWN-0001',
+                'customer_name' => 'Test customer',
+                'institution' => 'DOD',
+                'project_name' => 'Test project',
+                'amount_krw' => 100,
+                'rate_bps' => 100,
+                'commission_krw' => 10,
+            ],
+        ]);
+
+        try {
+            app(ImportRowAdjudicator::class)->ignore($row, $user->id, '业务确认忽略');
+            $this->fail('Expected the post-adjudication dry run to fail.');
+        } catch (RuntimeException $exception) {
+            $this->assertStringContainsString('找不到代理商', $exception->getMessage());
+        }
+
+        $this->assertSame(ImportBatchStatus::NeedsReview, $batch->fresh()->status);
+        $this->assertDatabaseHas('activity_log', [
+            'description' => '人工裁决导入行',
+            'causer_id' => $user->id,
+        ]);
+    }
 }

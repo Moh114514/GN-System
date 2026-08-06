@@ -19,6 +19,8 @@ final class DeployScriptSafetyTest extends TestCase
         self::assertStringContainsString("readonly REPOSITORY_DIR='/srv/gn-system/repository'", $script);
         self::assertStringContainsString('readonly ENV_FILE="$REPOSITORY_DIR/.env.uat"', $script);
         self::assertStringContainsString('readonly COMPOSE_FILE="$REPOSITORY_DIR/compose.production.yaml"', $script);
+        self::assertStringContainsString('stat -c \'%a\' "$ENV_FILE"', $script);
+        self::assertStringNotContainsString('$UAT_ROOT/$ENV_FILE', $script);
         self::assertStringContainsString("readonly COMPOSE_PROJECT='gn-system-uat'", $script);
         self::assertStringContainsString("readonly UAT_DATABASE='gn_system_uat'", $script);
         self::assertStringContainsString("readonly CONFIRMATION='RESET gn_system_uat'", $script);
@@ -55,6 +57,8 @@ final class DeployScriptSafetyTest extends TestCase
         self::assertStringContainsString('"$base_url/health"', $script);
         self::assertStringContainsString('"$base_url/health/operations"', $script);
         self::assertStringContainsString("readonly REPOSITORY_DIR='/srv/gn-system/repository'", $script);
+        self::assertStringContainsString('stat -c \'%a\' "$ENV_FILE"', $script);
+        self::assertStringNotContainsString('$UAT_ROOT/$ENV_FILE', $script);
         self::assertStringContainsString('--cacert "$tls_cert_path"', $script);
         self::assertStringNotContainsString('printf \'DB_PASSWORD=', $script);
         self::assertStringNotContainsString('printf \'REDIS_PASSWORD=', $script);

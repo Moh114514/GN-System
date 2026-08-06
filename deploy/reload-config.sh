@@ -24,7 +24,7 @@ if [[ "$current_dir" != "$REPOSITORY_DIR" || ! -f "$ENV_FILE" || ! -f "$COMPOSE_
     printf 'Run from the UAT repository with its environment and Compose files.\n' >&2
     exit 1
 fi
-if [[ "$(stat -c '%a' "$UAT_ROOT/$ENV_FILE")" != '600' ]]; then
+if [[ "$(stat -c '%a' "$ENV_FILE")" != '600' ]]; then
     printf '%s must have mode 0600.\n' "$ENV_FILE" >&2
     exit 1
 fi
