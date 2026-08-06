@@ -56,6 +56,7 @@ Accepted ADR 记录已经生效的长期决策。若 ADR 与代码不一致，�
 - [GN-System 小白运维指南](operations/beginner-operations-guide.md)
 - [GN-System 完整运维手册](operations/operations-manual.md)
 - [UAT 测试版本与正式发布流程](operations/release-management.md)
+- [局域网离线镜像部署](operations/offline-deployment.md)
 - [Phase 5 UAT 验收手册](operations/phase-five-uat-acceptance.md)
 - [局域网生产部署与恢复](operations/production-deployment.md)
 - Agent 工作规则见根目录 [AGENTS.md](../AGENTS.md)

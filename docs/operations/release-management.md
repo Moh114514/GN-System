@@ -12,6 +12,8 @@ UAT 和生产使用同一套不可变生产镜像。服务器不挂载或修改�
 
 旧的“Production 使用 `/srv/gn-system`、UAT 使用 `/srv/gn-system/uat`”方案已经
 废弃。环境完整参数、日常命令和故障处理见[完整运维手册](operations-manual.md)。
+如果服务器访问 GHCR 不稳定，按[局域网离线镜像部署](offline-deployment.md)执行；
+当前 `deploy/deploy.sh` 尚未支持跳过 `docker compose pull` 的离线参数。
 
 ## 1. 日常开发
 
@@ -125,6 +127,9 @@ sudoedit .env.uat
 chmod 0600 .env.uat
 sudo ./deploy/deploy.sh .env.uat
 ```
+
+服务器访问 GHCR 不稳定时，不要反复运行标准脚本。办公电脑下载并传输镜像、服务器
+导入镜像以及带 `--pull never` 的手工部署步骤见[局域网离线镜像部署](offline-deployment.md)。
 
 在 `.env.uat` 中只把 `RELEASE_TAG` 改为已经成功发布的 RC。部署完成后核对：
 

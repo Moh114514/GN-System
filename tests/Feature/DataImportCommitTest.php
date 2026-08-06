@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Agent\Infrastructure\Models\Agent;
+use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\DataImport\Application\Services\ImportBatchCommitter;
 use App\Modules\DataImport\Application\Services\ImportBatchRollback;
 use App\Modules\DataImport\Domain\ImportBatchStatus;
@@ -12,8 +14,12 @@ use App\Modules\DataImport\Infrastructure\Models\ImportBatch;
 use App\Modules\DataImport\Infrastructure\Models\ImportFile;
 use App\Modules\DataImport\Infrastructure\Models\ImportRow;
 use App\Modules\DataImport\Presentation\Livewire\ImportManager;
+use App\Modules\Settlement\Application\Contracts\SettlementImportGateway;
+use App\Modules\Settlement\Application\Data\SettlementImportData;
+use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 use RuntimeException;
 use Tests\TestCase;
@@ -100,6 +106,39 @@ class DataImportCommitTest extends TestCase
         $this->expectExceptionMessage('事务预演');
 
         app(ImportBatchCommitter::class)->commit($batch);
+    }
+
+    public function test_historical_settlement_import_is_not_applicable_to_generation(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $type = AgentTypeCode::query()->where('code', 'JG')->firstOrFail();
+        $agent = Agent::query()->create([
+            'agent_type_code_id' => $type->id,
+            'code' => 'SZ-JG',
+            'name' => '神州国际旅行社',
+        ]);
+
+        $importBatchId = (string) Str::uuid();
+        $settlementId = app(SettlementImportGateway::class)->upsertSettlement(new SettlementImportData(
+            agentId: $agent->id,
+            periodStart: CarbonImmutable::parse('2026-07-01'),
+            periodEnd: CarbonImmutable::parse('2026-07-31'),
+            settledOn: CarbonImmutable::parse('2026-08-05'),
+            exchangeRateKrwPerCny: '224',
+            totalConsumptionKrw: 0,
+            totalCommissionKrw: 0,
+            payoutAmountCnyFen: 0,
+            status: 'reconciled',
+            importBatchId: $importBatchId,
+        ));
+
+        $this->assertDatabaseHas('settlements', [
+            'id' => $settlementId,
+            'generation_status' => 'not_applicable',
+            'generated_at' => null,
+            'item_count' => 0,
+            'import_batch_id' => $importBatchId,
+        ]);
     }
 
     /** @return array{User, ImportBatch, ImportFile} */
