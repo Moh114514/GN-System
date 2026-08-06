@@ -199,6 +199,7 @@ final class ImportIssueReportGenerator
         return $value instanceof \BackedEnum ? $value->value : $value;
     }
 
+    /** @param array<string, mixed> $context */
     private function contextValue(array $context, string ...$keys): mixed
     {
         foreach ($keys as $key) {

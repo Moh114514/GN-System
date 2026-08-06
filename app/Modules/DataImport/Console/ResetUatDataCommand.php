@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use RuntimeException;
 
-final class ResetUatDataCommand extends Command
+class ResetUatDataCommand extends Command
 {
     protected $signature = 'app:reset-uat-data
         {--business-data : Reset UAT business data while preserving users and reference configuration}
@@ -68,7 +68,7 @@ final class ResetUatDataCommand extends Command
                 }
 
                 DB::statement('TRUNCATE TABLE '.implode(', ', $tables).' RESTART IDENTITY CASCADE');
-                $this->call(PhaseTwoReferenceDataSeeder::class);
+                $this->restoreReferenceData();
             });
             $this->clearPrivateBusinessFiles();
 
@@ -115,6 +115,17 @@ final class ResetUatDataCommand extends Command
         $actualDatabase = DB::connection($connection)->scalar('select current_database()');
         if ($actualDatabase !== 'gn_system_uat') {
             throw new RuntimeException('PostgreSQL current_database() is not gn_system_uat.');
+        }
+    }
+
+    protected function restoreReferenceData(): void
+    {
+        $exitCode = $this->call('db:seed', [
+            '--class' => PhaseTwoReferenceDataSeeder::class,
+            '--force' => true,
+        ]);
+        if ($exitCode !== self::SUCCESS) {
+            throw new RuntimeException('基础参考数据恢复失败。');
         }
     }
 

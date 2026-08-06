@@ -9,6 +9,7 @@ use App\Modules\DataImport\Infrastructure\Models\ImportRow;
 
 final class ImportIssueRecorder
 {
+    /** @param array<string, mixed>|null $context */
     public function record(
         ImportBatch $batch,
         string $stage,
@@ -21,9 +22,8 @@ final class ImportIssueRecorder
         ?array $context = null,
         bool $isIgnorable = false,
     ): ImportIssue {
-        $context = array_merge($context ?? [], [
-            'file' => $context['file'] ?? $file?->original_name,
-        ]);
+        $context ??= [];
+        $context['file'] ??= $file?->original_name;
 
         return ImportIssue::query()->create([
             'import_batch_id' => $batch->id,
@@ -32,7 +32,7 @@ final class ImportIssueRecorder
             'stage' => $stage,
             'severity' => $severity,
             'code' => $code,
-            'profile' => $row?->profile?->value,
+            'profile' => $row?->profile->value,
             'sheet_name' => $row?->sheet_name,
             'source_row' => $row?->source_row,
             'field' => $field,
@@ -86,11 +86,11 @@ final class ImportIssueRecorder
 
     private function stageFor(ImportRow $row): string
     {
-        if ($row->profile?->value === 'settlement_summary') {
+        if ($row->profile->value === 'settlement_summary') {
             return 'summary_validation';
         }
 
-        if (in_array($row->profile?->value, ['customer_followup', 'monthly_detail'], true)) {
+        if (in_array($row->profile->value, ['customer_followup', 'monthly_detail'], true)) {
             return 'relation_validation';
         }
 
@@ -118,7 +118,7 @@ final class ImportIssueRecorder
         $data = $row->normalized_data ?? [];
 
         return $row->status->value === 'warning'
-            && $row->profile?->value === 'customer_followup'
+            && $row->profile->value === 'customer_followup'
             && ! empty($data['code'])
             && empty($data['institution']);
     }

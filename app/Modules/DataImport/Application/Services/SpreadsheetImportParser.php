@@ -49,28 +49,50 @@ final readonly class SpreadsheetImportParser
             foreach ($batch->files as $file) {
                 $this->parseFile($file);
             }
-
             $this->stages->update($batch, 'file_detection', 'passed');
-            $this->issues->syncRows($batch, 'field_validation');
-            $this->reconcile($batch);
-            $this->issues->syncRows($batch, null, false);
-            $this->refreshBatchCounts($batch);
         } catch (Throwable $exception) {
-            $this->stages->update($batch, 'file_detection', 'failed', ['issue_count' => 1]);
-            $this->issues->record(
-                $batch,
-                'file_detection',
-                'error',
-                'file_detection_failed',
-                Str::limit($exception->getMessage(), 2000),
-            );
-            $batch->update([
-                'status' => ImportBatchStatus::Failed,
-                'failure_reason' => Str::limit($exception->getMessage(), 2000),
-            ]);
-
+            $this->failStage($batch, 'file_detection', 'file_detection_failed', $exception);
             throw $exception;
         }
+
+        try {
+            $this->issues->syncRows($batch, 'field_validation');
+        } catch (Throwable $exception) {
+            $this->failStage($batch, 'field_validation', 'field_validation_failed', $exception);
+            throw $exception;
+        }
+
+        try {
+            $this->reconcile($batch);
+        } catch (Throwable $exception) {
+            $this->failStage($batch, 'relation_validation', 'relation_validation_failed', $exception);
+            throw $exception;
+        }
+
+        try {
+            $this->issues->syncRows($batch, null, false);
+        } catch (Throwable $exception) {
+            $this->failStage($batch, 'normalization', 'normalization_failed', $exception);
+            throw $exception;
+        }
+
+        try {
+            $this->refreshBatchCounts($batch);
+        } catch (Throwable $exception) {
+            $this->failStage($batch, 'summary_validation', 'summary_validation_failed', $exception);
+            throw $exception;
+        }
+    }
+
+    private function failStage(ImportBatch $batch, string $stage, string $code, Throwable $exception): void
+    {
+        $message = Str::limit($exception->getMessage(), 2000);
+        $this->stages->update($batch, $stage, 'failed', ['issue_count' => 1]);
+        $this->issues->record($batch, $stage, 'error', $code, $message);
+        $batch->update([
+            'status' => ImportBatchStatus::Failed,
+            'failure_reason' => $message,
+        ]);
     }
 
     private function parseFile(ImportFile $file): void
@@ -190,17 +212,6 @@ final readonly class SpreadsheetImportParser
                 'preflight' => $preflight,
             ]);
         } catch (Throwable $exception) {
-            $this->issues->record(
-                $file->batch,
-                'file_detection',
-                'error',
-                'file_detection_failed',
-                Str::limit($exception->getMessage(), 2000),
-                $file,
-                null,
-                null,
-                ['preflight' => $preflight],
-            );
             $file->update([
                 'status' => 'failed',
                 'preflight' => $preflight,
@@ -773,16 +784,21 @@ final readonly class SpreadsheetImportParser
 
         $summary = $batch->summary ?? [];
         $summary['profiles'] = $batch->rows()->selectRaw('profile, COUNT(*) AS count')->groupBy('profile')->pluck('count', 'profile');
+        $fieldIssues = $batch->issues()->where('stage', 'field_validation');
+        $fieldErrorIssues = (clone $fieldIssues)->where('severity', 'error');
+        $fieldWarnings = (clone $fieldIssues)->where('severity', 'warning')->whereNotNull('import_row_id')->distinct()->count('import_row_id');
+        $fieldErrors = (clone $fieldErrorIssues)->whereNotNull('import_row_id')->distinct()->count('import_row_id');
+        $fieldIssueRows = (clone $fieldIssues)->whereNotNull('import_row_id')->distinct()->count('import_row_id');
         $summary['stages']['field_validation'] = [
-            'status' => $batch->issues()->where('stage', 'field_validation')->exists() ? 'failed' : 'passed',
-            'passed_rows' => $valid,
-            'warning_rows' => $warnings,
-            'error_rows' => $errors,
+            'status' => $fieldErrorIssues->exists() ? 'failed' : 'passed',
+            'passed_rows' => max(0, $batch->rows()->count() - $fieldIssueRows),
+            'warning_rows' => $fieldWarnings,
+            'error_rows' => $fieldErrors,
         ];
         foreach (['normalization', 'relation_validation', 'summary_validation'] as $stage) {
             $issueCount = $batch->issues()->where('stage', $stage)->count();
             $summary['stages'][$stage] = [
-                'status' => $issueCount > 0 ? 'failed' : 'skipped',
+                'status' => $issueCount > 0 ? 'failed' : 'passed',
                 'issue_count' => $issueCount,
             ];
         }

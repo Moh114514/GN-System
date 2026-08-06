@@ -4,8 +4,9 @@ set -Eeuo pipefail
 umask 077
 
 readonly UAT_ROOT='/srv/gn-system'
-readonly ENV_FILE='.env.uat'
-readonly COMPOSE_FILE='compose.production.yaml'
+readonly REPOSITORY_DIR='/srv/gn-system/repository'
+readonly ENV_FILE="$REPOSITORY_DIR/.env.uat"
+readonly COMPOSE_FILE="$REPOSITORY_DIR/compose.production.yaml"
 readonly COMPOSE_PROJECT='gn-system-uat'
 readonly UAT_DATABASE='gn_system_uat'
 readonly CONFIRMATION='RESET gn_system_uat'
@@ -31,11 +32,11 @@ if [[ "$current_dir" == '/srv/gn-system/production' || "$current_dir" == '/srv/g
     printf 'Production directories are forbidden.\n' >&2
     exit 1
 fi
-if [[ "$current_dir" != "$UAT_ROOT" ]]; then
-    printf 'Run this script from %s.\n' "$UAT_ROOT" >&2
+if [[ "$current_dir" != "$REPOSITORY_DIR" ]]; then
+    printf 'Run this script from %s.\n' "$REPOSITORY_DIR" >&2
     exit 1
 fi
-if [[ ! -d "$UAT_ROOT" || ! -f "$UAT_ROOT/$ENV_FILE" || ! -f "$UAT_ROOT/$COMPOSE_FILE" ]]; then
+if [[ ! -d "$UAT_ROOT" || ! -d "$REPOSITORY_DIR" || ! -f "$ENV_FILE" || ! -f "$COMPOSE_FILE" ]]; then
     printf 'UAT repository, environment file, or Compose file is missing.\n' >&2
     exit 1
 fi
@@ -46,13 +47,14 @@ fi
 
 env_value() {
     local key="$1"
-    awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "$UAT_ROOT/$ENV_FILE"
+    awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "$ENV_FILE"
 }
 
 project_value="$(env_value COMPOSE_PROJECT_NAME)"
+app_env="$(env_value APP_ENV)"
 database_value="$(env_value DB_DATABASE)"
 app_url="$(env_value APP_URL)"
-if [[ "$project_value" != "$COMPOSE_PROJECT" || "$database_value" != "$UAT_DATABASE" ]]; then
+if [[ "$project_value" != "$COMPOSE_PROJECT" || "$app_env" != 'production' || "$database_value" != "$UAT_DATABASE" ]]; then
     printf 'The UAT Compose project or database does not match the protected values.\n' >&2
     exit 1
 fi
@@ -100,7 +102,7 @@ exec > >(tee "$report_file") 2>&1
 
 started_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 printf 'UAT reset started: scope=%s at %s\n' "$scope" "$started_at"
-printf 'Repository=%s ComposeProject=%s Database=%s\n' "$UAT_ROOT" "$COMPOSE_PROJECT" "$UAT_DATABASE"
+printf 'Repository=%s ComposeProject=%s Database=%s\n' "$REPOSITORY_DIR" "$COMPOSE_PROJECT" "$UAT_DATABASE"
 printf 'Operator=%s\n' "$operator_value"
 
 backup_command=("${compose[@]}" run --rm --no-deps app php artisan backup:run --only-db --disable-notifications)
@@ -140,9 +142,31 @@ fi
 "${compose[@]}" exec -T app php artisan optimize:clear
 
 base_url="${app_url%/}"
-for endpoint in /up /health /health/operations; do
-    curl --fail --silent --show-error --max-time 20 "$base_url$endpoint" >/dev/null
+tls_cert_path="$(env_value TLS_CERT_PATH)"
+if [[ -z "$tls_cert_path" || ! -f "$tls_cert_path" ]]; then
+    printf 'TLS_CERT_PATH must point to an existing UAT certificate.\n' >&2
+    exit 1
+fi
+
+# Redis was flushed above; seed both liveness records and retain a bounded wait
+# for queue/scheduler workers to publish their normal heartbeats.
+"${compose[@]}" exec -T app php artisan app:queue-heartbeat || true
+"${compose[@]}" exec -T app php artisan app:scheduler-heartbeat || true
+health_deadline=$((SECONDS + 180))
+health_ok=0
+while (( SECONDS < health_deadline )); do
+    if curl --fail --silent --show-error --max-time 20 --cacert "$tls_cert_path" "$base_url/up" >/dev/null \
+        && curl --fail --silent --show-error --max-time 20 --cacert "$tls_cert_path" "$base_url/health" >/dev/null \
+        && curl --fail --silent --show-error --max-time 20 --cacert "$tls_cert_path" "$base_url/health/operations" >/dev/null; then
+        health_ok=1
+        break
+    fi
+    sleep 5
 done
+if [[ "$health_ok" -ne 1 ]]; then
+    printf 'UAT health checks did not pass within 180 seconds.\n' >&2
+    exit 1
+fi
 
 finished_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 printf 'UAT reset completed: scope=%s at %s\n' "$scope" "$finished_at"

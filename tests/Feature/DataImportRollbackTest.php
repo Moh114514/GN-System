@@ -108,6 +108,8 @@ class DataImportRollbackTest extends TestCase
 
         $this->assertSame(ImportRowStatus::Ignored, $row->fresh()->status);
         $this->assertSame(ImportBatchStatus::Validated, $batch->fresh()->status);
+        $this->assertSame('passed', $batch->fresh()->summary['stages']['dry_run']['status']);
+        $this->assertNotNull($batch->fresh()->summary['dry_run_completed_at'] ?? null);
         $this->assertDatabaseHas('activity_log', [
             'description' => '人工裁决导入行',
             'causer_id' => $user->id,

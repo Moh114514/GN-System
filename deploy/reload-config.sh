@@ -9,8 +9,9 @@ if [[ "${1:-}" != 'uat' || "${2:-}" != '' ]]; then
 fi
 
 readonly UAT_ROOT='/srv/gn-system'
-readonly ENV_FILE='.env.uat'
-readonly COMPOSE_FILE='compose.production.yaml'
+readonly REPOSITORY_DIR='/srv/gn-system/repository'
+readonly ENV_FILE="$REPOSITORY_DIR/.env.uat"
+readonly COMPOSE_FILE="$REPOSITORY_DIR/compose.production.yaml"
 readonly COMPOSE_PROJECT='gn-system-uat'
 readonly UAT_DATABASE='gn_system_uat'
 
@@ -19,7 +20,7 @@ if [[ "$current_dir" == '/srv/gn-system/production' || "$current_dir" == '/srv/g
     printf 'Production directories are forbidden.\n' >&2
     exit 1
 fi
-if [[ "$current_dir" != "$UAT_ROOT" || ! -f "$UAT_ROOT/$ENV_FILE" || ! -f "$UAT_ROOT/$COMPOSE_FILE" ]]; then
+if [[ "$current_dir" != "$REPOSITORY_DIR" || ! -f "$ENV_FILE" || ! -f "$COMPOSE_FILE" ]]; then
     printf 'Run from the UAT repository with its environment and Compose files.\n' >&2
     exit 1
 fi
@@ -30,7 +31,7 @@ fi
 
 env_value() {
     local key="$1"
-    awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "$UAT_ROOT/$ENV_FILE"
+    awk -F= -v key="$key" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "$ENV_FILE"
 }
 
 required_vars=(COMPOSE_PROJECT_NAME PRODUCTION_ENV_FILE APP_ENV APP_KEY APP_URL APP_IMAGE WEB_IMAGE RELEASE_TAG DB_CONNECTION DB_HOST DB_PORT DB_DATABASE DB_USERNAME DB_PASSWORD REDIS_HOST REDIS_PORT REDIS_PASSWORD PRIVATE_DATA_PATH BACKUP_DATA_PATH TLS_CERT_PATH TLS_KEY_PATH BACKUP_ARCHIVE_PASSWORD)
@@ -42,9 +43,10 @@ for key in "${required_vars[@]}"; do
 done
 
 project_value="$(env_value COMPOSE_PROJECT_NAME)"
+app_env="$(env_value APP_ENV)"
 database_value="$(env_value DB_DATABASE)"
 app_url="$(env_value APP_URL)"
-if [[ "$project_value" != "$COMPOSE_PROJECT" || "$database_value" != "$UAT_DATABASE" || "${app_url,,}" != *uat* ]]; then
+if [[ "$project_value" != "$COMPOSE_PROJECT" || "$app_env" != 'production' || "$database_value" != "$UAT_DATABASE" || "${app_url,,}" != *uat* ]]; then
     printf 'UAT project, database, or APP_URL protection check failed.\n' >&2
     exit 1
 fi
@@ -67,9 +69,28 @@ fi
 "${compose[@]}" exec -T redis sh -ec 'test "$(redis-cli -a "$REDIS_PASSWORD" --no-auth-warning ping)" = PONG'
 
 base_url="${app_url%/}"
-for endpoint in /up /health /health/operations; do
-    curl --fail --silent --show-error --max-time 20 "$base_url$endpoint" >/dev/null
+tls_cert_path="$(env_value TLS_CERT_PATH)"
+if [[ ! -f "$tls_cert_path" ]]; then
+    printf 'TLS_CERT_PATH must point to an existing UAT certificate.\n' >&2
+    exit 1
+fi
+"${compose[@]}" exec -T app php artisan app:queue-heartbeat || true
+"${compose[@]}" exec -T app php artisan app:scheduler-heartbeat || true
+health_deadline=$((SECONDS + 180))
+health_ok=0
+while (( SECONDS < health_deadline )); do
+    if curl --fail --silent --show-error --max-time 20 --cacert "$tls_cert_path" "$base_url/up" >/dev/null \
+        && curl --fail --silent --show-error --max-time 20 --cacert "$tls_cert_path" "$base_url/health" >/dev/null \
+        && curl --fail --silent --show-error --max-time 20 --cacert "$tls_cert_path" "$base_url/health/operations" >/dev/null; then
+        health_ok=1
+        break
+    fi
+    sleep 5
 done
+if [[ "$health_ok" -ne 1 ]]; then
+    printf 'UAT health checks did not pass within 180 seconds.\n' >&2
+    exit 1
+fi
 
 printf 'Configuration reloaded for UAT.\n'
 printf 'APP_URL=%s\n' "$app_url"

@@ -92,6 +92,7 @@ final readonly class ImportBatchCommitter
                 throw new RuntimeException('只有零错误、零待处理项的已验证批次可以正式导入。');
             }
 
+            $this->assertDryRunPassed($batch);
             $batch->update(['status' => ImportBatchStatus::Committing]);
             $this->stages->update($batch, 'commit', 'running');
             DB::transaction(function () use ($batch): void {
@@ -124,6 +125,14 @@ final readonly class ImportBatchCommitter
             ]);
 
             throw $exception;
+        }
+    }
+
+    private function assertDryRunPassed(ImportBatch $batch): void
+    {
+        $status = $batch->summary['stages']['dry_run']['status'] ?? null;
+        if ($status !== 'passed') {
+            throw new RuntimeException('正式导入前必须完成并通过事务预演。');
         }
     }
 

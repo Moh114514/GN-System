@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use RuntimeException;
 use Tests\TestCase;
 
 class ReferenceConfigurationImportTest extends TestCase
@@ -139,6 +140,20 @@ class ReferenceConfigurationImportTest extends TestCase
         $this->assertNotNull($batch->fresh()->completed_at);
     }
 
+    public function test_commit_rejects_a_validated_batch_without_a_passed_dry_run(): void
+    {
+        $batch = ImportBatch::query()->create([
+            'created_by' => $this->admin->id,
+            'kind' => 'reference_configuration',
+            'status' => ImportBatchStatus::Validated,
+        ]);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('事务预演');
+
+        app(ReferenceConfigurationImportCommitter::class)->commit($batch, null);
+    }
+
     public function test_relationship_errors_block_confirmation_and_identify_the_source_row(): void
     {
         Livewire::test(ReferenceConfigurationImportManager::class)
@@ -165,8 +180,9 @@ class ReferenceConfigurationImportTest extends TestCase
         app(ReferenceConfigurationImportParser::class)->parse($invalidBatch);
 
         $this->assertSame(ImportBatchStatus::NeedsReview, $invalidBatch->fresh()->status);
+        $this->assertSame(0, $invalidBatch->fresh()->summary['stages']['field_validation']['error_rows']);
         $this->assertSame('failed', $invalidBatch->fresh()->summary['stages']['relation_validation']['status']);
-        $this->assertSame('skipped', $invalidBatch->fresh()->summary['stages']['normalization']['status']);
+        $this->assertSame('passed', $invalidBatch->fresh()->summary['stages']['normalization']['status']);
         $this->assertDatabaseHas('import_rows', [
             'import_batch_id' => $invalidBatch->id,
             'sheet_name' => '机构费率规则',

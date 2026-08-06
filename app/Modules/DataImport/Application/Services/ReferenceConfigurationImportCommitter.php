@@ -61,7 +61,7 @@ final readonly class ReferenceConfigurationImportCommitter
     public function commit(ImportBatch $batch, ?string $ipAddress): void
     {
         try {
-            $this->assertValidated($batch);
+            $this->assertValidated($batch, true);
             $batch->update(['status' => ImportBatchStatus::Committing]);
             $this->stages->update($batch, 'commit', 'running');
             DB::transaction(function () use ($batch, $ipAddress): void {
@@ -161,10 +161,14 @@ final readonly class ReferenceConfigurationImportCommitter
             ->all();
     }
 
-    private function assertValidated(ImportBatch $batch): void
+    private function assertValidated(ImportBatch $batch, bool $requireDryRun = false): void
     {
         if ($batch->kind !== 'reference_configuration' || $batch->status !== ImportBatchStatus::Validated) {
             throw new RuntimeException('只有零错误且已完成事务预演的基础配置批次可以确认导入。');
+        }
+
+        if ($requireDryRun && ($batch->summary['stages']['dry_run']['status'] ?? null) !== 'passed') {
+            throw new RuntimeException('正式导入前必须完成并通过事务预演。');
         }
     }
 }

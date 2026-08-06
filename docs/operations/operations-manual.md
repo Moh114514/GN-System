@@ -1242,15 +1242,15 @@ namei -l /srv/gn-system/data/private
 模板。不得在服务器临时改脚本后把差异留在仓库之外。
 ## PR-C UAT operations
 
-The UAT reset and configuration reload are host operations. Run them from `/srv/gn-system` only after checking the target environment:
+The UAT reset and configuration reload are host operations. Run them from the UAT repository `/srv/gn-system/repository` only after checking the target environment. The UAT root remains `/srv/gn-system`; reports and private data stay under that root:
 
 ```bash
-cd /srv/gn-system
+cd /srv/gn-system/repository
 ./deploy/reset-uat.sh --business-data
 ./deploy/reload-config.sh uat
 ```
 
-`--business-data` creates a database backup, stops queue and scheduler, invokes `app:reset-uat-data`, removes only the approved private `imports`, `reports`, and `settlements` directories, flushes only the UAT Redis container, restores services, and checks `/up`, `/health`, and `/health/operations`. It preserves users, institutions, reference configuration, saved queries, and migrations. The application command verifies `APP_ENV`, UAT `APP_URL`, configured PostgreSQL, `current_database()`, and the private storage root before truncating the approved business tables.
+`--business-data` creates a database backup, stops queue and scheduler, invokes `app:reset-uat-data`, removes only the approved private `imports`, `reports`, and `settlements` directories, flushes only the UAT Redis container, restores services, and checks `/up`, `/health`, and `/health/operations`. The checks use `TLS_CERT_PATH`, seed queue/scheduler heartbeats, and retry for up to 180 seconds. It preserves users, institutions, reference configuration, saved queries, and migrations. The application command verifies `APP_ENV`, UAT `APP_URL`, configured PostgreSQL, `current_database()`, and the private storage root before truncating the approved business tables.
 
 Use `./deploy/reset-uat.sh --full` only for explicit UAT initialization. It requires the exact interactive phrase `RESET gn_system_uat`, creates a full backup, rebuilds only the UAT database, migrates, restores reference data, and interactively creates an administrator. The script rejects the production directory, the `gn_system` database, a non-UAT URL, and a different Compose project. Never mount the Docker socket into the application container and never use `docker compose down -v`.
 
