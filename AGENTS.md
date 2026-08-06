@@ -153,3 +153,21 @@ docker compose exec app composer docs:check
 - 每完成一个可交付阶段，报告已修改文件、测试结果和未完成事项。
 - 未经要求不得创建隐藏 worktree、额外分支或启动下一阶段。
 - 如果连续两轮未产生有效代码进展，停止并重新检查目标与约束。
+
+## 本地验证要求
+
+任何代码修改在提交或推送前，必须完成本地验证；GitHub Actions 只负责独立复核，不替代本地调试。
+
+1. 修改后先使用项目安全测试入口运行与本次修改直接相关的单个测试文件或测试方法：
+   `docker compose exec app php scripts/run-tests.php <测试文件或 --filter=...>`。
+2. 相关测试通过后，再运行完整本地门禁：
+
+   ```powershell
+   docker compose exec app composer ci:check
+   docker compose exec vite npm run build
+   ```
+
+3. 若任一检查失败，必须继续分析并修复，直到全部通过；不得删除测试、弱化断言、跳过测试、关闭 PHPStan 或扩大架构白名单来规避失败。
+4. 只有完整本地门禁通过后，才允许提交和推送；除非用户明确授权，否则不得在门禁未通过时推送远程分支。
+5. 推送前应启用仓库共享 hook：`git config core.hooksPath scripts/git-hooks`。`scripts/git-hooks/pre-push` 会再次运行完整本地门禁。
+6. 最终汇报必须列出实际执行的命令、测试数量和结果，并明确说明未执行的环境验证项。

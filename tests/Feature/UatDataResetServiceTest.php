@@ -32,7 +32,9 @@ final class UatDataResetServiceTest extends TestCase
 
     public function test_non_production_environment_is_rejected(): void
     {
-        config(['app.env' => 'testing']);
+        $this->app->detectEnvironment(
+            static fn (): string => 'testing',
+        );
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('APP_ENV');
@@ -42,8 +44,9 @@ final class UatDataResetServiceTest extends TestCase
 
     public function test_non_uat_url_is_rejected(): void
     {
+        $this->configureUat();
+
         config([
-            'app.env' => 'production',
             'app.url' => 'https://example.test',
         ]);
 
@@ -55,8 +58,9 @@ final class UatDataResetServiceTest extends TestCase
 
     public function test_non_uat_database_configuration_is_rejected(): void
     {
+        $this->configureUat();
+
         config([
-            'app.env' => 'production',
             'app.url' => 'https://uat.example.test',
             'database.default' => 'pgsql',
             'database.connections.pgsql.database' => 'gn_system',
@@ -71,9 +75,7 @@ final class UatDataResetServiceTest extends TestCase
     public function test_actual_database_name_is_verified(): void
     {
         $this->configureUat();
-        $connection = Mockery::mock();
-        $connection->shouldReceive('scalar')->once()->with('select current_database()')->andReturn('gn_system');
-        DB::shouldReceive('connection')->once()->with('pgsql')->andReturn($connection);
+        $this->mockCurrentDatabase('gn_system');
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('current_database');
@@ -85,9 +87,7 @@ final class UatDataResetServiceTest extends TestCase
     {
         $this->configureUat();
         config(['filesystems.disks.local.root' => storage_path('app/private/missing')]);
-        $connection = Mockery::mock();
-        $connection->shouldReceive('scalar')->once()->with('select current_database()')->andReturn('gn_system_uat');
-        DB::shouldReceive('connection')->once()->with('pgsql')->andReturn($connection);
+        $this->mockCurrentDatabase('gn_system_uat');
 
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('storage path');
@@ -99,6 +99,11 @@ final class UatDataResetServiceTest extends TestCase
     {
         $this->configureUat();
         config(['filesystems.disks.local.root' => storage_path('app/private')]);
+
+        // Schema resolves its builder through the real database manager, so set
+        // up the Schema facade before replacing the DB facade with a mock.
+        Schema::shouldReceive('hasTable')->andReturnTrue();
+
         $connection = Mockery::mock();
         $connection->shouldReceive('scalar')->once()->with('select current_database()')->andReturn('gn_system_uat');
         DB::shouldReceive('connection')->once()->with('pgsql')->andReturn($connection);
@@ -106,7 +111,6 @@ final class UatDataResetServiceTest extends TestCase
             static fn (Closure $callback): mixed => $callback(),
         );
         DB::shouldReceive('statement')->once();
-        Schema::shouldReceive('hasTable')->andReturnTrue();
         Artisan::shouldReceive('call')->once()->withArgs(static function (string $command, array $arguments): bool {
             return $command === 'db:seed'
                 && $arguments['--force'] === true
@@ -132,11 +136,28 @@ final class UatDataResetServiceTest extends TestCase
 
     private function configureUat(): void
     {
+        $this->app->detectEnvironment(
+            static fn (): string => 'production',
+        );
+
         config([
-            'app.env' => 'production',
             'app.url' => 'https://uat.example.test',
             'database.default' => 'pgsql',
             'database.connections.pgsql.database' => 'gn_system_uat',
         ]);
+    }
+
+    private function mockCurrentDatabase(string $database): void
+    {
+        $connection = Mockery::mock();
+        $connection->shouldReceive('scalar')
+            ->once()
+            ->with('select current_database()')
+            ->andReturn($database);
+
+        DB::shouldReceive('connection')
+            ->once()
+            ->with('pgsql')
+            ->andReturn($connection);
     }
 }

@@ -111,3 +111,39 @@ docker compose exec app php scripts/run-tests.php --preflight
 
 若确需重建测试数据库，应先输出环境、连接和实际数据库名称，并取得相应授权。不得把
 `gn_system` 作为验证保护逻辑的真实破坏目标；保护逻辑的回归测试使用纯策略测试或临时测试库。
+
+## 本地开发验证流程
+
+改单文件后的推荐顺序是先运行最小范围测试，再运行完整门禁：
+
+```powershell
+# 单个测试文件
+docker compose exec app php scripts/run-tests.php tests/Feature/SomeTest.php
+
+# 单个测试方法
+docker compose exec app php scripts/run-tests.php --filter=test_name
+
+# 相关模块测试（按名称过滤或列出多个文件）
+docker compose exec app php scripts/run-tests.php --filter=DataImport
+```
+
+相关测试通过后，提交前运行完整本地门禁：
+
+```powershell
+docker compose exec app composer ci:check
+docker compose exec vite npm run build
+```
+
+`composer ci:check` 会依次执行测试环境预检、文档检查、Pint、PHPStan、模块边界测试和完整 PHPUnit。不要把 GitHub Actions 当成本地调试器：本地门禁失败时先修复，再提交或推送。
+
+## 推送前自动门禁
+
+仓库提供可提交的 `scripts/git-hooks/pre-push`。首次使用时，在仓库根目录执行：
+
+```powershell
+git config core.hooksPath scripts/git-hooks
+```
+
+之后每次 `git push` 都会自动运行 `composer ci:check` 和前端构建；任一失败都会阻止推送。除非有明确、已记录的紧急例外，不要使用 `git push --no-verify` 绕过检查。
+
+该配置写入本地 Git 配置，不会修改远程仓库；重新克隆仓库后需要再次执行安装命令。
