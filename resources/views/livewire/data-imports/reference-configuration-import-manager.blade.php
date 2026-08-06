@@ -1,5 +1,5 @@
 <div @if (in_array($this->selectedBatch?->status, [\App\Modules\DataImport\Domain\ImportBatchStatus::Uploaded, \App\Modules\DataImport\Domain\ImportBatchStatus::Parsing], true)) wire:poll.3s @endif>
-    <x-page-back :href="route('configuration.index')" label="返回配置中心" class="mb-4" />
+    <x-page-back :href="route('configuration.data-maintenance')" label="返回数据导入与迁移" class="mb-4" />
 
     @php
         $batchStatusLabels = [

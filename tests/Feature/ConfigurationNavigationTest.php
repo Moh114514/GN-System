@@ -16,6 +16,7 @@ class ConfigurationNavigationTest extends TestCase
         $admin = User::factory()->superAdmin()->withTwoFactor()->create();
 
         $this->actingAs($user)->get(route('configuration.index'))->assertForbidden();
+        $this->actingAs($user)->get(route('configuration.data-maintenance'))->assertForbidden();
 
         $response = $this->actingAs($admin)->get(route('configuration.index'))
             ->assertOk()
@@ -35,7 +36,9 @@ class ConfigurationNavigationTest extends TestCase
             ->assertSee('href="'.route('reminder-configuration.index').'"', false)
             ->assertSee('href="'.route('configuration.users').'"', false)
             ->assertSee('href="'.route('configuration.history').'"', false)
-            ->assertSee('href="'.route('reference-configuration-imports.index').'"', false)
+            ->assertSee('数据导入与迁移')
+            ->assertSee('href="'.route('configuration.data-maintenance').'"', false)
+            ->assertDontSee('href="'.route('reference-configuration-imports.index').'"', false)
             ->assertSee('aria-label="展开或收起配置中心"', false)
             ->assertSee('配置中心')
             ->assertSee('href="'.route('agent-configuration.index').'"', false)
@@ -45,6 +48,33 @@ class ConfigurationNavigationTest extends TestCase
             '/<div\s+id="configuration-subnav"[^>]*x-show="open"/s',
             $response->getContent(),
         );
+    }
+
+    public function test_primary_navigation_is_ordered_and_hides_admin_links_for_normal_users(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $adminContent = $this->actingAs($admin)->get(route('dashboard'))->assertOk()->getContent();
+        preg_match('/<nav class="crm-nav">(?<navigation>.*?)<\/nav>/s', $adminContent, $adminMatches);
+        $adminNavigation = $adminMatches['navigation'] ?? '';
+
+        $this->assertMatchesRegularExpression(
+            '/<nav class="crm-nav">.*?<span>总览<\/span>.*?<span>主动提醒<\/span>.*?<span>客户管理<\/span>.*?<span>订单<\/span>.*?<span>多维查询<\/span>.*?<span>代理商<\/span>.*?<span>月结中心<\/span>.*?<span>配置中心<\/span>.*?<\/nav>/s',
+            $adminContent,
+        );
+        $this->assertStringNotContainsString('数据迁移', $adminNavigation);
+
+        $user = User::factory()->create();
+        $userContent = $this->actingAs($user)->get(route('dashboard'))->assertOk()->getContent();
+        preg_match('/<nav class="crm-nav">(?<navigation>.*?)<\/nav>/s', $userContent, $userMatches);
+        $userNavigation = $userMatches['navigation'] ?? '';
+
+        $this->assertMatchesRegularExpression(
+            '/<nav class="crm-nav">.*?<span>总览<\/span>.*?<span>主动提醒<\/span>.*?<span>客户管理<\/span>.*?<span>订单<\/span>.*?<span>多维查询<\/span>.*?<\/nav>/s',
+            $userContent,
+        );
+        $this->assertStringNotContainsString('代理商', $userNavigation);
+        $this->assertStringNotContainsString('月结中心', $userNavigation);
+        $this->assertStringNotContainsString('配置中心', $userNavigation);
     }
 
     public function test_configuration_pages_return_to_center_and_keep_configuration_navigation_active(): void
@@ -66,6 +96,37 @@ class ConfigurationNavigationTest extends TestCase
             ->assertSee('class="crm-nav-group-head is-active"', false)
             ->assertSee('data-test="configuration-subnav-agent"', false)
             ->assertSee('class="crm-subnav-item is-active"', false);
+
+        $this->actingAs($admin)->get(route('configuration.data-maintenance'))
+            ->assertOk()
+            ->assertSee('返回配置中心')
+            ->assertSee('href="'.route('configuration.index').'"', false)
+            ->assertSee('class="crm-nav-group-head is-active"', false)
+            ->assertSee('data-test="configuration-subnav-data-maintenance"', false)
+            ->assertSee('class="crm-subnav-item is-active"', false);
+    }
+
+    public function test_data_import_pages_keep_configuration_navigation_open_and_highlight_data_maintenance(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+
+        foreach ([
+            route('configuration.data-maintenance'),
+            route('reference-configuration-imports.index'),
+            route('data-imports.index'),
+        ] as $uri) {
+            $response = $this->actingAs($admin)->get($uri)
+                ->assertOk()
+                ->assertSee('x-data="{ open: true }"', false)
+                ->assertSee('class="crm-nav-group-head is-active"', false)
+                ->assertSee('class="crm-subnav-collapse is-open"', false)
+                ->assertSee('data-test="configuration-subnav-data-maintenance"', false);
+
+            $this->assertMatchesRegularExpression(
+                '/<a\s+[^>]*class="crm-subnav-item is-active"[^>]*data-test="configuration-subnav-data-maintenance"/s',
+                $response->getContent(),
+            );
+        }
     }
 
     public function test_configuration_subpages_auto_expand_and_highlight_only_the_current_shortcut(): void

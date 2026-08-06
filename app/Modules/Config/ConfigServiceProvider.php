@@ -15,6 +15,7 @@ use App\Modules\Config\Application\Services\DatabaseReportConfigReader;
 use App\Modules\Config\Presentation\Livewire\CatalogConfiguration;
 use App\Modules\Config\Presentation\Livewire\ConfigurationCenter;
 use App\Modules\Config\Presentation\Livewire\ConfigurationHistory;
+use App\Modules\Config\Presentation\Livewire\DataMaintenanceCenter;
 use App\Modules\Config\Presentation\Livewire\UserManagement;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -34,6 +35,8 @@ class ConfigServiceProvider extends ServiceProvider
     {
         Route::middleware(['web', 'auth', 'verified', 'super-admin', 'super-admin.2fa'])->group(function (): void {
             Route::get('/admin/configuration', ConfigurationCenter::class)->name('configuration.index');
+            Route::get('/admin/configuration/data-maintenance', DataMaintenanceCenter::class)
+                ->name('configuration.data-maintenance');
             Route::get('/admin/configuration/catalog', CatalogConfiguration::class)
                 ->name('configuration.catalog');
             Route::get('/admin/configuration/users', UserManagement::class)

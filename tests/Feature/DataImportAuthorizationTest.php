@@ -27,6 +27,8 @@ class DataImportAuthorizationTest extends TestCase
             ->get(route('data-imports.index'))
             ->assertOk()
             ->assertSee('历史数据导入')
+            ->assertSee('返回数据导入与迁移')
+            ->assertSee('href="'.route('configuration.data-maintenance').'"', false)
             ->assertSee('上传文件并预览');
     }
 }

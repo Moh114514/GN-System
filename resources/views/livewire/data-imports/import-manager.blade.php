@@ -1,4 +1,10 @@
 <div class="crm-content">
+    <x-page-back
+        :href="route('configuration.data-maintenance')"
+        label="返回数据导入与迁移"
+        class="mb-4"
+    />
+
     @php
         $batchStatusLabels = [
             'uploaded' => '已上传',

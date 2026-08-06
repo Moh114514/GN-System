@@ -43,12 +43,20 @@ class ReferenceConfigurationImportTest extends TestCase
 
         $this->actingAs($this->admin)->get(route('configuration.index'))
             ->assertOk()
+            ->assertSee('数据导入与迁移')
+            ->assertSee('href="'.route('configuration.data-maintenance').'"', false);
+
+        $this->get(route('configuration.data-maintenance'))
+            ->assertOk()
             ->assertSee('基础配置导入')
-            ->assertSee('href="'.route('reference-configuration-imports.index').'"', false);
+            ->assertSee('历史数据迁移')
+            ->assertSee('href="'.route('reference-configuration-imports.index').'"', false)
+            ->assertSee('href="'.route('data-imports.index').'"', false);
 
         $this->get(route('reference-configuration-imports.index'))
             ->assertOk()
-            ->assertSee('返回配置中心')
+            ->assertSee('返回数据导入与迁移')
+            ->assertSee('href="'.route('configuration.data-maintenance').'"', false)
             ->assertSee('上传后先预览和检查')
             ->assertSee('基础字典 → 政策等级 → 费率 → 代理商 → 等级分配')
             ->assertSee('wire:submit="stageWorkbook"', false);
