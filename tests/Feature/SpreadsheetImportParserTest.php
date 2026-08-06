@@ -142,7 +142,7 @@ class SpreadsheetImportParserTest extends TestCase
         $gateway->resolveAgentReference('张三（韩国）');
     }
 
-    public function test_it_recalculates_details_and_reports_summary_differences(): void
+    public function test_zero_consumption_summaries_are_validated_without_detail_rows(): void
     {
         Storage::fake('local');
         $this->seed(PhaseTwoReferenceDataSeeder::class);
@@ -168,18 +168,15 @@ CSV;
 神州国际旅行社,SZ-JG-0003,赵先生,13800138002,Blanche 齿科,牙贴片,2026-07-30,"2,000,000",6%,"120,000",朴老师,小王,
 神州国际旅行社,SZ-JG-0004,周女士,13800138003,Graycity 纹绣,眉眼唇,2026-07-31,"1,500,000",14%,"210,000",朴老师,小王,
 张先生（个体户）,ZH-GT-0001,李女士,13900139000,Blanche 齿科,牙贴片,2026-07-30,"1,500,000",4%,"60,000",朴老师,小王,
-KR-DY,KR-DY-0001,朴女士,01011112222,dod 皮肤科,抗衰,2026-07-26,"4,200,000",15%,"630,000",,小李,
-KR-XY,KR-XY-0001,崔先生,01022223333,Blanche 齿科,美牙贴片,2026-07-27,"6,000,000",10%,"600,000",,小王,
-KR-BJ,KR-BJ-0001,金先生,01033334444,Graycity 纹绣,头皮纹发,2026-07-28,"2,000,000",15%,"300,000",,小王,
 CSV;
 
         $summaryUtf8 = <<<'CSV'
 代理商编号,代理商名称,代理商等级,月客户总数,消费总额（KRW),推广费总额（KRW),结算日期,结算汇率,推广费总额（RMB 元）,结算状态,备注
 SZ-JG,神州国际旅行社,黄金代理商,4,"12,000,000","1,350,000",2026/8/5,224,"6,027",已对账,备注中的数值不参与计算
 ZH-GT,张先生（个体户）,黄金合伙人,1,"1,500,000","60,000",2026/8/5,224,268,已结清,
-KR-DY,金导游（在韩合伙人）,在韩合伙人,0,0,0,,0,0,,
-KR-XY,李同学（在韩合伙人）,在韩合伙人,0,0,0,,0,0,,
-KR-BJ,朴社长（釜山·在韩合伙人）,在韩合伙人,0,0,0,,0,0,,
+KR-DY,金导游（在韩合伙人）,在韩合伙人,0,0,0,2026/8/5,0,0,,
+KR-XY,李同学（在韩合伙人）,在韩合伙人,0,0,0,2026/8/5,0,0,,
+KR-BJ,朴社长（釜山·在韩合伙人）,在韩合伙人,0,0,0,2026/8/5,0,0,,
 CSV;
 
         $this->attach($batch, '代理商档案.csv', $agents);
@@ -189,10 +186,10 @@ CSV;
         app(SpreadsheetImportParser::class)->parse($batch->fresh('files'));
         $batch->refresh();
 
-        $this->assertSame(ImportBatchStatus::NeedsReview, $batch->status);
-        $this->assertSame(18, $batch->total_rows);
+        $this->assertSame(ImportBatchStatus::Validated, $batch->status);
+        $this->assertSame(15, $batch->total_rows);
         $this->assertSame(15, $batch->valid_rows);
-        $this->assertSame(3, $batch->error_rows);
+        $this->assertSame(0, $batch->error_rows);
 
         $this->assertDatabaseHas('import_rows', [
             'profile' => ImportProfile::MonthlyDetail->value,
@@ -206,17 +203,130 @@ CSV;
         $this->assertSame(1350000, $sz->normalized_data['commission_krw']);
         $this->assertSame(602700, $sz->normalized_data['payout_cny_fen']);
 
+        $koreanSummaries = $batch->rows()
+            ->where('profile', ImportProfile::SettlementSummary)
+            ->whereJsonContains('normalized_data->agent_code', 'DY-KR')
+            ->get();
+        $this->assertCount(1, $koreanSummaries);
+        $this->assertSame(ImportRowStatus::Valid, $koreanSummaries->sole()->status);
+        $this->assertSame('2026-07', $koreanSummaries->sole()->normalized_data['settlement_period']);
+        $this->assertSame('zero_consumption', $koreanSummaries->sole()->resolution['settlement_type']);
+
         $koreanErrors = $batch->rows()
             ->where('profile', ImportProfile::SettlementSummary)
             ->where('status', ImportRowStatus::Error)
             ->count();
-        $this->assertSame(3, $koreanErrors);
+        $this->assertSame(0, $koreanErrors);
 
         $file = $batch->files()->where('original_name', '代理商档案.csv')->firstOrFail();
         $this->assertSame(',', $file->preflight['delimiter']);
         $this->assertSame('UTF-8', $file->preflight['encoding']);
         $this->assertSame(1, $file->preflight['sheets'][0]['header_row']);
         $this->assertSame('代理商档案', $file->preflight['sheets'][0]['profile_label']);
+    }
+
+    public function test_non_zero_summary_without_matching_detail_is_rejected(): void
+    {
+        Storage::fake('local');
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
+        $batch = ImportBatch::query()->create([
+            'created_by' => $user->id,
+            'status' => ImportBatchStatus::Uploaded,
+        ]);
+
+        $this->attach(
+            $batch,
+            '代理商档案.csv',
+            "代理商编号,代理商名称,代理类型\nSZ-JG,神州国际旅行社,旅行社\n",
+        );
+        $this->attach(
+            $batch,
+            '代理商月结汇总.csv',
+            "代理商编号,代理商名称,代理商等级,月客户总数,消费总额（KRW),推广费总额（KRW),结算日期,结算汇率,推广费总额（RMB 元）,结算状态,备注\n"
+            ."SZ-JG,神州国际旅行社,黄金代理商,1,1000000,100000,2026/8/5,224,500,已对账,\n",
+        );
+
+        app(SpreadsheetImportParser::class)->parse($batch->fresh('files'));
+
+        $summary = $batch->rows()->where('profile', ImportProfile::SettlementSummary)->firstOrFail();
+        $this->assertSame(ImportRowStatus::Error, $summary->status);
+        $this->assertStringContainsString('没有找到对应消费月份的有效月明细', implode(' ', $summary->errors ?? []));
+    }
+
+    public function test_zero_summary_with_invalid_detail_is_rejected(): void
+    {
+        Storage::fake('local');
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
+        $batch = ImportBatch::query()->create([
+            'created_by' => $user->id,
+            'status' => ImportBatchStatus::Uploaded,
+        ]);
+
+        $this->attach(
+            $batch,
+            '代理商档案.csv',
+            "代理商编号,代理商名称,代理类型\nSZ-JG,神州国际旅行社,旅行社\n",
+        );
+        $this->attach(
+            $batch,
+            '代理商月明细.csv',
+            "代理商名称,客户编号,姓名,联系方式,意向机构,项目,预约到院,消费金额（KRW 韩币）,推广费比例,推广费金额（KRW 韩币）\n"
+            ."SZ-JG,SZ-JG-0001,测试客户,,DOD,测试项目,2026-07-25,1000000,10%,99999\n",
+        );
+        $this->attach(
+            $batch,
+            '代理商月结汇总.csv',
+            "代理商编号,代理商名称,代理商等级,月客户总数,消费总额（KRW),推广费总额（KRW),结算日期,结算汇率,推广费总额（RMB 元）,结算状态,备注\n"
+            ."SZ-JG,神州国际旅行社,黄金代理商,0,0,0,2026/8/5,0,0,,\n",
+        );
+
+        app(SpreadsheetImportParser::class)->parse($batch->fresh('files'));
+
+        $detail = $batch->rows()->where('profile', ImportProfile::MonthlyDetail)->firstOrFail();
+        $summary = $batch->rows()->where('profile', ImportProfile::SettlementSummary)->firstOrFail();
+        $this->assertSame(ImportRowStatus::Error, $detail->status);
+        $this->assertSame(ImportRowStatus::Error, $summary->status);
+        $this->assertStringContainsString('月明细全部无效', implode(' ', $summary->errors ?? []));
+    }
+
+    public function test_zero_summary_allows_valid_detail_in_another_month(): void
+    {
+        Storage::fake('local');
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
+        $batch = ImportBatch::query()->create([
+            'created_by' => $user->id,
+            'status' => ImportBatchStatus::Uploaded,
+        ]);
+
+        $this->attach(
+            $batch,
+            '代理商档案.csv',
+            "代理商编号,代理商名称,代理类型\nSZ-JG,神州国际旅行社,旅行社\n",
+        );
+        $this->attach(
+            $batch,
+            '代理商月明细.csv',
+            "代理商名称,客户编号,姓名,联系方式,意向机构,项目,预约到院,消费金额（KRW 韩币）,推广费比例,推广费金额（KRW 韩币）\n"
+            ."SZ-JG,SZ-JG-0001,测试客户,,DOD,测试项目,2026-06-25,1000000,10%,100000\n",
+        );
+        $this->attach(
+            $batch,
+            '代理商月结汇总.csv',
+            "代理商编号,代理商名称,代理商等级,月客户总数,消费总额（KRW),推广费总额（KRW),结算日期,结算汇率,推广费总额（RMB 元）,结算状态,备注\n"
+            ."SZ-JG,神州国际旅行社,黄金代理商,0,0,0,2026/8/5,0,0,,\n",
+        );
+
+        app(SpreadsheetImportParser::class)->parse($batch->fresh('files'));
+        $batch->refresh();
+
+        $summary = $batch->rows()->where('profile', ImportProfile::SettlementSummary)->firstOrFail();
+        $this->assertSame(ImportBatchStatus::Validated, $batch->status);
+        $this->assertSame(ImportRowStatus::Valid, $summary->status);
+        $this->assertSame('2026-07', $summary->normalized_data['settlement_period']);
+        $this->assertSame('zero_consumption', $summary->resolution['settlement_type']);
     }
 
     public function test_semicolon_csv_fails_with_a_delimiter_and_header_message_instead_of_codebook(): void

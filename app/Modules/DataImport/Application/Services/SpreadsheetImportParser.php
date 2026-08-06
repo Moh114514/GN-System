@@ -569,7 +569,7 @@ final readonly class SpreadsheetImportParser
 
         /** @var array<string, array{count: int, consumption_krw: int, commission_krw: int, source_rows: array<int, int>}> $aggregates */
         $aggregates = [];
-        /** @var array<string, array{total: int, valid: int, periods: array<string, bool>}> $detailStats */
+        /** @var array<string, array{total: int, valid: int, periods: array<string, bool>, period_stats: array<string, array{total: int, valid: int}>}> $detailStats */
         $detailStats = [];
         foreach ($batch->rows()->where('profile', ImportProfile::MonthlyDetail)->get() as $row) {
             $data = $row->normalized_data ?? [];
@@ -590,7 +590,12 @@ final readonly class SpreadsheetImportParser
             }
 
             if ($agentCode !== null) {
-                $detailStats[$agentCode] ??= ['total' => 0, 'valid' => 0, 'periods' => []];
+                $detailStats[$agentCode] ??= [
+                    'total' => 0,
+                    'valid' => 0,
+                    'periods' => [],
+                    'period_stats' => [],
+                ];
                 $detailStats[$agentCode]['total']++;
             }
 
@@ -599,6 +604,8 @@ final readonly class SpreadsheetImportParser
                 $errors[] = '消费日期无法确定结算周期。';
             } elseif ($agentCode !== null) {
                 $detailStats[$agentCode]['periods'][$period] = true;
+                $detailStats[$agentCode]['period_stats'][$period] ??= ['total' => 0, 'valid' => 0];
+                $detailStats[$agentCode]['period_stats'][$period]['total']++;
             }
 
             $expected = BigDecimal::of((int) ($data['amount_krw'] ?? 0))
@@ -624,6 +631,7 @@ final readonly class SpreadsheetImportParser
             if ($errors === [] && $agentCode !== null) {
                 $detailStats[$agentCode]['valid']++;
                 if ($period !== null) {
+                    $detailStats[$agentCode]['period_stats'][$period]['valid']++;
                     $key = $agentCode.'|'.$period;
                     $aggregates[$key] ??= ['count' => 0, 'consumption_krw' => 0, 'commission_krw' => 0, 'source_rows' => []];
                     $aggregates[$key]['count']++;
@@ -669,14 +677,23 @@ final readonly class SpreadsheetImportParser
 
             $code = $batchCode ?? $resolved->code;
             $data['agent_code'] = $code;
-            $stats = $detailStats[$code] ?? ['total' => 0, 'valid' => 0, 'periods' => []];
+            $stats = $detailStats[$code] ?? [
+                'total' => 0,
+                'valid' => 0,
+                'periods' => [],
+                'period_stats' => [],
+            ];
             $period = $this->settlementPeriod($data['settlement_period'] ?? null);
             $resolution = $row->resolution ?? [];
 
-            if ($stats['total'] === 0) {
-                $errors[] = "代理商 {$code} 的月结汇总无法校验。原因：没有找到可参与汇总的有效月明细。";
-            } elseif ($stats['valid'] === 0) {
-                $errors[] = "代理商 {$code} 的月结汇总无法校验。原因：该代理商的月明细全部无效。";
+            if ($period === null && ($periodFromBounds = $this->monthFromDate($data['period_start'] ?? null)) !== null) {
+                $period = $periodFromBounds;
+                $data['settlement_period'] = $period;
+                $resolution['settlement_period'] = [
+                    'source' => 'period_bounds',
+                    'value' => $period,
+                    'warning' => '旧模板未提供结算周期，已复用结算日期推导的结算周期。',
+                ];
             } elseif ($period === null && count($stats['periods']) === 1) {
                 $period = (string) array_key_first($stats['periods']);
                 $data['settlement_period'] = $period;
@@ -690,9 +707,24 @@ final readonly class SpreadsheetImportParser
                 $errors[] = "代理商 {$code} 的结算周期无法确定。";
             }
 
+            $isZeroSummary = $this->isZeroSettlementSummary($data);
+            $periodStats = $period === null
+                ? ['total' => 0, 'valid' => 0]
+                : ($stats['period_stats'][$period] ?? ['total' => 0, 'valid' => 0]);
+
+            if ($period !== null && $periodStats['total'] > 0 && $periodStats['valid'] === 0) {
+                $errors[] = "代理商 {$code} 的月结汇总无法校验。原因：该代理商 {$period} 月的月明细全部无效。";
+            }
+
             $actual = $period === null ? null : ($aggregates[$code.'|'.$period] ?? null);
             if ($actual === null && $errors === []) {
-                $errors[] = "代理商 {$code} 的 {$period} 月结汇总无法校验。原因：没有找到对应消费月份的有效月明细。";
+                if ($isZeroSummary && $periodStats['total'] === 0) {
+                    $actual = $this->zeroSettlementAggregate();
+                    $resolution['aggregate'] = $actual;
+                    $resolution['settlement_type'] = 'zero_consumption';
+                } else {
+                    $errors[] = "代理商 {$code} 的 {$period} 月结汇总无法校验。原因：没有找到对应消费月份的有效月明细。";
+                }
             }
 
             if ($actual !== null) {
@@ -768,6 +800,26 @@ final readonly class SpreadsheetImportParser
         $value = $this->cleanText($value);
 
         return $value === '' ? null : CarbonImmutable::parse($value)->format('Y-m');
+    }
+
+    /** @param array<string, mixed> $data */
+    private function isZeroSettlementSummary(array $data): bool
+    {
+        return (int) ($data['customer_count'] ?? 0) === 0
+            && (int) ($data['consumption_krw'] ?? 0) === 0
+            && (int) ($data['commission_krw'] ?? 0) === 0
+            && (int) ($data['payout_cny_fen'] ?? 0) === 0;
+    }
+
+    /** @return array{count: int, consumption_krw: int, commission_krw: int, source_rows: array<int, int>} */
+    private function zeroSettlementAggregate(): array
+    {
+        return [
+            'count' => 0,
+            'consumption_krw' => 0,
+            'commission_krw' => 0,
+            'source_rows' => [],
+        ];
     }
 
     private function refreshBatchCounts(ImportBatch $batch): void
