@@ -1240,3 +1240,29 @@ namei -l /srv/gn-system/data/private
 
 服务器现状与仓库文档不一致时，先只读核对实际状态，再通过正常开发分支修正文档和
 模板。不得在服务器临时改脚本后把差异留在仓库之外。
+## PR-C UAT operations
+
+The UAT reset and configuration reload are host operations. Run them from `/srv/gn-system` only after checking the target environment:
+
+```bash
+cd /srv/gn-system
+./deploy/reset-uat.sh --business-data
+./deploy/reload-config.sh uat
+```
+
+`--business-data` creates a database backup, stops queue and scheduler, invokes `app:reset-uat-data`, removes only the approved private `imports`, `reports`, and `settlements` directories, flushes only the UAT Redis container, restores services, and checks `/up`, `/health`, and `/health/operations`. It preserves users, institutions, reference configuration, saved queries, and migrations. The application command verifies `APP_ENV`, UAT `APP_URL`, configured PostgreSQL, `current_database()`, and the private storage root before truncating the approved business tables.
+
+Use `./deploy/reset-uat.sh --full` only for explicit UAT initialization. It requires the exact interactive phrase `RESET gn_system_uat`, creates a full backup, rebuilds only the UAT database, migrates, restores reference data, and interactively creates an administrator. The script rejects the production directory, the `gn_system` database, a non-UAT URL, and a different Compose project. Never mount the Docker socket into the application container and never use `docker compose down -v`.
+
+Administrator maintenance is non-destructive:
+
+```bash
+docker compose --env-file .env.uat -f compose.production.yaml exec app php artisan app:list-admins
+docker compose --env-file .env.uat -f compose.production.yaml exec app php artisan app:disable-admin ADMIN --reason="reason" --operator="operator-or-ticket"
+docker compose --env-file .env.uat -f compose.production.yaml exec app php artisan app:enable-admin ADMIN --reason="reason" --operator="operator-or-ticket"
+docker compose --env-file .env.uat -f compose.production.yaml exec app php artisan app:reset-admin-password ADMIN --reason="reason" --operator="operator-or-ticket" --clear-2fa
+```
+
+`ADMIN` is an ID or email. `--operator` is a required operator or ticket identifier for audit traceability. Passwords are entered interactively, never passed as arguments. Disabling and password reset increment `session_version` and clear existing sessions; disabling the last active super administrator is rejected. There is intentionally no physical delete command.
+
+`reload-config.sh uat` requires `.env.uat` mode `0600`, validates required variables and Compose configuration, force-recreates app/queue/scheduler, rebuilds Laravel configuration cache, verifies PostgreSQL/Redis and the three health endpoints, and prints only a sanitized summary. It never prints password, archive-password, mail, or webhook-secret values.
