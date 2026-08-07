@@ -41,7 +41,7 @@ final readonly class SettlementWorkflow
             'reviewed_by' => $actorId,
             'reviewed_at' => now(),
         ]);
-        $this->record($settlement, __('settlements.audit.rejected'), 'rejected', $actorId, $ipAddress);
+        $this->record($settlement, 'settlements.audit.rejected', 'rejected', $actorId, $ipAddress);
     }
 
     public function approve(int $settlementId, string $exchangeRate, int $actorId, ?string $ipAddress): void
@@ -73,7 +73,7 @@ final readonly class SettlementWorkflow
                 'rejection_reason' => null,
             ]);
             $this->documents->generate($settlement);
-            $this->record($settlement, __('settlements.audit.approved'), 'approved', $actorId, $ipAddress, [
+            $this->record($settlement, 'settlements.audit.approved', 'approved', $actorId, $ipAddress, [
                 'exchange_rate_krw_per_cny' => (string) $rate,
                 'exchange_rate_quote_source' => $settlement->exchange_rate_quote_source,
                 'exchange_rate_quoted_at' => $settlement->exchange_rate_quoted_at?->toIso8601String(),
@@ -95,7 +95,7 @@ final readonly class SettlementWorkflow
                 'settled_by' => $actorId,
                 'confirmed_at' => now(),
             ]);
-            $this->record($settlement, __('settlements.audit.settled'), 'settled', $actorId, $ipAddress);
+            $this->record($settlement, 'settlements.audit.settled', 'settled', $actorId, $ipAddress);
         });
     }
 
@@ -176,6 +176,7 @@ final readonly class SettlementWorkflow
                 logName: 'settlement',
                 event: 'status_corrected',
                 ipAddress: $ipAddress,
+                messageKey: 'settlements.audit.status_corrected',
             );
         });
     }
@@ -219,6 +220,7 @@ final readonly class SettlementWorkflow
                 logName: 'settlement',
                 event: 'generation_recovered',
                 ipAddress: $ipAddress,
+                messageKey: 'settlements.audit.generation_recovered',
             );
         });
     }
@@ -273,6 +275,7 @@ final readonly class SettlementWorkflow
                 logName: 'settlement',
                 event: 'generation_recovered',
                 ipAddress: $ipAddress,
+                messageKey: 'settlements.audit.recovery_batch_created',
             );
         });
     }
@@ -304,10 +307,10 @@ final readonly class SettlementWorkflow
     }
 
     /** @param array<string, mixed> $properties */
-    private function record(Settlement $settlement, string $description, string $event, int $actorId, ?string $ipAddress, array $properties = []): void
+    private function record(Settlement $settlement, string $messageKey, string $event, int $actorId, ?string $ipAddress, array $properties = []): void
     {
         $this->audit->record(
-            description: $description,
+            description: __($messageKey),
             properties: [
                 'status' => $settlement->status,
                 'settlement_id' => $settlement->id,
@@ -318,6 +321,7 @@ final readonly class SettlementWorkflow
             logName: 'settlement',
             event: $event,
             ipAddress: $ipAddress,
+            messageKey: $messageKey,
         );
     }
 

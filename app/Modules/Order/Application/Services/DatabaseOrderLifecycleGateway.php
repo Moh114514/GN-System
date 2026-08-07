@@ -76,6 +76,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                     logName: 'order',
                     event: 'updated',
                     ipAddress: $ipAddress,
+                    messageKey: 'orders.audit.updated',
                 );
             }
 
@@ -104,6 +105,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                 logName: 'order',
                 event: 'cancelled',
                 ipAddress: $ipAddress,
+                messageKey: 'orders.audit.cancelled',
             );
 
             return (int) $order->id;
@@ -131,6 +133,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                 logName: 'order',
                 event: 'reopened',
                 ipAddress: $ipAddress,
+                messageKey: 'orders.audit.reopened',
             );
 
             return (int) $order->id;
@@ -166,6 +169,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                 logName: 'order',
                 event: 'completion_rolled_back',
                 ipAddress: $ipAddress,
+                messageKey: 'orders.audit.rolled_back',
             );
 
             return (int) $order->id;
@@ -189,6 +193,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                 logName: 'order',
                 event: 'deleted',
                 ipAddress: $ipAddress,
+                messageKey: 'orders.audit.soft_deleted',
             );
 
             return (int) $order->id;
@@ -212,6 +217,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                 logName: 'order',
                 event: 'restored',
                 ipAddress: $ipAddress,
+                messageKey: 'orders.audit.restored',
             );
 
             return (int) $order->id;

@@ -78,7 +78,7 @@
                     @if ($batch->failure_reason)
                         <div class="mt-4 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                             <p class="font-semibold">{{ __('imports.reference.failure_title') }}</p>
-                            <p class="mt-1">{{ $batch->failure_reason }}</p>
+                            <p class="mt-1">{{ __('imports.errors.batch_failure') }}</p>
                             <p class="mt-2 text-red-600">{{ __('imports.reference.failure_hint') }}</p>
                         </div>
                     @elseif ($batch->error_rows > 0)
@@ -140,8 +140,8 @@
                                             ) }}
                                         </td>
                                         <td class="text-sm text-red-600">
-                                            @foreach ($row->errors ?? [] as $error)
-                                                <span class="block">{{ $error }}</span>
+                                            @foreach ($batch->issues->where('import_row_id', $row->id) as $issue)
+                                                <span class="block">{{ app(\App\Modules\DataImport\Application\Services\ImportIssueMessagePresenter::class)->present($issue) }}</span>
                                             @endforeach
                                         </td>
                                     </tr>

@@ -66,6 +66,7 @@ class ImportIssueReportTest extends TestCase
             'code' => 'relation_unresolved',
             'profile' => 'customer_followup',
             'message' => 'raw diagnostic must remain unchanged',
+            'message_key' => 'imports.errors.relation_unresolved',
         ]);
         $previousLocale = App::getLocale();
         App::setLocale('ko_KR');
@@ -78,7 +79,7 @@ class ImportIssueReportTest extends TestCase
             $this->assertSame('관계 검증', $sheet->getCell('A2')->getValue());
             $this->assertSame('경고', $sheet->getCell('B2')->getValue());
             $this->assertSame('고객 후속 관리', $sheet->getCell('G2')->getValue());
-            $this->assertSame('raw diagnostic must remain unchanged', $sheet->getCell('N2')->getValue());
+            $this->assertSame(__('imports.errors.relation_unresolved'), $sheet->getCell('N2')->getValue());
             $workbook->disconnectWorksheets();
             unlink(Storage::disk('local')->path($path));
         } finally {

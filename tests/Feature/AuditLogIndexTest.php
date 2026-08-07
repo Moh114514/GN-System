@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Audit\Presentation\Livewire\AuditLogIndex;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\App;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 use Spatie\Activitylog\Models\Activity;
@@ -64,6 +65,35 @@ class AuditLogIndexTest extends TestCase
             ->assertDontSee('private@example.test')
             ->assertDontSee('不应显示')
             ->assertDontSee('旧记录');
+    }
+
+    public function test_audit_log_renders_known_message_keys_in_the_current_locale(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $target = User::factory()->create();
+        $this->activity(
+            $admin,
+            $target,
+            now()->toImmutable(),
+            ['message_key' => 'settlements.audit.approved', 'message_parameters' => []],
+            '月结已审核通过',
+        );
+
+        $previousLocale = App::getLocale();
+        App::setLocale('ko_KR');
+
+        try {
+            /** @var Testable<AuditLogIndex> $component */
+            $component = Livewire::actingAs($admin)
+                // @phpstan-ignore argument.templateType
+                ->test(AuditLogIndex::class);
+
+            $component->assertSee(__('settlements.audit.approved'))
+                ->assertDontSee('月结已审核通过')
+                ->assertDontSee('message_key');
+        } finally {
+            App::setLocale($previousLocale);
+        }
     }
 
     public function test_user_management_exposes_the_audit_entry_and_topbar_keeps_native_date_and_reminder_controls(): void

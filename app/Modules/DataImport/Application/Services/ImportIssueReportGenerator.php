@@ -15,6 +15,8 @@ use Throwable;
 
 final class ImportIssueReportGenerator
 {
+    public function __construct(private readonly ImportIssueMessagePresenter $messages) {}
+
     /** @var array<int, string> */
     private const HEADERS = [
         'stage',
@@ -57,6 +59,8 @@ final class ImportIssueReportGenerator
                 'source_row',
                 'field',
                 'message',
+                'message_key',
+                'message_parameters',
                 'context_encrypted',
             ]);
 
@@ -96,7 +100,7 @@ final class ImportIssueReportGenerator
                     $issue->field,
                     $this->contextValue($context, 'raw_value'),
                     $normalizedValue,
-                    $issue->message,
+                    $this->messages->present($issue),
                     $this->contextValue($context, 'recommended_action', 'recommendation'),
                 ];
 

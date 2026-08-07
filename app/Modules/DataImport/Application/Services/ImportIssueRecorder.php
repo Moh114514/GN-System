@@ -9,7 +9,10 @@ use App\Modules\DataImport\Infrastructure\Models\ImportRow;
 
 final class ImportIssueRecorder
 {
-    /** @param array<string, mixed>|null $context */
+    /**
+     * @param  array<string, mixed>|null  $context
+     * @param  array<string, mixed>  $messageParameters
+     */
     public function record(
         ImportBatch $batch,
         string $stage,
@@ -21,9 +24,13 @@ final class ImportIssueRecorder
         ?string $field = null,
         ?array $context = null,
         bool $isIgnorable = false,
+        ?string $messageKey = null,
+        array $messageParameters = [],
     ): ImportIssue {
         $context ??= [];
         $context['file'] ??= $file?->original_name;
+
+        [$resolvedMessageKey, $resolvedMessageParameters] = $this->resolveMessage($code, $message, $messageKey, $messageParameters);
 
         return ImportIssue::query()->create([
             'import_batch_id' => $batch->id,
@@ -37,9 +44,28 @@ final class ImportIssueRecorder
             'source_row' => $row?->source_row,
             'field' => $field,
             'message' => $message,
+            'message_key' => $resolvedMessageKey,
+            'message_parameters' => $resolvedMessageParameters === [] ? null : $resolvedMessageParameters,
             'context_encrypted' => $context === ['file' => null] ? null : $context,
             'is_ignorable' => $isIgnorable,
         ]);
+    }
+
+    /**
+     * @param  array<string, mixed>  $messageParameters
+     * @return array{string, array<string, mixed>}
+     */
+    private function resolveMessage(string $code, string $message, ?string $messageKey, array $messageParameters): array
+    {
+        if ($messageKey !== null || $messageParameters !== []) {
+            return [$messageKey ?? "imports.errors.{$code}", $messageParameters];
+        }
+
+        if (preg_match('/^机构代码“(?<institution_code>.+)”不存在。$/u', $message, $matches) === 1) {
+            return ['imports.errors.institution_code_missing', ['institution_code' => $matches['institution_code']]];
+        }
+
+        return ["imports.errors.{$code}", []];
     }
 
     public function clearRowIssues(ImportBatch $batch): void

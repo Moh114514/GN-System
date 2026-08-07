@@ -175,7 +175,7 @@
                     </div>
 
                     @if ($batch->failure_reason)
-                        <p class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{{ $batch->failure_reason }}</p>
+                        <p class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{{ __('imports.errors.batch_failure') }}</p>
                     @endif
 
                     @if (! empty(($batch->summary ?? [])['stages']))
@@ -270,7 +270,11 @@
                                         <td class="px-3 py-2">{{ $row->source_row }}</td>
                                         <td class="px-3 py-2">{{ $row->profile->label() }}</td>
                                         <td class="px-3 py-2">{{ $rowStatusLabels[$row->status->value] ?? $row->status->value }}</td>
-                                        <td class="px-3 py-2 text-red-600">{{ implode('；', $row->errors ?? []) }}</td>
+                                        <td class="px-3 py-2 text-red-600">
+                                            @foreach ($batch->issues->where('import_row_id', $row->id) as $issue)
+                                                <span class="block">{{ app(\App\Modules\DataImport\Application\Services\ImportIssueMessagePresenter::class)->present($issue) }}</span>
+                                            @endforeach
+                                        </td>
                                         <td class="min-w-64 px-3 py-2">
                                             @php($rowIssues = $batch->issues->where('import_row_id', $row->id))
                                             @php($canIgnore = $rowIssues->isNotEmpty() && $rowIssues->every(fn ($issue) => $issue->is_ignorable))

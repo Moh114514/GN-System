@@ -250,7 +250,8 @@ class ReferenceConfigurationImportTest extends TestCase
         Livewire::test(ReferenceConfigurationImportManager::class)
             ->set('selectedBatchId', $batch->id)
             ->assertSee('工作簿处理失败')
-            ->assertSee('缺少工作表：代理商类型')
+            ->assertSee(__('imports.errors.batch_failure'))
+            ->assertDontSee('缺少工作表：代理商类型')
             ->call('downloadErrors')
             ->assertFileDownloaded("导入问题报告-{$batch->id}.xlsx");
     }

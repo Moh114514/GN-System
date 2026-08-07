@@ -9,6 +9,7 @@ use App\Modules\Audit\Application\Data\AuditLogFilterData;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Lang;
 use Spatie\Activitylog\Models\Activity;
 
 final class DatabaseAuditLogReader implements AuditLogReader
@@ -81,7 +82,7 @@ final class DatabaseAuditLogReader implements AuditLogReader
             occurredAt: CarbonImmutable::instance($activity->created_at),
             module: (string) ($activity->log_name ?? 'system'),
             action: (string) ($activity->event ?? 'recorded'),
-            description: (string) $activity->description,
+            description: $this->localizedDescription($activity, $properties),
             causerName: $activity->causer instanceof User ? $activity->causer->name : null,
             targetUserId: $targetUserId,
             properties: $this->safeProperties($properties),
@@ -112,6 +113,19 @@ final class DatabaseAuditLogReader implements AuditLogReader
         }
 
         return $safe;
+    }
+
+    /** @param array<string, mixed> $properties */
+    private function localizedDescription(Activity $activity, array $properties): string
+    {
+        $messageKey = $properties['message_key'] ?? null;
+        $parameters = $properties['message_parameters'] ?? [];
+
+        if (is_string($messageKey) && Lang::has($messageKey)) {
+            return (string) __($messageKey, is_array($parameters) ? $parameters : []);
+        }
+
+        return (string) $activity->description;
     }
 
     /** @param array<string, mixed> $attributes
