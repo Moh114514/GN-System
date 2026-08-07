@@ -145,6 +145,7 @@ return [
     ],
     'values' => [
         'empty' => '—',
+        'unknown_customer' => '未知客户',
         'unknown_institution' => '未知机构',
         'unknown_agent' => '未知代理商',
         'unknown_source' => '未知来源',
@@ -178,6 +179,7 @@ return [
         'institution_unavailable' => '所选机构不存在或已停用。',
         'source_unavailable' => '所选直销来源不存在或已停用。',
         'unexpected' => '操作失败：:message',
+        'recycle_bin_admin_only' => '只有超级管理员可以查看回收站订单。',
     ],
     'audit' => [
         'created' => '订单已创建',

@@ -54,6 +54,10 @@ return [
         'commission_rate_missing' => '선택한 기관과 주문 월에 적용되는 에이전시 등급 요율이 없습니다.',
         'order_in_settlement' => '주문이 정산 상세에 포함되어 먼저 정산을 수정하거나 철회해야 상태를 되돌릴 수 있습니다.',
         'quote_must_be_positive' => 'KRW 환율은 0보다 커야 합니다.',
+        'document_pdf_font_missing' => '정산 PDF 중국어 글꼴을 사용할 수 없습니다. 애플리케이션 이미지를 다시 빌드한 후 시도하세요.',
+        'document_pdf_cache_unwritable' => '정산 PDF 캐시 디렉터리에 쓸 수 없습니다. storage 권한을 확인한 후 다시 시도하세요.',
+        'failure_report_directory_unwritable' => '보고서 디렉터리에 쓸 수 없습니다. 관리자에게 문의하세요.',
+        'failure_report_file_missing' => '보고서 파일이 생성되지 않았습니다. 관리자에게 문의하세요.',
     ],
     'audit' => [
         'rejected' => '정산 반려', 'approved' => '정산 승인', 'settled' => '정산 완료 확인',

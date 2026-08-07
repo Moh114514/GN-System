@@ -9,6 +9,7 @@ use App\Modules\Customer\Infrastructure\Models\DirectSalesSource;
 use App\Modules\Order\Infrastructure\Models\Appointment;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Reminder\Application\Data\CompletedTreatmentData;
+use App\Modules\Reminder\Application\Services\DatabaseOrderReminderReader;
 use App\Modules\Reminder\Application\Services\DatabaseTreatmentReminderGateway;
 use App\Modules\Reminder\Application\Services\ReminderContentPresenter;
 use App\Modules\Reminder\Application\Services\ReminderNotificationDispatcher;
@@ -187,6 +188,7 @@ class PhaseFiveReminderTest extends TestCase
             'dingtalk.secret' => 'secret',
         ]);
         $this->user->update(['preferred_locale' => 'ko_KR']);
+
         Http::fake(['oapi.dingtalk.com/*' => Http::response(['errcode' => 0, 'errmsg' => 'ok'])]);
         $reminder = Reminder::query()->create([
             'customer_id' => $this->customer->id,
@@ -273,6 +275,20 @@ class PhaseFiveReminderTest extends TestCase
         ));
         $this->user->update(['preferred_locale' => 'ko_KR']);
 
+        $generatedReminder = Reminder::query()->where('order_id', $order->id)->firstOrFail();
+        $previousLocale = App::getLocale();
+        App::setLocale('ko_KR');
+        try {
+            $generatedContent = app(ReminderContentPresenter::class)->reminder($generatedReminder);
+            $this->assertNotSame((string) $generatedReminder->title, $generatedContent['title']);
+            $this->assertNotSame((string) $generatedReminder->notes, $generatedContent['notes']);
+            $orderReminder = app(DatabaseOrderReminderReader::class)->forOrder($order->id)[0];
+            $this->assertSame($generatedContent['title'], $orderReminder['title']);
+            $this->assertSame($generatedContent['notes'], $orderReminder['notes']);
+        } finally {
+            App::setLocale($previousLocale);
+        }
+
         $this->actingAs($this->user)->get(route('reminders.index'))
             ->assertOk()
             ->assertSee('시술 후 1일차 후속 관리')
@@ -341,6 +357,11 @@ class PhaseFiveReminderTest extends TestCase
         App::setLocale('ko_KR');
         try {
             $presenter = app(ReminderContentPresenter::class);
+            $duplicateTemplate = ReminderTemplate::query()->findOrFail($duplicateTemplateId);
+            $this->assertSame(
+                $presenter->template(ReminderTemplate::query()->findOrFail($templateId))['name'],
+                $presenter->template($duplicateTemplate)['name'],
+            );
             $this->assertSame('시술 3일 전 확인', $presenter->reminder(Reminder::query()->findOrFail($appointmentReminderId))['title']);
             $this->assertSame('시술 후 1일차 후속 관리', $presenter->reminder(Reminder::query()->findOrFail($postTreatmentReminderId))['title']);
         } finally {

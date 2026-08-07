@@ -207,6 +207,10 @@ return [
         'commission_rate_missing' => '该代理商等级在所选机构和订单月份没有生效的推广费率。',
         'order_in_settlement' => '订单已进入月结明细，必须先更正或撤回月结后才能回退订单状态。',
         'quote_must_be_positive' => 'KRW 汇率必须大于零。',
+        'document_pdf_font_missing' => '结算 PDF 中文字体不可用，请重新构建应用镜像后重试。',
+        'document_pdf_cache_unwritable' => '结算 PDF 缓存目录不可写，请检查 storage 目录权限后重试。',
+        'failure_report_directory_unwritable' => '报告目录不可写，请联系管理员。',
+        'failure_report_file_missing' => '报告文件未生成，请联系管理员。',
     ],
     'audit' => [
         'rejected' => '月结已驳回', 'approved' => '月结已审核通过', 'settled' => '月结已确认结清',

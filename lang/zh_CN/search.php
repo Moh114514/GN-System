@@ -123,6 +123,9 @@ return [
                 'generation_failed' => '导出文件生成失败，请稍后重试。',
                 'unexpected' => '导出任务失败，请稍后重试。',
                 'generic' => '导出失败，请缩小筛选范围后重试。',
+                'directory_unwritable' => '导出目录不可写，请检查应用运行用户和存储权限。',
+                'file_missing' => '导出文件未生成，请检查存储权限。',
+                'checksum_failed' => '导出文件校验失败。',
             ],
         ],
         'toast' => [

@@ -25,6 +25,9 @@ return [
         'custom_required' => '사용자 지정 범위에는 시작일과 종료일을 모두 입력해야 합니다.',
         'custom_order' => '사용자 지정 범위의 시작일은 종료일보다 늦을 수 없습니다.',
         'custom_format' => '사용자 지정 범위의 날짜 형식이 올바르지 않습니다.',
+        'export_format' => '대시보드 서버 내보내기는 PDF와 HTML만 지원합니다.',
+        'pdf_font_missing' => '대시보드 PDF 중국어 글꼴을 사용할 수 없습니다. 애플리케이션 이미지를 다시 빌드한 후 시도하세요.',
+        'pdf_cache_unwritable' => '대시보드 PDF 캐시 디렉터리에 쓸 수 없습니다. storage 권한을 확인한 후 다시 시도하세요.',
     ],
     'metrics' => [
         'core' => '핵심 지표',

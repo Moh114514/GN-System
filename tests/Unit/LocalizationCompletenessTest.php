@@ -53,6 +53,44 @@ class LocalizationCompletenessTest extends TestCase
         }
     }
 
+    public function test_runtime_application_boundaries_do_not_embed_fixed_chinese_copy(): void
+    {
+        foreach ($this->runtimeUserFacingSources() as $relativePath) {
+            $path = base_path($relativePath);
+            $this->assertFileExists($path);
+            $contents = File::get($path);
+
+            $this->assertDoesNotMatchRegularExpression(
+                '/[\x{3400}-\x{4DBF}\x{4E00}-\x{9FFF}]/u',
+                $contents,
+                'Fixed Chinese copy remains in '.$relativePath,
+            );
+        }
+    }
+
+    /**
+     * Explicit runtime boundary allowlist. Business data, import compatibility
+     * messages, and audit history are intentionally outside this static scan.
+     *
+     * @return list<string>
+     */
+    private function runtimeUserFacingSources(): array
+    {
+        return [
+            'app/Modules/Order/Application/Services/OrderManagementWorkspace.php',
+            'app/Modules/Reminder/Application/Services/DatabaseOrderReminderReader.php',
+            'app/Modules/Reminder/Application/Services/ReminderContentPresenter.php',
+            'app/Modules/Reminder/Application/Services/DatabaseTreatmentReminderGateway.php',
+            'app/Modules/Report/Application/Services/DashboardExportGenerator.php',
+            'app/Modules/Report/Application/Services/ReportSearchExportGenerator.php',
+            'app/Modules/Report/Application/Services/DashboardSnapshotPresenter.php',
+            'app/Modules/Report/Application/Services/ReportExportFailurePresenter.php',
+            'app/Modules/Settlement/Application/Services/SettlementDocumentGenerator.php',
+            'app/Modules/Settlement/Application/Services/SettlementRunFailureReportGenerator.php',
+            'app/Modules/Reminder/Infrastructure/Notifications/DingTalkClient.php',
+        ];
+    }
+
     /** @return array<string, array{string}> */
     public static function userFacingSourceDirectories(): array
     {

@@ -32,7 +32,7 @@ final readonly class ReportSearchExportGenerator
         $absolutePath = null;
         try {
             if ($this->search->count($criteria) > max(1, (int) config('reporting.max_export_rows', 50000))) {
-                throw new RuntimeException('查询结果超过导出上限，请缩小筛选范围后重试。');
+                throw new RuntimeException(__('search.page.exports.failure_reasons.too_many_rows'));
             }
 
             $rows = $this->search->rows($criteria);
@@ -70,17 +70,17 @@ final readonly class ReportSearchExportGenerator
             $directory = dirname($absolutePath);
             $disk->makeDirectory(dirname($path));
             if (! is_dir($directory) || ! is_writable($directory)) {
-                throw new RuntimeException('导出目录不可写，请检查应用运行用户和存储权限。');
+                throw new RuntimeException(__('search.page.exports.failure_reasons.directory_unwritable'));
             }
 
             (new Xlsx($spreadsheet))->save($absolutePath);
             if (! is_file($absolutePath)) {
-                throw new RuntimeException('导出文件未生成，请检查存储权限。');
+                throw new RuntimeException(__('search.page.exports.failure_reasons.file_missing'));
             }
 
             $sha256 = hash_file('sha256', $absolutePath);
             if ($sha256 === false) {
-                throw new RuntimeException('导出文件校验失败。');
+                throw new RuntimeException(__('search.page.exports.failure_reasons.checksum_failed'));
             }
 
             $export->update([

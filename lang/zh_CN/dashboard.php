@@ -25,6 +25,9 @@ return [
         'custom_required' => '自定义区间必须同时填写开始和结束日期。',
         'custom_order' => '自定义区间开始日期不能晚于结束日期。',
         'custom_format' => '自定义区间日期格式无效。',
+        'export_format' => '看板服务端导出仅支持 PDF 和 HTML。',
+        'pdf_font_missing' => '看板 PDF 中文字体不可用，请重新构建应用镜像后重试。',
+        'pdf_cache_unwritable' => '看板 PDF 缓存目录不可写，请检查 storage 目录权限后重试。',
     ],
     'metrics' => [
         'core' => '核心指标',

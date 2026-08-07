@@ -51,11 +51,11 @@ final readonly class SettlementRunFailureReportGenerator
             $disk->makeDirectory($directory);
             $reportDirectory = dirname($absolutePath);
             if (! is_dir($reportDirectory) || ! is_writable($reportDirectory)) {
-                throw new RuntimeException('报告目录不可写，请联系管理员。');
+                throw new RuntimeException(__('settlements.errors.failure_report_directory_unwritable'));
             }
             (new Xlsx($spreadsheet))->save($absolutePath);
             if (! is_file($absolutePath)) {
-                throw new RuntimeException('报告文件未生成，请联系管理员。');
+                throw new RuntimeException(__('settlements.errors.failure_report_file_missing'));
             }
 
             return $path;

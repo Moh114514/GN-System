@@ -145,6 +145,7 @@ return [
     ],
     'values' => [
         'empty' => '—',
+        'unknown_customer' => '알 수 없는 고객',
         'unknown_institution' => '알 수 없는 기관',
         'unknown_agent' => '알 수 없는 에이전트',
         'unknown_source' => '알 수 없는 유입 경로',
@@ -178,6 +179,7 @@ return [
         'institution_unavailable' => '선택한 기관이 없거나 비활성화되었습니다.',
         'source_unavailable' => '선택한 직접 판매 유입 경로가 없거나 비활성화되었습니다.',
         'unexpected' => '작업 실패: :message',
+        'recycle_bin_admin_only' => '슈퍼 관리자만 휴지통 주문을 볼 수 있습니다.',
     ],
     'audit' => [
         'created' => '주문이 생성됨',

@@ -34,6 +34,7 @@ final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
                 'localized_content' => [
                     'title' => ['key' => 'reminders.system_reminders.post_treatment.title', 'parameters' => ['days' => $days]],
                     'suggestion' => ['key' => "reminders.system_reminders.post_treatment.suggestions.{$days}", 'parameters' => []],
+                    'notes' => [['key' => 'reminders.system_reminders.post_treatment.project', 'parameters' => ['project' => $data->projectName]]],
                 ],
                 'priority' => $days <= 7 ? 1 : 2,
                 'due_at' => $dueAt,
@@ -74,10 +75,19 @@ final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
             ->whereNotIn('status', ['completed', 'cancelled'])
             ->get()
             ->each(function (Reminder $reminder) use ($actorId, $reason): void {
+                $rollback = ['key' => 'reminders.system_reminders.rollback_note', 'parameters' => ['reason' => trim($reason)]];
+                $localizedContent = is_array($reminder->localized_content) ? $reminder->localized_content : [];
+                $notes = $localizedContent['notes'] ?? [];
+                $notes = array_is_list($notes) ? $notes : [$notes];
+                if ($notes === [] && trim((string) $reminder->notes) !== '') {
+                    $notes[] = trim((string) $reminder->notes);
+                }
+                $notes[] = $rollback;
                 $reminder->update([
                     'status' => 'cancelled',
                     'notification_status' => 'cancelled',
                     'notes' => trim((string) $reminder->notes)."\n".__('reminders.system_reminders.rollback_note', ['reason' => trim($reason)]),
+                    'localized_content' => [...$localizedContent, 'notes' => $notes],
                 ]);
                 ReminderEvent::query()->create([
                     'reminder_id' => $reminder->id,

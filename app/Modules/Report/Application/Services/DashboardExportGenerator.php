@@ -24,7 +24,7 @@ final class DashboardExportGenerator
     public function generate(User $user, string $format, array $snapshot): ReportExport
     {
         if (in_array($format, ['pdf', 'html'], true) === false) {
-            throw new DomainException('看板服务端导出仅支持 PDF 和 HTML。');
+            throw new DomainException(__('dashboard.errors.export_format'));
         }
         $locale = SupportedLocale::fromCandidate($snapshot['locale'] ?? app()->getLocale()) ?? SupportedLocale::default();
         $snapshot = [...$snapshot, 'locale' => $locale->value];
@@ -41,7 +41,7 @@ final class DashboardExportGenerator
         }
         $pdfFontPath = $format === 'pdf' ? self::PDF_FONT_PATH : null;
         if ($pdfFontPath !== null && ! is_readable($pdfFontPath)) {
-            throw new RuntimeException('看板 PDF 中文字体不可用，请重新构建应用镜像后重试。');
+            throw new RuntimeException(__('dashboard.errors.pdf_font_missing'));
         }
         $export = ReportExport::query()->create([
             'created_by' => $user->id,
@@ -73,7 +73,7 @@ final class DashboardExportGenerator
             File::ensureDirectoryExists($fontCachePath);
             File::ensureDirectoryExists($tempPath);
             if (! is_writable($fontCachePath) || ! is_writable($tempPath)) {
-                throw new RuntimeException('看板 PDF 缓存目录不可写，请检查 storage 目录权限后重试。');
+                throw new RuntimeException(__('dashboard.errors.pdf_cache_unwritable'));
             }
             $options = new Options;
             $options->setIsRemoteEnabled(false);

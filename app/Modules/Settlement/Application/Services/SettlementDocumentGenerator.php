@@ -161,7 +161,7 @@ final class SettlementDocumentGenerator
     private function dompdf(): Dompdf
     {
         if (! is_readable(self::PDF_FONT_PATH)) {
-            throw new RuntimeException('结算 PDF 中文字体不可用，请重新构建应用镜像后重试。');
+            throw new RuntimeException(__('settlements.errors.document_pdf_font_missing'));
         }
 
         $fontCachePath = storage_path(self::PDF_CACHE_PATH.'/fonts');
@@ -169,7 +169,7 @@ final class SettlementDocumentGenerator
         File::ensureDirectoryExists($fontCachePath);
         File::ensureDirectoryExists($tempPath);
         if (! is_writable($fontCachePath) || ! is_writable($tempPath)) {
-            throw new RuntimeException('结算 PDF 缓存目录不可写，请检查 storage 目录权限后重试。');
+            throw new RuntimeException(__('settlements.errors.document_pdf_cache_unwritable'));
         }
 
         $options = new Options;
