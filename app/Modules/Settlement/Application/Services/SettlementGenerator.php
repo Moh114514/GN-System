@@ -2,6 +2,8 @@
 
 namespace App\Modules\Settlement\Application\Services;
 
+use App\Infrastructure\Localization\SupportedLocale;
+use App\Models\User;
 use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
 use App\Modules\Order\Application\Contracts\SettlementOrderReader;
 use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
@@ -190,7 +192,9 @@ final readonly class SettlementGenerator
         $run->save();
         if ($run->failed_agents === 0 && $run->notification_status === 'pending') {
             $run->update(['notification_status' => 'queued']);
-            SendSettlementNotification::dispatch($run->id)->afterCommit();
+            $user = $run->initiated_by === null ? null : User::query()->find($run->initiated_by);
+            $locale = (SupportedLocale::fromCandidate($user?->preferred_locale) ?? SupportedLocale::default())->value;
+            SendSettlementNotification::dispatch($run->id, $locale)->afterCommit();
         }
     }
 }

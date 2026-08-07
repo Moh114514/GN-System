@@ -99,7 +99,7 @@ class ImportManager extends Component
             ]);
         }
 
-        ParseImportBatch::dispatch($batch->id);
+        ParseImportBatch::dispatch($batch->id, app()->getLocale());
         $this->selectedBatchId = $batch->id;
         $this->reset('uploads');
         unset($this->batches, $this->selectedBatch);
@@ -130,7 +130,7 @@ class ImportManager extends Component
     public function reparse(): void
     {
         $batch = $this->ownedBatch();
-        ParseImportBatch::dispatch($batch->id);
+        ParseImportBatch::dispatch($batch->id, app()->getLocale());
         unset($this->batches, $this->selectedBatch);
         Flux::toast(variant: 'success', text: __('imports.toast.reparse'));
     }

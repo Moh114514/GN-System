@@ -2,7 +2,9 @@
 
 namespace App\Modules\Report\Application\Services;
 
+use App\Infrastructure\Localization\SupportedLocale;
 use App\Modules\Report\Infrastructure\Models\ReportExport;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -16,24 +18,38 @@ final readonly class ReportSearchExportGenerator
     public function generate(ReportExport $export): ReportExport
     {
         $export->update(['status' => 'generating', 'failure_reason' => null]);
-        if ($this->search->count($export->criteria_snapshot) > max(1, (int) config('reporting.max_export_rows', 50000))) {
-            throw new RuntimeException('查询结果超过导出上限，请缩小筛选范围后重试。');
-        }
-
-        $rows = $this->search->rows($export->criteria_snapshot);
-        $spreadsheet = new Spreadsheet;
-        $disk = Storage::disk('local');
-        $path = "reports/exports/{$export->created_by}/{$export->id}.xlsx";
-        $absolutePath = $disk->path($path);
-
+        $criteria = $export->criteria_snapshot;
+        $locale = SupportedLocale::fromCandidate($criteria['_locale'] ?? null) ?? SupportedLocale::default();
+        unset($criteria['_locale']);
+        $previousLocale = App::getLocale();
+        App::setLocale($locale->value);
+        $spreadsheet = null;
+        $absolutePath = null;
         try {
+            if ($this->search->count($criteria) > max(1, (int) config('reporting.max_export_rows', 50000))) {
+                throw new RuntimeException('查询结果超过导出上限，请缩小筛选范围后重试。');
+            }
+
+            $rows = $this->search->rows($criteria);
+            $spreadsheet = new Spreadsheet;
+            $disk = Storage::disk('local');
+            $path = "reports/exports/{$export->created_by}/{$export->id}.xlsx";
+            $absolutePath = $disk->path($path);
             $sheet = $spreadsheet->getActiveSheet();
             $sheet->fromArray([
-                ['成交时间', '客户', '代理商', '施术项目', '机构', '翻译姓名', '成交金额 KRW'],
+                [
+                    __('search.page.results.headers.completed_at'),
+                    __('search.page.results.headers.customer'),
+                    __('search.page.results.headers.agent'),
+                    __('search.page.results.headers.project'),
+                    __('search.page.results.headers.institution'),
+                    __('search.page.results.headers.translator'),
+                    __('search.page.results.headers.amount'),
+                ],
             ]);
             foreach ($rows as $index => $row) {
                 $sheet->fromArray([[
-                    $row['completed_at'].($row['completion_precision'] === 'date' ? '（日期精度）' : ''),
+                    $row['completed_at'].($row['completion_precision'] === 'date' ? ' ('.__('search.page.results.date_precision').')' : ''),
                     $row['customer'],
                     $row['agent'],
                     $row['project'],
@@ -71,13 +87,14 @@ final readonly class ReportSearchExportGenerator
 
             return $export->refresh();
         } catch (Throwable $exception) {
-            if (is_file($absolutePath)) {
+            if (is_string($absolutePath) && is_file($absolutePath)) {
                 @unlink($absolutePath);
             }
 
             throw $exception;
         } finally {
-            $spreadsheet->disconnectWorksheets();
+            $spreadsheet?->disconnectWorksheets();
+            App::setLocale($previousLocale);
         }
     }
 }

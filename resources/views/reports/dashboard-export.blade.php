@@ -1,8 +1,8 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="{{ str_replace('_', '-', $snapshot['locale'] ?? app()->getLocale()) }}">
 <head>
     <meta charset="UTF-8">
-    <title>GN-System 数据看板</title>
+    <title>GN-System {{ __('dashboard.export.title') }}</title>
     <style>
         @if ($pdfFontPath !== null)
             @font-face {
@@ -30,22 +30,13 @@
 </head>
 <body>
     <?php
-        $metricLabels = [
-            'new_customers' => '新增客户', 'completed_amount' => '成交金额',
-            'revenue' => '营收', 'active_customers' => '在跟进客户',
-            'overdue_customers' => '待回访客户', 'pending_settlement' => '待结算金额',
-        ];
-        $chartLabels = [
-            'agent_promotion_ranking' => '代理商推广费排行', 'monthly_promotion' => '月度推广费趋势',
-            'grade_distribution' => '当前等级分布', 'source_distribution' => '客户来源分布',
-            'monthly_consumption' => '月度消费趋势', 'repurchase_rate' => '复购率',
-            'followup_completion_rate' => '跟进完成率', 'institution_revenue' => '机构营收对比',
-        ];
+        $metricLabels = __('dashboard.export.metric_labels');
+        $chartLabels = __('dashboard.export.chart_labels');
     ?>
-    <h1>GN-System 数据看板</h1>
+    <h1>GN-System {{ __('dashboard.export.title') }}</h1>
     <p class="meta">
-        区间：{{ $snapshot['range']['label'] }}（{{ $snapshot['range']['from'] }} 至 {{ $snapshot['range']['to'] }}）；
-        生成时间：{{ $snapshot['generated_at'] }}
+        {{ __('dashboard.export.range') }}：{{ $snapshot['range']['label'] }}（{{ $snapshot['range']['from'] }} {{ __('dashboard.ranges.to') }} {{ $snapshot['range']['to'] }}）；
+        {{ __('dashboard.export.generated_at') }}：{{ $snapshot['generated_at'] }}
     </p>
     <table class="metrics">
         <?php foreach (array_chunk(array_keys($metricLabels), 3) as $keys): ?>
@@ -55,7 +46,7 @@
                     <td>
                         <div class="label">{{ $metricLabels[$key] }}</div>
                         <div class="value">{{ number_format($metric['value']) }}</div>
-                        <div>环比 {{ $metric['change'] === null ? '—' : number_format($metric['change'], 2).'%' }}</div>
+                        <div>{{ __('dashboard.export.change') }} {{ $metric['change'] === null ? '—' : number_format($metric['change'], 2).'%' }}</div>
                     </td>
                 <?php endforeach; ?>
             </tr>
@@ -76,10 +67,10 @@
             <?php endforeach; ?>
         </svg>
         <table class="charts">
-            <thead><tr><th>项目</th><th>数值</th></tr></thead>
+            <thead><tr><th>{{ __('dashboard.export.item') }}</th><th>{{ __('dashboard.export.value') }}</th></tr></thead>
             <tbody>
                 <?php if ($rows === []): ?>
-                    <tr><td colspan="2">暂无数据</td></tr>
+                    <tr><td colspan="2">{{ __('dashboard.export.empty') }}</td></tr>
                 <?php else: ?>
                     <?php foreach ($rows as $row): ?>
                     <tr><td>{{ $row['key'] }}</td><td>{{ $row['value'] }}</td></tr>

@@ -66,7 +66,7 @@ class ReferenceConfigurationImportManager extends Component
             'encrypted_path' => $stored['path'],
             'status' => 'uploaded',
         ]);
-        ParseReferenceConfigurationImport::dispatch($batch->id);
+        ParseReferenceConfigurationImport::dispatch($batch->id, app()->getLocale());
         $this->selectedBatchId = $batch->id;
         $this->reset('workbook', 'confirmImport');
         unset($this->batches, $this->selectedBatch);
@@ -95,7 +95,7 @@ class ReferenceConfigurationImportManager extends Component
     public function reparse(): void
     {
         $batch = $this->ownedBatch();
-        ParseReferenceConfigurationImport::dispatch($batch->id);
+        ParseReferenceConfigurationImport::dispatch($batch->id, app()->getLocale());
         $this->confirmImport = false;
         unset($this->batches, $this->selectedBatch);
         Flux::toast(variant: 'success', text: __('imports.toast.reference_reparse'));

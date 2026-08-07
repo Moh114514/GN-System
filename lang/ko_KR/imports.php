@@ -87,4 +87,22 @@ return [
         'readiness_error' => '가져오기 기준 데이터가 준비되지 않았습니다: :issues.', 'ignore_reason_required' => '무시 사유를 입력하세요.',
         'confirm_required' => '먼저 확인란을 선택해 미리보기 결과에 따라 모든 기준 설정을 반영하는 데 동의하세요.',
     ],
+    'severities' => ['error' => '오류', 'warning' => '경고', 'info' => '안내'],
+    'profiles' => [
+        'agent_archive' => '에이전시 정보', 'customer_followup' => '고객 후속 관리', 'monthly_detail' => '에이전시 월별 상세',
+        'settlement_summary' => '에이전시 월말 정산 요약', 'codebook' => '설명/코드표', 'reference_agent_type' => '에이전시 유형',
+        'reference_institution' => '기관 및 별칭', 'reference_direct_sales_source' => '직접 판매 출처',
+        'reference_policy_system' => '정책 체계', 'reference_policy_grade' => '정책 등급',
+        'reference_commission_rule' => '기관 요율 규칙', 'reference_agent' => '에이전시 정보',
+        'reference_grade_assignment' => '에이전시 등급 할당',
+    ],
+    'issue_report' => [
+        'filename' => '가져오기-문제-보고서-:batch.xlsx',
+        'headers' => [
+            'stage' => '단계', 'severity' => '심각도', 'error code' => '오류 코드', 'file' => '파일',
+            'worksheet' => '시트', 'source row' => '원본 행', 'profile' => '데이터 유형', 'agent code' => '에이전시 번호',
+            'agent name' => '에이전시 이름', 'customer code' => '고객 번호', 'field' => '필드', 'raw value' => '원본 값',
+            'normalized value' => '정규화 값', 'message' => '오류 상세', 'recommended action' => '권장 조치',
+        ],
+    ],
 ];

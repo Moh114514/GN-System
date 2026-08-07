@@ -26,15 +26,8 @@ final readonly class SettlementRunFailureReportGenerator
 
         try {
             $sheet = $spreadsheet->getActiveSheet();
-            $sheet->setTitle('失败明细');
-            $sheet->fromArray([[
-                '批次编号',
-                '周期',
-                '代理商编号',
-                '代理商名称',
-                '代理商 ID',
-                '失败原因',
-            ]]);
+            $sheet->setTitle((string) __('settlements.failure_report.sheet'));
+            $sheet->fromArray([array_values(__('settlements.failure_report.headers'))]);
             foreach ($this->reader->read($run) as $index => $failure) {
                 $row = $index + 2;
                 $sheet->setCellValueExplicit('A'.$row, (string) $run->id, DataType::TYPE_STRING);

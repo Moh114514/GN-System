@@ -182,6 +182,7 @@ class PhaseFiveReminderTest extends TestCase
             'dingtalk.webhook_url' => 'https://oapi.dingtalk.com/robot/send?access_token=test',
             'dingtalk.secret' => 'secret',
         ]);
+        $this->user->update(['preferred_locale' => 'ko_KR']);
         Http::fake(['oapi.dingtalk.com/*' => Http::response(['errcode' => 0, 'errmsg' => 'ok'])]);
         $reminder = Reminder::query()->create([
             'customer_id' => $this->customer->id,
@@ -197,11 +198,15 @@ class PhaseFiveReminderTest extends TestCase
         ]);
         Queue::fake();
         $this->assertSame(1, app(ReminderNotificationDispatcher::class)->dispatchDue());
-        Queue::assertPushed(SendReminderNotification::class);
-        (new SendReminderNotification($reminder->id))->handle(app(ReminderNotifier::class));
+        Queue::assertPushed(
+            SendReminderNotification::class,
+            fn (SendReminderNotification $job): bool => $job->locale === 'ko_KR',
+        );
+        (new SendReminderNotification($reminder->id, 'ko_KR'))->handle(app(ReminderNotifier::class));
 
         $this->assertDatabaseHas('reminders', ['id' => $reminder->id, 'notification_status' => 'sent']);
         Http::assertSent(fn ($request): bool => str_contains($request->url(), 'timestamp=') && str_contains($request->url(), 'sign='));
+        Http::assertSent(fn ($request): bool => str_contains((string) $request->data()['markdown']['text'], '고객:'));
     }
 
     public function test_reminder_pages_follow_two_level_permissions_and_navigation(): void

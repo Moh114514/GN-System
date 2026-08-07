@@ -2,6 +2,7 @@
 
 namespace App\Modules\Report\Application\Services;
 
+use App\Infrastructure\Localization\SupportedLocale;
 use App\Models\User;
 use App\Modules\Report\Infrastructure\Models\ReportExport;
 use App\Modules\Report\Jobs\GenerateReportExport;
@@ -91,12 +92,15 @@ final readonly class ReportExportManager
     /** @param array<string, int|string|null> $criteria */
     private function createSearchExport(User $user, array $criteria, string $status): ReportExport
     {
+        $query = $this->search->queryData($criteria)->toArray();
+        $query['_locale'] = (SupportedLocale::fromCandidate(app()->getLocale()) ?? SupportedLocale::default())->value;
+
         return ReportExport::query()->create([
             'created_by' => $user->id,
             'kind' => 'search',
             'format' => 'xlsx',
             'status' => $status,
-            'criteria_snapshot' => $this->search->queryData($criteria)->toArray(),
+            'criteria_snapshot' => $query,
             'expires_at' => now()->addHours(24),
         ]);
     }

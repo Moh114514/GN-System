@@ -2,6 +2,7 @@
 
 namespace App\Modules\Report\Application\Services;
 
+use App\Infrastructure\Localization\SupportedLocale;
 use App\Models\User;
 use App\Modules\Report\Infrastructure\Models\ReportExport;
 use DomainException;
@@ -23,6 +24,8 @@ final class DashboardExportGenerator
         if (in_array($format, ['pdf', 'html'], true) === false) {
             throw new DomainException('看板服务端导出仅支持 PDF 和 HTML。');
         }
+        $locale = SupportedLocale::fromCandidate($snapshot['locale'] ?? app()->getLocale()) ?? SupportedLocale::default();
+        $snapshot = [...$snapshot, 'locale' => $locale->value];
         $reusableExport = $this->reusableExport($user, $format, $snapshot);
         if ($reusableExport !== null) {
             return $reusableExport;
@@ -36,14 +39,20 @@ final class DashboardExportGenerator
             'kind' => 'dashboard',
             'format' => $format,
             'status' => 'generating',
-            'criteria_snapshot' => $snapshot['range'] ?? [],
+            'criteria_snapshot' => [...($snapshot['range'] ?? []), 'locale' => $locale->value],
             'data_snapshot' => $snapshot,
             'expires_at' => now()->addHours(24),
         ]);
-        $html = view('reports.dashboard-export', [
-            'snapshot' => $snapshot,
-            'pdfFontPath' => $pdfFontPath,
-        ])->render();
+        $previousLocale = app()->getLocale();
+        app()->setLocale($locale->value);
+        try {
+            $html = view('reports.dashboard-export', [
+                'snapshot' => $snapshot,
+                'pdfFontPath' => $pdfFontPath,
+            ])->render();
+        } finally {
+            app()->setLocale($previousLocale);
+        }
         $directory = "reports/dashboard/{$user->id}";
         Storage::disk('local')->makeDirectory($directory);
         $path = "{$directory}/{$export->id}.{$format}";

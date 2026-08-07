@@ -18,4 +18,9 @@ return [
     'scope_types' => ['all_customers' => '全部客户', 'agent' => '指定代理商 ID', 'project' => '指定项目', 'owner' => '指定负责人 ID', 'cooperation_status' => '代理商合作状态'],
     'copy_suffix' => ':name 副本',
     'toasts' => ['completed' => '提醒已完成。', 'snoozed' => '提醒已延期。', 'transferred' => '提醒已转交。', 'cancelled' => '提醒已关闭。', 'retry_notification' => '钉钉通知已重新进入队列。', 'created' => '提醒已创建。', 'rule_saved' => '主动提醒规则已保存。', 'template_saved' => '全局提醒模板已保存。'],
+    'notifications' => [
+        'unassigned' => '未分配',
+        'no_script' => '无固定话术，请员工自行填写',
+        'body' => "客户：:customer\n\n负责人：:owner\n\n计划时间：:due_at\n\n建议方向：:suggestion",
+    ],
 ];

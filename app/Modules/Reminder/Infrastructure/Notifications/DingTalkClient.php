@@ -29,7 +29,7 @@ final class DingTalkClient implements StaffNotificationSender
         }
         $content = "### {$title}\n\n{$text}";
         if ($link !== null) {
-            $content .= "\n\n[打开 GN-System]({$link})";
+            $content .= "\n\n[".__('common.open_system')."]({$link})";
         }
         $response = Http::timeout(10)->post($url, [
             'msgtype' => 'markdown',

@@ -19,4 +19,17 @@ return [
     ],
     'failure' => ['back' => '월말 정산 센터로 돌아가기', 'eyebrow' => '월말 정산 실패 상세', 'batch' => '배치 :id', 'download_report' => '실패 보고서 다운로드', 'retry_all' => '모든 실패 항목 재시도', 'run_status' => '배치 상태', 'total_agents' => '에이전시 수', 'success_count' => '성공 수', 'failed_count' => '실패 수', 'unresolved_heading' => '현재 해결되지 않은 실패 항목', 'no_failures' => '현재 해결되지 않은 실패 항목이 없습니다. 재시도에 성공했을 수 있습니다.', 'agent_code' => '에이전시 번호', 'agent_name' => '에이전시 이름', 'agent_id' => '에이전시 ID', 'reason' => '실패 사유'],
     'toasts' => ['retry_failed' => '실패한 에이전시 정산을 대기열에 다시 넣었습니다.', 'retry_notification' => '정산 완료 알림을 대기열에 다시 넣었습니다.', 'configuration_confirmation_required' => '미완료 정산이 있습니다. 저장하기 전에 현재 주기가 기존 설정을 계속 사용하는지 확인하세요.', 'configuration_saved' => '새 정산 주기 설정이 :date부터 적용됩니다.', 'created_and_dispatched' => ':label 배치 :id가 처리 대기열에 들어갔습니다.', 'created_and_completed' => ':label 배치 :id가 완료되었으며 처리할 에이전시가 없습니다.', 'created_partial_failed' => ':label 배치 :id가 생성되었지만 일부 에이전시 처리에 실패했습니다. 실패 항목을 재시도하세요.', 'existing_running' => '해당 주기에 처리 중인 정산 배치 :id가 이미 있어 중복 작업을 발송하지 않았습니다.', 'existing_completed' => '해당 주기에 완료된 정산 배치 :id가 이미 있어 중복 작업을 발송하지 않았습니다.', 'existing_partial_failed' => '해당 주기에 일부 실패한 배치 :id가 이미 있습니다. 실패 항목을 재시도하세요.', 'existing_other' => '해당 주기에 정산 배치 :id가 이미 있어 중복 작업을 발송하지 않았습니다.', 'rejected' => '정산을 반려했습니다.', 'approved' => '정산을 승인하고 Word/PDF를 생성했습니다.', 'quote_updated' => '최신 환율 시세를 갱신했습니다. 확인 후 검토를 제출하세요.', 'quote_failed_retained' => '최신 환율 시세 조회에 실패하여 기존 환율을 유지했습니다. 수동으로 확인하세요.', 'quote_unavailable' => '최신 환율 시세 조회에 실패했으며 사용 가능한 환율이 없습니다. 직접 입력하세요.', 'quote_error' => '최신 환율 시세 조회에 실패했습니다. 서비스를 확인한 후 다시 시도하세요.', 'settled' => '정산 완료를 확인했습니다.', 'corrected_to_review' => '정산을 검토 대기로 되돌렸습니다. 상세를 다시 생성하고 환율을 확인하세요.', 'corrected' => '정산 상태를 수정하고 감사 사유를 기록했습니다.', 'documents_regenerated' => 'Word/PDF를 다시 생성했습니다.', 'regeneration_unavailable' => '사용 가능한 배치가 있는 정산만 다시 생성할 수 있습니다. 먼저 과거 데이터를 확인하세요.', 'settlement_regenerated' => '정산 상세를 다시 생성했습니다.', 'historical_recovered' => '과거 정산을 대상 제외로 확인하고 감사 기록을 남겼습니다.', 'recovery_batch_created' => '복구 배치를 생성하고 정산 상세를 다시 생성했습니다.', 'suggestion_approved' => '등급 제안을 승인하고 다음 달 적용을 예약했습니다.', 'suggestion_rejected' => '등급 제안을 반려했습니다.', 'operation_failed' => '작업을 완료하지 못해 데이터를 롤백했습니다. 문서 생성 환경을 확인한 후 다시 시도하세요.', 'retry_all_failed' => '실패 항목을 처리 대기열에 다시 제출했습니다.'],
+    'notifications' => ['title' => '정산 생성 완료', 'body' => "기간: :from ~ :to\n\n에이전시: :agents곳\n\n프로모션 비용 합계: ₩ :total"],
+    'documents' => [
+        'title' => '에이전시 월말 정산서', 'unknown' => '알 수 없음', 'unknown_agent' => '알 수 없는 에이전시',
+        'agent' => '에이전시: :name（:code）', 'period' => '정산 기간: :from ~ :to',
+        'headers' => ['order' => '주문', 'completed_on' => '완료일', 'project' => '프로젝트', 'consumption' => '소비액 KRW', 'rate' => '요율', 'commission' => '프로모션 비용 KRW'],
+        'total_consumption' => '소비 합계: ₩ :amount', 'total_commission' => '프로모션 비용 합계: ₩ :amount',
+        'exchange_rate' => '정산 환율: :rate KRW/CNY', 'payable' => '지급액: ¥ :amount',
+        'filename' => '월말-정산서-:id.:format', 'archive_filename' => '월말-정산서-배치-:run.zip',
+    ],
+    'failure_report' => [
+        'filename' => '월말-정산-실패-보고서-:id.xlsx', 'sheet' => '실패 상세',
+        'headers' => ['batch' => '배치 번호', 'period' => '기간', 'agent_code' => '에이전시 번호', 'agent_name' => '에이전시 이름', 'agent_id' => '에이전시 ID', 'reason' => '실패 사유'],
+    ],
 ];

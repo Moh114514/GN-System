@@ -99,4 +99,22 @@ return [
         'readiness_error' => '导入基础数据未就绪：:issues。', 'ignore_reason_required' => '请填写忽略原因。',
         'confirm_required' => '请先勾选确认，明确同意按预览结果写入全部基础配置。',
     ],
+    'severities' => ['error' => '错误', 'warning' => '警告', 'info' => '提示'],
+    'profiles' => [
+        'agent_archive' => '代理商档案', 'customer_followup' => '客户跟进', 'monthly_detail' => '代理商月明细',
+        'settlement_summary' => '代理商月结汇总', 'codebook' => '说明/代码表', 'reference_agent_type' => '代理商类型',
+        'reference_institution' => '机构及机构别名', 'reference_direct_sales_source' => '直销来源',
+        'reference_policy_system' => '政策体系', 'reference_policy_grade' => '政策等级',
+        'reference_commission_rule' => '机构费率规则', 'reference_agent' => '代理商档案',
+        'reference_grade_assignment' => '代理商等级分配',
+    ],
+    'issue_report' => [
+        'filename' => '导入问题报告-:batch.xlsx',
+        'headers' => [
+            'stage' => '阶段', 'severity' => '严重程度', 'error code' => '错误代码', 'file' => '文件',
+            'worksheet' => '工作表', 'source row' => '源行号', 'profile' => '数据类型', 'agent code' => '代理商编号',
+            'agent name' => '代理商名称', 'customer code' => '客户编号', 'field' => '字段', 'raw value' => '原始值',
+            'normalized value' => '标准化值', 'message' => '错误详情', 'recommended action' => '建议操作',
+        ],
+    ],
 ];

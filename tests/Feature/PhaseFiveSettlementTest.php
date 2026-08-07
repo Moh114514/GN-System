@@ -14,6 +14,7 @@ use App\Modules\Order\Application\Contracts\DailyOrderGateway;
 use App\Modules\Order\Application\Data\DailyOrderData;
 use App\Modules\Settlement\Application\Services\ExchangeRateQuoteService;
 use App\Modules\Settlement\Application\Services\SettlementGenerator;
+use App\Modules\Settlement\Application\Services\SettlementNotificationDispatcher;
 use App\Modules\Settlement\Application\Services\SettlementPeriodCalculator;
 use App\Modules\Settlement\Application\Services\SettlementRunFailureReader;
 use App\Modules\Settlement\Application\Services\SettlementRunFailureReportGenerator;
@@ -24,6 +25,7 @@ use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
 use App\Modules\Settlement\Infrastructure\Models\SettlementGradeSuggestion;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
+use App\Modules\Settlement\Jobs\SendSettlementNotification;
 use App\Modules\Settlement\Presentation\Livewire\SettlementCenter;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
@@ -33,6 +35,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -612,6 +615,28 @@ class PhaseFiveSettlementTest extends TestCase
             ->assertSee('월말 정산 센터')
             ->assertSee('최신 정산 생성')
             ->assertDontSee('月结中心');
+    }
+
+    public function test_settlement_notification_job_carries_initiator_locale(): void
+    {
+        $this->admin->update(['preferred_locale' => 'ko_KR']);
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'completed',
+            'total_agents' => 0,
+            'processed_agents' => 0,
+            'notification_status' => 'pending',
+            'initiated_by' => $this->admin->id,
+        ]);
+        Queue::fake();
+
+        $this->assertSame(1, app(SettlementNotificationDispatcher::class)->dispatchCompleted());
+        Queue::assertPushed(
+            SendSettlementNotification::class,
+            fn (SendSettlementNotification $job): bool => $job->locale === 'ko_KR',
+        );
     }
 
     public function test_settlement_detail_navigates_only_within_the_same_run_in_stable_order(): void

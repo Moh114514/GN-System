@@ -2,6 +2,8 @@
 
 namespace App\Modules\Settlement\Application\Services;
 
+use App\Infrastructure\Localization\SupportedLocale;
+use App\Models\User;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
 use App\Modules\Settlement\Jobs\SendSettlementNotification;
 use DomainException;
@@ -14,16 +16,16 @@ final class SettlementNotificationDispatcher
         if ((bool) config('dingtalk.enabled')) {
             $statuses[] = 'disabled';
         }
-        $ids = SettlementRun::query()
+        $runs = SettlementRun::query()
             ->where('status', 'completed')
             ->whereIn('notification_status', $statuses)
-            ->pluck('id');
-        foreach ($ids as $id) {
-            SettlementRun::query()->whereKey($id)->update(['notification_status' => 'queued']);
-            SendSettlementNotification::dispatch((string) $id);
+            ->get(['id', 'initiated_by']);
+        foreach ($runs as $run) {
+            SettlementRun::query()->whereKey($run->id)->update(['notification_status' => 'queued']);
+            SendSettlementNotification::dispatch((string) $run->id, $this->localeFor($run));
         }
 
-        return $ids->count();
+        return $runs->count();
     }
 
     public function retry(string $runId): void
@@ -36,6 +38,13 @@ final class SettlementNotificationDispatcher
             throw new DomainException('当前通知状态无需重试。');
         }
         $run->update(['notification_status' => 'queued', 'notification_error' => null]);
-        SendSettlementNotification::dispatch($run->id)->afterCommit();
+        SendSettlementNotification::dispatch($run->id, $this->localeFor($run))->afterCommit();
+    }
+
+    private function localeFor(SettlementRun $run): string
+    {
+        $user = $run->initiated_by === null ? null : User::query()->find($run->initiated_by);
+
+        return (SupportedLocale::fromCandidate($user?->preferred_locale) ?? SupportedLocale::default())->value;
     }
 }

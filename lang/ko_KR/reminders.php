@@ -12,4 +12,9 @@ return [
     'scope_types' => ['all_customers' => '전체 고객', 'agent' => '특정 에이전시 ID', 'project' => '특정 프로젝트', 'owner' => '특정 담당자 ID', 'cooperation_status' => '에이전시 협력 상태'],
     'copy_suffix' => ':name 사본',
     'toasts' => ['completed' => '알림을 완료했습니다.', 'snoozed' => '알림을 연기했습니다.', 'transferred' => '알림을 전달했습니다.', 'cancelled' => '알림을 종료했습니다.', 'retry_notification' => '딩톡 알림을 대기열에 다시 넣었습니다.', 'created' => '알림을 만들었습니다.', 'rule_saved' => '능동 알림 규칙을 저장했습니다.', 'template_saved' => '전역 알림 템플릿을 저장했습니다.'],
+    'notifications' => [
+        'unassigned' => '미지정',
+        'no_script' => '고정 문구가 없습니다. 직원이 직접 작성하세요.',
+        'body' => "고객: :customer\n\n담당자: :owner\n\n예정 시각: :due_at\n\n제안 방향: :suggestion",
+    ],
 ];

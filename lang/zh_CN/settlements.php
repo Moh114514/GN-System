@@ -169,4 +169,20 @@ return [
         'operation_failed' => '操作未完成，数据已回滚，请检查文档生成环境后重试。',
         'retry_all_failed' => '失败项已重新提交处理队列。',
     ],
+    'notifications' => [
+        'title' => '月结生成完成',
+        'body' => "周期：:from 至 :to\n\n代理商：:agents 家\n\n推广费合计：₩ :total",
+    ],
+    'documents' => [
+        'title' => '代理商月结结算单', 'unknown' => '未知', 'unknown_agent' => '未知代理商',
+        'agent' => '代理商：:name（:code）', 'period' => '结算周期：:from 至 :to',
+        'headers' => ['order' => '订单', 'completed_on' => '完成日期', 'project' => '项目', 'consumption' => '消费额 KRW', 'rate' => '费率', 'commission' => '推广费 KRW'],
+        'total_consumption' => '消费合计：₩ :amount', 'total_commission' => '推广费合计：₩ :amount',
+        'exchange_rate' => '结算汇率：:rate KRW/CNY', 'payable' => '应付金额：¥ :amount',
+        'filename' => '月结结算单-:id.:format', 'archive_filename' => '月结结算单-批次-:run.zip',
+    ],
+    'failure_report' => [
+        'filename' => '月结失败报告-:id.xlsx', 'sheet' => '失败明细',
+        'headers' => ['batch' => '批次编号', 'period' => '周期', 'agent_code' => '代理商编号', 'agent_name' => '代理商名称', 'agent_id' => '代理商 ID', 'reason' => '失败原因'],
+    ],
 ];

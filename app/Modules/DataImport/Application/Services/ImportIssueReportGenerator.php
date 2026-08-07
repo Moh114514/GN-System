@@ -69,20 +69,23 @@ final class ImportIssueReportGenerator
         try {
             $sheet = $spreadsheet->getActiveSheet();
             $sheet->setTitle('import issues');
-            $this->writeRow($sheet, 1, self::HEADERS);
+            $this->writeRow($sheet, 1, array_map(
+                fn (string $header): string => __('imports.issue_report.headers.'.$header),
+                self::HEADERS,
+            ));
 
             foreach ($issues as $index => $issue) {
                 $context = is_array($issue->context_encrypted) ? $issue->context_encrypted : [];
                 $normalizedValue = $this->contextValue($context, 'normalized_value');
                 $row = [
-                    $this->enumValue($issue->stage),
-                    $this->enumValue($issue->severity),
+                    $this->stageLabel($issue->stage),
+                    $this->severityLabel($issue->severity),
                     $issue->code,
                     $this->contextValue($context, 'file', 'file_name', 'filename', 'original_name')
                         ?? $issue->import_file_id,
                     $issue->sheet_name,
                     $issue->source_row,
-                    $this->enumValue($issue->profile),
+                    $this->profileLabel($issue->profile),
                     $this->contextValue($context, 'agent_code')
                         ?? $this->nestedContextValue($normalizedValue, 'agent', 'code')
                         ?? (is_array($normalizedValue) ? ($normalizedValue['agent_code'] ?? null) : null),
@@ -141,7 +144,7 @@ final class ImportIssueReportGenerator
         $path = $this->generate($batchId);
 
         return response()
-            ->download(Storage::disk('local')->path($path), "import-issues-{$batchId}.xlsx")
+            ->download(Storage::disk('local')->path($path), __('imports.issue_report.filename', ['batch' => $batchId]))
             ->deleteFileAfterSend();
     }
 
@@ -197,6 +200,27 @@ final class ImportIssueReportGenerator
     private function enumValue(mixed $value): mixed
     {
         return $value instanceof \BackedEnum ? $value->value : $value;
+    }
+
+    private function stageLabel(mixed $value): string
+    {
+        $value = $this->enumValue($value);
+
+        return is_string($value) ? (string) __('imports.stages.names.'.$value) : '';
+    }
+
+    private function severityLabel(mixed $value): string
+    {
+        $value = $this->enumValue($value);
+
+        return is_string($value) ? (string) __('imports.severities.'.$value) : '';
+    }
+
+    private function profileLabel(mixed $value): string
+    {
+        $value = $this->enumValue($value);
+
+        return is_string($value) ? (string) __('imports.profiles.'.$value) : '';
     }
 
     /** @param array<string, mixed> $context */
