@@ -16,6 +16,26 @@ class ConfigurationUserExperienceTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_configuration_pages_use_translated_titles_and_status_labels(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+
+        $this->actingAs($admin)->get(route('configuration.history'))
+            ->assertOk()
+            ->assertSee(__('config.configuration_history.title'))
+            ->assertSee(__('config.configuration_history.empty'));
+
+        $this->actingAs($admin)->get(route('configuration.catalog'))
+            ->assertOk()
+            ->assertSee(__('config.catalog.title'))
+            ->assertSee(__('config.catalog.parameters_heading'));
+
+        $this->actingAs($admin)->get(route('configuration.data-maintenance'))
+            ->assertOk()
+            ->assertSee(__('config.data_maintenance.title'))
+            ->assertSee(__('config.data_maintenance.reference_import.title'));
+    }
+
     public function test_customer_status_configuration_has_baseline_data_and_field_explanations(): void
     {
         $admin = User::factory()->superAdmin()->withTwoFactor()->create();

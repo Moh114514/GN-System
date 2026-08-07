@@ -8,11 +8,9 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('机构、字典与系统参数')]
 class CatalogConfiguration extends Component
 {
     public ?int $institutionId = null;
@@ -64,7 +62,7 @@ class CatalogConfiguration extends Component
             $this->institutionContactValue,
             (int) Auth::id(),
             request()->ip(),
-        ), '机构配置已保存。');
+        ), __('config.catalog.toast.institution_saved'));
         $this->cancelInstitution();
     }
 
@@ -89,12 +87,12 @@ class CatalogConfiguration extends Component
 
     public function toggleInstitution(int $id, ConfigurationCatalogManager $manager): void
     {
-        $this->run(fn () => $manager->toggleInstitution($id, (int) Auth::id(), request()->ip()), '机构状态已更新。');
+        $this->run(fn () => $manager->toggleInstitution($id, (int) Auth::id(), request()->ip()), __('config.catalog.toast.institution_status_updated'));
     }
 
     public function deleteInstitution(int $id, ConfigurationCatalogManager $manager): void
     {
-        $this->run(fn () => $manager->deleteInstitution($id, (int) Auth::id(), request()->ip()), '未引用机构已删除。');
+        $this->run(fn () => $manager->deleteInstitution($id, (int) Auth::id(), request()->ip()), __('config.catalog.toast.institution_deleted'));
     }
 
     public function saveDictionary(ConfigurationCatalogManager $manager): void
@@ -111,7 +109,7 @@ class CatalogConfiguration extends Component
             $this->dictionaryName,
             (int) Auth::id(),
             request()->ip(),
-        ), '字典项已保存。');
+        ), __('config.catalog.toast.dictionary_saved'));
         $this->reset('dictionaryId', 'dictionaryCode', 'dictionaryName');
     }
 
@@ -126,7 +124,7 @@ class CatalogConfiguration extends Component
 
     public function toggleDictionary(int $id, ConfigurationCatalogManager $manager): void
     {
-        $this->run(fn () => $manager->toggleDictionaryItem($id, (int) Auth::id(), request()->ip()), '字典项状态已更新。');
+        $this->run(fn () => $manager->toggleDictionaryItem($id, (int) Auth::id(), request()->ip()), __('config.catalog.toast.dictionary_status_updated'));
     }
 
     public function saveParameters(ConfigurationCatalogManager $manager): void
@@ -137,14 +135,15 @@ class CatalogConfiguration extends Component
         ]);
         $manager->saveParameter('report_default_per_page', (int) $this->reportDefaultPerPage, (int) Auth::id(), request()->ip());
         $manager->saveParameter('dashboard_refresh_seconds', (int) $this->dashboardRefreshSeconds, (int) Auth::id(), request()->ip());
-        Flux::toast(variant: 'success', text: '全局系统参数已保存。');
+        Flux::toast(variant: 'success', text: __('config.catalog.toast.parameters_saved'));
     }
 
     public function render(ConfigurationCatalogManager $manager): View
     {
         $state = $manager->state();
 
-        return view('livewire.configuration.catalog-configuration', ['state' => $state]);
+        return view('livewire.configuration.catalog-configuration', ['state' => $state])
+            ->title(__('config.catalog.title'));
     }
 
     private function run(\Closure $operation, string $success): void

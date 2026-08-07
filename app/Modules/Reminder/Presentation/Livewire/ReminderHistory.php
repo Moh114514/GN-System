@@ -6,11 +6,9 @@ use App\Modules\Reminder\Application\Services\ReminderWorkspace;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('提醒历史')]
 class ReminderHistory extends Component
 {
     public string $type = '';
@@ -20,6 +18,6 @@ class ReminderHistory extends Component
         return view('livewire.reminders.reminder-history', [
             'reminders' => $workspace->paginate(Auth::user(), true, $this->type),
             'customerNames' => $workspace->customerNames(),
-        ]);
+        ])->title(__('reminders.titles.history'));
     }
 }

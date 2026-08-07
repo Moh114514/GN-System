@@ -214,6 +214,23 @@ class PhaseFiveReminderTest extends TestCase
             ->assertOk()->assertSee('返回配置中心')->assertSee('href="'.route('configuration.index').'"', false);
     }
 
+    public function test_korean_user_sees_localized_reminder_pages(): void
+    {
+        $user = User::factory()->create(['preferred_locale' => 'ko_KR']);
+
+        $this->actingAs($user)->get(route('reminders.index'))
+            ->assertOk()
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('능동 알림')
+            ->assertSee('알림 기록')
+            ->assertDontSee('主动提醒');
+
+        $this->actingAs($user)->get(route('reminders.history'))
+            ->assertOk()
+            ->assertSee('능동 알림으로 돌아가기')
+            ->assertSee('과거 알림이 없습니다.');
+    }
+
     public function test_creating_a_custom_reminder_dispatches_a_success_toast_before_navigation(): void
     {
         $this->actingAs($this->user);

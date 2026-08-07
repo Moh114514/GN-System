@@ -12,11 +12,9 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('新建提醒')]
 class ReminderCreate extends Component
 {
     public string $customerId = '';
@@ -90,7 +88,7 @@ class ReminderCreate extends Component
             if ($this->saveAsTemplate) {
                 $rules->saveTemplate(null, $this->templateName, $this->title, $this->suggestion, 'manual', [], (int) Auth::id());
             }
-            Flux::toast(variant: 'success', text: '提醒已创建。');
+            Flux::toast(variant: 'success', text: __('reminders.toasts.created'));
             $this->redirectRoute('reminders.index', navigate: true);
         } catch (DomainException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());
@@ -105,6 +103,6 @@ class ReminderCreate extends Component
             'templates' => ReminderTemplate::query()->where('is_active', true)
                 ->where(fn ($query) => $query->whereNull('owner_id')->orWhere('owner_id', Auth::id()))
                 ->orderByDesc('is_system')->orderBy('name')->get(),
-        ]);
+        ])->title(__('reminders.titles.create'));
     }
 }

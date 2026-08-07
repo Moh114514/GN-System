@@ -9,11 +9,9 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('多维查询')]
 class ReportSearchPage extends Component
 {
     public string $completedFrom = '';
@@ -109,13 +107,15 @@ class ReportSearchPage extends Component
         $export = $manager->startSearch($this->user(), $this->criteria());
 
         if ($export->status === 'queued') {
-            Flux::toast(variant: 'success', text: '结果较多，导出任务已进入队列；完成后可在最近导出中下载。');
+            Flux::toast(variant: 'success', text: __('search.page.toast.queued'));
 
             return;
         }
 
         if ($export->status !== 'completed') {
-            Flux::toast(variant: 'danger', text: $export->failure_reason ?? '导出失败，请缩小筛选范围后重试。');
+            Flux::toast(variant: 'danger', text: __('search.page.toast.failure', [
+                'reason' => $export->failure_reason ?? __('search.page.toast.failure_default'),
+            ]));
 
             return;
         }
@@ -126,7 +126,7 @@ class ReportSearchPage extends Component
     public function retryExport(string $id, ReportExportManager $manager): void
     {
         $manager->retry($this->user(), $id);
-        Flux::toast(variant: 'success', text: '导出任务已重新进入队列。');
+        Flux::toast(variant: 'success', text: __('search.page.toast.retry'));
     }
 
     public function render(
@@ -139,7 +139,7 @@ class ReportSearchPage extends Component
         return view('livewire.reports.search', [
             'result' => $result,
             'recentExports' => $recentExports,
-        ]);
+        ])->title(__('search.page.title'));
     }
 
     /** @return array<string, int|string|null> */

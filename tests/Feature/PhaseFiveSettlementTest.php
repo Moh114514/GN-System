@@ -602,6 +602,18 @@ class PhaseFiveSettlementTest extends TestCase
             ->assertSee('href="'.route('settlements.index').'"', false);
     }
 
+    public function test_korean_admin_sees_localized_settlement_pages(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create(['preferred_locale' => 'ko_KR']);
+
+        $this->actingAs($admin)->get(route('settlements.index'))
+            ->assertOk()
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('월말 정산 센터')
+            ->assertSee('최신 정산 생성')
+            ->assertDontSee('月结中心');
+    }
+
     public function test_settlement_detail_navigates_only_within_the_same_run_in_stable_order(): void
     {
         $run = SettlementRun::query()->create([

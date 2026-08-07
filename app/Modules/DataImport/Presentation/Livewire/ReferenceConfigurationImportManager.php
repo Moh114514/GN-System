@@ -16,14 +16,12 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 #[Layout('layouts.app')]
-#[Title('基础配置导入')]
 class ReferenceConfigurationImportManager extends Component
 {
     use WithFileUploads;
@@ -36,7 +34,7 @@ class ReferenceConfigurationImportManager extends Component
 
     public function render(): View
     {
-        return view('livewire.data-imports.reference-configuration-import-manager');
+        return view('livewire.data-imports.reference-configuration-import-manager')->title(__('imports.reference.title'));
     }
 
     public function stageWorkbook(EncryptedImportStorage $storage): void
@@ -72,13 +70,13 @@ class ReferenceConfigurationImportManager extends Component
         $this->selectedBatchId = $batch->id;
         $this->reset('workbook', 'confirmImport');
         unset($this->batches, $this->selectedBatch);
-        Flux::toast(variant: 'success', text: '工作簿已加密上传，正在预览、校验和事务预演；此时尚未修改任何配置。');
+        Flux::toast(variant: 'success', text: __('imports.toast.reference_uploaded'));
     }
 
     public function downloadExample(ReferenceConfigurationTemplateGenerator $templates): BinaryFileResponse
     {
         return response()
-            ->download($templates->example(), '基础配置导入-填写示例.xlsx')
+            ->download($templates->example(), __('imports.reference.files.example'))
             ->deleteFileAfterSend();
     }
 
@@ -100,7 +98,7 @@ class ReferenceConfigurationImportManager extends Component
         ParseReferenceConfigurationImport::dispatch($batch->id);
         $this->confirmImport = false;
         unset($this->batches, $this->selectedBatch);
-        Flux::toast(variant: 'success', text: '批次已重新进入预览、校验和事务预演。');
+        Flux::toast(variant: 'success', text: __('imports.toast.reference_reparse'));
     }
 
     public function commitBatch(ReferenceConfigurationImportCommitter $committer): void
@@ -108,12 +106,12 @@ class ReferenceConfigurationImportManager extends Component
         $this->validate([
             'confirmImport' => ['accepted'],
         ], [
-            'confirmImport.accepted' => '请先勾选确认，明确同意按预览结果写入全部基础配置。',
+            'confirmImport.accepted' => __('imports.toast.confirm_required'),
         ]);
         $committer->commit($this->ownedBatch(), request()->ip());
         $this->confirmImport = false;
         unset($this->batches, $this->selectedBatch);
-        Flux::toast(variant: 'success', text: '基础配置已按既定顺序在一个事务中完成导入，并写入审计记录。');
+        Flux::toast(variant: 'success', text: __('imports.toast.reference_completed'));
     }
 
     /** @return Collection<int, ImportBatch> */

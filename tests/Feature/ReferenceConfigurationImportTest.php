@@ -76,6 +76,19 @@ class ReferenceConfigurationImportTest extends TestCase
             ->assertFileDownloaded('基础配置导入-填写示例.xlsx');
     }
 
+    public function test_korean_admin_sees_localized_reference_import_copy(): void
+    {
+        $user = User::factory()->superAdmin()->withTwoFactor()->create(['preferred_locale' => 'ko_KR']);
+
+        $this->actingAs($user)
+            ->get(route('reference-configuration-imports.index'))
+            ->assertOk()
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('기준 설정 가져오기')
+            ->assertSee('업로드 및 미리보기 생성')
+            ->assertDontSee('基础配置导入');
+    }
+
     public function test_upload_only_creates_encrypted_preview_batch_and_requires_confirmation(): void
     {
         $file = $this->exampleUpload();

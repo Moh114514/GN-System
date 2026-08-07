@@ -8,11 +8,9 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('内部用户管理')]
 class UserManagement extends Component
 {
     public string $name = '';
@@ -33,8 +31,8 @@ class UserManagement extends Component
         Flux::toast(
             variant: $result['invitation_status'] === 'sent' ? 'success' : 'danger',
             text: $result['invitation_status'] === 'sent'
-                ? '用户已创建，一次性密码设置链接已发送。'
-                : '用户已创建，但邀请邮件发送失败；请检查邮件配置后重发。',
+                ? __('config.user_management.toast.invited')
+                : __('config.user_management.toast.invitation_failed'),
         );
     }
 
@@ -44,24 +42,30 @@ class UserManagement extends Component
             $status = $users->resend($id, (int) Auth::id(), request()->ip());
             Flux::toast(
                 variant: $status === 'sent' ? 'success' : 'danger',
-                text: $status === 'sent' ? '邀请邮件已重发。' : '邀请邮件仍发送失败，请检查 SMTP 配置。',
+                text: $status === 'sent'
+                    ? __('config.user_management.toast.resent')
+                    : __('config.user_management.toast.resend_failed'),
             );
         });
     }
 
     public function toggleRole(int $id, bool $makeSuperAdmin, ConfigurationUserCoordinator $users): void
     {
-        $this->run(fn () => $users->changeRole($id, $makeSuperAdmin, (int) Auth::id(), request()->ip()), '用户角色已更新。');
+        $this->run(fn () => $users->changeRole($id, $makeSuperAdmin, (int) Auth::id(), request()->ip()), __('config.user_management.toast.role_updated'));
     }
 
     public function toggleActive(int $id, bool $activate, ConfigurationUserCoordinator $users): void
     {
-        $this->run(fn () => $users->setActive($id, $activate, (int) Auth::id(), request()->ip()), $activate ? '账号已启用。' : '账号已停用，现有会话已清理。');
+        $this->run(
+            fn () => $users->setActive($id, $activate, (int) Auth::id(), request()->ip()),
+            $activate ? __('config.user_management.toast.account_activated') : __('config.user_management.toast.account_deactivated'),
+        );
     }
 
     public function render(ConfigurationUserCoordinator $users): View
     {
-        return view('livewire.configuration.user-management', ['users' => $users->users()]);
+        return view('livewire.configuration.user-management', ['users' => $users->users()])
+            ->title(__('config.user_management.title'));
     }
 
     private function run(\Closure $operation, ?string $success = null): void

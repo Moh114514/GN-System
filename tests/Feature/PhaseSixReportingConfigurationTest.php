@@ -486,6 +486,14 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->assertOk()
             ->assertSee('多维查询');
 
+        $koUser = User::factory()->create(['preferred_locale' => 'ko_KR']);
+        $this->actingAs($koUser)->get(route('reports.search'))
+            ->assertOk()
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('다차원 조회')
+            ->assertSee('Excel 내보내기')
+            ->assertDontSee('多维查询');
+
         foreach ([
             'configuration.catalog',
             'configuration.users',

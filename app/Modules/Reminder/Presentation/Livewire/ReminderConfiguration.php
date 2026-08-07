@@ -10,11 +10,9 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('主动提醒配置')]
 class ReminderConfiguration extends Component
 {
     public ?int $editingRuleId = null;
@@ -74,7 +72,7 @@ class ReminderConfiguration extends Component
                 $this->scopeValue === '' ? [] : ['value' => $this->scopeValue],
                 $this->ruleTitle, $this->suggestion, (int) $this->priority, (int) Auth::id(),
             );
-            Flux::toast(variant: 'success', text: '主动提醒规则已保存。');
+            Flux::toast(variant: 'success', text: __('reminders.toasts.rule_saved'));
             $this->reset('editingRuleId', 'ruleName', 'ruleTitle', 'suggestion', 'scopeValue');
         } catch (DomainException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());
@@ -108,7 +106,7 @@ class ReminderConfiguration extends Component
         $this->validate(['templateName' => ['required', 'string', 'max:255'], 'templateTitle' => ['required', 'string', 'max:255']]);
         $manager->saveTemplate($this->editingTemplateId, $this->templateName, $this->templateTitle, $this->templateSuggestion, 'manual', [], null);
         $this->reset('editingTemplateId', 'templateName', 'templateTitle', 'templateSuggestion');
-        Flux::toast(variant: 'success', text: '全局提醒模板已保存。');
+        Flux::toast(variant: 'success', text: __('reminders.toasts.template_saved'));
     }
 
     public function editTemplate(int $id): void
@@ -125,7 +123,7 @@ class ReminderConfiguration extends Component
         $template = ReminderTemplate::query()->whereNull('owner_id')->findOrFail($id);
         $manager->saveTemplate(
             null,
-            $template->name.' 副本',
+            __('reminders.copy_suffix', ['name' => $template->name]),
             (string) $template->title,
             $template->suggestion,
             (string) $template->default_trigger_type,
@@ -145,6 +143,6 @@ class ReminderConfiguration extends Component
             'rules' => ReminderRule::query()->latest()->get(),
             'templates' => ReminderTemplate::query()->whereNull('owner_id')->orderByDesc('is_system')->get(),
             'dingtalkEnabled' => (bool) config('dingtalk.enabled') && config('dingtalk.webhook_url'),
-        ]);
+        ])->title(__('reminders.titles.configuration'));
     }
 }
