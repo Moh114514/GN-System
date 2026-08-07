@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'errors' => [
+        'invitation_already_completed' => '이 사용자는 이미 비밀번호를 설정했으므로 초대장을 다시 보낼 필요가 없습니다.',
+        'last_super_admin_role' => '활성화된 마지막 슈퍼 관리자의 권한을 낮출 수 없습니다.',
+        'current_account_disable' => '현재 로그인한 계정을 비활성화할 수 없습니다.',
+        'last_super_admin_disable' => '활성화된 마지막 슈퍼 관리자를 비활성화할 수 없습니다.',
+    ],
     'failed' => '이메일 또는 비밀번호가 올바르지 않습니다.',
     'password' => '비밀번호가 올바르지 않습니다.',
     'throttle' => ':seconds초 후 다시 시도해 주세요.',

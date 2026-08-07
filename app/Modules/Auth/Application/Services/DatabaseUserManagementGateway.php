@@ -57,7 +57,7 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
     {
         $user = User::query()->findOrFail($userId);
         if ($user->invitation_status === 'accepted') {
-            throw new DomainException('该用户已经完成密码设置，无需重发邀请。');
+            throw new DomainException(__('auth.errors.invitation_already_completed'));
         }
         $status = $this->sendInvitation($user);
         $this->audit->record(
@@ -79,7 +79,7 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
             $user = User::query()->lockForUpdate()->findOrFail($userId);
             if ($user->is_super_admin && ! $isSuperAdmin && $user->is_active
                 && $this->activeSuperAdminCountForUpdate() <= 1) {
-                throw new DomainException('不能降级最后一个启用中的超级管理员。');
+                throw new DomainException(__('auth.errors.last_super_admin_role'));
             }
             $before = (bool) $user->is_super_admin;
             $user->update(['is_super_admin' => $isSuperAdmin]);
@@ -99,12 +99,12 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
     {
         DB::transaction(function () use ($userId, $active, $actorId, $ipAddress): void {
             if ($userId === $actorId && ! $active) {
-                throw new DomainException('不能停用当前登录账号。');
+                throw new DomainException(__('auth.errors.current_account_disable'));
             }
             $user = User::query()->lockForUpdate()->findOrFail($userId);
             if ($user->is_super_admin && $user->is_active && ! $active
                 && $this->activeSuperAdminCountForUpdate() <= 1) {
-                throw new DomainException('不能停用最后一个启用中的超级管理员。');
+                throw new DomainException(__('auth.errors.last_super_admin_disable'));
             }
             $before = (bool) $user->is_active;
             $user->update([

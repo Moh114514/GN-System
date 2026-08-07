@@ -31,6 +31,7 @@ use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
@@ -637,6 +638,20 @@ class PhaseFiveSettlementTest extends TestCase
             SendSettlementNotification::class,
             fn (SendSettlementNotification $job): bool => $job->locale === 'ko_KR',
         );
+    }
+
+    public function test_settlement_business_errors_follow_the_current_locale(): void
+    {
+        $previousLocale = App::getLocale();
+        App::setLocale('ko_KR');
+
+        try {
+            $this->expectException(DomainException::class);
+            $this->expectExceptionMessage('정산 환율은 유효한 숫자여야 합니다.');
+            app(SettlementWorkflow::class)->approve(999999, 'not-a-rate', $this->admin->id, null);
+        } finally {
+            App::setLocale($previousLocale);
+        }
     }
 
     public function test_settlement_detail_navigates_only_within_the_same_run_in_stable_order(): void

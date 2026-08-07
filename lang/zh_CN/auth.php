@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'errors' => [
+        'invitation_already_completed' => '该用户已经完成密码设置，无需重发邀请。',
+        'last_super_admin_role' => '不能降级最后一个启用中的超级管理员。',
+        'current_account_disable' => '不能停用当前登录账号。',
+        'last_super_admin_disable' => '不能停用最后一个启用中的超级管理员。',
+    ],
     'failed' => '邮箱或密码不正确。',
     'password' => '密码不正确。',
     'throttle' => '登录尝试次数过多，请在 :seconds 秒后重试。',

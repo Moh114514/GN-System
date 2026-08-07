@@ -113,7 +113,7 @@ final readonly class ConfigurationCatalogManager
             $institution = Institution::query()->lockForUpdate()->findOrFail($id);
             if ($this->orders->institutionIsReferenced($id)
                 || $this->settlements->institutionIsReferenced($id)) {
-                throw new DomainException('该机构已经被业务数据引用，只能停用，不能删除。');
+                throw new DomainException(__('config.errors.institution_referenced'));
             }
             $this->audit->record(
                 description: '未引用机构已删除',
@@ -137,7 +137,7 @@ final readonly class ConfigurationCatalogManager
         ?string $ipAddress,
     ): void {
         if (! in_array($type, ['treatment_project', 'translator_language'], true)) {
-            throw new DomainException('不支持的字典类型。');
+            throw new DomainException(__('config.errors.unsupported_dictionary_type'));
         }
         $item = $id === null
             ? new DictionaryItem(['is_active' => true])
@@ -174,11 +174,14 @@ final readonly class ConfigurationCatalogManager
     public function saveParameter(string $key, int $value, int $actorId, ?string $ipAddress): void
     {
         if (! isset(self::PARAMETER_RULES[$key])) {
-            throw new DomainException('该系统参数不在允许修改的白名单中。');
+            throw new DomainException(__('config.errors.parameter_not_allowed'));
         }
         [$minimum, $maximum] = self::PARAMETER_RULES[$key];
         if ($value < $minimum || $value > $maximum) {
-            throw new DomainException("参数值必须在 {$minimum} 至 {$maximum} 之间。");
+            throw new DomainException(__('config.errors.parameter_out_of_range', [
+                'minimum' => $minimum,
+                'maximum' => $maximum,
+            ]));
         }
         $before = SystemParameter::query()->whereKey($key)->value('value');
         SystemParameter::query()->updateOrCreate(

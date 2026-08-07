@@ -1,6 +1,13 @@
 <?php
 
 return [
+    'errors' => [
+        'institution_referenced' => '该机构已经被业务数据引用，只能停用，不能删除。',
+        'unsupported_dictionary_type' => '不支持的字典类型。',
+        'parameter_not_allowed' => '该系统参数不在允许修改的白名单中。',
+        'parameter_out_of_range' => '参数值必须在 :minimum 至 :maximum 之间。',
+        'unknown_snapshot_owner' => '未知配置快照所有者。',
+    ],
     'back_to_configuration' => '返回配置中心',
     'status' => [
         'enabled' => '启用',

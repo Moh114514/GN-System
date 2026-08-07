@@ -30,7 +30,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
         return DB::transaction(function () use ($data, $actorId, $ipAddress): int {
             $order = Order::query()->lockForUpdate()->findOrFail($data->orderId);
             if ($order->status !== 'pending') {
-                throw new DomainException('只有待完成订单可以编辑。');
+                throw new DomainException(__('orders.errors.only_pending_edit'));
             }
             $this->assertEditableReferences($data);
 
@@ -69,7 +69,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             $after = $order->only(array_keys($before));
             if ($before !== $after) {
                 $this->audit->record(
-                    description: '待完成订单已更新',
+                    description: __('orders.audit.updated'),
                     properties: ['before' => $before, 'after' => $after],
                     causerId: $actorId,
                     subject: $order,
@@ -88,7 +88,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
         return DB::transaction(function () use ($orderId, $actorId, $reason, $ipAddress): int {
             $order = Order::query()->lockForUpdate()->findOrFail($orderId);
             if ($order->status !== 'pending') {
-                throw new DomainException('只有待完成订单可以取消。');
+                throw new DomainException(__('orders.errors.only_pending_cancel'));
             }
             $order->update([
                 'status' => 'cancelled',
@@ -97,7 +97,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                 'cancellation_reason' => trim($reason),
             ]);
             $this->audit->record(
-                description: '订单已取消',
+                description: __('orders.audit.cancelled'),
                 properties: ['reason' => trim($reason)],
                 causerId: $actorId,
                 subject: $order,
@@ -115,7 +115,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
         return DB::transaction(function () use ($orderId, $actorId, $reason, $ipAddress): int {
             $order = Order::query()->lockForUpdate()->findOrFail($orderId);
             if ($order->status !== 'cancelled' || $order->trashed()) {
-                throw new DomainException('只有未删除的已取消订单可以重新打开。');
+                throw new DomainException(__('orders.errors.only_cancelled_reopen'));
             }
             $order->update([
                 'status' => 'pending',
@@ -124,7 +124,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                 'cancellation_reason' => null,
             ]);
             $this->audit->record(
-                description: '订单已重新打开',
+                description: __('orders.audit.reopened'),
                 properties: ['reason' => trim($reason)],
                 causerId: $actorId,
                 subject: $order,
@@ -142,7 +142,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
         return DB::transaction(function () use ($orderId, $actorId, $reason, $ipAddress): int {
             $order = Order::query()->lockForUpdate()->findOrFail($orderId);
             if ($order->status !== 'completed') {
-                throw new DomainException('只有已完成订单可以受控回退到待完成。');
+                throw new DomainException(__('orders.errors.only_completed_rollback'));
             }
 
             $before = $order->only(['status', 'completed_on', 'completed_at', 'completion_precision']);
@@ -155,7 +155,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                 'completion_precision' => 'date',
             ]);
             $this->audit->record(
-                description: '订单已受控回退至待完成',
+                description: __('orders.audit.rolled_back'),
                 properties: [
                     'before' => $before,
                     'after' => $order->only(['status', 'completed_on', 'completed_at', 'completion_precision']),
@@ -177,12 +177,12 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
         return DB::transaction(function () use ($orderId, $actorId, $reason, $ipAddress): int {
             $order = Order::query()->lockForUpdate()->findOrFail($orderId);
             if ($order->status !== 'cancelled') {
-                throw new DomainException('只有已取消订单可以移入回收站。');
+                throw new DomainException(__('orders.errors.only_cancelled_delete'));
             }
             $order->update(['deleted_by' => $actorId, 'deletion_reason' => trim($reason)]);
             $order->delete();
             $this->audit->record(
-                description: '订单已移入回收站',
+                description: __('orders.audit.soft_deleted'),
                 properties: ['reason' => trim($reason)],
                 causerId: $actorId,
                 subject: $order,
@@ -200,12 +200,12 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
         return DB::transaction(function () use ($orderId, $actorId, $ipAddress): int {
             $order = Order::withTrashed()->lockForUpdate()->findOrFail($orderId);
             if ($order->status !== 'cancelled' || ! $order->trashed()) {
-                throw new DomainException('只有已取消的回收站订单可以恢复。');
+                throw new DomainException(__('orders.errors.only_cancelled_restore'));
             }
             $order->restore();
             $order->update(['deleted_by' => null, 'deletion_reason' => null]);
             $this->audit->record(
-                description: '订单已从回收站恢复',
+                description: __('orders.audit.restored'),
                 properties: [],
                 causerId: $actorId,
                 subject: $order,
@@ -221,25 +221,25 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
     private function assertEditableReferences(OrderUpdateData $data): void
     {
         if ($this->institutions->institutionsByIds([$data->institutionId]) === []) {
-            throw new DomainException('所选机构不存在或已停用。');
+            throw new DomainException(__('orders.errors.institution_unavailable'));
         }
         if ($data->channel === 'agent') {
             if ($data->agentId === null || $data->directSalesSourceId !== null) {
-                throw new DomainException('代理商订单必须且只能选择一个代理商。');
+                throw new DomainException(__('orders.errors.agent_required'));
             }
             $agent = $this->agents->agentById($data->agentId);
             if ($agent['cooperation_status'] !== 'active') {
-                throw new DomainException('代理商当前不是合作中状态，不能保存订单。');
+                throw new DomainException(__('orders.errors.agent_inactive_save'));
             }
 
             return;
         }
         if ($data->channel !== 'direct' || $data->directSalesSourceId === null || $data->agentId !== null) {
-            throw new DomainException('直销订单必须且只能选择一个直销来源。');
+            throw new DomainException(__('orders.errors.direct_source_required'));
         }
         $sourceIds = array_column($this->customers->activeDirectSalesSources(), 'id');
         if (! in_array($data->directSalesSourceId, $sourceIds, true)) {
-            throw new DomainException('所选直销来源不存在或已停用。');
+            throw new DomainException(__('orders.errors.source_unavailable'));
         }
     }
 }

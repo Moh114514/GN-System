@@ -1,6 +1,13 @@
 <?php
 
 return [
+    'errors' => [
+        'institution_referenced' => '이 기관은 업무 데이터에서 참조 중이므로 삭제할 수 없고 비활성화만 할 수 있습니다.',
+        'unsupported_dictionary_type' => '지원하지 않는 사전 유형입니다.',
+        'parameter_not_allowed' => '이 시스템 매개변수는 수정 허용 목록에 없습니다.',
+        'parameter_out_of_range' => '매개변수 값은 :minimum에서 :maximum 사이여야 합니다.',
+        'unknown_snapshot_owner' => '알 수 없는 설정 스냅샷 소유자입니다.',
+    ],
     'back_to_configuration' => '설정 센터로 돌아가기',
     'status' => ['enabled' => '활성', 'disabled' => '비활성'],
     'invitation_status' => ['pending' => '대기 중', 'sent' => '발송됨', 'failed' => '발송 실패', 'accepted' => '수락됨'],
