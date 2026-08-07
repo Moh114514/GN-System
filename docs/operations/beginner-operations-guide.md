@@ -61,7 +61,7 @@ GN-System 当前有两套服务器环境，不能混用：
 | `d405781`、`0971130`、`b2ab309` | 增加往期月结、历史合作资格、周期边界、零订单、汇率失败提示和生成状态 | UAT 要准备历史代理商、零订单、重复点击和报价失败数据 |
 | `884f874`、`4aa35d4` | 增加既有月结回填、`unverified` 审计恢复和 `not_applicable` 只读保护 | 部署前必须备份，并确认 `000100` 和 `000200` 两个 migration |
 | `main` `2fe5d13` | 已把上述变更合入主分支，但不是已经验收的 RC | 需要创建下一个递增 RC（预计 `v0.5.0-rc.11`）后才能部署 UAT |
-| `develop`（2026-08-07 工作区） | 国际化基础设施及 PR-B 第一批界面已加入，Dashboard、客户和订单日常页面支持 `zh_CN`/`ko_KR` | 尚未发布；发布前备份数据库并确认 `2026_08_07_000100_add_preferred_locale_to_users_table` migration，代理商/配置/导出等仍待后续阶段，韩文入口暂不开放 |
+| `develop`（2026-08-07 工作区） | 国际化基础设施及 PR-B 日常界面已加入，Dashboard、客户、订单、代理商和全局搜索支持 `zh_CN`/`ko_KR` | 尚未发布；发布前备份数据库并确认 `2026_08_07_000100_add_preferred_locale_to_users_table` migration，配置/导出等仍待后续阶段，韩文入口暂不开放 |
 
 服务器实际版本以 `/srv/gn-system/releases/current` 和
 `/srv/gn-system/releases/history.tsv` 为准。GitHub 上看到提交，不代表服务器已经运行该提交。

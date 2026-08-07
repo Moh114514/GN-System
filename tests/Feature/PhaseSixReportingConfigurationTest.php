@@ -171,8 +171,8 @@ class PhaseSixReportingConfigurationTest extends TestCase
 
         $this->actingAs($admin)->get(route('global-search', ['q' => 'Phase Six']))
             ->assertOk()
-            ->assertSee('全部搜索结果')
-            ->assertSee('返回总览')
+            ->assertSee(__('search.title'))
+            ->assertSee(__('search.back'))
             ->assertSee('href="'.route('dashboard').'"', false)
             ->assertSee('Phase Six Customer')
             ->assertSee('Phase Six Project')
@@ -186,6 +186,15 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->assertSee('Phase Six Customer')
             ->assertSee('Phase Six Project')
             ->assertDontSee('查看全部代理商');
+
+        $koUser = User::factory()->create(['preferred_locale' => 'ko_KR']);
+        $this->actingAs($koUser)->get(route('global-search', ['q' => 'Phase Six']))
+            ->assertOk()
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('전체 검색 결과')
+            ->assertSee('개요로 돌아가기')
+            ->assertSee('고객')
+            ->assertSee('주문 프로젝트');
     }
 
     public function test_query_export_is_private_hashed_retryable_and_expires(): void

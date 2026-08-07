@@ -6,11 +6,9 @@ use App\Models\User;
 use App\Modules\Report\Application\Services\GlobalSearch;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('全部搜索结果')]
 class GlobalSearchPage extends Component
 {
     public string $q = '';
@@ -29,6 +27,6 @@ class GlobalSearchPage extends Component
         return view('livewire.reports.global-search', [
             'query' => $query,
             'results' => $search->search($query, $user->is_super_admin),
-        ]);
+        ])->title(__('search.title'));
     }
 }

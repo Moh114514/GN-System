@@ -5,12 +5,10 @@ namespace App\Modules\Agent\Presentation\Livewire;
 use App\Modules\Agent\Application\Services\AgentDirectory;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 #[Layout('layouts.app')]
-#[Title('代理商管理')]
 class AgentList extends Component
 {
     use WithPagination;
@@ -73,6 +71,6 @@ class AgentList extends Component
                 policyGradeId: $this->policyGradeId === '' ? null : (int) $this->policyGradeId,
             ),
             'filterOptions' => $directory->filterOptions(),
-        ]);
+        ])->title(__('agents.titles.list'));
     }
 }

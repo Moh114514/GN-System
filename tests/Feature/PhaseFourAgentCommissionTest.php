@@ -281,6 +281,17 @@ class PhaseFourAgentCommissionTest extends TestCase
             ->assertDontSee('completionDate');
     }
 
+    public function test_korean_admin_sees_translated_agent_list_labels(): void
+    {
+        $this->admin->update(['preferred_locale' => 'ko_KR']);
+
+        $this->actingAs($this->admin)->get(route('agents.index'))
+            ->assertOk()
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('에이전트 관리')
+            ->assertSee('에이전트 추가');
+    }
+
     public function test_agent_list_filters_by_type_current_policy_system_and_current_grade(): void
     {
         $secondType = AgentTypeCode::query()->where('code', 'GT')->firstOrFail();
