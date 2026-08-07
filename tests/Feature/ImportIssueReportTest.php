@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\DataImport\Application\Services\ImportIssueRecorder;
 use App\Modules\DataImport\Application\Services\ImportIssueReportGenerator;
 use App\Modules\DataImport\Domain\ImportBatchStatus;
 use App\Modules\DataImport\Infrastructure\Models\ImportBatch;
@@ -85,5 +86,26 @@ class ImportIssueReportTest extends TestCase
         } finally {
             App::setLocale($previousLocale);
         }
+    }
+
+    public function test_dynamic_issue_message_is_stored_with_named_parameters(): void
+    {
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
+        $batch = ImportBatch::query()->create([
+            'created_by' => $user->id,
+            'status' => ImportBatchStatus::NeedsReview,
+        ]);
+
+        app(ImportIssueRecorder::class)->record(
+            $batch,
+            'relation_validation',
+            'error',
+            'relation_unresolved',
+            '机构代码“MISSING”不存在。',
+        );
+
+        $issue = ImportIssue::query()->sole();
+        $this->assertSame('imports.errors.institution_code_missing', $issue->message_key);
+        $this->assertSame(['institution_code' => 'MISSING'], $issue->message_parameters);
     }
 }

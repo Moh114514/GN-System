@@ -39,7 +39,6 @@ class ParseReferenceConfigurationImport implements ShouldQueue
                 } catch (Throwable $exception) {
                     $batch->update([
                         'status' => ImportBatchStatus::Failed,
-                        'failure_reason' => '事务预演失败：'.$exception->getMessage(),
                     ]);
                     throw $exception;
                 }

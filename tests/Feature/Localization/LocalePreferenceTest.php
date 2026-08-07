@@ -51,6 +51,7 @@ class LocalePreferenceTest extends TestCase
             ->get(route('language.edit'))
             ->assertOk()
             ->assertSee('语言设置')
+            ->assertSee('한국어')
             ->assertSee('action="'.route('locale.update').'"', false)
             ->assertSee('返回总览');
     }

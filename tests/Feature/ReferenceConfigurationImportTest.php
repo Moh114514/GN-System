@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\DataImport\Application\Services\ImportIssueMessagePresenter;
 use App\Modules\DataImport\Application\Services\ReferenceConfigurationImportCommitter;
 use App\Modules\DataImport\Application\Services\ReferenceConfigurationImportParser;
 use App\Modules\DataImport\Application\Services\ReferenceConfigurationTemplateGenerator;
@@ -254,6 +255,33 @@ class ReferenceConfigurationImportTest extends TestCase
             ->assertDontSee('缺少工作表：代理商类型')
             ->call('downloadErrors')
             ->assertFileDownloaded("导入问题报告-{$batch->id}.xlsx");
+    }
+
+    public function test_parser_stores_a_structured_batch_failure_and_presents_it_in_korean(): void
+    {
+        $batch = ImportBatch::query()->create([
+            'created_by' => $this->admin->id,
+            'kind' => 'reference_configuration',
+            'status' => ImportBatchStatus::Uploaded,
+        ]);
+
+        try {
+            app(ReferenceConfigurationImportParser::class)->parse($batch);
+            $this->fail('The parser should fail when the workbook file is missing.');
+        } catch (\Throwable) {
+            $batch->refresh();
+        }
+
+        $this->assertSame('imports.errors.file_detection_failed', $batch->failure_reason_key);
+        $this->assertNull($batch->failure_reason_parameters);
+
+        $previousLocale = app()->getLocale();
+        app()->setLocale('ko_KR');
+        try {
+            $this->assertSame(__('imports.errors.file_detection_failed'), app(ImportIssueMessagePresenter::class)->presentBatch($batch));
+        } finally {
+            app()->setLocale($previousLocale);
+        }
     }
 
     public function test_field_validation_errors_include_field_value_and_allowed_format(): void

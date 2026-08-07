@@ -15,6 +15,7 @@ final readonly class ImportRowAdjudicator
     public function __construct(
         private AuditRecorder $audit,
         private ImportBatchCommitter $committer,
+        private ImportIssueRecorder $issues,
     ) {}
 
     public function ignore(ImportRow $row, int $userId, string $reason): void
@@ -76,8 +77,8 @@ final readonly class ImportRowAdjudicator
             } catch (Throwable $exception) {
                 $batch->update([
                     'status' => ImportBatchStatus::NeedsReview,
-                    'failure_reason' => $exception->getMessage(),
                 ]);
+                $this->issues->markBatchFailure($batch, 'dry_run_failed', $exception->getMessage());
 
                 throw $exception;
             }

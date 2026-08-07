@@ -175,7 +175,7 @@
                     </div>
 
                     @if ($batch->failure_reason)
-                        <p class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{{ __('imports.errors.batch_failure') }}</p>
+                        <p class="mt-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{{ app(\App\Modules\DataImport\Application\Services\ImportIssueMessagePresenter::class)->presentBatch($batch) }}</p>
                     @endif
 
                     @if (! empty(($batch->summary ?? [])['stages']))
