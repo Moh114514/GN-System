@@ -111,9 +111,24 @@ const localizedDatePicker = ({ value = '', locale = 'zh_CN' } = {}) => ({
     },
 });
 
-document.addEventListener('alpine:init', () => {
-    window.Alpine.data('localizedDatePicker', localizedDatePicker);
-});
+window.localizedDatePicker = localizedDatePicker;
+
+const registerLocalizedDatePicker = () => {
+    if (window.Alpine && typeof window.Alpine.data === 'function') {
+        window.Alpine.data('localizedDatePicker', localizedDatePicker);
+    }
+};
+
+registerLocalizedDatePicker();
+document.addEventListener('alpine:init', registerLocalizedDatePicker);
+document.addEventListener('livewire:init', registerLocalizedDatePicker);
+document.addEventListener('livewire:navigated', registerLocalizedDatePicker);
+
+if (typeof window.__gnStartAlpine === 'function') {
+    const startAlpine = window.__gnStartAlpine;
+    delete window.__gnStartAlpine;
+    startAlpine();
+}
 
 const chartInstances = new WeakMap();
 const chartObservers = new WeakMap();

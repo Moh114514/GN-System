@@ -12,11 +12,17 @@
     $inputId = $attributes->get('id') ?? 'localized-date-picker-'.substr(md5((string) ($label ?? '').$attributes->get('name', '').$attributes->get('wire:model', '')), 0, 10);
     $valueId = $inputId.'-value';
     $visibleClass = trim('crm-localized-date-picker '.$attributes->get('class', ''));
+    $size = (string) $attributes->get('size', 'md');
+    $sizeClass = match ($size) {
+        'sm' => 'min-h-8 px-2 py-1 text-xs',
+        'lg' => 'min-h-10 px-4 py-2.5 text-sm',
+        default => 'min-h-9 px-3 py-2 text-sm',
+    };
+    $required = $attributes->has('required');
 @endphp
 
 <div
-    x-data="localizedDatePicker({ value: @js($value), locale: @js($locale) })"
-    x-init="init()"
+    x-data="window.localizedDatePicker({ value: @js($value), locale: @js($locale) })"
     @keydown.escape.stop="close()"
     class="relative {{ $label ? 'grid gap-2' : '' }}"
 >
@@ -26,20 +32,23 @@
 
     <input
         id="{{ $valueId }}"
-        type="hidden"
+        type="text"
+        class="sr-only"
         value="{{ $value }}"
         {{ $modelAttributes }}
         {{ $attributes->only(['name', 'required', 'form', 'onchange', 'oninput']) }}
+        aria-label="{{ $attributes->get('aria-label', $label) }}"
         x-ref="value"
     >
 
     <button
         id="{{ $inputId }}"
         type="button"
-        class="{{ $visibleClass }} inline-flex min-h-9 w-full items-center justify-between gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-left text-sm text-zinc-800 shadow-sm transition hover:border-zinc-400 focus:border-accent focus:outline-hidden focus:ring-2 focus:ring-accent focus:ring-offset-2 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
+        class="{{ $visibleClass }} inline-flex w-full items-center justify-between gap-2 rounded-lg border border-zinc-300 bg-white {{ $sizeClass }} text-left text-zinc-800 shadow-sm transition hover:border-zinc-400 focus:border-accent focus:outline-hidden focus:ring-2 focus:ring-accent focus:ring-offset-2 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-100"
         aria-haspopup="dialog"
         aria-controls="{{ $inputId }}-calendar"
         aria-label="{{ $attributes->get('aria-label', $label) }}"
+        @if ($required) aria-required="true" @endif
         title="{{ $attributes->get('title') }}"
         x-bind:aria-expanded="open.toString()"
         @click="toggle()"
