@@ -2,6 +2,7 @@
 
 use App\Infrastructure\Health\OperationsHealthController;
 use App\Infrastructure\Health\ReadinessController;
+use App\Infrastructure\Localization\SetLocale;
 use App\Modules\Auth\Http\Middleware\EnsureSuperAdmin;
 use App\Modules\Auth\Http\Middleware\EnsureUserIsActive;
 use App\Modules\Auth\Http\Middleware\RequireTwoFactorForSuperAdmin;
@@ -28,6 +29,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'flux_resolved_appearance',
         ]);
 
+        $middleware->appendToGroup('web', SetLocale::class);
         $middleware->appendToGroup('web', EnsureUserIsActive::class);
         $middleware->alias([
             'super-admin' => EnsureSuperAdmin::class,

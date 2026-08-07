@@ -2,6 +2,7 @@
 
 namespace App\Modules\Auth;
 
+use App\Infrastructure\Localization\SupportedLocale;
 use App\Models\User;
 use App\Modules\Auth\Application\Contracts\ReportUserReader;
 use App\Modules\Auth\Application\Contracts\UserManagementGateway;
@@ -28,6 +29,20 @@ class AuthServiceProvider extends ServiceProvider
     {
         Event::listen(Login::class, function (Login $event): void {
             if ($event->user instanceof User && request()->hasSession()) {
+                $sessionLocale = SupportedLocale::fromCandidate(
+                    request()->session()->get((string) config('localization.session_key', 'locale')),
+                );
+
+                if (
+                    $sessionLocale !== null
+                    && $sessionLocale !== SupportedLocale::default()
+                    && $event->user->preferred_locale === SupportedLocale::default()->value
+                ) {
+                    $event->user->forceFill([
+                        'preferred_locale' => $sessionLocale->value,
+                    ])->save();
+                }
+
                 request()->session()->put('auth.session_version', $event->user->session_version);
             }
         });
