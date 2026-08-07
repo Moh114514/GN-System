@@ -96,6 +96,44 @@ class AuditLogIndexTest extends TestCase
         }
     }
 
+    public function test_audit_log_localizes_known_historical_descriptions_without_message_keys(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $target = User::factory()->create();
+        $this->activity($admin, $target, now()->toImmutable(), [], '创建客户档案');
+
+        $previousLocale = App::getLocale();
+        App::setLocale('ko_KR');
+
+        try {
+            /** @var Testable<AuditLogIndex> $component */
+            $component = Livewire::actingAs($admin)
+                // @phpstan-ignore argument.templateType
+                ->test(AuditLogIndex::class);
+
+            $component->assertSee(__('audit.messages.customer_created'))
+                ->assertDontSee('创建客户档案')
+                ->assertDontSee(__('audit.legacy_original'));
+        } finally {
+            App::setLocale($previousLocale);
+        }
+    }
+
+    public function test_unknown_historical_audit_descriptions_are_preserved_and_labeled(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $target = User::factory()->create();
+        $this->activity($admin, $target, now()->toImmutable(), [], '无法识别的历史自由文本');
+
+        /** @var Testable<AuditLogIndex> $component */
+        $component = Livewire::actingAs($admin)
+            // @phpstan-ignore argument.templateType
+            ->test(AuditLogIndex::class);
+
+        $component->assertSee('无法识别的历史自由文本')
+            ->assertSee(__('audit.legacy_original'));
+    }
+
     public function test_user_management_exposes_the_audit_entry_and_topbar_keeps_native_date_and_reminder_controls(): void
     {
         $admin = User::factory()->superAdmin()->withTwoFactor()->create();

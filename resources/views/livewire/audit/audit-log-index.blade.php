@@ -58,7 +58,12 @@
                             <td>{{ $entry->targetUserId === null ? '—' : ($users->get($entry->targetUserId)['name'] ?? '#'.$entry->targetUserId) }}</td>
                             <td>{{ $entry->module }}</td>
                             <td>{{ $entry->action }}</td>
-                            <td>{{ $entry->description }}</td>
+                            <td>
+                                {{ $entry->description }}
+                                @if ($entry->legacyDescription)
+                                    <span class="ms-1 text-xs text-zinc-400">({{ __('audit.legacy_original') }})</span>
+                                @endif
+                            </td>
                             <td>
                                 @if ($entry->properties === [])
                                     <span class="text-zinc-400">—</span>

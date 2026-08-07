@@ -12,6 +12,8 @@ use Spatie\Activitylog\Models\Activity;
 
 final class SpatieAuditRecorder implements AuditRecorder
 {
+    public function __construct(private readonly AuditMessageCatalog $messages) {}
+
     /**
      * @param  array<string, mixed>  $properties
      * @param  array<string, mixed>  $messageParameters
@@ -27,6 +29,11 @@ final class SpatieAuditRecorder implements AuditRecorder
         ?string $messageKey = null,
         array $messageParameters = [],
     ): void {
+        $messageKey ??= $this->messages->keyFor($description);
+        if ($messageKey !== null) {
+            $description = (string) __($messageKey, $messageParameters);
+        }
+
         if ($messageKey !== null) {
             $properties['message_key'] = $messageKey;
             $properties['message_parameters'] = $messageParameters;
@@ -81,7 +88,7 @@ final class SpatieAuditRecorder implements AuditRecorder
     /** @param array<string, mixed> $properties */
     private function localizedDescription(Activity $activity, array $properties): string
     {
-        $messageKey = $properties['message_key'] ?? null;
+        $messageKey = $properties['message_key'] ?? $this->messages->keyFor((string) $activity->description);
         $parameters = $properties['message_parameters'] ?? [];
 
         if (is_string($messageKey) && Lang::has($messageKey)) {
