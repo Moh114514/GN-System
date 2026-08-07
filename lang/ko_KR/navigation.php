@@ -38,5 +38,6 @@ return [
     'profile' => '계정 설정',
     'security' => '보안 설정',
     'appearance' => '화면 설정',
+    'language' => '언어',
     'logout' => '로그아웃',
 ];

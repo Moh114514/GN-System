@@ -38,5 +38,6 @@ return [
     'profile' => '账户设置',
     'security' => '安全设置',
     'appearance' => '外观设置',
+    'language' => '语言 / 언어',
     'logout' => '退出登录',
 ];

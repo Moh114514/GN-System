@@ -332,6 +332,7 @@
                         <flux:menu.item :href="route('profile.edit')" icon="user-circle" wire:navigate>{{ __('navigation.profile') }}</flux:menu.item>
                         <flux:menu.item :href="route('security.edit')" icon="shield-check" wire:navigate>{{ __('navigation.security') }}</flux:menu.item>
                         <flux:menu.item :href="route('appearance.edit')" icon="swatch" wire:navigate>{{ __('navigation.appearance') }}</flux:menu.item>
+                        <flux:menu.item :href="route('language.edit')" icon="globe-alt" wire:navigate>{{ __('navigation.language') }}</flux:menu.item>
                         <flux:menu.separator />
                         <form method="POST" action="{{ route('logout') }}" class="w-full">
                             @csrf

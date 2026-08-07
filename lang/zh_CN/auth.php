@@ -23,4 +23,9 @@ return [
         'help' => '仅限已授权的内部员工使用',
     ],
     'security_notice' => '企业级数据安全保护',
+    'middleware' => [
+        'session_expired' => '登录会话已失效，请重新登录。',
+        'account_disabled' => '该账号已停用，请联系超级管理员。',
+        'two_factor_required' => '请先启用并确认双因素认证，然后再继续。',
+    ],
 ];

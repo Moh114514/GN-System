@@ -23,4 +23,9 @@ return [
         'help' => '승인된 내부 직원만 사용할 수 있습니다',
     ],
     'security_notice' => '기업 수준의 데이터 보안 보호',
+    'middleware' => [
+        'session_expired' => '로그인 세션이 만료되었습니다. 다시 로그인해 주세요.',
+        'account_disabled' => '이 계정은 비활성화되었습니다. 슈퍼 관리자에게 문의하세요.',
+        'two_factor_required' => '계속하려면 먼저 2단계 인증을 활성화하고 확인하세요.',
+    ],
 ];

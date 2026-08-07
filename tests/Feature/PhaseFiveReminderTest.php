@@ -343,6 +343,7 @@ class PhaseFiveReminderTest extends TestCase
             'reminder_type' => 'post_treatment',
             'title' => '术后第 1 天跟进',
             'suggestion' => '问候恢复情况',
+            'notes' => '项目：皮肤管理',
             'due_at' => $now->addDays(2),
             'dedupe_key' => hash('sha256', 'legacy-post-treatment'),
             'created_at' => $now,
@@ -363,7 +364,10 @@ class PhaseFiveReminderTest extends TestCase
                 $presenter->template($duplicateTemplate)['name'],
             );
             $this->assertSame('시술 3일 전 확인', $presenter->reminder(Reminder::query()->findOrFail($appointmentReminderId))['title']);
-            $this->assertSame('시술 후 1일차 후속 관리', $presenter->reminder(Reminder::query()->findOrFail($postTreatmentReminderId))['title']);
+            $postTreatmentReminder = Reminder::query()->findOrFail($postTreatmentReminderId);
+            $postTreatmentContent = $presenter->reminder($postTreatmentReminder);
+            $this->assertSame('시술 후 1일차 후속 관리', $postTreatmentContent['title']);
+            $this->assertNotSame((string) $postTreatmentReminder->notes, $postTreatmentContent['notes']);
         } finally {
             App::setLocale($previousLocale);
         }

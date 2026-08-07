@@ -1,5 +1,16 @@
 <x-layouts::auth :title="__('Log in')">
     <div class="crm-login">
+        <div class="mb-6 flex justify-end gap-3 text-sm">
+            @foreach (config('localization.supported', []) as $locale => $label)
+                <form method="POST" action="{{ route('locale.update') }}">
+                    @csrf
+                    <input type="hidden" name="locale" value="{{ $locale }}">
+                    <button type="submit" class="underline-offset-4 hover:underline" @disabled(app()->getLocale() === $locale)>
+                        {{ __('language.options.'.$locale, [], $locale) }}
+                    </button>
+                </form>
+            @endforeach
+        </div>
         <header>
             <span class="crm-login-eyebrow">{{ __('auth.login.eyebrow') }}</span>
             <h1>{{ __('auth.login.welcome') }}</h1>

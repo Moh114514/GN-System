@@ -66,7 +66,6 @@ return new class extends Migration
         DB::table('reminders')
             ->where('source_type', 'system')
             ->where('reminder_type', 'post_treatment')
-            ->whereNull('localized_content')
             ->orderBy('id')
             ->eachById(function (object $reminder): void {
                 if (preg_match('/^\x{672f}\x{540e}\x{7b2c} (\d+) \x{5929}\x{8ddf}\x{8fdb}$/u', (string) $reminder->title, $matches) !== 1) {
@@ -76,11 +75,24 @@ return new class extends Migration
                 if (! in_array($days, [1, 7, 30, 90, 180], true)) {
                     return;
                 }
+                $localizedContent = json_decode((string) $reminder->localized_content, true);
+                $localizedContent = is_array($localizedContent) ? $localizedContent : [];
+                $localizedContent['title'] ??= [
+                    'key' => 'reminders.system_reminders.post_treatment.title',
+                    'parameters' => ['days' => $days],
+                ];
+                $localizedContent['suggestion'] ??= [
+                    'key' => "reminders.system_reminders.post_treatment.suggestions.{$days}",
+                    'parameters' => [],
+                ];
+                if (preg_match('/^\x{9879}\x{76ee}\x{ff1a}([^\r\n]+)(?:\r?\n|$)/u', trim((string) $reminder->notes), $noteMatches) === 1) {
+                    $localizedContent['notes'] ??= [[
+                        'key' => 'reminders.system_reminders.post_treatment.project',
+                        'parameters' => ['project' => trim($noteMatches[1])],
+                    ]];
+                }
                 DB::table('reminders')->where('id', $reminder->id)->update([
-                    'localized_content' => json_encode([
-                        'title' => ['key' => 'reminders.system_reminders.post_treatment.title', 'parameters' => ['days' => $days]],
-                        'suggestion' => ['key' => "reminders.system_reminders.post_treatment.suggestions.{$days}", 'parameters' => []],
-                    ], JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                    'localized_content' => json_encode($localizedContent, JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
                 ]);
             });
     }

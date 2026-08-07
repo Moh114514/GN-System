@@ -28,6 +28,14 @@ class LocalePreferenceTest extends TestCase
             ->assertSee('다시 오신 것을 환영합니다');
     }
 
+    public function test_login_page_exposes_language_switcher(): void
+    {
+        $this->get(route('login'))
+            ->assertOk()
+            ->assertSee('action="'.route('locale.update').'"', false)
+            ->assertSee(__('language.options.ko_KR', [], 'ko_KR'));
+    }
+
     public function test_authenticated_locale_is_saved_to_the_user(): void
     {
         $user = User::factory()->create();
@@ -54,6 +62,53 @@ class LocalePreferenceTest extends TestCase
             ->assertSee('한국어')
             ->assertSee('action="'.route('locale.update').'"', false)
             ->assertSee('返回总览');
+    }
+
+    public function test_authenticated_user_menu_exposes_language_settings(): void
+    {
+        $this->actingAs(User::factory()->create())
+            ->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee('href="'.route('language.edit').'"', false)
+            ->assertSee(__('navigation.language'));
+    }
+
+    public function test_inactive_user_message_follows_preferred_locale(): void
+    {
+        $user = User::factory()->create([
+            'is_active' => false,
+            'preferred_locale' => 'ko_KR',
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('profile.edit'))
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors(['email' => __('auth.middleware.account_disabled', [], 'ko_KR')]);
+    }
+
+    public function test_super_admin_two_factor_message_follows_preferred_locale(): void
+    {
+        $user = User::factory()->create([
+            'is_super_admin' => true,
+            'preferred_locale' => 'ko_KR',
+            'two_factor_confirmed_at' => null,
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('dashboard'))
+            ->assertRedirect(route('security.edit'))
+            ->assertSessionHas('status', __('auth.middleware.two_factor_required', [], 'ko_KR'));
+    }
+
+    public function test_stale_session_message_follows_preferred_locale(): void
+    {
+        $user = User::factory()->create(['preferred_locale' => 'ko_KR', 'session_version' => 2]);
+
+        $this->actingAs($user)
+            ->withSession(['auth.session_version' => 1])
+            ->get(route('profile.edit'))
+            ->assertRedirect(route('login'))
+            ->assertSessionHasErrors(['email' => __('auth.middleware.session_expired', [], 'ko_KR')]);
     }
 
     public function test_user_preference_has_priority_over_session_and_cookie(): void

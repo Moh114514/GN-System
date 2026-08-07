@@ -88,6 +88,8 @@ class LocalizationCompletenessTest extends TestCase
             'app/Modules/Settlement/Application/Services/SettlementDocumentGenerator.php',
             'app/Modules/Settlement/Application/Services/SettlementRunFailureReportGenerator.php',
             'app/Modules/Reminder/Infrastructure/Notifications/DingTalkClient.php',
+            'app/Modules/Auth/Http/Middleware/EnsureUserIsActive.php',
+            'app/Modules/Auth/Http/Middleware/RequireTwoFactorForSuperAdmin.php',
         ];
     }
 
