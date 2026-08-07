@@ -1,14 +1,14 @@
 <div>
     <section class="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div>
-            <h2 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">客户管理</h2>
-            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">统一管理客户档案、来源、状态与跟进记录。</p>
+            <h2 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ __('customers.title.list') }}</h2>
+            <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ __('customers.list.description') }}</p>
         </div>
         <div class="flex shrink-0 gap-2 sm:justify-end">
             @if (auth()->user()->is_super_admin)
-                <flux:button :href="route('customer-statuses.index')" variant="ghost" size="sm" wire:navigate>状态配置</flux:button>
+                <flux:button :href="route('customer-statuses.index')" variant="ghost" size="sm" wire:navigate>{{ __('customers.list.status_configuration') }}</flux:button>
             @endif
-            <flux:button :href="route('customers.create')" variant="primary" size="sm" icon="plus" wire:navigate>新建客户</flux:button>
+            <flux:button :href="route('customers.create')" variant="primary" size="sm" icon="plus" wire:navigate>{{ __('customers.list.create') }}</flux:button>
         </div>
     </section>
 
@@ -25,16 +25,16 @@
                 class="mr-1 w-full sm:w-72"
                 wire:model.live.debounce.350ms="search"
                 icon="magnifying-glass"
-                placeholder="搜索姓名、编号或联系方式"
+                :placeholder="__('customers.list.search_placeholder')"
                 size="sm"
             />
 
             <flux:dropdown>
                 <flux:button class="rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
-                    {{ $selectedStatus['name'] ?? '全部状态' }}
+                    {{ $selectedStatus['name'] ?? __('customers.list.all_statuses') }}
                 </flux:button>
                 <flux:menu class="max-h-72 overflow-y-auto">
-                    <flux:menu.item wire:click="$set('statusId', '')">全部状态</flux:menu.item>
+                    <flux:menu.item wire:click="$set('statusId', '')">{{ __('customers.list.all_statuses') }}</flux:menu.item>
                     @foreach ($options['statuses'] as $status)
                         <flux:menu.item wire:click="$set('statusId', '{{ $status['id'] }}')">{{ $status['name'] }}</flux:menu.item>
                     @endforeach
@@ -43,10 +43,10 @@
 
             <flux:dropdown>
                 <flux:button class="rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
-                    {{ $selectedAgent['name'] ?? '全部代理商' }}
+                    {{ $selectedAgent['name'] ?? __('customers.list.all_agents') }}
                 </flux:button>
                 <flux:menu class="max-h-72 overflow-y-auto">
-                    <flux:menu.item wire:click="$set('agentId', '')">全部代理商</flux:menu.item>
+                    <flux:menu.item wire:click="$set('agentId', '')">{{ __('customers.list.all_agents') }}</flux:menu.item>
                     @foreach ($options['agents'] as $agent)
                         <flux:menu.item wire:click="$set('agentId', '{{ $agent['id'] }}')">{{ $agent['name'] }}</flux:menu.item>
                     @endforeach
@@ -55,10 +55,10 @@
 
             <flux:dropdown>
                 <flux:button class="rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
-                    {{ $selectedInstitution['name'] ?? '全部机构' }}
+                    {{ $selectedInstitution['name'] ?? __('customers.list.all_institutions') }}
                 </flux:button>
                 <flux:menu class="max-h-72 overflow-y-auto">
-                    <flux:menu.item wire:click="$set('institutionId', '')">全部机构</flux:menu.item>
+                    <flux:menu.item wire:click="$set('institutionId', '')">{{ __('customers.list.all_institutions') }}</flux:menu.item>
                     @foreach ($options['institutions'] as $institution)
                         <flux:menu.item wire:click="$set('institutionId', '{{ $institution['id'] }}')">{{ $institution['name'] }}</flux:menu.item>
                     @endforeach
@@ -67,17 +67,17 @@
 
             <flux:dropdown>
                 <flux:button class="rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
-                    {{ $perPage }} 条/页
+                    {{ __('customers.list.per_page', ['count' => $perPage]) }}
                 </flux:button>
                 <flux:menu>
                     @foreach ([20, 50, 100] as $size)
-                        <flux:menu.item wire:click="$set('perPage', {{ $size }})">{{ $size }} 条/页</flux:menu.item>
+                        <flux:menu.item wire:click="$set('perPage', {{ $size }})">{{ __('customers.list.per_page', ['count' => $size]) }}</flux:menu.item>
                     @endforeach
                 </flux:menu>
             </flux:dropdown>
 
             @if ($hasFilters)
-                <flux:button wire:click="clearFilters" variant="ghost" size="sm" icon="x-mark">清除</flux:button>
+                <flux:button wire:click="clearFilters" variant="ghost" size="sm" icon="x-mark">{{ __('customers.list.clear') }}</flux:button>
             @endif
         </div>
 
@@ -85,12 +85,12 @@
             <table class="crm-table">
                 <thead>
                     <tr>
-                        <th>客户</th>
-                        <th>联系方式</th>
-                        <th>证件</th>
-                        <th>来源</th>
-                        <th>状态</th>
-                        <th>建档时间</th>
+                        <th>{{ __('customers.list.columns.customer') }}</th>
+                        <th>{{ __('customers.list.columns.contact') }}</th>
+                        <th>{{ __('customers.list.columns.document') }}</th>
+                        <th>{{ __('customers.list.columns.source') }}</th>
+                        <th>{{ __('customers.list.columns.status') }}</th>
+                        <th>{{ __('customers.list.columns.created_at') }}</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -109,7 +109,7 @@
                             <td>{{ $customer['created_at'] }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="py-10 text-center text-zinc-500">没有符合条件的客户。</td></tr>
+                        <tr><td colspan="6" class="py-10 text-center text-zinc-500">{{ __('customers.list.empty') }}</td></tr>
                     @endforelse
                 </tbody>
             </table>

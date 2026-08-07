@@ -31,4 +31,17 @@ class DataImportAuthorizationTest extends TestCase
             ->assertSee('href="'.route('configuration.data-maintenance').'"', false)
             ->assertSee('上传文件并预览');
     }
+
+    public function test_korean_super_admin_sees_localized_import_manager_copy(): void
+    {
+        $user = User::factory()->superAdmin()->withTwoFactor()->create(['preferred_locale' => 'ko_KR']);
+
+        $this->actingAs($user)
+            ->get(route('data-imports.index'))
+            ->assertOk()
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('기록 데이터 가져오기')
+            ->assertSee('파일 업로드 및 미리보기')
+            ->assertDontSee('历史数据导入');
+    }
 }

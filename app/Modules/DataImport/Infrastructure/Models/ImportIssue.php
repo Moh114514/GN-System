@@ -21,6 +21,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int|null $source_row
  * @property string|null $field
  * @property string $message
+ * @property string|null $message_key
+ * @property array<string, mixed>|null $message_parameters
  * @property array<string, mixed>|null $context_encrypted
  * @property bool $is_ignorable
  */
@@ -37,6 +39,7 @@ class ImportIssue extends Model
             'stage' => ImportIssueStage::class,
             'severity' => ImportIssueSeverity::class,
             'profile' => ImportProfile::class,
+            'message_parameters' => 'encrypted:array',
             'context_encrypted' => 'encrypted:array',
             'is_ignorable' => 'boolean',
         ];

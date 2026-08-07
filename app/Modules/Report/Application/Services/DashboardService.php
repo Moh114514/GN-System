@@ -35,7 +35,7 @@ final readonly class DashboardService
 
     public function snapshot(DashboardRangeData $range, bool $force = false): DashboardSnapshotData
     {
-        $key = 'report:dashboard:v2:'.hash('sha256', $range->from->toIso8601String().'|'.$range->to->toIso8601String());
+        $key = 'report:dashboard:v3:'.hash('sha256', $range->from->toIso8601String().'|'.$range->to->toIso8601String());
         if ($force) {
             try {
                 Cache::forget($key);
@@ -115,22 +115,22 @@ final readonly class DashboardService
             ],
             charts: [
                 'agent_promotion_ranking' => array_map(fn (array $row): array => [
-                    'key' => $agentNames[$row['agent_id']] ?? '未知代理商',
+                    'key' => $agentNames[$row['agent_id']] ?? '__dashboard_missing_agent__',
                     'value' => $row['value'],
                 ], $current['settlement']['agent_ranking']),
                 'monthly_promotion' => $current['settlement']['monthly_promotion'],
                 'grade_distribution' => $this->agents->currentGradeDistribution(),
                 'source_distribution' => array_map(fn (array $row): array => [
                     'key' => $row['source_type'] === 'agent'
-                        ? ($agentNames[$row['source_id']] ?? '未知代理商')
+                        ? ($agentNames[$row['source_id']] ?? '__dashboard_missing_agent__')
                         : $row['key'],
                     'value' => $row['value'],
                 ], $current['customer']['source_distribution']),
                 'monthly_consumption' => $current['order']['monthly_consumption'],
-                'repurchase_rate' => [['key' => '复购率', 'value' => $current['order']['repurchase_rate']]],
-                'followup_completion_rate' => [['key' => '跟进完成率', 'value' => $current['reminder']['followup_completion_rate']]],
+                'repurchase_rate' => [['key' => '__dashboard_repurchase_rate__', 'value' => $current['order']['repurchase_rate']]],
+                'followup_completion_rate' => [['key' => '__dashboard_followup_completion_rate__', 'value' => $current['reminder']['followup_completion_rate']]],
                 'institution_revenue' => array_map(fn (array $row): array => [
-                    'key' => $institutionNames[$row['institution_id']] ?? '未知机构',
+                    'key' => $institutionNames[$row['institution_id']] ?? '__dashboard_missing_institution__',
                     'value' => $row['value'],
                 ], $current['order']['institution_revenue']),
             ],
@@ -141,14 +141,14 @@ final readonly class DashboardService
                 'lifecycle' => $this->lifecycle($current),
                 'today_tasks' => array_map(fn (array $task): array => [
                     ...$task,
-                    'customer_name' => $taskCustomerNames[$task['customer_id']] ?? '未知客户',
+                    'customer_name' => $taskCustomerNames[$task['customer_id']] ?? '__dashboard_missing_customer__',
                 ], $current['reminder']['today_tasks']),
                 'recent_customers' => array_map(fn (array $customer): array => [
                     ...$customer,
                     'source_name' => $customer['source_type'] === 'agent'
-                        ? ($agentNames[$customer['source_id']] ?? '未知代理商')
+                        ? ($agentNames[$customer['source_id']] ?? '__dashboard_missing_agent__')
                         : $customer['source_name'],
-                    'owner_name' => $ownerNames[$customer['owner_id']] ?? '未分配',
+                    'owner_name' => $ownerNames[$customer['owner_id']] ?? '__dashboard_unassigned__',
                 ], $current['customer']['recent_customers']),
                 'settlement_progress' => $current['settlement']['progress'],
             ],

@@ -2,8 +2,11 @@
 
 namespace App\Modules\Settlement\Application\Services;
 
+use App\Infrastructure\Localization\SupportedLocale;
+use App\Models\User;
 use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
 use App\Modules\Order\Application\Contracts\SettlementOrderReader;
+use App\Modules\Settlement\Application\Exceptions\StructuredSettlementFailure;
 use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementGradeSuggestion;
@@ -35,7 +38,7 @@ final readonly class SettlementGenerator
                 ->lockForUpdate()
                 ->first();
             if ($existing !== null && $existing->settlement_run_id !== $runId) {
-                throw new DomainException('该代理商周期已存在历史或其他月结记录，禁止覆盖。');
+                throw new StructuredSettlementFailure('settlements.failure_reasons.existing_settlement');
             }
             $rebuild = false;
             if ($existing !== null) {
@@ -57,7 +60,10 @@ final readonly class SettlementGenerator
                 ->keyBy('order_id');
             foreach ($orders as $order) {
                 if (! $commissions->has($order->orderId)) {
-                    throw new DomainException("已完成订单 {$order->orderId} 缺少推广费快照。");
+                    throw new StructuredSettlementFailure(
+                        'settlements.failure_reasons.missing_commission_snapshot',
+                        ['order_id' => $order->orderId],
+                    );
                 }
             }
 
@@ -142,7 +148,7 @@ final readonly class SettlementGenerator
                     'agent_id' => $agentId,
                     'message' => $exception->getMessage(),
                 ]);
-                $errorMessage = $exception->getMessage();
+                $errorMessage = $this->structuredFailure($exception);
             } else {
                 $reference = (string) Str::uuid();
                 Log::error('Settlement generation failed.', [
@@ -151,7 +157,10 @@ final readonly class SettlementGenerator
                     'agent_id' => $agentId,
                     'exception' => $exception,
                 ]);
-                $errorMessage = "系统处理失败，请联系管理员并提供参考编号：{$reference}。";
+                $errorMessage = [
+                    'message_key' => 'settlements.failure_reasons.unexpected',
+                    'parameters' => ['reference' => $reference],
+                ];
             }
             $errors[(string) $agentId] = $errorMessage;
             $run->errors = $errors;
@@ -180,6 +189,32 @@ final readonly class SettlementGenerator
         $this->finishIfComplete($run);
     }
 
+    /** @return array{message_key: string, parameters: array<string, scalar>} */
+    private function structuredFailure(DomainException $exception): array
+    {
+        if ($exception instanceof StructuredSettlementFailure) {
+            return [
+                'message_key' => $exception->messageKey,
+                'parameters' => $exception->parameters,
+            ];
+        }
+
+        if (in_array($exception->getMessage(), [
+            __('agents.validation.no_effective_policy_grade', [], 'zh_CN'),
+            __('agents.validation.no_effective_policy_grade', [], 'ko_KR'),
+        ], true)) {
+            return [
+                'message_key' => 'settlements.failure_reasons.agent_policy_missing',
+                'parameters' => [],
+            ];
+        }
+
+        return [
+            'message_key' => 'settlements.failure_reasons.business_rule',
+            'parameters' => [],
+        ];
+    }
+
     private function finishIfComplete(SettlementRun $run): void
     {
         if ($run->processed_agents + $run->failed_agents < $run->total_agents) {
@@ -190,7 +225,9 @@ final readonly class SettlementGenerator
         $run->save();
         if ($run->failed_agents === 0 && $run->notification_status === 'pending') {
             $run->update(['notification_status' => 'queued']);
-            SendSettlementNotification::dispatch($run->id)->afterCommit();
+            $user = $run->initiated_by === null ? null : User::query()->find($run->initiated_by);
+            $locale = (SupportedLocale::fromCandidate($user?->preferred_locale) ?? SupportedLocale::default())->value;
+            SendSettlementNotification::dispatch($run->id, $locale)->afterCommit();
         }
     }
 }

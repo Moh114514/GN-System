@@ -8,11 +8,9 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('配置历史与回滚')]
 class ConfigurationHistory extends Component
 {
     public ?string $selectedOwner = null;
@@ -34,7 +32,7 @@ class ConfigurationHistory extends Component
         try {
             $history->rollback($owner, $snapshotId, (int) Auth::id(), request()->ip());
             $this->showDiff($owner, $snapshotId, $history);
-            Flux::toast(variant: 'success', text: '配置已在单一事务中回滚，并生成新的回滚记录。');
+            Flux::toast(variant: 'success', text: __('config.configuration_history.toast.rollback_success'));
         } catch (DomainException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());
         }
@@ -42,6 +40,7 @@ class ConfigurationHistory extends Component
 
     public function render(ConfigurationHistoryCoordinator $history): View
     {
-        return view('livewire.configuration.configuration-history', ['history' => $history->history()]);
+        return view('livewire.configuration.configuration-history', ['history' => $history->history()])
+            ->title(__('config.configuration_history.title'));
     }
 }

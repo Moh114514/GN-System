@@ -1,10 +1,13 @@
 <?php
 
 use Livewire\Component;
-use Livewire\Attributes\Title;
+use Illuminate\Contracts\View\View;
 
-new #[Title('Appearance settings')] class extends Component {
-    //
+new class extends Component {
+    public function render(): View
+    {
+        return view('pages.settings.⚡appearance')->title(__('Appearance settings'));
+    }
 }; ?>
 
 <section class="w-full">

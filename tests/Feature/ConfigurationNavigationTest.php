@@ -50,6 +50,26 @@ class ConfigurationNavigationTest extends TestCase
         );
     }
 
+    public function test_configuration_center_and_user_management_render_korean_translations(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create(['preferred_locale' => 'ko_KR']);
+
+        $this->actingAs($admin)->get(route('configuration.index'))
+            ->assertOk()
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('설정 센터')
+            ->assertSee('내부 사용자 및 권한');
+
+        $this->actingAs($admin)->get(route('configuration.users'))
+            ->assertOk()
+            ->assertSee('내부 사용자 관리')
+            ->assertSee('설정 센터로 돌아가기')
+            ->assertSee('href="'.route('configuration.index').'"', false)
+            ->assertSee('wire:navigate', false)
+            ->assertSee('수락됨')
+            ->assertDontSee('accepted');
+    }
+
     public function test_primary_navigation_is_ordered_and_hides_admin_links_for_normal_users(): void
     {
         $admin = User::factory()->superAdmin()->withTwoFactor()->create();

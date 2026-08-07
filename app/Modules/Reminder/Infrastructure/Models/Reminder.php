@@ -15,6 +15,7 @@ use Illuminate\Support\Carbon;
  * @property string $title
  * @property string|null $suggestion
  * @property string|null $notes
+ * @property array<string, mixed>|null $localized_content
  * @property Carbon $due_at
  * @property array<string, mixed>|null $recurrence
  * @property Carbon|null $completed_at
@@ -28,6 +29,7 @@ class Reminder extends Model
         return [
             'due_at' => 'datetime',
             'recurrence' => 'array',
+            'localized_content' => 'array',
             'notified_at' => 'datetime',
             'completed_at' => 'datetime',
         ];

@@ -9,10 +9,13 @@ use App\Modules\Audit\Application\Data\AuditLogFilterData;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Facades\Lang;
 use Spatie\Activitylog\Models\Activity;
 
 final class DatabaseAuditLogReader implements AuditLogReader
 {
+    public function __construct(private readonly AuditMessageCatalog $messages) {}
+
     /** @var array<int, string> */
     private const SAFE_SCALAR_PROPERTIES = [
         'user_id', 'role', 'invitation_status', 'code', 'automatic_code', 'policy_grade_id',
@@ -76,15 +79,18 @@ final class DatabaseAuditLogReader implements AuditLogReader
             ? (int) $activity->subject_id
             : (isset($properties['user_id']) && is_numeric($properties['user_id']) ? (int) $properties['user_id'] : null);
 
+        $messageKey = $this->messageKey($activity, $properties);
+
         return new AuditLogEntryData(
             id: (int) $activity->id,
             occurredAt: CarbonImmutable::instance($activity->created_at),
             module: (string) ($activity->log_name ?? 'system'),
             action: (string) ($activity->event ?? 'recorded'),
-            description: (string) $activity->description,
+            description: $this->localizedDescription($activity, $properties, $messageKey),
             causerName: $activity->causer instanceof User ? $activity->causer->name : null,
             targetUserId: $targetUserId,
             properties: $this->safeProperties($properties),
+            legacyDescription: $messageKey === null,
         );
     }
 
@@ -112,6 +118,29 @@ final class DatabaseAuditLogReader implements AuditLogReader
         }
 
         return $safe;
+    }
+
+    /** @param array<string, mixed> $properties */
+    private function localizedDescription(Activity $activity, array $properties, ?string $messageKey = null): string
+    {
+        $messageKey ??= $this->messageKey($activity, $properties);
+        $parameters = $properties['message_parameters'] ?? [];
+
+        if (is_string($messageKey) && Lang::has($messageKey)) {
+            return (string) __($messageKey, is_array($parameters) ? $parameters : []);
+        }
+
+        return (string) $activity->description;
+    }
+
+    /** @param array<string, mixed> $properties */
+    private function messageKey(Activity $activity, array $properties): ?string
+    {
+        $messageKey = $properties['message_key'] ?? null;
+
+        return is_string($messageKey)
+            ? $messageKey
+            : $this->messages->keyFor((string) $activity->description);
     }
 
     /** @param array<string, mixed> $attributes

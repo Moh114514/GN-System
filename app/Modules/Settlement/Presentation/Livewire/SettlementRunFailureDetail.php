@@ -8,11 +8,9 @@ use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('月结失败详情')]
 class SettlementRunFailureDetail extends Component
 {
     public string $runId;
@@ -25,7 +23,7 @@ class SettlementRunFailureDetail extends Component
     public function retryAll(SettlementRunManager $manager): void
     {
         $manager->retryFailed($this->runId);
-        Flux::toast(variant: 'success', text: '失败项已重新提交处理队列。');
+        Flux::toast(variant: 'success', text: __('settlements.toasts.retry_all_failed'));
     }
 
     public function render(SettlementRunFailureReader $reader): View
@@ -35,6 +33,6 @@ class SettlementRunFailureDetail extends Component
         return view('livewire.settlements.settlement-run-failure-detail', [
             'run' => $run,
             'failures' => $reader->read($run),
-        ]);
+        ])->title(__('settlements.titles.failure_detail'));
     }
 }

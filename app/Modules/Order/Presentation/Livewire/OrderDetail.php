@@ -10,11 +10,9 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('订单详情')]
 class OrderDetail extends Component
 {
     public int $orderId;
@@ -38,11 +36,11 @@ class OrderDetail extends Component
         try {
             $workspace->complete($this->orderId, CarbonImmutable::now('Asia/Shanghai'), (int) Auth::id(), request()->ip());
         } catch (DomainException $exception) {
-            Flux::toast(variant: 'danger', text: $exception->getMessage());
+            Flux::toast(variant: 'danger', text: __('orders.errors.unexpected', ['message' => $exception->getMessage()]));
 
             return;
         }
-        Flux::toast(variant: 'success', text: '订单已完成，推广费与术后提醒已同步固化。');
+        Flux::toast(variant: 'success', text: __('orders.messages.completed'));
         $this->load(app(OrderManagementWorkspace::class));
     }
 
@@ -50,32 +48,32 @@ class OrderDetail extends Component
     {
         $this->requireAdmin();
         $this->validate(['reason' => ['required', 'string', 'max:1000']]);
-        $this->runAction(fn (): int => $workspace->cancel($this->orderId, (int) Auth::id(), $this->reason, request()->ip()), '订单已取消。', $workspace);
+        $this->runAction(fn (): int => $workspace->cancel($this->orderId, (int) Auth::id(), $this->reason, request()->ip()), 'orders.messages.cancelled', $workspace);
     }
 
     public function reopen(OrderManagementWorkspace $workspace): void
     {
         $this->requireAdmin();
         $this->validate(['reason' => ['required', 'string', 'max:1000']]);
-        $this->runAction(fn (): int => $workspace->reopen($this->orderId, (int) Auth::id(), $this->reason, request()->ip()), '订单已重新打开。', $workspace);
+        $this->runAction(fn (): int => $workspace->reopen($this->orderId, (int) Auth::id(), $this->reason, request()->ip()), 'orders.messages.reopened', $workspace);
     }
 
     public function softDelete(OrderManagementWorkspace $workspace): void
     {
         $this->requireAdmin();
         $this->validate(['reason' => ['required', 'string', 'max:1000']]);
-        $this->runAction(fn (): int => $workspace->softDelete($this->orderId, (int) Auth::id(), $this->reason, request()->ip()), '订单已移入回收站。', $workspace);
+        $this->runAction(fn (): int => $workspace->softDelete($this->orderId, (int) Auth::id(), $this->reason, request()->ip()), 'orders.messages.soft_deleted', $workspace);
     }
 
     public function restore(OrderManagementWorkspace $workspace): void
     {
         $this->requireAdmin();
-        $this->runAction(fn (): int => $workspace->restore($this->orderId, (int) Auth::id(), request()->ip()), '订单已从回收站恢复。', $workspace);
+        $this->runAction(fn (): int => $workspace->restore($this->orderId, (int) Auth::id(), request()->ip()), 'orders.messages.restored', $workspace);
     }
 
     public function render(): View
     {
-        return view('livewire.orders.order-detail', ['order' => $this->orderDetails]);
+        return view('livewire.orders.order-detail', ['order' => $this->orderDetails])->title(__('orders.detail_title'));
     }
 
     public function changeStatus(DailyOrderWorkspace $dailyOrders, OrderManagementWorkspace $workspace): void
@@ -91,7 +89,7 @@ class OrderDetail extends Component
         if ($target === 'cancelled') {
             $this->requireAdmin();
             $this->validate(['reason' => ['required', 'string', 'max:1000']]);
-            $this->runAction(fn (): int => $workspace->cancel($this->orderId, (int) Auth::id(), $this->reason, request()->ip()), '订单已取消', $workspace);
+            $this->runAction(fn (): int => $workspace->cancel($this->orderId, (int) Auth::id(), $this->reason, request()->ip()), 'orders.messages.cancelled', $workspace);
 
             return;
         }
@@ -100,16 +98,16 @@ class OrderDetail extends Component
             $this->requireAdmin();
             $this->validate(['reason' => ['required', 'string', 'max:1000']]);
             if ($this->orderDetails['status'] === 'completed') {
-                $this->runAction(fn (): int => $workspace->rollbackCompleted($this->orderId, (int) Auth::id(), $this->reason, request()->ip()), '订单已受控回退至待完成。', $workspace);
+                $this->runAction(fn (): int => $workspace->rollbackCompleted($this->orderId, (int) Auth::id(), $this->reason, request()->ip()), 'orders.messages.rolled_back', $workspace);
 
                 return;
             }
-            $this->runAction(fn (): int => $workspace->reopen($this->orderId, (int) Auth::id(), $this->reason, request()->ip()), '订单已重新打开', $workspace);
+            $this->runAction(fn (): int => $workspace->reopen($this->orderId, (int) Auth::id(), $this->reason, request()->ip()), 'orders.messages.reopened', $workspace);
 
             return;
         }
 
-        $this->addError('statusSelection', '请选择有效的订单状态。');
+        $this->addError('statusSelection', __('orders.errors.invalid_status'));
     }
 
     private function load(OrderManagementWorkspace $workspace): void
@@ -129,12 +127,12 @@ class OrderDetail extends Component
         try {
             $action();
         } catch (DomainException $exception) {
-            Flux::toast(variant: 'danger', text: $exception->getMessage());
+            Flux::toast(variant: 'danger', text: __('orders.errors.unexpected', ['message' => $exception->getMessage()]));
 
             return;
         }
         $this->reset('reason');
-        Flux::toast(variant: 'success', text: $message);
+        Flux::toast(variant: 'success', text: __($message));
         $this->load($workspace);
     }
 }

@@ -37,26 +37,23 @@ final class DatabaseReportReminderReader implements ReportReminderReader
                 ->orderBy('due_at')
                 ->orderByDesc('priority')
                 ->limit(5)
-                ->get(['customer_id', 'due_at', 'title', 'reminder_type', 'priority'])
-                ->map(fn (Reminder $reminder): array => [
-                    'customer_id' => (int) $reminder->customer_id,
-                    'time' => $reminder->due_at->setTimezone('Asia/Shanghai')->format('H:i'),
-                    'title' => (string) $reminder->title,
-                    'tag' => $this->reminderType((string) $reminder->reminder_type),
-                    'priority' => (int) $reminder->priority,
-                ])
+                ->get(['customer_id', 'due_at', 'title', 'reminder_type', 'priority', 'localized_content'])
+                ->map(function (Reminder $reminder): array {
+                    $title = is_array($reminder->localized_content)
+                        ? ($reminder->localized_content['title'] ?? null)
+                        : null;
+
+                    return [
+                        'customer_id' => (int) $reminder->customer_id,
+                        'time' => $reminder->due_at->setTimezone('Asia/Shanghai')->format('H:i'),
+                        'title' => (string) $reminder->title,
+                        'title_key' => is_array($title) && is_string($title['key'] ?? null) ? $title['key'] : null,
+                        'title_parameters' => is_array($title) && is_array($title['parameters'] ?? null) ? $title['parameters'] : [],
+                        'tag' => (string) $reminder->reminder_type,
+                        'priority' => (int) $reminder->priority,
+                    ];
+                })
                 ->all(),
         ];
-    }
-
-    private function reminderType(string $type): string
-    {
-        return [
-            'pre_visit' => '到院提醒',
-            'post_treatment' => '术后回访',
-            'birthday' => '生日提醒',
-            'repurchase' => '复购窗口',
-            'manual' => '人工提醒',
-        ][$type] ?? '待办提醒';
     }
 }

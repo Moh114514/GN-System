@@ -44,7 +44,7 @@ final readonly class SettlementRunManager
         );
         $latest = $periods[0] ?? null;
         if (! $selected instanceof SettlementPeriodData || $latest === null || ! $selected->end->isBefore($latest->end)) {
-            throw new DomainException('往期月结节点无效，或该节点仍属于最新已关闭周期。');
+            throw new DomainException(__('settlements.errors.historical_period_invalid'));
         }
 
         return $this->startPeriod($selected, 'historical', $actorId);

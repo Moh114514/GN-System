@@ -5,11 +5,9 @@ namespace App\Modules\Agent\Presentation\Livewire;
 use App\Modules\Agent\Application\Services\AgentDirectory;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('代理商详情')]
 class AgentDetail extends Component
 {
     public int $agentId;
@@ -24,6 +22,6 @@ class AgentDetail extends Component
     {
         return view('livewire.agents.agent-detail', [
             'agent' => $directory->profile($this->agentId),
-        ]);
+        ])->title(__('agents.titles.detail'));
     }
 }

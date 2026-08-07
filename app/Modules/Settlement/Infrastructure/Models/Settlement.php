@@ -23,6 +23,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $exchange_rate_quoted_at
  * @property int|null $settled_by
  * @property string|null $exchange_rate_quote_source
+ * @property string|null $exchange_rate_quote_error_key
+ * @property array<string, scalar>|null $exchange_rate_quote_error_parameters
  * @property array<string, mixed>|null $snapshot
  * @property bool $exchange_rate_manual_override
  */
@@ -43,6 +45,7 @@ class Settlement extends Model
             'exchange_rate_quoted_at' => 'datetime',
             'exchange_rate_quote_attempted_at' => 'datetime',
             'exchange_rate_manual_override' => 'boolean',
+            'exchange_rate_quote_error_parameters' => 'array',
             'snapshot' => 'array',
         ];
     }

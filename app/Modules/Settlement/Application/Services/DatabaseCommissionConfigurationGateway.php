@@ -42,7 +42,7 @@ final readonly class DatabaseCommissionConfigurationGateway implements Commissio
             'effective_month' => $month,
         ])->first();
         if ($rule !== null && $month->isCurrentMonth()) {
-            throw new DomainException('已开始月份的机构费率不可修改，请配置下月费率。');
+            throw new DomainException(__('settlements.errors.institution_rate_month_locked'));
         }
         $before = $rule?->only(['rate_bps', 'effective_month', 'is_active']);
         $rule ??= new CommissionRule([
@@ -77,7 +77,7 @@ final readonly class DatabaseCommissionConfigurationGateway implements Commissio
         $institutionId === null ? $query->whereNull('institution_id') : $query->where('institution_id', $institutionId);
         $override = $query->whereDate('effective_from', $month)->first();
         if ($override !== null && $month->isCurrentMonth()) {
-            throw new DomainException('已开始月份的代理商特批不可修改，请配置下月特批。');
+            throw new DomainException(__('settlements.errors.agent_override_month_locked'));
         }
         $before = $override?->only(['rate_bps', 'effective_from', 'effective_until', 'reason']);
         if ($override === null) {
@@ -131,11 +131,11 @@ final readonly class DatabaseCommissionConfigurationGateway implements Commissio
     private function validateMonthAndRate(CarbonImmutable $effectiveMonth, int $rateBps): CarbonImmutable
     {
         if ($rateBps < 0 || $rateBps > 10000) {
-            throw new DomainException('费率必须在 0 到 10000 基点之间。');
+            throw new DomainException(__('settlements.errors.rate_out_of_range'));
         }
         $month = $effectiveMonth->startOfMonth();
         if ($month->lt(CarbonImmutable::now()->startOfMonth())) {
-            throw new DomainException('不能新增或修改已经结束月份的费率配置。');
+            throw new DomainException(__('settlements.errors.closed_month_rate_locked'));
         }
 
         return $month;

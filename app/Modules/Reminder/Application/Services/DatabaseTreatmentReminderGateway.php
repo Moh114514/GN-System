@@ -10,18 +10,11 @@ use Carbon\CarbonImmutable;
 
 final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
 {
-    /** @var array<int, string> */
-    private const SCHEDULE = [
-        1 => '问候恢复情况',
-        7 => '跟进恢复进度',
-        30 => '确认效果与复购意向',
-        90 => '中期效果回访',
-        180 => '长期效果与复购回访',
-    ];
+    private const SCHEDULE = [1, 7, 30, 90, 180];
 
     public function schedule(CompletedTreatmentData $data): void
     {
-        foreach (self::SCHEDULE as $days => $suggestion) {
+        foreach (self::SCHEDULE as $days) {
             $dueAt = $data->completedOn->addDays($days)->setTime(9, 0);
             if ($dueAt->isBefore(CarbonImmutable::now()->startOfDay())) {
                 continue;
@@ -35,9 +28,14 @@ final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
                 'created_by' => $data->actorId,
                 'source_type' => 'system',
                 'reminder_type' => 'post_treatment',
-                'title' => "术后第 {$days} 天跟进",
-                'suggestion' => $suggestion,
-                'notes' => "关联项目：{$data->projectName}",
+                'title' => __('reminders.system_reminders.post_treatment.title', ['days' => $days]),
+                'suggestion' => __("reminders.system_reminders.post_treatment.suggestions.{$days}"),
+                'notes' => __('reminders.system_reminders.post_treatment.project', ['project' => $data->projectName]),
+                'localized_content' => [
+                    'title' => ['key' => 'reminders.system_reminders.post_treatment.title', 'parameters' => ['days' => $days]],
+                    'suggestion' => ['key' => "reminders.system_reminders.post_treatment.suggestions.{$days}", 'parameters' => []],
+                    'notes' => [['key' => 'reminders.system_reminders.post_treatment.project', 'parameters' => ['project' => $data->projectName]]],
+                ],
                 'priority' => $days <= 7 ? 1 : 2,
                 'due_at' => $dueAt,
                 'status' => 'pending',
@@ -77,10 +75,19 @@ final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
             ->whereNotIn('status', ['completed', 'cancelled'])
             ->get()
             ->each(function (Reminder $reminder) use ($actorId, $reason): void {
+                $rollback = ['key' => 'reminders.system_reminders.rollback_note', 'parameters' => ['reason' => trim($reason)]];
+                $localizedContent = is_array($reminder->localized_content) ? $reminder->localized_content : [];
+                $notes = $localizedContent['notes'] ?? [];
+                $notes = array_is_list($notes) ? $notes : [$notes];
+                if ($notes === [] && trim((string) $reminder->notes) !== '') {
+                    $notes[] = trim((string) $reminder->notes);
+                }
+                $notes[] = $rollback;
                 $reminder->update([
                     'status' => 'cancelled',
                     'notification_status' => 'cancelled',
-                    'notes' => trim((string) $reminder->notes)."\n状态回退：".trim($reason),
+                    'notes' => trim((string) $reminder->notes)."\n".__('reminders.system_reminders.rollback_note', ['reason' => trim($reason)]),
+                    'localized_content' => [...$localizedContent, 'notes' => $notes],
                 ]);
                 ReminderEvent::query()->create([
                     'reminder_id' => $reminder->id,

@@ -88,7 +88,7 @@ final class SettlementPeriodCalculator
         });
 
         if ($candidates === []) {
-            throw new DomainException('Unable to rebuild settlement period boundaries from the stored configurations.');
+            throw new DomainException(__('settlements.errors.period_boundary_rebuild_failed'));
         }
 
         return $candidates[0];
@@ -139,10 +139,10 @@ final class SettlementPeriodCalculator
         CarbonImmutable $now,
     ): SettlementConfiguration {
         if ($boundaryDay < 1 || $boundaryDay > 28) {
-            throw new DomainException('月结边界日必须在 1 至 28 日之间。');
+            throw new DomainException(__('settlements.errors.boundary_day_invalid'));
         }
         if (preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', $triggerTime) !== 1) {
-            throw new DomainException('月结触发时间格式无效。');
+            throw new DomainException(__('settlements.errors.trigger_time_invalid'));
         }
         $this->activeConfiguration($now);
         $effectiveFrom = $this->nextBoundary($now, $boundaryDay)->toDateString();

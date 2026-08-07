@@ -15,12 +15,10 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 use Throwable;
 
 #[Layout('layouts.app')]
-#[Title('月结详情')]
 class SettlementDetail extends Component
 {
     public int $settlementId;
@@ -54,13 +52,13 @@ class SettlementDetail extends Component
     public function reject(SettlementWorkflow $workflow): void
     {
         $this->validate(['rejectionReason' => ['required', 'string', 'max:2000']]);
-        $this->run(fn () => $workflow->reject($this->settlementId, $this->rejectionReason, (int) Auth::id(), request()->ip()), '月结已驳回。');
+        $this->run(fn () => $workflow->reject($this->settlementId, $this->rejectionReason, (int) Auth::id(), request()->ip()), __('settlements.toasts.rejected'));
     }
 
     public function approve(SettlementWorkflow $workflow): void
     {
         $this->validate(['exchangeRate' => ['required', 'numeric', 'gt:0']]);
-        $this->run(fn () => $workflow->approve($this->settlementId, $this->exchangeRate, (int) Auth::id(), request()->ip()), '月结已审核通过，Word/PDF 已生成。');
+        $this->run(fn () => $workflow->approve($this->settlementId, $this->exchangeRate, (int) Auth::id(), request()->ip()), __('settlements.toasts.approved'));
     }
 
     public function refreshExchangeRateQuote(ExchangeRateQuoteService $quotes): void
@@ -69,23 +67,23 @@ class SettlementDetail extends Component
             $record = $quotes->refreshFor(Settlement::query()->findOrFail($this->settlementId), true);
             $this->refreshExchangeRate();
             if ($record->exchange_rate_quote_status === 'available') {
-                Flux::toast(variant: 'success', text: '最新汇率报价已更新，请核对后提交审核。');
+                Flux::toast(variant: 'success', text: __('settlements.toasts.quote_updated'));
             } elseif ($record->exchange_rate_quote_status === 'failed_retained_old_rate') {
-                Flux::toast(variant: 'warning', text: '最新汇率报价失败，已保留原汇率，请人工核对。');
+                Flux::toast(variant: 'warning', text: __('settlements.toasts.quote_failed_retained'));
             } else {
-                Flux::toast(variant: 'danger', text: '最新汇率报价失败，当前没有可用汇率，请手动填写。');
+                Flux::toast(variant: 'danger', text: __('settlements.toasts.quote_unavailable'));
             }
         } catch (DomainException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());
         } catch (Throwable $exception) {
             report($exception);
-            Flux::toast(variant: 'danger', text: '最新汇率报价失败，请检查服务后重试。');
+            Flux::toast(variant: 'danger', text: __('settlements.toasts.quote_error'));
         }
     }
 
     public function settle(SettlementWorkflow $workflow): void
     {
-        $this->run(fn () => $workflow->settle($this->settlementId, (int) Auth::id(), request()->ip()), '月结已确认结清。');
+        $this->run(fn () => $workflow->settle($this->settlementId, (int) Auth::id(), request()->ip()), __('settlements.toasts.settled'));
     }
 
     public function correctStatus(SettlementWorkflow $workflow): void
@@ -97,14 +95,14 @@ class SettlementDetail extends Component
         $this->run(
             fn () => $workflow->correctStatus($this->settlementId, $this->correctionTarget, $this->correctionReason, (int) Auth::id(), request()->ip()),
             $this->correctionTarget === 'pending_review'
-                ? '月结已回退到待审核，请先重新生成月结明细并核对汇率。'
-                : '月结状态已更正，并已记录审计原因。',
+                ? __('settlements.toasts.corrected_to_review')
+                : __('settlements.toasts.corrected'),
         );
     }
 
     public function regenerateDocuments(SettlementWorkflow $workflow): void
     {
-        $this->run(fn () => $workflow->regenerateDocuments($this->settlementId), 'Word/PDF 已重新生成。');
+        $this->run(fn () => $workflow->regenerateDocuments($this->settlementId), __('settlements.toasts.documents_regenerated'));
     }
 
     public function regenerateSettlement(SettlementGenerator $generator): void
@@ -113,13 +111,13 @@ class SettlementDetail extends Component
         if (! in_array($record->status, ['pending_review', 'rejected'], true)
             || ! in_array($record->generation_status, ['pending', 'unverified'], true)
             || $record->settlement_run_id === null) {
-            Flux::toast(variant: 'danger', text: '只有存在可用批次的月结可以重新生成，请先核对历史数据。');
+            Flux::toast(variant: 'danger', text: __('settlements.toasts.regeneration_unavailable'));
 
             return;
         }
         $this->run(
             fn () => $generator->generate((string) $record->settlement_run_id, (int) $record->agent_id),
-            '月结明细已重新生成。',
+            __('settlements.toasts.settlement_regenerated'),
         );
     }
 
@@ -128,7 +126,7 @@ class SettlementDetail extends Component
         $this->validateRecoveryBasis();
         $this->run(
             fn () => $workflow->recoverUnverifiedAsHistorical($this->settlementId, $this->generationRecoveryBasis, (int) Auth::id(), request()->ip()),
-            '历史月结已核验为不适用，并已记录审计。',
+            __('settlements.toasts.historical_recovered'),
         );
     }
 
@@ -137,13 +135,13 @@ class SettlementDetail extends Component
         $this->validateRecoveryBasis();
         $this->run(
             fn () => $workflow->recoverUnverifiedWithBatch($this->settlementId, $this->generationRecoveryBasis, (int) Auth::id(), request()->ip()),
-            '恢复批次已创建，月结明细已重新生成。',
+            __('settlements.toasts.recovery_batch_created'),
         );
     }
 
     public function reviewSuggestion(int $id, bool $accept, SettlementWorkflow $workflow): void
     {
-        $this->run(fn () => $workflow->reviewSuggestion($id, $accept, $this->suggestionReason, (int) Auth::id()), $accept ? '等级建议已批准并安排下月生效。' : '等级建议已驳回。');
+        $this->run(fn () => $workflow->reviewSuggestion($id, $accept, $this->suggestionReason, (int) Auth::id()), $accept ? __('settlements.toasts.suggestion_approved') : __('settlements.toasts.suggestion_rejected'));
     }
 
     public function render(): View
@@ -186,7 +184,7 @@ class SettlementDetail extends Component
             'suggestion' => SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->first(),
             'previousSettlement' => $previousSettlement,
             'nextSettlement' => $nextSettlement,
-        ]);
+        ])->title(__('settlements.titles.detail'));
     }
 
     private function run(\Closure $operation, string $message): void
@@ -199,7 +197,7 @@ class SettlementDetail extends Component
             Flux::toast(variant: 'danger', text: $exception->getMessage());
         } catch (Throwable $exception) {
             report($exception);
-            Flux::toast(variant: 'danger', text: '操作未完成，数据已回滚，请检查文档生成环境后重试。');
+            Flux::toast(variant: 'danger', text: __('settlements.toasts.operation_failed'));
         }
     }
 

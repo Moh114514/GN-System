@@ -26,19 +26,12 @@ final readonly class SettlementRunFailureReportGenerator
 
         try {
             $sheet = $spreadsheet->getActiveSheet();
-            $sheet->setTitle('失败明细');
-            $sheet->fromArray([[
-                '批次编号',
-                '周期',
-                '代理商编号',
-                '代理商名称',
-                '代理商 ID',
-                '失败原因',
-            ]]);
+            $sheet->setTitle((string) __('settlements.failure_report.sheet'));
+            $sheet->fromArray([array_values(__('settlements.failure_report.headers'))]);
             foreach ($this->reader->read($run) as $index => $failure) {
                 $row = $index + 2;
                 $sheet->setCellValueExplicit('A'.$row, (string) $run->id, DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('B'.$row, $run->period_start->format('Y-m-d').' 至 '.$run->period_end->format('Y-m-d'), DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit('B'.$row, __('settlements.failure_report.period', ['from' => $run->period_start->format('Y-m-d'), 'to' => $run->period_end->format('Y-m-d')]), DataType::TYPE_STRING);
                 $sheet->setCellValueExplicit('C'.$row, $failure->agentCode, DataType::TYPE_STRING);
                 $sheet->setCellValueExplicit('D'.$row, $failure->agentName, DataType::TYPE_STRING);
                 $sheet->setCellValue('E'.$row, $failure->agentId);
@@ -58,11 +51,11 @@ final readonly class SettlementRunFailureReportGenerator
             $disk->makeDirectory($directory);
             $reportDirectory = dirname($absolutePath);
             if (! is_dir($reportDirectory) || ! is_writable($reportDirectory)) {
-                throw new RuntimeException('报告目录不可写，请联系管理员。');
+                throw new RuntimeException(__('settlements.errors.failure_report_directory_unwritable'));
             }
             (new Xlsx($spreadsheet))->save($absolutePath);
             if (! is_file($absolutePath)) {
-                throw new RuntimeException('报告文件未生成，请联系管理员。');
+                throw new RuntimeException(__('settlements.errors.failure_report_file_missing'));
             }
 
             return $path;

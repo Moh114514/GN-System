@@ -11,11 +11,9 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('代理商档案')]
 class AgentForm extends Component
 {
     public ?int $agentId = null;
@@ -102,7 +100,7 @@ class AgentForm extends Component
         try {
             if ($this->agentId === null) {
                 $id = $manager->create($data, (int) Auth::id(), request()->ip());
-                Flux::toast(variant: 'success', text: '代理商档案已创建。');
+                Flux::toast(variant: 'success', text: __('agents.messages.created'));
 
                 return $this->redirectRoute('agents.show', ['agent' => $id], navigate: true);
             }
@@ -112,13 +110,13 @@ class AgentForm extends Component
 
             return null;
         }
-        Flux::toast(variant: 'success', text: '代理商档案已更新；等级变化将在下月生效。');
+        Flux::toast(variant: 'success', text: __('agents.messages.updated'));
 
         return $this->redirectRoute('agents.show', ['agent' => $this->agentId], navigate: true);
     }
 
     public function render(): View
     {
-        return view('livewire.agents.agent-form');
+        return view('livewire.agents.agent-form')->title(__('agents.titles.form'));
     }
 }

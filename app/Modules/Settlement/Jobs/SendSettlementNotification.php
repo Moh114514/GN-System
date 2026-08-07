@@ -2,6 +2,7 @@
 
 namespace App\Modules\Settlement\Jobs;
 
+use App\Infrastructure\Localization\SupportedLocale;
 use App\Modules\Settlement\Application\Services\SettlementNotifier;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -17,11 +18,20 @@ class SendSettlementNotification implements ShouldQueue
     /** @var array<int, int> */
     public array $backoff = [10, 60, 300];
 
-    public function __construct(public string $runId) {}
+    public function __construct(
+        public string $runId,
+        public ?string $locale = null,
+    ) {}
 
     public function handle(SettlementNotifier $notifier): void
     {
-        $notifier->send($this->runId);
+        $previousLocale = app()->getLocale();
+        app()->setLocale((SupportedLocale::fromCandidate($this->locale) ?? SupportedLocale::default())->value);
+        try {
+            $notifier->send($this->runId);
+        } finally {
+            app()->setLocale($previousLocale);
+        }
     }
 
     public function failed(Throwable $exception): void

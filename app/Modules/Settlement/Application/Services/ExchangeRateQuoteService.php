@@ -45,6 +45,8 @@ final readonly class ExchangeRateQuoteService
                     'exchange_rate_quote_attempted_at' => $attemptedAt,
                     'exchange_rate_quote_status' => 'available',
                     'exchange_rate_quote_error' => null,
+                    'exchange_rate_quote_error_key' => null,
+                    'exchange_rate_quote_error_parameters' => null,
                     'exchange_rate_manual_override' => false,
                 ]);
 
@@ -53,6 +55,8 @@ final readonly class ExchangeRateQuoteService
 
             $attributes = [
                 'exchange_rate_quote_error' => (string) str($quote->failureReason)->limit(500, ''),
+                'exchange_rate_quote_error_key' => 'settlements.quote_failures.unavailable',
+                'exchange_rate_quote_error_parameters' => [],
                 'exchange_rate_quote_attempted_at' => $attemptedAt,
                 'exchange_rate_quote_status' => $locked->exchange_rate_krw_per_cny === null
                     ? 'unavailable'

@@ -22,8 +22,8 @@ final class EnsureUserIsActive
             $request->session()->regenerateToken();
 
             $message = $user->is_active
-                ? '登录会话已失效，请重新登录。'
-                : '该账号已停用，请联系超级管理员。';
+                ? __('auth.middleware.session_expired')
+                : __('auth.middleware.account_disabled');
 
             return redirect()->route('login')->withErrors(['email' => $message]);
         }

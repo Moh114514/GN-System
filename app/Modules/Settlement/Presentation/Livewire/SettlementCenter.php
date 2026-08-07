@@ -13,11 +13,9 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('月结中心')]
 class SettlementCenter extends Component
 {
     /** @var array<int, string> */
@@ -51,7 +49,7 @@ class SettlementCenter extends Component
 
     public function generate(SettlementRunManager $manager): void
     {
-        $this->flashStartResult($manager->startWithResult('manual', (int) Auth::id()), '月结');
+        $this->flashStartResult($manager->startWithResult('manual', (int) Auth::id()), __('settlements.labels.current'));
     }
 
     public function generateHistorical(SettlementRunManager $manager): void
@@ -60,7 +58,7 @@ class SettlementCenter extends Component
             'historicalPeriodEnd' => ['required', 'date_format:Y-m-d'],
         ]);
         try {
-            $this->flashStartResult($manager->startHistoricalWithResult($this->historicalPeriodEnd, (int) Auth::id()), '往期月结');
+            $this->flashStartResult($manager->startHistoricalWithResult($this->historicalPeriodEnd, (int) Auth::id()), __('settlements.labels.historical'));
         } catch (DomainException $exception) {
             $this->addError('historicalPeriodEnd', $exception->getMessage());
         }
@@ -69,14 +67,14 @@ class SettlementCenter extends Component
     public function retry(string $runId, SettlementRunManager $manager): void
     {
         $manager->retryFailed($runId);
-        Flux::toast(variant: 'success', text: '失败的代理商月结已重新进入队列。');
+        Flux::toast(variant: 'success', text: __('settlements.toasts.retry_failed'));
     }
 
     public function retryNotification(string $runId, SettlementNotificationDispatcher $dispatcher): void
     {
         try {
             $dispatcher->retry($runId);
-            Flux::toast(variant: 'success', text: '月结完成通知已重新进入队列。');
+            Flux::toast(variant: 'success', text: __('settlements.toasts.retry_notification'));
         } catch (DomainException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());
         }
@@ -90,7 +88,7 @@ class SettlementCenter extends Component
         ]);
         $hasUnfinished = SettlementRun::query()->whereIn('status', ['queued', 'running', 'partial_failed'])->exists();
         if ($hasUnfinished && ! $this->confirmConfigurationChange) {
-            Flux::toast(variant: 'danger', text: '当前存在未完成月结，请确认当前周期仍按旧配置执行后再保存。');
+            Flux::toast(variant: 'danger', text: __('settlements.toasts.configuration_confirmation_required'));
 
             return;
         }
@@ -101,7 +99,7 @@ class SettlementCenter extends Component
                 (int) Auth::id(),
                 CarbonImmutable::now(),
             );
-            Flux::toast(variant: 'success', text: '新月结周期配置将从 '.$configuration->effective_from->format('Y-m-d').' 起生效。');
+            Flux::toast(variant: 'success', text: __('settlements.toasts.configuration_saved', ['date' => $configuration->effective_from->format('Y-m-d')]));
             $this->confirmConfigurationChange = false;
         } catch (DomainException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());
@@ -124,21 +122,17 @@ class SettlementCenter extends Component
 
     private function flashStartResult(SettlementRunStartResult $result, string $label): void
     {
-        $message = match ($result->outcome) {
-            'created_and_dispatched' => "{$label}批次 {$result->run->id} 已进入处理队列。",
-            'created_and_completed' => "{$label}批次 {$result->run->id} 已完成，没有需要处理的代理商。",
-            'created_partial_failed' => "{$label}批次 {$result->run->id} 已创建，但有代理商处理失败，请使用“重试失败项”。",
-            'existing_running' => "该周期已有正在处理的月结批次 {$result->run->id}，没有重复派发任务。",
-            'existing_completed' => "该周期已完成月结批次 {$result->run->id}，没有重复派发任务。",
-            'existing_partial_failed' => "该周期已有部分失败批次 {$result->run->id}，请使用“重试失败项”，没有重复派发任务。",
-            default => "该周期已有月结批次 {$result->run->id}，没有重复派发任务。",
+        $messageKey = match ($result->outcome) {
+            'created_and_dispatched', 'created_and_completed', 'created_partial_failed',
+            'existing_running', 'existing_completed', 'existing_partial_failed' => $result->outcome,
+            default => 'existing_other',
         };
         $key = str_starts_with($result->outcome, 'existing_') || $result->outcome === 'created_partial_failed'
             ? 'warning'
             : 'status';
         Flux::toast(
             variant: $key === 'warning' ? 'warning' : 'success',
-            text: $message,
+            text: __('settlements.toasts.'.$messageKey, ['label' => $label, 'id' => $result->run->id]),
         );
     }
 }

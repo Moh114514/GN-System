@@ -2,6 +2,7 @@
 
 namespace App\Modules\Reminder\Jobs;
 
+use App\Infrastructure\Localization\SupportedLocale;
 use App\Modules\Reminder\Application\Services\ReminderNotifier;
 use App\Modules\Reminder\Infrastructure\Models\Reminder;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -17,11 +18,20 @@ class SendReminderNotification implements ShouldQueue
     /** @var array<int, int> */
     public array $backoff = [10, 60, 300];
 
-    public function __construct(public int $reminderId) {}
+    public function __construct(
+        public int $reminderId,
+        public ?string $locale = null,
+    ) {}
 
     public function handle(ReminderNotifier $notifier): void
     {
-        $notifier->send($this->reminderId);
+        $previousLocale = app()->getLocale();
+        app()->setLocale((SupportedLocale::fromCandidate($this->locale) ?? SupportedLocale::default())->value);
+        try {
+            $notifier->send($this->reminderId);
+        } finally {
+            app()->setLocale($previousLocale);
+        }
     }
 
     public function failed(Throwable $exception): void

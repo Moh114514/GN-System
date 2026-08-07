@@ -80,6 +80,7 @@ final readonly class ImportBatchCommitter
             $this->issues->record($batch, 'dry_run', 'error', 'dry_run_failed', $exception->getMessage(), null, null, null, [
                 'exception' => $exception::class,
             ]);
+            $this->issues->markBatchFailure($batch, 'dry_run_failed', $exception->getMessage());
             $this->stages->update($batch, 'dry_run', 'failed', ['issue_count' => 1]);
             throw $exception;
         }
@@ -115,13 +116,14 @@ final readonly class ImportBatchCommitter
             }, 3);
             $this->stages->update($batch, 'commit', 'passed', ['passed_rows' => $batch->valid_rows]);
         } catch (\Throwable $exception) {
-            $this->issues->record($batch, 'commit', 'error', $exception instanceof QueryException ? 'database_constraint_exception' : 'commit_failed', $exception->getMessage(), null, null, null, [
+            $code = $exception instanceof QueryException ? 'database_constraint_exception' : 'commit_failed';
+            $this->issues->record($batch, 'commit', 'error', $code, $exception->getMessage(), null, null, null, [
                 'exception' => $exception::class,
             ]);
+            $this->issues->markBatchFailure($batch, $code, $exception->getMessage());
             $this->stages->update($batch, 'commit', 'failed', ['issue_count' => 1]);
             $batch->update([
                 'status' => ImportBatchStatus::Failed,
-                'failure_reason' => $exception->getMessage(),
             ]);
 
             throw $exception;

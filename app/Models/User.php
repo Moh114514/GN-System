@@ -17,6 +17,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property int $id
  * @property string $name
  * @property string $email
+ * @property string $preferred_locale
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property bool $is_super_admin
@@ -34,7 +35,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $updated_at
  */
 #[Fillable([
-    'name', 'email', 'password', 'is_super_admin', 'is_active', 'invitation_status',
+    'name', 'email', 'password', 'preferred_locale', 'is_super_admin', 'is_active', 'invitation_status',
     'invitation_sent_at', 'disabled_at', 'disabled_by', 'remember_token', 'session_version',
 ])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]

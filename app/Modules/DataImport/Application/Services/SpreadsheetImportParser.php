@@ -41,7 +41,12 @@ final readonly class SpreadsheetImportParser
     {
         $this->stages->initialize($batch);
         $this->stages->update($batch, 'file_detection', 'running');
-        $batch->update(['status' => ImportBatchStatus::Parsing, 'failure_reason' => null]);
+        $batch->update([
+            'status' => ImportBatchStatus::Parsing,
+            'failure_reason' => null,
+            'failure_reason_key' => null,
+            'failure_reason_parameters' => null,
+        ]);
         $batch->issues()->delete();
         $batch->rows()->delete();
 
@@ -89,10 +94,8 @@ final readonly class SpreadsheetImportParser
         $message = Str::limit($exception->getMessage(), 2000);
         $this->stages->update($batch, $stage, 'failed', ['issue_count' => 1]);
         $this->issues->record($batch, $stage, 'error', $code, $message);
-        $batch->update([
-            'status' => ImportBatchStatus::Failed,
-            'failure_reason' => $message,
-        ]);
+        $this->issues->markBatchFailure($batch, $code, $message);
+        $batch->update(['status' => ImportBatchStatus::Failed]);
     }
 
     private function parseFile(ImportFile $file): void

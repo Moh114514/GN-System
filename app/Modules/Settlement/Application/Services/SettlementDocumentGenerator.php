@@ -16,8 +16,6 @@ use ZipArchive;
 
 final class SettlementDocumentGenerator
 {
-    private const PDF_FONT_PATH = '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf';
-
     private const PDF_CACHE_PATH = 'framework/cache/dompdf';
 
     /** @return array<string, mixed> */
@@ -46,8 +44,8 @@ final class SettlementDocumentGenerator
 
         return [
             'settlement_id' => (int) $settlement->id,
-            'agent_code' => (string) data_get($snapshot, 'agent.code', '未知'),
-            'agent_name' => (string) data_get($snapshot, 'agent.name', '未知代理商'),
+            'agent_code' => (string) data_get($snapshot, 'agent.code', __('settlements.documents.unknown')),
+            'agent_name' => (string) data_get($snapshot, 'agent.name', __('settlements.documents.unknown_agent')),
             'period_start' => $settlement->period_start->format('Y-m-d'),
             'period_end' => $settlement->period_end->format('Y-m-d'),
             'exchange_rate' => (string) $settlement->exchange_rate_krw_per_cny,
@@ -55,6 +53,7 @@ final class SettlementDocumentGenerator
             'total_commission_krw' => (int) $settlement->total_commission_krw,
             'payout_amount_cny_fen' => (int) $settlement->payout_amount_cny_fen,
             'items' => $items,
+            'locale' => app()->getLocale(),
         ];
     }
 
@@ -67,12 +66,12 @@ final class SettlementDocumentGenerator
 
         $word = new PhpWord;
         $section = $word->addSection();
-        $section->addTitle('代理商月结结算单', 1);
-        $section->addText("代理商：{$data['agent_name']}（{$data['agent_code']}）");
-        $section->addText("结算周期：{$data['period_start']} 至 {$data['period_end']}");
+        $section->addTitle(__('settlements.documents.title'), 1);
+        $section->addText(__('settlements.documents.agent', ['name' => $data['agent_name'], 'code' => $data['agent_code']]));
+        $section->addText(__('settlements.documents.period', ['from' => $data['period_start'], 'to' => $data['period_end']]));
         $table = $section->addTable(['borderSize' => 6, 'cellMargin' => 60]);
         $table->addRow();
-        foreach (['订单', '完成日期', '项目', '消费额 KRW', '费率', '推广费 KRW'] as $heading) {
+        foreach (array_values(__('settlements.documents.headers')) as $heading) {
             $table->addCell()->addText($heading);
         }
         foreach ($data['items'] as $item) {
@@ -88,17 +87,17 @@ final class SettlementDocumentGenerator
                 $table->addCell()->addText((string) $value);
             }
         }
-        $section->addText('消费合计：₩ '.number_format($data['total_consumption_krw']));
-        $section->addText('推广费合计：₩ '.number_format($data['total_commission_krw']));
-        $section->addText('结算汇率：'.number_format((float) $data['exchange_rate'], 6).' KRW/CNY');
-        $section->addText('应付金额：¥ '.number_format($data['payout_amount_cny_fen'] / 100, 2));
+        $section->addText(__('settlements.documents.total_consumption', ['amount' => number_format($data['total_consumption_krw'])]));
+        $section->addText(__('settlements.documents.total_commission', ['amount' => number_format($data['total_commission_krw'])]));
+        $section->addText(__('settlements.documents.exchange_rate', ['rate' => number_format((float) $data['exchange_rate'], 6)]));
+        $section->addText(__('settlements.documents.payable', ['amount' => number_format($data['payout_amount_cny_fen'] / 100, 2)]));
 
         $wordPath = "{$directory}/settlement-{$settlement->id}.docx";
         $wordAbsolute = Storage::disk('local')->path($wordPath);
         IOFactory::createWriter($word, 'Word2007')->save($wordAbsolute);
         $this->record($settlement, 'docx', $wordPath, $data);
 
-        $dompdf->loadHtml($this->html($data, self::PDF_FONT_PATH), 'UTF-8');
+        $dompdf->loadHtml($this->html($data, (string) config('reporting.pdf.font_path')), 'UTF-8');
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
         $pdfPath = "{$directory}/settlement-{$settlement->id}.pdf";
@@ -159,8 +158,9 @@ final class SettlementDocumentGenerator
 
     private function dompdf(): Dompdf
     {
-        if (! is_readable(self::PDF_FONT_PATH)) {
-            throw new RuntimeException('结算 PDF 中文字体不可用，请重新构建应用镜像后重试。');
+        $pdfFontPath = (string) config('reporting.pdf.font_path');
+        if (! is_readable($pdfFontPath)) {
+            throw new RuntimeException(__('settlements.errors.document_pdf_font_missing'));
         }
 
         $fontCachePath = storage_path(self::PDF_CACHE_PATH.'/fonts');
@@ -168,12 +168,12 @@ final class SettlementDocumentGenerator
         File::ensureDirectoryExists($fontCachePath);
         File::ensureDirectoryExists($tempPath);
         if (! is_writable($fontCachePath) || ! is_writable($tempPath)) {
-            throw new RuntimeException('结算 PDF 缓存目录不可写，请检查 storage 目录权限后重试。');
+            throw new RuntimeException(__('settlements.errors.document_pdf_cache_unwritable'));
         }
 
         $options = new Options;
         $options->setIsRemoteEnabled(false);
-        $options->setChroot([base_path(), dirname(self::PDF_FONT_PATH)]);
+        $options->setChroot([base_path(), dirname($pdfFontPath)]);
         $options->setDefaultFont('GN CJK');
         $options->setIsFontSubsettingEnabled(false);
         $options->setFontDir($fontCachePath);
@@ -194,15 +194,35 @@ final class SettlementDocumentGenerator
                 .number_format($item['commission_krw']).'</td></tr>';
         }
 
-        return '<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><style>'
+        $labels = __('settlements.documents');
+        $agent = e(__('settlements.documents.agent', [
+            'name' => $data['agent_name'],
+            'code' => $data['agent_code'],
+        ]));
+        $period = e(__('settlements.documents.period', [
+            'from' => $data['period_start'],
+            'to' => $data['period_end'],
+        ]));
+        $totalConsumption = e(__('settlements.documents.total_consumption', [
+            'amount' => number_format($data['total_consumption_krw']),
+        ]));
+        $totalCommission = e(__('settlements.documents.total_commission', [
+            'amount' => number_format($data['total_commission_krw']),
+        ]));
+        $exchangeRate = e(__('settlements.documents.exchange_rate', [
+            'rate' => number_format((float) $data['exchange_rate'], 6),
+        ]));
+        $payable = e(__('settlements.documents.payable', [
+            'amount' => number_format($data['payout_amount_cny_fen'] / 100, 2),
+        ]));
+
+        return '<!doctype html><html lang="'.str_replace('_', '-', app()->getLocale()).'"><head><meta charset="UTF-8"><style>'
             .'@font-face{font-family:"GN CJK";font-style:normal;font-weight:normal;src:url("file://'.e($pdfFontPath).'") format("truetype");}'
             .'body{font-family:"GN CJK","Microsoft YaHei","PingFang SC","Noto Sans CJK SC",DejaVu Sans,sans-serif;color:#222}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:6px;text-align:left}'
-            .'</style></head><body><h1>代理商月结结算单</h1><p>代理商：'.e($data['agent_name']).'（'.e($data['agent_code']).'）</p>'
-            .'<p>结算周期：'.$data['period_start'].' 至 '.$data['period_end'].'</p><table><thead><tr>'
-            .'<th>订单</th><th>完成日期</th><th>项目</th><th>消费额 KRW</th><th>费率</th><th>推广费 KRW</th>'
-            .'</tr></thead><tbody>'.$rows.'</tbody></table><p>消费合计：₩ '.number_format($data['total_consumption_krw'])
-            .'</p><p>推广费合计：₩ '.number_format($data['total_commission_krw']).'</p><p>结算汇率：'
-            .number_format((float) $data['exchange_rate'], 6).' KRW/CNY</p><p>应付金额：¥ '
-            .number_format($data['payout_amount_cny_fen'] / 100, 2).'</p></body></html>';
+            .'</style></head><body><h1>'.e($labels['title']).'</h1><p>'.$agent.'</p>'
+            .'<p>'.$period.'</p><table><thead><tr>'
+            .'<th>'.e($labels['headers']['order']).'</th><th>'.e($labels['headers']['completed_on']).'</th><th>'.e($labels['headers']['project']).'</th><th>'.e($labels['headers']['consumption']).'</th><th>'.e($labels['headers']['rate']).'</th><th>'.e($labels['headers']['commission']).'</th>'
+            .'</tr></thead><tbody>'.$rows.'</tbody></table><p>'.$totalConsumption
+            .'</p><p>'.$totalCommission.'</p><p>'.$exchangeRate.'</p><p>'.$payable.'</p></body></html>';
     }
 }

@@ -6,12 +6,10 @@ use App\Modules\Order\Application\Services\OrderManagementWorkspace;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 #[Layout('layouts.app')]
-#[Title('订单回收站')]
 class OrderRecycleBin extends Component
 {
     use WithPagination;
@@ -72,7 +70,7 @@ class OrderRecycleBin extends Component
             'agent_id' => $this->agentFilter === '' ? null : (int) $this->agentFilter,
         ], in_array($this->perPage, [20, 50, 100], true) ? $this->perPage : 20, true, true);
 
-        return view('livewire.orders.order-recycle-bin', compact('orders'));
+        return view('livewire.orders.order-recycle-bin', compact('orders'))->title(__('orders.recycle_bin_title'));
     }
 
     private function assertCanView(): void

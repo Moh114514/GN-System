@@ -7,10 +7,17 @@ use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Audit\Application\Data\AuditEntryData;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\Lang;
 use Spatie\Activitylog\Models\Activity;
 
 final class SpatieAuditRecorder implements AuditRecorder
 {
+    public function __construct(private readonly AuditMessageCatalog $messages) {}
+
+    /**
+     * @param  array<string, mixed>  $properties
+     * @param  array<string, mixed>  $messageParameters
+     */
     public function record(
         string $description,
         array $properties = [],
@@ -19,7 +26,19 @@ final class SpatieAuditRecorder implements AuditRecorder
         string $logName = 'data-import',
         ?string $event = null,
         ?string $ipAddress = null,
+        ?string $messageKey = null,
+        array $messageParameters = [],
     ): void {
+        $messageKey ??= $this->messages->keyFor($description);
+        if ($messageKey !== null) {
+            $description = (string) __($messageKey, $messageParameters);
+        }
+
+        if ($messageKey !== null) {
+            $properties['message_key'] = $messageKey;
+            $properties['message_parameters'] = $messageParameters;
+        }
+
         if ($ipAddress !== null) {
             $properties['ip_address'] = $ipAddress;
         }
@@ -52,13 +71,30 @@ final class SpatieAuditRecorder implements AuditRecorder
             ->where('subject_id', $subject->getKey())
             ->orderByDesc('created_at')
             ->get()
-            ->map(fn (Activity $activity): AuditEntryData => new AuditEntryData(
-                description: (string) $activity->description,
-                event: $activity->event,
-                properties: $activity->properties->all(),
-                causerId: $activity->causer_id === null ? null : (int) $activity->causer_id,
-                occurredAt: CarbonImmutable::instance($activity->created_at),
-            ))
+            ->map(function (Activity $activity): AuditEntryData {
+                $properties = $activity->properties->all();
+
+                return new AuditEntryData(
+                    description: $this->localizedDescription($activity, $properties),
+                    event: $activity->event,
+                    properties: $properties,
+                    causerId: $activity->causer_id === null ? null : (int) $activity->causer_id,
+                    occurredAt: CarbonImmutable::instance($activity->created_at),
+                );
+            })
             ->all();
+    }
+
+    /** @param array<string, mixed> $properties */
+    private function localizedDescription(Activity $activity, array $properties): string
+    {
+        $messageKey = $properties['message_key'] ?? $this->messages->keyFor((string) $activity->description);
+        $parameters = $properties['message_parameters'] ?? [];
+
+        if (is_string($messageKey) && Lang::has($messageKey)) {
+            return (string) __($messageKey, is_array($parameters) ? $parameters : []);
+        }
+
+        return (string) $activity->description;
     }
 }

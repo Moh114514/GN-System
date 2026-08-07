@@ -31,7 +31,7 @@ final class DatabaseCustomerFollowupGateway implements CustomerFollowupGateway
                 'occurred_at' => $record->followed_up_on === null
                     ? $record->created_at?->toIso8601String()
                     : CarbonImmutable::parse($record->followed_up_on)->startOfDay()->toIso8601String(),
-                'title' => '客户跟进',
+                'title' => __('reminders.timeline.customer_followup'),
                 'content' => $record->content,
                 'owner_id' => $record->owner_id === null ? null : (int) $record->owner_id,
                 'meta' => ['followup_type' => $record->type],

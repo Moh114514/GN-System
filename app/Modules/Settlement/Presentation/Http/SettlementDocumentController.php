@@ -15,7 +15,7 @@ final class SettlementDocumentController
 
         return Storage::disk('local')->download(
             $document->path,
-            "settlement-{$document->settlement_id}.{$document->format}",
+            __('settlements.documents.filename', ['id' => $document->settlement_id, 'format' => $document->format]),
         );
     }
 
@@ -23,6 +23,6 @@ final class SettlementDocumentController
     {
         $path = $generator->archiveRun($run);
 
-        return Storage::disk('local')->download($path, "settlements-{$run}.zip");
+        return Storage::disk('local')->download($path, __('settlements.documents.archive_filename', ['run' => $run]));
     }
 }

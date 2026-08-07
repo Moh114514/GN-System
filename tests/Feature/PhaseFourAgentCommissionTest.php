@@ -27,6 +27,7 @@ use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
+use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
 
 class PhaseFourAgentCommissionTest extends TestCase
@@ -223,6 +224,10 @@ class PhaseFourAgentCommissionTest extends TestCase
         $manager->saveType($vip->id, 'V2P', '升级后的 VIP 合伙人', '仅影响后续新编号', $this->admin->id, null);
         $this->assertDatabaseHas('agents', ['id' => $id, 'code' => 'LH-VIP']);
         $this->assertDatabaseHas('agent_type_codes', ['id' => $vip->id, 'code' => 'V2P']);
+        $this->assertSame(
+            'audit.messages.agent_type_saved',
+            Activity::query()->where('log_name', 'agent-configuration')->latest('id')->firstOrFail()->properties['message_key'],
+        );
 
         $manager->update($id, new AgentProfileData(
             typeCodeId: AgentTypeCode::query()->where('code', 'JG')->value('id'),
@@ -239,8 +244,13 @@ class PhaseFourAgentCommissionTest extends TestCase
         ), $this->admin->id, null);
         $this->assertDatabaseHas('agents', ['id' => $id, 'code' => 'LH-VIP', 'cooperation_status' => 'terminated']);
 
-        $this->expectException(DomainException::class);
-        $manager->update($id, $profile, $this->admin->id, null);
+        app()->setLocale('ko_KR');
+        try {
+            $manager->update($id, $profile, $this->admin->id, null);
+            $this->fail('Expected terminated agent update to fail.');
+        } catch (DomainException $exception) {
+            $this->assertSame(__('agents.validation.terminated_read_only'), $exception->getMessage());
+        }
     }
 
     public function test_current_month_configuration_is_locked_after_creation(): void
@@ -279,6 +289,23 @@ class PhaseFourAgentCommissionTest extends TestCase
             ->assertSee('返回客户详情')
             ->assertSee('href="'.route('customers.show', $this->customer->id).'"', false)
             ->assertDontSee('completionDate');
+    }
+
+    public function test_korean_admin_sees_translated_agent_list_labels(): void
+    {
+        $this->admin->update(['preferred_locale' => 'ko_KR']);
+
+        $this->actingAs($this->admin)->get(route('agents.index'))
+            ->assertOk()
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('에이전트 관리')
+            ->assertSee('에이전트 추가');
+
+        $this->actingAs($this->admin)->get(route('agent-configuration.index'))
+            ->assertOk()
+            ->assertSee('설정 센터로 돌아가기')
+            ->assertSee('에이전시 및 수수료 설정')
+            ->assertDontSee('代理商与推广费配置');
     }
 
     public function test_agent_list_filters_by_type_current_policy_system_and_current_grade(): void

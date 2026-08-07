@@ -27,6 +27,7 @@ use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use DomainException;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
@@ -171,8 +172,8 @@ class PhaseSixReportingConfigurationTest extends TestCase
 
         $this->actingAs($admin)->get(route('global-search', ['q' => 'Phase Six']))
             ->assertOk()
-            ->assertSee('全部搜索结果')
-            ->assertSee('返回总览')
+            ->assertSee(__('search.title'))
+            ->assertSee(__('search.back'))
             ->assertSee('href="'.route('dashboard').'"', false)
             ->assertSee('Phase Six Customer')
             ->assertSee('Phase Six Project')
@@ -186,6 +187,15 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->assertSee('Phase Six Customer')
             ->assertSee('Phase Six Project')
             ->assertDontSee('查看全部代理商');
+
+        $koUser = User::factory()->create(['preferred_locale' => 'ko_KR']);
+        $this->actingAs($koUser)->get(route('global-search', ['q' => 'Phase Six']))
+            ->assertOk()
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('전체 검색 결과')
+            ->assertSee('개요로 돌아가기')
+            ->assertSee('고객')
+            ->assertSee('주문 프로젝트');
     }
 
     public function test_query_export_is_private_hashed_retryable_and_expires(): void
@@ -202,7 +212,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
         Storage::disk('local')->assertExists($export->path);
         $sheet = IOFactory::load(Storage::disk('local')->path($export->path))->getActiveSheet();
         $this->assertSame(
-            ['成交时间', '客户', '代理商', '施术项目', '机构', '翻译姓名', '成交金额 KRW'],
+            ['成交时间', '客户', '代理商', '项目', '机构', '翻译', '金额 KRW'],
             $sheet->rangeToArray('A1:G1', null, true, true, false)[0],
         );
 
@@ -214,6 +224,29 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->artisan('app:purge-report-exports')->assertSuccessful();
         $this->assertSame('expired', $export->fresh()->status);
         Storage::disk('local')->assertMissing((string) $export->path);
+    }
+
+    public function test_query_export_restores_the_snapshot_locale_and_translates_excel_headers(): void
+    {
+        Storage::fake('local');
+        Queue::fake();
+        $previousLocale = App::getLocale();
+        App::setLocale('ko_KR');
+
+        try {
+            $export = app(ReportExportManager::class)->queueSearch($this->user, []);
+            $this->assertSame('ko_KR', $export->criteria_snapshot['_locale']);
+
+            (new GenerateReportExport($export->id))->handle(app(ReportSearchExportGenerator::class));
+            $sheet = IOFactory::load(Storage::disk('local')->path($export->fresh()->path))->getActiveSheet();
+
+            $this->assertSame(
+                ['거래 시간', '고객', '에이전시', '프로젝트', '기관', '통역', '금액 KRW'],
+                $sheet->rangeToArray('A1:G1', null, true, true, false)[0],
+            );
+        } finally {
+            App::setLocale($previousLocale);
+        }
     }
 
     public function test_search_page_downloads_excel_immediately_and_only_shows_recent_exports(): void
@@ -379,6 +412,76 @@ class PhaseSixReportingConfigurationTest extends TestCase
         }
     }
 
+    public function test_export_failures_store_safe_keys_and_localize_recent_exports(): void
+    {
+        $export = ReportExport::query()->create([
+            'created_by' => $this->user->id,
+            'kind' => 'search',
+            'format' => 'xlsx',
+            'status' => 'queued',
+            'criteria_snapshot' => [],
+            'expires_at' => now()->addHour(),
+        ]);
+
+        (new GenerateReportExport($export->id))->failed(new \RuntimeException('storage credential leaked'));
+        $export->refresh();
+        $this->assertSame('search.page.exports.failure_reasons.unexpected', $export->failure_reason_key);
+        $this->assertNull($export->failure_reason);
+        $this->assertSame([], $export->failure_reason_parameters);
+
+        ReportExport::query()->create([
+            'created_by' => $this->user->id,
+            'kind' => 'search',
+            'format' => 'xlsx',
+            'status' => 'failed',
+            'criteria_snapshot' => [],
+            'failure_reason' => 'legacy internal storage path',
+            'expires_at' => now()->addHour(),
+        ]);
+        $previousLocale = App::getLocale();
+        App::setLocale('ko_KR');
+        try {
+            $this->actingAs($this->user)->get(route('reports.search'))
+                ->assertOk()
+                ->assertSee(__('search.page.exports.failure_reasons.generic'))
+                ->assertDontSee('legacy internal storage path')
+                ->assertDontSee('storage credential leaked');
+        } finally {
+            App::setLocale($previousLocale);
+        }
+    }
+
+    public function test_dashboard_exports_are_locale_specific_and_do_not_reuse_another_language(): void
+    {
+        Storage::fake('local');
+        $snapshot = app(DashboardService::class)->snapshot(
+            app(DashboardRangeFactory::class)->make('month'),
+            true,
+        )->toArray();
+        $previousLocale = App::getLocale();
+
+        try {
+            App::setLocale('zh_CN');
+            $zhExport = app(DashboardExportGenerator::class)->generate($this->user, 'html', $snapshot);
+            App::setLocale('ko_KR');
+            $koExport = app(DashboardExportGenerator::class)->generate($this->user, 'html', $snapshot);
+
+            $this->assertNotSame($zhExport->id, $koExport->id);
+            $this->assertSame('zh_CN', $zhExport->data_snapshot['locale']);
+            $this->assertSame('ko_KR', $koExport->data_snapshot['locale']);
+            $this->assertSame('意向', $zhExport->data_snapshot['panels']['recent_customers'][0]['status_name']);
+            $this->assertSame('관심', $koExport->data_snapshot['panels']['recent_customers'][0]['status_name']);
+            $this->assertSame(2, ReportExport::query()->where('kind', 'dashboard')->count());
+            $this->assertStringContainsString('<html lang="zh-CN">', Storage::disk('local')->get($zhExport->path));
+            $this->assertStringContainsString('GN-System 数据看板', Storage::disk('local')->get($zhExport->path));
+            $this->assertStringContainsString('<html lang="ko-KR">', Storage::disk('local')->get($koExport->path));
+            $this->assertStringContainsString('GN-System 대시보드', Storage::disk('local')->get($koExport->path));
+            $this->assertStringNotContainsString('GN-System 数据看板', Storage::disk('local')->get($koExport->path));
+        } finally {
+            App::setLocale($previousLocale);
+        }
+    }
+
     public function test_configuration_catalog_user_safeguards_and_customer_snapshot_rollback(): void
     {
         Notification::fake();
@@ -470,12 +573,37 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->count());
     }
 
+    public function test_structured_failure_migration_is_additive_and_reversible(): void
+    {
+        $migration = require database_path('migrations/2026_08_07_000400_add_structured_failure_messages_to_settlement_runs_and_report_exports.php');
+
+        $migration->down();
+        $this->assertFalse(Schema::hasColumn('report_exports', 'failure_reason_key'));
+        $this->assertFalse(Schema::hasColumn('report_exports', 'failure_reason_parameters'));
+        $this->assertFalse(Schema::hasColumn('settlements', 'exchange_rate_quote_error_key'));
+        $this->assertFalse(Schema::hasColumn('settlements', 'exchange_rate_quote_error_parameters'));
+
+        $migration->up();
+        $this->assertTrue(Schema::hasColumn('report_exports', 'failure_reason_key'));
+        $this->assertTrue(Schema::hasColumn('report_exports', 'failure_reason_parameters'));
+        $this->assertTrue(Schema::hasColumn('settlements', 'exchange_rate_quote_error_key'));
+        $this->assertTrue(Schema::hasColumn('settlements', 'exchange_rate_quote_error_parameters'));
+    }
+
     public function test_phase_six_navigation_and_configuration_children_return_to_parent(): void
     {
         $admin = User::factory()->superAdmin()->withTwoFactor()->create();
         $this->actingAs($this->user)->get(route('reports.search'))
             ->assertOk()
             ->assertSee('多维查询');
+
+        $koUser = User::factory()->create(['preferred_locale' => 'ko_KR']);
+        $this->actingAs($koUser)->get(route('reports.search'))
+            ->assertOk()
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('다차원 조회')
+            ->assertSee('Excel 내보내기')
+            ->assertDontSee('多维查询');
 
         foreach ([
             'configuration.catalog',
@@ -488,5 +616,12 @@ class PhaseSixReportingConfigurationTest extends TestCase
                 ->assertSee('返回配置中心')
                 ->assertSee('href="'.route('configuration.index').'"', false);
         }
+
+        $admin->update(['preferred_locale' => 'ko_KR']);
+        $this->actingAs($admin)->get(route('audit-logs.index'))
+            ->assertOk()
+            ->assertSee('전역 감사 로그')
+            ->assertSee('사용자 관리로 돌아가기')
+            ->assertDontSee('全局审计日志');
     }
 }

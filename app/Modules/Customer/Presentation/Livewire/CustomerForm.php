@@ -11,11 +11,9 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('客户档案')]
 class CustomerForm extends Component
 {
     public ?int $customerId = null;
@@ -96,7 +94,7 @@ class CustomerForm extends Component
     {
         $sourceId = $this->channel === 'agent' ? (int) $this->sourceAgentId : (int) $this->sourceDirectSalesId;
         if ($sourceId < 1) {
-            $this->addError('confirmedCode', '请先选择客户来源。');
+            $this->addError('confirmedCode', __('customers.form.validation.select_source'));
 
             return;
         }
@@ -136,7 +134,7 @@ class CustomerForm extends Component
         );
         if ($duplicates !== [] && ! $this->duplicateConfirmed) {
             $this->duplicateIds = $duplicates;
-            $this->addError('duplicateConfirmed', '发现联系方式或证件号相同的客户，请核对后明确确认。');
+            $this->addError('duplicateConfirmed', __('customers.form.validation.duplicate'));
 
             return null;
         }
@@ -163,7 +161,7 @@ class CustomerForm extends Component
                 sensitiveChangeConfirmed: $this->sensitiveConfirmation,
                 ipAddress: request()->ip(),
             );
-            Flux::toast(variant: 'success', text: '客户档案已更新。');
+            Flux::toast(variant: 'success', text: __('customers.toasts.updated'));
 
             return $this->redirectRoute('customers.show', ['customer' => $this->customerId], navigate: true);
         }
@@ -179,24 +177,25 @@ class CustomerForm extends Component
                 automaticCode: $this->automaticCode,
                 ipAddress: request()->ip(),
             );
-        } catch (CustomerCodeChanged $exception) {
+        } catch (CustomerCodeChanged) {
             $this->confirmedCode = $manager->previewCode(
                 $this->channel,
                 $this->channel === 'agent' ? (int) $this->sourceAgentId : (int) $this->sourceDirectSalesId,
             );
             $this->codeConfirmed = false;
-            $this->addError('confirmedCode', $exception->getMessage());
+            $this->addError('confirmedCode', __('customers.form.validation.code_changed'));
 
             return null;
         }
 
-        Flux::toast(variant: 'success', text: '客户档案已创建。');
+        Flux::toast(variant: 'success', text: __('customers.toasts.created'));
 
         return $this->redirectRoute('customers.show', ['customer' => $customerId], navigate: true);
     }
 
     public function render(): View
     {
-        return view('livewire.customers.customer-form');
+        return view('livewire.customers.customer-form')
+            ->title(__('customers.title.form'));
     }
 }

@@ -118,13 +118,13 @@ final readonly class OrderManagementWorkspace
             return [
                 'id' => (int) $order->id,
                 'customer_id' => (int) $order->customer_id,
-                'customer_name' => (string) ($customer['name'] ?? '未知客户'),
-                'customer_code' => (string) ($customer['code'] ?? '—'),
-                'institution' => (string) ($institutionLabels[(int) $order->institution_id]['name'] ?? '未知机构'),
+                'customer_name' => (string) ($customer['name'] ?? __('orders.values.unknown_customer')),
+                'customer_code' => (string) ($customer['code'] ?? __('orders.values.empty')),
+                'institution' => (string) ($institutionLabels[(int) $order->institution_id]['name'] ?? __('orders.values.unknown_institution')),
                 'channel' => (string) $order->channel,
                 'source' => $order->channel === 'agent'
-                    ? (string) ($agentLabels[(int) $order->agent_id]['name'] ?? '未知代理商')
-                    : (string) ($directLabels[(int) $order->direct_sales_source_id]['name'] ?? '未知直销来源'),
+                    ? (string) ($agentLabels[(int) $order->agent_id]['name'] ?? __('orders.values.unknown_agent'))
+                    : (string) ($directLabels[(int) $order->direct_sales_source_id]['name'] ?? __('orders.values.unknown_source')),
                 'project_name' => (string) $order->project_name,
                 'amount_krw' => (int) $order->amount_krw,
                 'status' => (string) $order->status,
@@ -242,7 +242,7 @@ final readonly class OrderManagementWorkspace
     private function assertCanViewDeleted(bool $includeDeleted, bool $canViewDeleted): void
     {
         if ($includeDeleted && ! $canViewDeleted) {
-            throw new AuthorizationException('只有超级管理员可以查看回收站订单。');
+            throw new AuthorizationException(__('orders.errors.recycle_bin_admin_only'));
         }
     }
 }

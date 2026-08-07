@@ -41,7 +41,7 @@ final readonly class ConfigurationHistoryCoordinator
             'Agent' => $this->agent,
             'Customer' => $this->customer,
             'Settlement' => $this->settlement,
-            default => throw new DomainException('未知配置快照所有者。'),
+            default => throw new DomainException(__('config.errors.unknown_snapshot_owner')),
         };
     }
 }

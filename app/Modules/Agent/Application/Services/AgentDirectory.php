@@ -72,16 +72,16 @@ final readonly class AgentDirectory
         $items = $page->getCollection()->map(function (Agent $agent) use ($types, $assignments, $grades, $systems): array {
             $assignment = $assignments[(int) $agent->id] ?? null;
             $grade = $assignment === null ? null : $grades->get($assignment['policy_grade_id']);
-            $gradeName = $grade instanceof PolicyGrade ? (string) $grade->name : '未设置';
+            $gradeName = $grade instanceof PolicyGrade ? (string) $grade->name : __('agents.fallback.unset');
             $policyName = $grade instanceof PolicyGrade
-                ? (string) ($systems[$grade->policy_system_id] ?? '未知政策')
-                : '未设置';
+                ? (string) ($systems[$grade->policy_system_id] ?? __('agents.fallback.unknown_policy'))
+                : __('agents.fallback.unset');
 
             return [
                 'id' => (int) $agent->id,
                 'code' => (string) $agent->code,
                 'name' => (string) $agent->name,
-                'type' => (string) ($types[$agent->agent_type_code_id] ?? '未知'),
+                'type' => (string) ($types[$agent->agent_type_code_id] ?? __('agents.fallback.unknown_type')),
                 'status' => (string) $agent->cooperation_status,
                 'policy' => $policyName,
                 'grade' => $gradeName,

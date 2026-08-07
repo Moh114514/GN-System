@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\DataImport\Application\Services\ImportIssueMessagePresenter;
 use App\Modules\DataImport\Application\Services\ReferenceConfigurationImportCommitter;
 use App\Modules\DataImport\Application\Services\ReferenceConfigurationImportParser;
 use App\Modules\DataImport\Application\Services\ReferenceConfigurationTemplateGenerator;
@@ -74,6 +75,19 @@ class ReferenceConfigurationImportTest extends TestCase
         Livewire::test(ReferenceConfigurationImportManager::class)
             ->call('downloadExample')
             ->assertFileDownloaded('基础配置导入-填写示例.xlsx');
+    }
+
+    public function test_korean_admin_sees_localized_reference_import_copy(): void
+    {
+        $user = User::factory()->superAdmin()->withTwoFactor()->create(['preferred_locale' => 'ko_KR']);
+
+        $this->actingAs($user)
+            ->get(route('reference-configuration-imports.index'))
+            ->assertOk()
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('기준 설정 가져오기')
+            ->assertSee('업로드 및 미리보기 생성')
+            ->assertDontSee('基础配置导入');
     }
 
     public function test_upload_only_creates_encrypted_preview_batch_and_requires_confirmation(): void
@@ -208,7 +222,7 @@ class ReferenceConfigurationImportTest extends TestCase
             ->assertSee('机构费率规则 #2')
             ->assertSee('机构代码“MISSING”不存在')
             ->call('downloadErrors')
-            ->assertFileDownloaded("import-issues-{$invalidBatch->id}.xlsx");
+            ->assertFileDownloaded("导入问题报告-{$invalidBatch->id}.xlsx");
 
         $manager = app(ReferenceConfigurationImportManager::class);
         $manager->selectedBatchId = $invalidBatch->id;
@@ -216,9 +230,9 @@ class ReferenceConfigurationImportTest extends TestCase
         $reportPath = $response->getFile()->getPathname();
         $report = IOFactory::load($reportPath);
         $sheet = $report->getActiveSheet();
-        $this->assertSame('stage', $sheet->getCell('A1')->getValue());
-        $this->assertSame('relation_validation', $sheet->getCell('A2')->getValue());
-        $this->assertSame('error', $sheet->getCell('B2')->getValue());
+        $this->assertSame('阶段', $sheet->getCell('A1')->getValue());
+        $this->assertSame('关联校验', $sheet->getCell('A2')->getValue());
+        $this->assertSame('错误', $sheet->getCell('B2')->getValue());
         $this->assertSame('机构费率规则', $sheet->getCell('E2')->getValue());
         $this->assertStringContainsString('机构代码“MISSING”不存在', (string) $sheet->getCell('N2')->getValue());
         $report->disconnectWorksheets();
@@ -237,9 +251,37 @@ class ReferenceConfigurationImportTest extends TestCase
         Livewire::test(ReferenceConfigurationImportManager::class)
             ->set('selectedBatchId', $batch->id)
             ->assertSee('工作簿处理失败')
-            ->assertSee('缺少工作表：代理商类型')
+            ->assertSee(__('imports.errors.batch_failure'))
+            ->assertDontSee('缺少工作表：代理商类型')
             ->call('downloadErrors')
-            ->assertFileDownloaded("import-issues-{$batch->id}.xlsx");
+            ->assertFileDownloaded("导入问题报告-{$batch->id}.xlsx");
+    }
+
+    public function test_parser_stores_a_structured_batch_failure_and_presents_it_in_korean(): void
+    {
+        $batch = ImportBatch::query()->create([
+            'created_by' => $this->admin->id,
+            'kind' => 'reference_configuration',
+            'status' => ImportBatchStatus::Uploaded,
+        ]);
+
+        try {
+            app(ReferenceConfigurationImportParser::class)->parse($batch);
+            $this->fail('The parser should fail when the workbook file is missing.');
+        } catch (\Throwable) {
+            $batch->refresh();
+        }
+
+        $this->assertSame('imports.errors.file_detection_failed', $batch->failure_reason_key);
+        $this->assertNull($batch->failure_reason_parameters);
+
+        $previousLocale = app()->getLocale();
+        app()->setLocale('ko_KR');
+        try {
+            $this->assertSame(__('imports.errors.file_detection_failed'), app(ImportIssueMessagePresenter::class)->presentBatch($batch));
+        } finally {
+            app()->setLocale($previousLocale);
+        }
     }
 
     public function test_field_validation_errors_include_field_value_and_allowed_format(): void

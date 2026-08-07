@@ -20,14 +20,12 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\View\View;
 use Livewire\Attributes\Computed;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 use Livewire\WithFileUploads;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 #[Layout('layouts.app')]
-#[Title('历史数据导入')]
 class ImportManager extends Component
 {
     use WithFileUploads;
@@ -52,7 +50,7 @@ class ImportManager extends Component
 
     public function render(): View
     {
-        return view('livewire.data-imports.import-manager');
+        return view('livewire.data-imports.import-manager')->title(__('imports.historical.title'));
     }
 
     public function stageUploads(
@@ -72,7 +70,7 @@ class ImportManager extends Component
         if (! $referenceState['ready']) {
             $this->addError(
                 'uploads',
-                '导入基础数据未就绪：'.implode('、', $referenceState['issues']).'。',
+                __('imports.toast.readiness_error', ['issues' => implode('、', $referenceState['issues'])]),
             );
 
             return;
@@ -101,25 +99,25 @@ class ImportManager extends Component
             ]);
         }
 
-        ParseImportBatch::dispatch($batch->id);
+        ParseImportBatch::dispatch($batch->id, app()->getLocale());
         $this->selectedBatchId = $batch->id;
         $this->reset('uploads');
         unset($this->batches, $this->selectedBatch);
 
-        Flux::toast(variant: 'success', text: '文件已上传，系统正在检查数据。');
+        Flux::toast(variant: 'success', text: __('imports.toast.historical_uploaded'));
     }
 
     public function downloadStructureExample(ImportTemplateGenerator $templates): BinaryFileResponse
     {
         return response()
-            ->download($templates->structureExample(), '历史数据导入-结构示例.xlsx')
+            ->download($templates->structureExample(), __('imports.historical.files.structure_example'))
             ->deleteFileAfterSend();
     }
 
     public function downloadImportableSimulation(ImportTemplateGenerator $templates): BinaryFileResponse
     {
         return response()
-            ->download($templates->importableSimulation(), '历史数据导入-可导入模拟数据.xlsx')
+            ->download($templates->importableSimulation(), __('imports.historical.files.simulation'))
             ->deleteFileAfterSend();
     }
 
@@ -132,9 +130,9 @@ class ImportManager extends Component
     public function reparse(): void
     {
         $batch = $this->ownedBatch();
-        ParseImportBatch::dispatch($batch->id);
+        ParseImportBatch::dispatch($batch->id, app()->getLocale());
         unset($this->batches, $this->selectedBatch);
-        Flux::toast(variant: 'success', text: '已重新检查本批次数据。');
+        Flux::toast(variant: 'success', text: __('imports.toast.reparse'));
     }
 
     public function saveInstitution(ImportReferenceManager $references): void
@@ -151,7 +149,7 @@ class ImportManager extends Component
             preg_split('/[,，\\r\\n]+/u', $validated['institutionAliases']) ?: [],
         );
         $this->reset('institutionCode', 'institutionName', 'institutionAliases');
-        Flux::toast(variant: 'success', text: '机构信息已保存，请重新检查本批次。');
+        Flux::toast(variant: 'success', text: __('imports.toast.institution_saved'));
     }
 
     public function saveDirectSource(ImportReferenceManager $references): void
@@ -163,7 +161,7 @@ class ImportManager extends Component
 
         $references->upsertDirectSalesSource($validated['directSourceCode'], $validated['directSourceName']);
         $this->reset('directSourceCode', 'directSourceName');
-        Flux::toast(variant: 'success', text: '直销来源代码已保存。');
+        Flux::toast(variant: 'success', text: __('imports.toast.direct_saved'));
     }
 
     public function ignoreRow(int $rowId, ImportRowAdjudicator $adjudicator): void
@@ -172,7 +170,7 @@ class ImportManager extends Component
         $row = $batch->rows()->findOrFail($rowId);
         $reason = trim($this->ignoreReasons[$rowId] ?? '');
         if ($reason === '') {
-            $this->addError("ignoreReasons.{$rowId}", '请填写忽略原因。');
+            $this->addError("ignoreReasons.{$rowId}", __('imports.toast.ignore_reason_required'));
 
             return;
         }
@@ -181,7 +179,7 @@ class ImportManager extends Component
         abort_unless(is_int($userId), 403);
         $adjudicator->ignore($row, $userId, $reason);
         unset($this->ignoreReasons[$rowId], $this->batches, $this->selectedBatch);
-        Flux::toast(variant: 'success', text: '该行已标记为忽略，并记录操作日志。');
+        Flux::toast(variant: 'success', text: __('imports.toast.row_ignored'));
     }
 
     public function commitBatch(ImportBatchCommitter $committer): void
@@ -189,7 +187,7 @@ class ImportManager extends Component
         $batch = $this->ownedBatch();
         $committer->commit($batch);
         unset($this->batches, $this->selectedBatch);
-        Flux::toast(variant: 'success', text: '导入已完成，24 小时内可撤销。');
+        Flux::toast(variant: 'success', text: __('imports.toast.import_completed'));
     }
 
     public function rollback(ImportBatchRollback $rollback): void
@@ -198,7 +196,7 @@ class ImportManager extends Component
         abort_unless(is_int($userId), 403);
         $rollback->rollback($this->ownedBatch(), $userId);
         unset($this->batches, $this->selectedBatch);
-        Flux::toast(variant: 'success', text: '本次导入已撤销。');
+        Flux::toast(variant: 'success', text: __('imports.toast.rolled_back'));
     }
 
     public function downloadErrors(?ImportIssueReportGenerator $reports = null): BinaryFileResponse

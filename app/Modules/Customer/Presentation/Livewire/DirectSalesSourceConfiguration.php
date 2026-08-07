@@ -7,11 +7,9 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('直销来源配置')]
 class DirectSalesSourceConfiguration extends Component
 {
     public ?int $editingId = null;
@@ -28,7 +26,7 @@ class DirectSalesSourceConfiguration extends Component
         ]);
         $manager->save($this->editingId, $this->code, $this->name, (int) Auth::id(), request()->ip());
         $this->reset('editingId', 'code', 'name');
-        Flux::toast(variant: 'success', text: '直销来源已保存。');
+        Flux::toast(variant: 'success', text: __('config.direct_sales_source.toast.saved'));
     }
 
     public function edit(int $id, DirectSalesSourceManager $manager): void
@@ -42,11 +40,12 @@ class DirectSalesSourceConfiguration extends Component
     public function toggle(int $id, DirectSalesSourceManager $manager): void
     {
         $manager->toggle($id, (int) Auth::id(), request()->ip());
-        Flux::toast(variant: 'success', text: '直销来源状态已更新。');
+        Flux::toast(variant: 'success', text: __('config.direct_sales_source.toast.status_updated'));
     }
 
     public function render(DirectSalesSourceManager $manager): View
     {
-        return view('livewire.customers.direct-sales-source-configuration', ['sources' => $manager->all()]);
+        return view('livewire.customers.direct-sales-source-configuration', ['sources' => $manager->all()])
+            ->title(__('config.direct_sales_source.title'));
     }
 }

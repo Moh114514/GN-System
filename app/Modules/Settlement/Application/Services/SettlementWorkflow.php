@@ -29,11 +29,11 @@ final readonly class SettlementWorkflow
     {
         $reason = trim($reason);
         if ($reason === '') {
-            throw new DomainException('驳回月结必须填写原因。');
+            throw new DomainException(__('settlements.errors.rejection_reason_required'));
         }
         $settlement = Settlement::query()->findOrFail($settlementId);
         if ($settlement->status !== 'pending_review') {
-            throw new DomainException('只有待审核月结可以驳回。');
+            throw new DomainException(__('settlements.errors.only_pending_review_reject'));
         }
         $settlement->update([
             'status' => 'rejected',
@@ -41,7 +41,7 @@ final readonly class SettlementWorkflow
             'reviewed_by' => $actorId,
             'reviewed_at' => now(),
         ]);
-        $this->record($settlement, '月结已驳回', 'rejected', $actorId, $ipAddress);
+        $this->record($settlement, 'settlements.audit.rejected', 'rejected', $actorId, $ipAddress);
     }
 
     public function approve(int $settlementId, string $exchangeRate, int $actorId, ?string $ipAddress): void
@@ -50,10 +50,10 @@ final readonly class SettlementWorkflow
         DB::transaction(function () use ($settlementId, $rate, $actorId, $ipAddress): void {
             $settlement = Settlement::query()->lockForUpdate()->findOrFail($settlementId);
             if (! in_array($settlement->status, ['pending_review', 'rejected'], true)) {
-                throw new DomainException('当前月结状态不可审核通过。');
+                throw new DomainException(__('settlements.errors.invalid_approval_status'));
             }
             if ($settlement->generation_status !== 'generated') {
-                throw new DomainException('月结明细尚未生成，请先重新生成月结明细后再审核。');
+                throw new DomainException(__('settlements.errors.generation_required'));
             }
             $manualOverride = $settlement->exchange_rate_quote_status !== 'available'
                 || $settlement->exchange_rate_krw_per_cny === null
@@ -73,7 +73,7 @@ final readonly class SettlementWorkflow
                 'rejection_reason' => null,
             ]);
             $this->documents->generate($settlement);
-            $this->record($settlement, '月结已审核通过', 'approved', $actorId, $ipAddress, [
+            $this->record($settlement, 'settlements.audit.approved', 'approved', $actorId, $ipAddress, [
                 'exchange_rate_krw_per_cny' => (string) $rate,
                 'exchange_rate_quote_source' => $settlement->exchange_rate_quote_source,
                 'exchange_rate_quoted_at' => $settlement->exchange_rate_quoted_at?->toIso8601String(),
@@ -87,7 +87,7 @@ final readonly class SettlementWorkflow
         DB::transaction(function () use ($settlementId, $actorId, $ipAddress): void {
             $settlement = Settlement::query()->lockForUpdate()->findOrFail($settlementId);
             if ($settlement->status !== 'approved') {
-                throw new DomainException('只有已审核月结可以确认结清。');
+                throw new DomainException(__('settlements.errors.only_approved_settle'));
             }
             $settlement->update([
                 'status' => 'settled',
@@ -95,7 +95,7 @@ final readonly class SettlementWorkflow
                 'settled_by' => $actorId,
                 'confirmed_at' => now(),
             ]);
-            $this->record($settlement, '月结已确认结清', 'settled', $actorId, $ipAddress);
+            $this->record($settlement, 'settlements.audit.settled', 'settled', $actorId, $ipAddress);
         });
     }
 
@@ -104,19 +104,19 @@ final readonly class SettlementWorkflow
         $targetStatus = trim($targetStatus);
         $reason = trim($reason);
         if ($reason === '') {
-            throw new DomainException('状态更正必须填写原因。');
+            throw new DomainException(__('settlements.errors.correction_reason_required'));
         }
         if (! in_array($targetStatus, ['pending_review', 'approved', 'settled'], true)) {
-            throw new DomainException('月结状态只能更正为待审核、已审核或已结清。');
+            throw new DomainException(__('settlements.errors.invalid_correction_status'));
         }
 
         DB::transaction(function () use ($settlementId, $targetStatus, $reason, $actorId, $ipAddress): void {
             $settlement = Settlement::query()->lockForUpdate()->findOrFail($settlementId);
             if (! in_array($settlement->status, ['approved', 'settled'], true)) {
-                throw new DomainException('历史已结清或已对账月结不可更正。');
+                throw new DomainException(__('settlements.errors.correction_not_allowed'));
             }
             if ($settlement->status === $targetStatus) {
-                throw new DomainException('目标状态与当前月结状态相同。');
+                throw new DomainException(__('settlements.errors.same_correction_status'));
             }
 
             $before = $this->statusSnapshot($settlement);
@@ -124,7 +124,7 @@ final readonly class SettlementWorkflow
             $documentsRemoved = 0;
             if ($targetStatus === 'pending_review') {
                 if (SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->where('status', 'accepted')->exists()) {
-                    throw new DomainException('该月结等级建议已经生效，需先人工处理等级安排后才能回退。');
+                    throw new DomainException(__('settlements.errors.accepted_grade_blocks_correction'));
                 }
                 $itemsRemoved = DB::table('settlement_items')->where('settlement_id', $settlement->id)->delete();
                 $documentsRemoved = $this->documents->discard((int) $settlement->id);
@@ -162,7 +162,7 @@ final readonly class SettlementWorkflow
             $settlement->update($attributes);
             $settlement->refresh();
             $this->audit->record(
-                description: '月结状态已人工更正',
+                description: __('settlements.audit.status_corrected'),
                 properties: [
                     'settlement_id' => $settlement->id,
                     'before' => $before,
@@ -176,6 +176,7 @@ final readonly class SettlementWorkflow
                 logName: 'settlement',
                 event: 'status_corrected',
                 ipAddress: $ipAddress,
+                messageKey: 'settlements.audit.status_corrected',
             );
         });
     }
@@ -184,7 +185,7 @@ final readonly class SettlementWorkflow
     {
         $settlement = Settlement::query()->findOrFail($settlementId);
         if (! in_array($settlement->status, ['approved', 'settled'], true)) {
-            throw new DomainException('只有已审核月结可以生成结算单。');
+            throw new DomainException(__('settlements.errors.only_approved_documents'));
         }
         $this->documents->generate($settlement);
     }
@@ -197,7 +198,7 @@ final readonly class SettlementWorkflow
         DB::transaction(function () use ($settlementId, $basis, $actorId, $ipAddress): void {
             $settlement = Settlement::query()->lockForUpdate()->findOrFail($settlementId);
             if ($settlement->generation_status !== 'unverified') {
-                throw new DomainException('只有无法确认生成来源的月结可以执行历史核验。');
+                throw new DomainException(__('settlements.errors.only_unverified_recovery'));
             }
             $before = $this->generationSnapshot($settlement);
             $settlement->update([
@@ -206,7 +207,7 @@ final readonly class SettlementWorkflow
             ]);
             $settlement->refresh();
             $this->audit->record(
-                description: '月结历史生成状态已核验为不适用',
+                description: __('settlements.audit.generation_recovered'),
                 properties: [
                     'settlement_id' => $settlement->id,
                     'recovery_action' => 'mark_not_applicable',
@@ -219,6 +220,7 @@ final readonly class SettlementWorkflow
                 logName: 'settlement',
                 event: 'generation_recovered',
                 ipAddress: $ipAddress,
+                messageKey: 'settlements.audit.generation_recovered',
             );
         });
     }
@@ -231,10 +233,10 @@ final readonly class SettlementWorkflow
         DB::transaction(function () use ($settlementId, $basis, $actorId, $ipAddress): void {
             $settlement = Settlement::query()->lockForUpdate()->findOrFail($settlementId);
             if ($settlement->generation_status !== 'unverified' || ! in_array($settlement->status, ['pending_review', 'rejected'], true)) {
-                throw new DomainException('只有待审核或已驳回的无法确认月结可以创建恢复批次。');
+                throw new DomainException(__('settlements.errors.invalid_recovery_status'));
             }
             if ($settlement->settlement_run_id !== null) {
-                throw new DomainException('该月结已有批次，请使用现有批次重试，不要重复创建恢复批次。');
+                throw new DomainException(__('settlements.errors.recovery_batch_exists'));
             }
 
             $run = SettlementRun::query()
@@ -259,7 +261,7 @@ final readonly class SettlementWorkflow
             $this->generator->generate((string) $run->id, (int) $settlement->agent_id);
             $settlement->refresh();
             $this->audit->record(
-                description: '月结已创建恢复批次并重新生成',
+                description: __('settlements.audit.recovery_batch_created'),
                 properties: [
                     'settlement_id' => $settlement->id,
                     'recovery_action' => 'create_recovery_run',
@@ -273,6 +275,7 @@ final readonly class SettlementWorkflow
                 logName: 'settlement',
                 event: 'generation_recovered',
                 ipAddress: $ipAddress,
+                messageKey: 'settlements.audit.recovery_batch_created',
             );
         });
     }
@@ -282,7 +285,7 @@ final readonly class SettlementWorkflow
         DB::transaction(function () use ($suggestionId, $accept, $reason, $actorId): void {
             $suggestion = SettlementGradeSuggestion::query()->lockForUpdate()->findOrFail($suggestionId);
             if ($suggestion->status !== 'pending') {
-                throw new DomainException('该等级建议已经处理。');
+                throw new DomainException(__('settlements.errors.grade_suggestion_processed'));
             }
             if ($accept) {
                 $settlement = Settlement::query()->findOrFail($suggestion->settlement_id);
@@ -304,10 +307,10 @@ final readonly class SettlementWorkflow
     }
 
     /** @param array<string, mixed> $properties */
-    private function record(Settlement $settlement, string $description, string $event, int $actorId, ?string $ipAddress, array $properties = []): void
+    private function record(Settlement $settlement, string $messageKey, string $event, int $actorId, ?string $ipAddress, array $properties = []): void
     {
         $this->audit->record(
-            description: $description,
+            description: __($messageKey),
             properties: [
                 'status' => $settlement->status,
                 'settlement_id' => $settlement->id,
@@ -318,6 +321,7 @@ final readonly class SettlementWorkflow
             logName: 'settlement',
             event: $event,
             ipAddress: $ipAddress,
+            messageKey: $messageKey,
         );
     }
 
@@ -326,10 +330,10 @@ final readonly class SettlementWorkflow
         try {
             $rate = BigDecimal::of(trim($exchangeRate))->toScale(6, RoundingMode::HalfUp);
         } catch (MathException) {
-            throw new DomainException('结算汇率必须是有效数字。');
+            throw new DomainException(__('settlements.errors.invalid_exchange_rate'));
         }
         if ($rate->isLessThanOrEqualTo(0)) {
-            throw new DomainException('结算汇率必须大于零。');
+            throw new DomainException(__('settlements.errors.positive_exchange_rate'));
         }
 
         return $rate;
@@ -339,7 +343,7 @@ final readonly class SettlementWorkflow
     {
         $actor = User::query()->find($actorId);
         if ($actor?->is_super_admin !== true) {
-            throw new DomainException('只有超级管理员可以核验历史月结生成状态。');
+            throw new DomainException(__('settlements.errors.super_admin_recovery_only'));
         }
     }
 
@@ -347,10 +351,10 @@ final readonly class SettlementWorkflow
     {
         $basis = trim($basis);
         if ($basis === '') {
-            throw new DomainException('历史月结核验必须填写依据。');
+            throw new DomainException(__('settlements.errors.recovery_basis_required'));
         }
         if (mb_strlen($basis) > 2000) {
-            throw new DomainException('历史月结核验依据不能超过 2000 个字符。');
+            throw new DomainException(__('settlements.errors.recovery_basis_too_long'));
         }
 
         return $basis;

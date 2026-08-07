@@ -9,11 +9,9 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('编辑订单')]
 class OrderEdit extends Component
 {
     public int $orderId;
@@ -95,12 +93,12 @@ class OrderEdit extends Component
                 translatorLanguageName: null,
             ), (int) Auth::id(), request()->ip());
         } catch (DomainException $exception) {
-            Flux::toast(variant: 'danger', text: $exception->getMessage());
+            Flux::toast(variant: 'danger', text: __('orders.errors.unexpected', ['message' => $exception->getMessage()]));
 
             return;
         }
 
-        Flux::toast(variant: 'success', text: '订单已更新。');
+        Flux::toast(variant: 'success', text: __('orders.messages.updated'));
         $this->redirectRoute('orders.show', ['order' => $this->orderId], navigate: true);
     }
 
@@ -120,6 +118,6 @@ class OrderEdit extends Component
 
     public function render(): View
     {
-        return view('livewire.orders.order-edit', ['order' => $this->orderDetails]);
+        return view('livewire.orders.order-edit', ['order' => $this->orderDetails])->title(__('orders.edit_title'));
     }
 }

@@ -9,6 +9,7 @@ interface AuditRecorder
 {
     /**
      * @param  array<string, mixed>  $properties
+     * @param  array<string, mixed>  $messageParameters
      */
     public function record(
         string $description,
@@ -18,6 +19,8 @@ interface AuditRecorder
         string $logName = 'data-import',
         ?string $event = null,
         ?string $ipAddress = null,
+        ?string $messageKey = null,
+        array $messageParameters = [],
     ): void;
 
     /** @return array<int, AuditEntryData> */

@@ -1,6 +1,6 @@
 @props([
     'href',
-    'label' => '返回上一级',
+    'label' => null,
 ])
 
 <flux:button
@@ -12,5 +12,5 @@
     icon="arrow-left"
     wire:navigate
 >
-    {{ $label }}
+    {{ $label ?? __('common.back_to_parent') }}
 </flux:button>

@@ -3,6 +3,12 @@
 
 @fluxAppearance
 
+<script>
+    window.deferLoadingAlpine = (startAlpine) => {
+        window.__gnStartAlpine = startAlpine;
+    };
+</script>
+
 <script data-navigate-once>
     (() => {
         const applyAppearance = window.Flux?.applyAppearance?.bind(window.Flux);

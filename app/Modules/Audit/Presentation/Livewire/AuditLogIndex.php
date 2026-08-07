@@ -6,12 +6,10 @@ use App\Modules\Audit\Application\Contracts\AuditLogReader;
 use App\Modules\Audit\Application\Data\AuditLogFilterData;
 use Illuminate\Contracts\View\View;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 #[Layout('layouts.app')]
-#[Title('全局审计日志')]
 class AuditLogIndex extends Component
 {
     use WithPagination;
@@ -63,6 +61,7 @@ class AuditLogIndex extends Component
             action: $this->action === '' ? null : $this->action,
         ), in_array($this->perPage, [20, 50, 100], true) ? $this->perPage : 20);
 
-        return view('livewire.audit.audit-log-index', compact('entries', 'options'));
+        return view('livewire.audit.audit-log-index', compact('entries', 'options'))
+            ->title(__('audit.index.title'));
     }
 }

@@ -18,7 +18,7 @@ final class DatabaseAgentCommissionContextReader implements AgentCommissionConte
         $agent = Agent::query()->findOrFail($agentId);
         if (($agent->cooperation_started_on !== null && $agent->cooperation_started_on->startOfMonth()->isAfter($month->startOfMonth()))
             || ($agent->cooperation_ended_on !== null && $agent->cooperation_ended_on->endOfMonth()->isBefore($month->startOfMonth()))) {
-            throw new DomainException('代理商在订单月份不具备合作资格，不能产生新订单或推广费。');
+            throw new DomainException(__('agents.validation.ineligible_for_order_month'));
         }
 
         $effectiveMonth = $month->startOfMonth();
@@ -28,7 +28,7 @@ final class DatabaseAgentCommissionContextReader implements AgentCommissionConte
             ->latest('effective_month')
             ->first();
         if ($assignment === null) {
-            throw new DomainException('代理商在订单月份没有生效的政策等级。');
+            throw new DomainException(__('agents.validation.no_effective_policy_grade'));
         }
 
         $grade = PolicyGrade::query()->findOrFail($assignment->policy_grade_id);

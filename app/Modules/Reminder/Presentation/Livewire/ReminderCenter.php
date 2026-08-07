@@ -11,11 +11,9 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('主动提醒')]
 class ReminderCenter extends Component
 {
     public string $type = '';
@@ -30,30 +28,30 @@ class ReminderCenter extends Component
 
     public function complete(int $id, ReminderWorkspace $workspace): void
     {
-        $this->run(fn () => $workspace->complete($id, Auth::user(), $this->actionNotes), '提醒已完成。');
+        $this->run(fn () => $workspace->complete($id, Auth::user(), $this->actionNotes), __('reminders.toasts.completed'));
     }
 
     public function snooze(int $id, ReminderWorkspace $workspace): void
     {
         $this->validate(['snoozeUntil' => ['required', 'date'], 'snoozeReason' => ['required', 'string', 'max:1000']]);
-        $this->run(fn () => $workspace->snooze($id, CarbonImmutable::parse($this->snoozeUntil), $this->snoozeReason, Auth::user()), '提醒已延期。');
+        $this->run(fn () => $workspace->snooze($id, CarbonImmutable::parse($this->snoozeUntil), $this->snoozeReason, Auth::user()), __('reminders.toasts.snoozed'));
     }
 
     public function transfer(int $id, ReminderWorkspace $workspace): void
     {
         $this->validate(['assigneeId' => ['required', 'integer']]);
-        $this->run(fn () => $workspace->transfer($id, (int) $this->assigneeId, Auth::user()), '提醒已转交。');
+        $this->run(fn () => $workspace->transfer($id, (int) $this->assigneeId, Auth::user()), __('reminders.toasts.transferred'));
     }
 
     public function cancel(int $id, ReminderWorkspace $workspace): void
     {
         $this->validate(['actionNotes' => ['required', 'string', 'max:1000']]);
-        $this->run(fn () => $workspace->cancel($id, $this->actionNotes, Auth::user()), '提醒已关闭。');
+        $this->run(fn () => $workspace->cancel($id, $this->actionNotes, Auth::user()), __('reminders.toasts.cancelled'));
     }
 
     public function retryNotification(int $id, ReminderNotificationDispatcher $dispatcher): void
     {
-        $this->run(fn () => $dispatcher->retry($id, Auth::user()), '钉钉通知已重新进入队列。');
+        $this->run(fn () => $dispatcher->retry($id, Auth::user()), __('reminders.toasts.retry_notification'));
     }
 
     public function render(ReminderWorkspace $workspace): View
@@ -63,7 +61,7 @@ class ReminderCenter extends Component
             'users' => User::query()->orderBy('name')->get(['id', 'name']),
             'stats' => Auth::user()->is_super_admin ? $workspace->completionStats() : null,
             'customerNames' => $workspace->customerNames(),
-        ]);
+        ])->title(__('reminders.titles.center'));
     }
 
     private function run(\Closure $operation, string $message): void

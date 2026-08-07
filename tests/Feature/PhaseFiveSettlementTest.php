@@ -14,6 +14,7 @@ use App\Modules\Order\Application\Contracts\DailyOrderGateway;
 use App\Modules\Order\Application\Data\DailyOrderData;
 use App\Modules\Settlement\Application\Services\ExchangeRateQuoteService;
 use App\Modules\Settlement\Application\Services\SettlementGenerator;
+use App\Modules\Settlement\Application\Services\SettlementNotificationDispatcher;
 use App\Modules\Settlement\Application\Services\SettlementPeriodCalculator;
 use App\Modules\Settlement\Application\Services\SettlementRunFailureReader;
 use App\Modules\Settlement\Application\Services\SettlementRunFailureReportGenerator;
@@ -24,15 +25,18 @@ use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
 use App\Modules\Settlement\Infrastructure\Models\SettlementGradeSuggestion;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
+use App\Modules\Settlement\Jobs\SendSettlementNotification;
 use App\Modules\Settlement\Presentation\Livewire\SettlementCenter;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
@@ -602,6 +606,90 @@ class PhaseFiveSettlementTest extends TestCase
             ->assertSee('href="'.route('settlements.index').'"', false);
     }
 
+    public function test_korean_admin_sees_localized_settlement_pages(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create(['preferred_locale' => 'ko_KR']);
+
+        $this->actingAs($admin)->get(route('settlements.index'))
+            ->assertOk()
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('월말 정산 센터')
+            ->assertSee('최신 정산 생성')
+            ->assertDontSee('月结中心');
+    }
+
+    public function test_korean_settlement_center_localizes_run_and_settlement_statuses(): void
+    {
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'completed',
+            'total_agents' => 1,
+            'processed_agents' => 1,
+            'notification_status' => 'sent',
+        ]);
+        Settlement::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'pending_review',
+            'generation_status' => 'generated',
+            'snapshot' => ['agent' => ['name' => '월말 테스트 에이전시']],
+        ]);
+
+        $previousLocale = App::getLocale();
+        App::setLocale('ko_KR');
+
+        try {
+            Livewire::actingAs($this->admin)
+                ->test(SettlementCenter::class)
+                ->assertSee('생성 완료')
+                ->assertSee('검토 대기')
+                ->assertDontSee('已生成')
+                ->assertDontSee('待审核');
+        } finally {
+            App::setLocale($previousLocale);
+        }
+    }
+
+    public function test_settlement_notification_job_carries_initiator_locale(): void
+    {
+        $this->admin->update(['preferred_locale' => 'ko_KR']);
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'completed',
+            'total_agents' => 0,
+            'processed_agents' => 0,
+            'notification_status' => 'pending',
+            'initiated_by' => $this->admin->id,
+        ]);
+        Queue::fake();
+
+        $this->assertSame(1, app(SettlementNotificationDispatcher::class)->dispatchCompleted());
+        Queue::assertPushed(
+            SendSettlementNotification::class,
+            fn (SendSettlementNotification $job): bool => $job->locale === 'ko_KR',
+        );
+    }
+
+    public function test_settlement_business_errors_follow_the_current_locale(): void
+    {
+        $previousLocale = App::getLocale();
+        App::setLocale('ko_KR');
+
+        try {
+            $this->expectException(DomainException::class);
+            $this->expectExceptionMessage('정산 환율은 유효한 숫자여야 합니다.');
+            app(SettlementWorkflow::class)->approve(999999, 'not-a-rate', $this->admin->id, null);
+        } finally {
+            App::setLocale($previousLocale);
+        }
+    }
+
     public function test_settlement_detail_navigates_only_within_the_same_run_in_stable_order(): void
     {
         $run = SettlementRun::query()->create([
@@ -739,6 +827,68 @@ class PhaseFiveSettlementTest extends TestCase
             ->assertSee('代理商在当月没有生效政策等级。');
     }
 
+    public function test_korean_failure_detail_and_xlsx_render_structured_reason_after_locale_restore(): void
+    {
+        Storage::fake('local');
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'partial_failed',
+            'total_agents' => 1,
+            'failed_agents' => 1,
+            'errors' => [(string) $this->agent->id => [
+                'message_key' => 'settlements.failure_reasons.missing_commission_snapshot',
+                'parameters' => ['order_id' => 181],
+            ]],
+        ]);
+
+        $this->assertDatabaseHas('settlement_runs', ['id' => $run->id]);
+        $this->admin->update(['preferred_locale' => 'ko_KR']);
+        $previousLocale = App::getLocale();
+        App::setLocale('ko_KR');
+        try {
+            $reason = __('settlements.failure_reasons.missing_commission_snapshot', ['order_id' => 181]);
+            $this->actingAs($this->admin)->get(route('settlements.runs.failures', $run))
+                ->assertOk()
+                ->assertSee($reason);
+            $path = app(SettlementRunFailureReportGenerator::class)->generate($run);
+            $sheet = IOFactory::load(Storage::disk('local')->path($path))->getActiveSheet();
+            $this->assertSame($reason, $sheet->getCell('F2')->getValue());
+            $sheet->getParent()->disconnectWorksheets();
+        } finally {
+            App::setLocale($previousLocale);
+        }
+    }
+
+    public function test_missing_agent_policy_is_persisted_as_a_structured_key_in_any_locale(): void
+    {
+        $agentWithoutGrade = $this->createSettlementAgent(100);
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'running',
+            'total_agents' => 1,
+        ]);
+        $previousLocale = App::getLocale();
+        App::setLocale('ko_KR');
+        try {
+            try {
+                app(SettlementGenerator::class)->generate($run->id, $agentWithoutGrade->id);
+                $this->fail('Expected the missing policy grade to prevent settlement generation.');
+            } catch (DomainException $exception) {
+                app(SettlementGenerator::class)->markFailed($run->id, $agentWithoutGrade->id, $exception);
+            }
+        } finally {
+            App::setLocale($previousLocale);
+        }
+
+        $failure = $run->fresh()->errors[(string) $agentWithoutGrade->id];
+        $this->assertSame('settlements.failure_reasons.agent_policy_missing', $failure['message_key']);
+        $this->assertSame([], $failure['parameters']);
+    }
+
     public function test_failed_run_diagnostics_keep_original_id_when_agent_is_missing(): void
     {
         Storage::fake('local');
@@ -750,13 +900,15 @@ class PhaseFiveSettlementTest extends TestCase
             'status' => 'partial_failed',
             'total_agents' => 1,
             'failed_agents' => 1,
-            'errors' => [(string) $missingAgentId => '代理商已被删除。'],
+            'errors' => [(string) $missingAgentId => 'SQLSTATE connection password=secret /srv/private'],
         ]);
 
         $this->actingAs($this->admin)->get(route('settlements.runs.failures', $run))
             ->assertOk()
             ->assertSee('未知')
             ->assertSee('代理商不存在或已删除')
+            ->assertSee(__('settlements.failure_reasons.legacy_unknown'))
+            ->assertDontSee('password=secret')
             ->assertSee((string) $missingAgentId);
 
         $path = app(SettlementRunFailureReportGenerator::class)->generate($run);
@@ -784,7 +936,7 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('D2')->getDataType());
         $this->assertSame('=1+1', $sheet->getCell('D2')->getValue());
         $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('F2')->getDataType());
-        $this->assertSame('=HYPERLINK("https://example.com","查看")', $sheet->getCell('F2')->getValue());
+        $this->assertSame(__('settlements.failure_reasons.legacy_unknown'), $sheet->getCell('F2')->getValue());
         $spreadsheet->disconnectWorksheets();
     }
 
@@ -801,13 +953,17 @@ class PhaseFiveSettlementTest extends TestCase
         $generator = app(SettlementGenerator::class);
 
         $generator->markFailed($run->id, $this->agent->id, new RuntimeException('unexpected failure one'));
-        $firstMessage = $run->fresh()->errors[(string) $this->agent->id];
+        $firstFailure = $run->fresh()->errors[(string) $this->agent->id];
+        $firstMessage = __('settlements.failure_reasons.unexpected', $firstFailure['parameters']);
         $generator->markFailed($run->id, $this->agent->id, new RuntimeException('unexpected failure two'));
-        $secondMessage = $run->fresh()->errors[(string) $this->agent->id];
+        $secondFailure = $run->fresh()->errors[(string) $this->agent->id];
+        $secondMessage = __('settlements.failure_reasons.unexpected', $secondFailure['parameters']);
 
         preg_match('/参考编号：(.+?)。$/u', $firstMessage, $firstMatches);
         preg_match('/参考编号：(.+?)。$/u', $secondMessage, $secondMatches);
-        $references = [$firstMatches[1] ?? null, $secondMatches[1] ?? null];
+        $this->assertSame('settlements.failure_reasons.unexpected', $firstFailure['message_key']);
+        $this->assertSame('settlements.failure_reasons.unexpected', $secondFailure['message_key']);
+        $references = [$firstFailure['parameters']['reference'] ?? null, $secondFailure['parameters']['reference'] ?? null];
         $this->assertNotNull($references[0]);
         $this->assertNotNull($references[1]);
         $this->assertNotSame($references[0], $references[1]);

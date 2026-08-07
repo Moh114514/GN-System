@@ -16,7 +16,7 @@ final class SettlementRunFailureController
 
         return response()->download(
             Storage::disk('local')->path($path),
-            '月结失败报告-'.$run->id.'.xlsx',
+            __('settlements.failure_report.filename', ['id' => $run->id]),
         )->deleteFileAfterSend();
     }
 }

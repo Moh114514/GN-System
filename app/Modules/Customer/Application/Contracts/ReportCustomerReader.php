@@ -44,6 +44,7 @@ interface ReportCustomerReader
      *     source_name: string,
      *     status_key: string,
      *     status_name: string,
+     *     status_translation_key: string|null,
      *     owner_id: int,
      *     created_on: string
      *   }>

@@ -2,6 +2,7 @@
 
 namespace App\Modules\Report\Application\Services;
 
+use App\Infrastructure\Localization\SupportedLocale;
 use App\Models\User;
 use App\Modules\Report\Infrastructure\Models\ReportExport;
 use DomainException;
@@ -13,37 +14,52 @@ use RuntimeException;
 
 final class DashboardExportGenerator
 {
-    private const PDF_FONT_PATH = '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf';
-
     private const PDF_CACHE_PATH = 'framework/cache/dompdf';
+
+    public function __construct(private readonly DashboardSnapshotPresenter $presenter) {}
 
     /** @param array<string, mixed> $snapshot */
     public function generate(User $user, string $format, array $snapshot): ReportExport
     {
         if (in_array($format, ['pdf', 'html'], true) === false) {
-            throw new DomainException('看板服务端导出仅支持 PDF 和 HTML。');
+            throw new DomainException(__('dashboard.errors.export_format'));
+        }
+        $locale = SupportedLocale::fromCandidate($snapshot['locale'] ?? app()->getLocale()) ?? SupportedLocale::default();
+        $snapshot = [...$snapshot, 'locale' => $locale->value];
+        $previousLocale = app()->getLocale();
+        app()->setLocale($locale->value);
+        try {
+            $snapshot = $this->presenter->present($snapshot);
+        } finally {
+            app()->setLocale($previousLocale);
         }
         $reusableExport = $this->reusableExport($user, $format, $snapshot);
         if ($reusableExport !== null) {
             return $reusableExport;
         }
-        $pdfFontPath = $format === 'pdf' ? self::PDF_FONT_PATH : null;
+        $pdfFontPath = $format === 'pdf' ? (string) config('reporting.pdf.font_path') : null;
         if ($pdfFontPath !== null && ! is_readable($pdfFontPath)) {
-            throw new RuntimeException('看板 PDF 中文字体不可用，请重新构建应用镜像后重试。');
+            throw new RuntimeException(__('dashboard.errors.pdf_font_missing'));
         }
         $export = ReportExport::query()->create([
             'created_by' => $user->id,
             'kind' => 'dashboard',
             'format' => $format,
             'status' => 'generating',
-            'criteria_snapshot' => $snapshot['range'] ?? [],
+            'criteria_snapshot' => [...($snapshot['range'] ?? []), 'locale' => $locale->value],
             'data_snapshot' => $snapshot,
             'expires_at' => now()->addHours(24),
         ]);
-        $html = view('reports.dashboard-export', [
-            'snapshot' => $snapshot,
-            'pdfFontPath' => $pdfFontPath,
-        ])->render();
+        $previousLocale = app()->getLocale();
+        app()->setLocale($locale->value);
+        try {
+            $html = view('reports.dashboard-export', [
+                'snapshot' => $snapshot,
+                'pdfFontPath' => $pdfFontPath,
+            ])->render();
+        } finally {
+            app()->setLocale($previousLocale);
+        }
         $directory = "reports/dashboard/{$user->id}";
         Storage::disk('local')->makeDirectory($directory);
         $path = "{$directory}/{$export->id}.{$format}";
@@ -55,11 +71,11 @@ final class DashboardExportGenerator
             File::ensureDirectoryExists($fontCachePath);
             File::ensureDirectoryExists($tempPath);
             if (! is_writable($fontCachePath) || ! is_writable($tempPath)) {
-                throw new RuntimeException('看板 PDF 缓存目录不可写，请检查 storage 目录权限后重试。');
+                throw new RuntimeException(__('dashboard.errors.pdf_cache_unwritable'));
             }
             $options = new Options;
             $options->setIsRemoteEnabled(false);
-            $options->setChroot([base_path(), dirname(self::PDF_FONT_PATH)]);
+            $options->setChroot([base_path(), dirname((string) $pdfFontPath)]);
             $options->setDefaultFont('GN CJK');
             $options->setIsFontSubsettingEnabled(false);
             $options->setFontDir($fontCachePath);

@@ -16,5 +16,6 @@ final readonly class AuditLogEntryData
         public ?string $causerName,
         public ?int $targetUserId,
         public array $properties,
+        public bool $legacyDescription = false,
     ) {}
 }

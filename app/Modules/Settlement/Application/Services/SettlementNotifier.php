@@ -16,13 +16,18 @@ final readonly class SettlementNotifier
             return;
         }
         if (! $this->sender->enabled()) {
-            $run->update(['notification_status' => 'disabled', 'notification_error' => '钉钉未启用']);
+            $run->update(['notification_status' => 'disabled', 'notification_error' => 'dingtalk_disabled']);
 
             return;
         }
         $this->sender->send(
-            '月结生成完成',
-            "周期：{$run->period_start->format('Y-m-d')} 至 {$run->period_end->format('Y-m-d')}\n\n代理商：{$run->processed_agents} 家\n\n推广费合计：₩ ".number_format($run->total_commission_krw),
+            __('settlements.notifications.title'),
+            __('settlements.notifications.body', [
+                'from' => $run->period_start->format('Y-m-d'),
+                'to' => $run->period_end->format('Y-m-d'),
+                'agents' => $run->processed_agents,
+                'total' => number_format($run->total_commission_krw),
+            ]),
             route('settlements.index'),
         );
         $run->update(['notification_status' => 'sent', 'notification_error' => null, 'notified_at' => now()]);

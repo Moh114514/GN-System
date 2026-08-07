@@ -19,7 +19,7 @@ class RequireTwoFactorForSuperAdmin
         if ($user?->is_super_admin && $user->two_factor_confirmed_at === null) {
             return redirect()
                 ->route('security.edit')
-                ->with('status', '请先启用并确认双因素认证，然后再继续。');
+                ->with('status', __('auth.middleware.two_factor_required'));
         }
 
         return $next($request);

@@ -45,7 +45,12 @@ final readonly class ReferenceConfigurationImportParser
     {
         $this->stages->initialize($batch);
         $this->stages->update($batch, 'file_detection', 'running');
-        $batch->update(['status' => ImportBatchStatus::Parsing, 'failure_reason' => null]);
+        $batch->update([
+            'status' => ImportBatchStatus::Parsing,
+            'failure_reason' => null,
+            'failure_reason_key' => null,
+            'failure_reason_parameters' => null,
+        ]);
         $batch->issues()->delete();
         $batch->rows()->delete();
         $failureStage = 'file_detection';
@@ -130,10 +135,8 @@ final readonly class ReferenceConfigurationImportParser
             $message = Str::limit($exception->getMessage(), 2000);
             $this->stages->update($batch, $failureStage, 'failed', ['issue_count' => 1]);
             $this->issues->record($batch, $failureStage, 'error', $failureStage.'_failed', $message);
-            $batch->update([
-                'status' => ImportBatchStatus::Failed,
-                'failure_reason' => $message,
-            ]);
+            $this->issues->markBatchFailure($batch, $failureStage.'_failed', $message);
+            $batch->update(['status' => ImportBatchStatus::Failed]);
             throw $exception;
         }
     }

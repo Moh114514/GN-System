@@ -3,6 +3,7 @@
 namespace App\Modules\Reminder\Presentation\Livewire;
 
 use App\Models\User;
+use App\Modules\Reminder\Application\Services\ReminderContentPresenter;
 use App\Modules\Reminder\Application\Services\ReminderRuleManager;
 use App\Modules\Reminder\Application\Services\ReminderWorkspace;
 use App\Modules\Reminder\Infrastructure\Models\ReminderTemplate;
@@ -12,11 +13,9 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('新建提醒')]
 class ReminderCreate extends Component
 {
     public string $customerId = '';
@@ -58,8 +57,9 @@ class ReminderCreate extends Component
             return;
         }
         $template = ReminderTemplate::query()->where('is_active', true)->findOrFail((int) $this->templateId);
-        $this->title = (string) $template->title;
-        $this->suggestion = (string) $template->suggestion;
+        $content = app(ReminderContentPresenter::class)->template($template);
+        $this->title = $content['title'];
+        $this->suggestion = (string) $content['suggestion'];
     }
 
     public function save(ReminderWorkspace $workspace, ReminderRuleManager $rules): void
@@ -90,7 +90,7 @@ class ReminderCreate extends Component
             if ($this->saveAsTemplate) {
                 $rules->saveTemplate(null, $this->templateName, $this->title, $this->suggestion, 'manual', [], (int) Auth::id());
             }
-            Flux::toast(variant: 'success', text: '提醒已创建。');
+            Flux::toast(variant: 'success', text: __('reminders.toasts.created'));
             $this->redirectRoute('reminders.index', navigate: true);
         } catch (DomainException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());
@@ -99,12 +99,21 @@ class ReminderCreate extends Component
 
     public function render(ReminderWorkspace $workspace): View
     {
+        $content = app(ReminderContentPresenter::class);
+        $templates = ReminderTemplate::query()->where('is_active', true)
+            ->where(fn ($query) => $query->whereNull('owner_id')->orWhere('owner_id', Auth::id()))
+            ->orderByDesc('is_system')->orderBy('name')->get()
+            ->map(function (ReminderTemplate $template) use ($content): ReminderTemplate {
+                $values = $content->template($template);
+                $template->setAttribute('name', $values['name']);
+
+                return $template;
+            });
+
         return view('livewire.reminders.reminder-create', [
             'customers' => $workspace->customerCandidates(),
             'users' => User::query()->orderBy('name')->get(['id', 'name']),
-            'templates' => ReminderTemplate::query()->where('is_active', true)
-                ->where(fn ($query) => $query->whereNull('owner_id')->orWhere('owner_id', Auth::id()))
-                ->orderByDesc('is_system')->orderBy('name')->get(),
-        ]);
+            'templates' => $templates,
+        ])->title(__('reminders.titles.create'));
     }
 }

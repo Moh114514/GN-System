@@ -2,6 +2,7 @@
 
 namespace App\Modules\Reminder\Application\Services;
 
+use App\Infrastructure\Localization\SupportedLocale;
 use App\Models\User;
 use App\Modules\Reminder\Infrastructure\Models\Reminder;
 use App\Modules\Reminder\Infrastructure\Models\ReminderEvent;
@@ -16,17 +17,17 @@ final class ReminderNotificationDispatcher
         if ((bool) config('dingtalk.enabled')) {
             $statuses[] = 'disabled';
         }
-        $ids = Reminder::query()
+        $reminders = Reminder::query()
             ->whereIn('status', ['pending', 'snoozed', 'transferred'])
             ->whereIn('notification_status', $statuses)
             ->where('due_at', '<=', now())
-            ->pluck('id');
-        foreach ($ids as $id) {
-            Reminder::query()->whereKey($id)->update(['notification_status' => 'queued']);
-            SendReminderNotification::dispatch((int) $id);
+            ->get(['id', 'assigned_to', 'created_by']);
+        foreach ($reminders as $reminder) {
+            Reminder::query()->whereKey($reminder->id)->update(['notification_status' => 'queued']);
+            SendReminderNotification::dispatch((int) $reminder->id, $this->localeFor($reminder));
         }
 
-        return $ids->count();
+        return $reminders->count();
     }
 
     public function retry(int $reminderId, User $actor): void
@@ -35,10 +36,10 @@ final class ReminderNotificationDispatcher
         if (! $actor->is_super_admin
             && $reminder->assigned_to !== $actor->id
             && $reminder->created_by !== $actor->id) {
-            throw new DomainException('无权重试此提醒的通知。');
+            throw new DomainException(__('reminders.errors.retry_forbidden'));
         }
         if (! in_array($reminder->notification_status, ['failed', 'disabled'], true)) {
-            throw new DomainException('当前通知状态无需重试。');
+            throw new DomainException(__('reminders.errors.retry_not_needed'));
         }
         $before = $reminder->notification_status;
         $reminder->update(['notification_status' => 'queued']);
@@ -49,6 +50,18 @@ final class ReminderNotificationDispatcher
             'properties' => ['before' => $before, 'after' => 'queued'],
             'occurred_at' => now(),
         ]);
-        SendReminderNotification::dispatch($reminder->id)->afterCommit();
+        SendReminderNotification::dispatch($reminder->id, $this->localeFor($reminder))->afterCommit();
+    }
+
+    private function localeFor(Reminder $reminder): string
+    {
+        $user = $reminder->assigned_to === null
+            ? null
+            : User::query()->find($reminder->assigned_to);
+        $user ??= $reminder->created_by === null
+            ? null
+            : User::query()->find($reminder->created_by);
+
+        return (SupportedLocale::fromCandidate($user?->preferred_locale) ?? SupportedLocale::default())->value;
     }
 }

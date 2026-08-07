@@ -10,11 +10,9 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('代理商配置')]
 class AgentConfiguration extends Component
 {
     public ?int $editingTypeId = null;
@@ -73,7 +71,7 @@ class AgentConfiguration extends Component
     public function saveType(AgentManager $manager): void
     {
         $this->validate(['typeCode' => ['required', 'regex:/^[A-Za-z0-9]{2,4}$/'], 'typeName' => ['required', 'string', 'max:255'], 'typeDescription' => ['nullable', 'string', 'max:1000']]);
-        $this->run(fn () => $manager->saveType($this->editingTypeId, $this->typeCode, $this->typeName, $this->typeDescription, (int) Auth::id(), request()->ip()), '类型代码已保存。');
+        $this->run(fn () => $manager->saveType($this->editingTypeId, $this->typeCode, $this->typeName, $this->typeDescription, (int) Auth::id(), request()->ip()), __('config.agent.toast.type_saved'));
         $this->cancelTypeEdit();
     }
 
@@ -93,13 +91,13 @@ class AgentConfiguration extends Component
 
     public function toggleType(int $id, AgentManager $manager): void
     {
-        $this->run(fn () => $manager->toggleType($id, (int) Auth::id(), request()->ip()), '类型代码状态已更新。');
+        $this->run(fn () => $manager->toggleType($id, (int) Auth::id(), request()->ip()), __('config.agent.toast.type_status_updated'));
     }
 
     public function savePolicy(AgentManager $manager): void
     {
         $this->validate(['policyName' => ['required', 'string', 'max:255']]);
-        $this->run(fn () => $manager->savePolicy($this->editingPolicyId, $this->policyName, (int) Auth::id(), request()->ip()), '政策体系已保存。');
+        $this->run(fn () => $manager->savePolicy($this->editingPolicyId, $this->policyName, (int) Auth::id(), request()->ip()), __('config.agent.toast.policy_saved'));
         $this->cancelPolicyEdit();
     }
 
@@ -117,7 +115,7 @@ class AgentConfiguration extends Component
 
     public function togglePolicy(int $id, AgentManager $manager): void
     {
-        $this->run(fn () => $manager->togglePolicy($id, (int) Auth::id(), request()->ip()), '政策体系状态已更新。');
+        $this->run(fn () => $manager->togglePolicy($id, (int) Auth::id(), request()->ip()), __('config.agent.toast.policy_status_updated'));
     }
 
     public function saveGrade(AgentManager $manager): void
@@ -128,7 +126,7 @@ class AgentConfiguration extends Component
             'gradeThresholdKrw' => ['required', 'integer', 'min:0'],
             'gradeSortOrder' => ['required', 'integer', 'min:0', 'max:65535'],
         ]);
-        $this->run(fn () => $manager->saveGrade($this->editingGradeId, (int) $this->gradePolicySystemId, $this->gradeName, (int) $this->gradeThresholdKrw, (int) $this->gradeSortOrder, (int) Auth::id(), request()->ip()), '政策等级已保存。');
+        $this->run(fn () => $manager->saveGrade($this->editingGradeId, (int) $this->gradePolicySystemId, $this->gradeName, (int) $this->gradeThresholdKrw, (int) $this->gradeSortOrder, (int) Auth::id(), request()->ip()), __('config.agent.toast.grade_saved'));
         $this->cancelGradeEdit();
     }
 
@@ -151,7 +149,7 @@ class AgentConfiguration extends Component
 
     public function toggleGrade(int $id, AgentManager $manager): void
     {
-        $this->run(fn () => $manager->toggleGrade($id, (int) Auth::id(), request()->ip()), '政策等级状态已更新。');
+        $this->run(fn () => $manager->toggleGrade($id, (int) Auth::id(), request()->ip()), __('config.agent.toast.grade_status_updated'));
     }
 
     public function saveRule(AgentConfigurationCoordinator $coordinator): void
@@ -162,7 +160,7 @@ class AgentConfiguration extends Component
             'ruleRateBps' => ['required', 'integer', 'between:0,10000'],
             'ruleEffectiveMonth' => ['required', 'date'],
         ]);
-        $this->run(fn () => $coordinator->saveRule((int) $this->ruleGradeId, (int) $this->ruleInstitutionId, (int) $this->ruleRateBps, CarbonImmutable::parse($this->ruleEffectiveMonth), (int) Auth::id(), request()->ip()), '机构费率已保存。');
+        $this->run(fn () => $coordinator->saveRule((int) $this->ruleGradeId, (int) $this->ruleInstitutionId, (int) $this->ruleRateBps, CarbonImmutable::parse($this->ruleEffectiveMonth), (int) Auth::id(), request()->ip()), __('config.agent.toast.rate_saved'));
     }
 
     public function saveOverride(AgentConfigurationCoordinator $coordinator): void
@@ -174,7 +172,7 @@ class AgentConfiguration extends Component
             'overrideEffectiveMonth' => ['required', 'date'],
             'overrideReason' => ['required', 'string', 'max:1000'],
         ]);
-        $this->run(fn () => $coordinator->saveOverride((int) $this->overrideAgentId, $this->overrideInstitutionId === '' ? null : (int) $this->overrideInstitutionId, (int) $this->overrideRateBps, CarbonImmutable::parse($this->overrideEffectiveMonth), $this->overrideReason, (int) Auth::id(), request()->ip()), '代理商特批已保存。');
+        $this->run(fn () => $coordinator->saveOverride((int) $this->overrideAgentId, $this->overrideInstitutionId === '' ? null : (int) $this->overrideInstitutionId, (int) $this->overrideRateBps, CarbonImmutable::parse($this->overrideEffectiveMonth), $this->overrideReason, (int) Auth::id(), request()->ip()), __('config.agent.toast.override_saved'));
     }
 
     public function render(AgentConfigurationCoordinator $coordinator): View
@@ -185,7 +183,7 @@ class AgentConfiguration extends Component
                 $this->ruleListSort,
                 $this->overrideListSort,
             ),
-        ]);
+        ])->title(__('config.agent.title'));
     }
 
     private function run(\Closure $operation, string $success): void

@@ -24,6 +24,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $rollback_expires_at
  * @property Carbon|null $rolled_back_at
  * @property string|null $failure_reason
+ * @property string|null $failure_reason_key
+ * @property array<string, mixed>|null $failure_reason_parameters
  */
 class ImportBatch extends Model
 {
@@ -42,6 +44,7 @@ class ImportBatch extends Model
             'completed_at' => 'datetime',
             'rollback_expires_at' => 'datetime',
             'rolled_back_at' => 'datetime',
+            'failure_reason_parameters' => 'encrypted:array',
         ];
     }
 

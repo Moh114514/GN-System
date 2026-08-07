@@ -13,6 +13,7 @@ final readonly class ReminderNotifier
     public function __construct(
         private StaffNotificationSender $sender,
         private ReminderCustomerReader $customers,
+        private ReminderContentPresenter $content,
     ) {}
 
     public function send(int $reminderId): void
@@ -23,16 +24,22 @@ final readonly class ReminderNotifier
         }
         if (! $this->sender->enabled()) {
             $reminder->update(['notification_status' => 'disabled']);
-            $this->event($reminder, 'notification_disabled', ['reason' => '钉钉未启用']);
+            $this->event($reminder, 'notification_disabled', ['reason' => 'dingtalk_disabled']);
 
             return;
         }
         $customer = $this->customers->byId((int) $reminder->customer_id);
+        $content = $this->content->reminder($reminder);
         $owner = $reminder->assigned_to === null ? null : User::query()->find($reminder->assigned_to);
-        $ownerName = $owner === null ? '未分配' : $owner->name;
+        $ownerName = $owner === null ? __('reminders.notifications.unassigned') : $owner->name;
         $this->sender->send(
-            (string) $reminder->title,
-            "客户：{$customer->name}\n\n负责人：{$ownerName}\n\n计划时间：{$reminder->due_at->format('Y-m-d H:i')}\n\n建议方向：".($reminder->suggestion ?: '无固定话术，请员工自行填写'),
+            $content['title'],
+            __('reminders.notifications.body', [
+                'customer' => $customer->name,
+                'owner' => $ownerName,
+                'due_at' => $reminder->due_at->format('Y-m-d H:i'),
+                'suggestion' => $content['suggestion'] ?: __('reminders.notifications.no_script'),
+            ]),
             route('reminders.index'),
         );
         $reminder->update(['notification_status' => 'sent', 'notified_at' => now()]);
