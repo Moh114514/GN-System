@@ -1150,7 +1150,8 @@ mountpoint /mnt/gn-system-offsite
 
 ### 14.10 PDF 中文字体或私有目录权限
 
-生产镜像应包含已在 CI 验证的 PDF 字体。若导出失败：
+生产镜像应包含已在 CI 验证的独立 Noto Sans CJK PDF 字体。字体由 Docker 构建阶段从
+Debian 字体集合提取，不能只安装 TTC 集合后直接交给 Dompdf。若导出失败：
 
 ```bash
 sudo docker compose --env-file .env.uat \

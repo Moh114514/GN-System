@@ -11,7 +11,7 @@
 
     <section class="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <div class="flex flex-wrap items-end gap-3">
-            <flux:input wire:model.live="occurredOn" type="date" :label="__('audit.index.date')" class="w-40" />
+            <x-localized-date-picker wire:model.live="occurredOn" :value="$occurredOn" :label="__('audit.index.date')" class="w-40" />
             <flux:select wire:model.live="causerId" :label="__('audit.index.causer')" class="w-40">
                 <flux:select.option value="">{{ __('audit.index.all_causers') }}</flux:select.option>
                 @foreach ($options['users'] as $user)

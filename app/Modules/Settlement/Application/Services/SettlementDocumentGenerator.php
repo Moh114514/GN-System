@@ -16,8 +16,6 @@ use ZipArchive;
 
 final class SettlementDocumentGenerator
 {
-    private const PDF_FONT_PATH = '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf';
-
     private const PDF_CACHE_PATH = 'framework/cache/dompdf';
 
     /** @return array<string, mixed> */
@@ -99,7 +97,7 @@ final class SettlementDocumentGenerator
         IOFactory::createWriter($word, 'Word2007')->save($wordAbsolute);
         $this->record($settlement, 'docx', $wordPath, $data);
 
-        $dompdf->loadHtml($this->html($data, self::PDF_FONT_PATH), 'UTF-8');
+        $dompdf->loadHtml($this->html($data, (string) config('reporting.pdf.font_path')), 'UTF-8');
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
         $pdfPath = "{$directory}/settlement-{$settlement->id}.pdf";
@@ -160,7 +158,8 @@ final class SettlementDocumentGenerator
 
     private function dompdf(): Dompdf
     {
-        if (! is_readable(self::PDF_FONT_PATH)) {
+        $pdfFontPath = (string) config('reporting.pdf.font_path');
+        if (! is_readable($pdfFontPath)) {
             throw new RuntimeException(__('settlements.errors.document_pdf_font_missing'));
         }
 
@@ -174,7 +173,7 @@ final class SettlementDocumentGenerator
 
         $options = new Options;
         $options->setIsRemoteEnabled(false);
-        $options->setChroot([base_path(), dirname(self::PDF_FONT_PATH)]);
+        $options->setChroot([base_path(), dirname($pdfFontPath)]);
         $options->setDefaultFont('GN CJK');
         $options->setIsFontSubsettingEnabled(false);
         $options->setFontDir($fontCachePath);

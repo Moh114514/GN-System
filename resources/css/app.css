@@ -55,6 +55,14 @@
     @apply !mb-0 !leading-tight;
 }
 
+[x-cloak] {
+    display: none !important;
+}
+
+.crm-localized-date-picker {
+    min-width: 0;
+}
+
 input:focus[data-flux-control],
 textarea:focus[data-flux-control],
 select:focus[data-flux-control] {

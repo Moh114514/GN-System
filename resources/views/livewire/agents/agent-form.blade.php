@@ -49,9 +49,9 @@
                     <flux:select.option value="paused">{{ __('agents.form.paused') }}</flux:select.option>
                     <flux:select.option value="terminated">{{ __('agents.form.terminated') }}</flux:select.option>
                 </flux:select>
-                <flux:input wire:model="cooperationStartedOn" type="date" :label="__('agents.form.started')" required />
+                <x-localized-date-picker wire:model="cooperationStartedOn" :value="$cooperationStartedOn" :label="__('agents.form.started')" required />
                 @if ($cooperationStatus === 'terminated')
-                    <flux:input wire:model="cooperationEndedOn" type="date" :label="__('agents.form.ended')" required />
+                    <x-localized-date-picker wire:model="cooperationEndedOn" :value="$cooperationEndedOn" :label="__('agents.form.ended')" required />
                 @endif
                 <div class="md:col-span-2"><flux:textarea wire:model="notes" :label="__('agents.form.notes')" rows="4" /></div>
             </div>

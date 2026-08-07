@@ -79,7 +79,7 @@
                 <h3 class="font-semibold">{{ __('customers.detail.followup.heading') }}</h3>
                 <form wire:submit="recordFollowup" class="mt-4 space-y-3">
                     <flux:input wire:model="followupType" :label="__('customers.detail.followup.type')" required />
-                    <flux:input wire:model="followedUpOn" type="date" :label="__('customers.detail.followup.date')" required />
+                    <x-localized-date-picker wire:model="followedUpOn" :value="$followedUpOn" :label="__('customers.detail.followup.date')" required />
                     <flux:textarea wire:model="followupContent" :label="__('customers.detail.followup.content')" rows="4" required />
                     <flux:button type="submit" class="w-full">{{ __('customers.detail.followup.submit') }}</flux:button>
                 </form>

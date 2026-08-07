@@ -292,14 +292,13 @@
                 <form action="{{ route('dashboard') }}" method="GET" class="crm-date-form">
                     <label class="crm-date-range">
                         <span class="sr-only">{{ __('navigation.date_label') }}</span>
-                        <input
-                            data-test="topbar-date-control"
-                            type="date"
+                        <x-localized-date-picker
+                            :value="request()->routeIs('dashboard') ? (string) request('date', now('Asia/Shanghai')->format('Y-m-d')) : now('Asia/Shanghai')->format('Y-m-d')"
                             name="date"
-                            value="{{ request()->routeIs('dashboard') ? (string) request('date', now('Asia/Shanghai')->format('Y-m-d')) : now('Asia/Shanghai')->format('Y-m-d') }}"
-                            aria-label="{{ __('navigation.date_label') }}"
+                            data-test="topbar-date-control"
+                            :aria-label="__('navigation.date_label')"
                             onchange="this.form.requestSubmit()"
-                        >
+                        />
                     </label>
                 </form>
 

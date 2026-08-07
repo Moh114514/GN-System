@@ -14,8 +14,6 @@ use RuntimeException;
 
 final class DashboardExportGenerator
 {
-    private const PDF_FONT_PATH = '/usr/share/fonts/truetype/droid/DroidSansFallbackFull.ttf';
-
     private const PDF_CACHE_PATH = 'framework/cache/dompdf';
 
     public function __construct(private readonly DashboardSnapshotPresenter $presenter) {}
@@ -39,7 +37,7 @@ final class DashboardExportGenerator
         if ($reusableExport !== null) {
             return $reusableExport;
         }
-        $pdfFontPath = $format === 'pdf' ? self::PDF_FONT_PATH : null;
+        $pdfFontPath = $format === 'pdf' ? (string) config('reporting.pdf.font_path') : null;
         if ($pdfFontPath !== null && ! is_readable($pdfFontPath)) {
             throw new RuntimeException(__('dashboard.errors.pdf_font_missing'));
         }
@@ -77,7 +75,7 @@ final class DashboardExportGenerator
             }
             $options = new Options;
             $options->setIsRemoteEnabled(false);
-            $options->setChroot([base_path(), dirname(self::PDF_FONT_PATH)]);
+            $options->setChroot([base_path(), dirname((string) $pdfFontPath)]);
             $options->setDefaultFont('GN CJK');
             $options->setIsFontSubsettingEnabled(false);
             $options->setFontDir($fontCachePath);

@@ -134,7 +134,7 @@ class AuditLogIndexTest extends TestCase
             ->assertSee(__('audit.legacy_original'));
     }
 
-    public function test_user_management_exposes_the_audit_entry_and_topbar_keeps_native_date_and_reminder_controls(): void
+    public function test_user_management_exposes_the_audit_entry_and_topbar_keeps_localized_date_and_reminder_controls(): void
     {
         $admin = User::factory()->superAdmin()->withTwoFactor()->create();
 
@@ -143,7 +143,9 @@ class AuditLogIndexTest extends TestCase
             ->assertSee('查看全局审计日志')
             ->assertSee('href="'.route('audit-logs.index').'"', false)
             ->assertSee('data-test="topbar-date-control"', false)
-            ->assertSee('type="date"', false)
+            ->assertSee('crm-localized-date-picker', false)
+            ->assertSee('name="date"', false)
+            ->assertDontSee('type="date"', false)
             ->assertSee('data-test="reminder-notification-button"', false)
             ->assertDontSee('calendar-days', false);
     }

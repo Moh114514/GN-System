@@ -62,7 +62,10 @@ jobs:
       - name: Install PDF font dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes fonts-droid-fallback
+          sudo apt-get install --no-install-recommends --yes fonts-noto-cjk python3-fonttools
+          sudo mkdir -p /usr/local/share/fonts/gn-system
+          sudo python3 -c "from fontTools.ttLib import TTCollection; font = TTCollection('/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc').fonts[0]; assert all(ord(char) in font.getBestCmap() for char in '中한가123GN-System'); font.save('/usr/local/share/fonts/gn-system/NotoSansCJK-Regular.otf')"
+          test -r /usr/local/share/fonts/gn-system/NotoSansCJK-Regular.otf
 
       - name: Setup PHP
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2

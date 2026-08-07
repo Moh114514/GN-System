@@ -45,7 +45,7 @@
                     <td>{{ $run->period_start->format('Y-m-d') }} {{ __('settlements.labels.date_to') }} {{ $run->period_end->format('Y-m-d') }}<div class="text-xs text-zinc-500">{{ ['manual' => __('settlements.center.manual'), 'historical' => __('settlements.center.historical_manual'), 'scheduled' => __('settlements.center.scheduled')][$run->trigger_source] ?? $run->trigger_source }}</div></td>
                     <td>{{ $run->processed_agents + $run->failed_agents }}/{{ $run->total_agents }}<div class="text-xs text-red-600">{{ __('settlements.center.failed_count', ['count' => $run->failed_agents]) }}</div></td>
                     <td>₩ {{ number_format($run->total_consumption_krw) }}<div class="text-xs text-zinc-500">{{ __('settlements.detail.commission') }} ₩ {{ number_format($run->total_commission_krw) }}</div></td>
-                    <td>{{ __('settlements.run_statuses.'.$run->status, [], $run->status) }}<div class="text-xs text-zinc-500">{{ __('settlements.center.dingtalk', ['status' => __('settlements.notification_statuses.'.$run->notification_status, [], $run->notification_status)]) }}</div></td>
+                    <td>{{ __('settlements.run_statuses.'.$run->status) }}<div class="text-xs text-zinc-500">{{ __('settlements.center.dingtalk', ['status' => __('settlements.notification_statuses.'.$run->notification_status)]) }}</div></td>
                     <td class="space-x-2" x-on:keydown.stop>
                         <button type="button" class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-zinc-700 hover:bg-zinc-100" wire:click.stop="toggleRun('{{ $run->id }}')" aria-expanded="{{ $isCollapsed ? 'false' : 'true' }}">
                             <flux:icon :name="$isCollapsed ? 'chevron-right' : 'chevron-down'" class="size-4" aria-hidden="true" />
@@ -64,7 +64,7 @@
                     <tr class="bg-zinc-50/70 dark:bg-zinc-800/40">
                         <td colspan="2"><a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $settlement->id) }}" wire:navigate>{{ data_get($settlement->snapshot, 'agent.name', __('settlements.labels.unknown_agent')) }}</a></td>
                         <td>{{ __('settlements.detail.commission') }} ₩ {{ number_format($settlement->total_commission_krw) }}</td>
-                        <td colspan="2">{{ __('settlements.settlement_statuses.'.$settlement->status, [], $settlement->status) }}</td>
+                        <td colspan="2">{{ __('settlements.settlement_statuses.'.$settlement->status) }}</td>
                     </tr>
                 @endforeach
                 @endif

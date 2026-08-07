@@ -14,21 +14,21 @@
             </flux:select>
             @if ($preset === 'custom')
                 <div class="crm-dashboard-custom-range" role="group" aria-label="{{ __('dashboard.controls.custom_range') }}">
-                    <label for="dashboard-custom-from">{{ __('dashboard.controls.start_date') }}</label>
-                    <flux:input
+                    <x-localized-date-picker
                         id="dashboard-custom-from"
                         wire:model="customFrom"
+                        :value="$customFrom"
+                        :label="__('dashboard.controls.start_date')"
                         class="crm-dashboard-date-input"
-                        type="date"
                         size="sm"
                     />
                     <span class="crm-dashboard-date-separator" aria-hidden="true">—</span>
-                    <label for="dashboard-custom-to">{{ __('dashboard.controls.end_date') }}</label>
-                    <flux:input
+                    <x-localized-date-picker
                         id="dashboard-custom-to"
                         wire:model="customTo"
+                        :value="$customTo"
+                        :label="__('dashboard.controls.end_date')"
                         class="crm-dashboard-date-input"
-                        type="date"
                         size="sm"
                     />
                     <flux:button wire:click="applyCustomRange" size="sm" variant="primary">{{ __('dashboard.controls.apply') }}</flux:button>

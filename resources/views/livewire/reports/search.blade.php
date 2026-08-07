@@ -9,8 +9,8 @@
 
     <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <flux:input wire:model.live.debounce.400ms="completedFrom" type="date" :label="__('search.page.fields.completed_from')" />
-            <flux:input wire:model.live.debounce.400ms="completedTo" type="date" :label="__('search.page.fields.completed_to')" />
+            <x-localized-date-picker wire:model.live.debounce.400ms="completedFrom" :value="$completedFrom" :label="__('search.page.fields.completed_from')" />
+            <x-localized-date-picker wire:model.live.debounce.400ms="completedTo" :value="$completedTo" :label="__('search.page.fields.completed_to')" />
             <flux:input wire:model.live.debounce.400ms="timeFrom" type="time" :label="__('search.page.fields.time_from')" />
             <flux:input wire:model.live.debounce.400ms="timeTo" type="time" :label="__('search.page.fields.time_to')" />
             <flux:select wire:model.live="customerId" :label="__('search.page.fields.customer')">

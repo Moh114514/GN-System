@@ -618,6 +618,42 @@ class PhaseFiveSettlementTest extends TestCase
             ->assertDontSee('月结中心');
     }
 
+    public function test_korean_settlement_center_localizes_run_and_settlement_statuses(): void
+    {
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'completed',
+            'total_agents' => 1,
+            'processed_agents' => 1,
+            'notification_status' => 'sent',
+        ]);
+        Settlement::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'pending_review',
+            'generation_status' => 'generated',
+            'snapshot' => ['agent' => ['name' => '월말 테스트 에이전시']],
+        ]);
+
+        $previousLocale = App::getLocale();
+        App::setLocale('ko_KR');
+
+        try {
+            Livewire::actingAs($this->admin)
+                ->test(SettlementCenter::class)
+                ->assertSee('생성 완료')
+                ->assertSee('검토 대기')
+                ->assertDontSee('已生成')
+                ->assertDontSee('待审核');
+        } finally {
+            App::setLocale($previousLocale);
+        }
+    }
+
     public function test_settlement_notification_job_carries_initiator_locale(): void
     {
         $this->admin->update(['preferred_locale' => 'ko_KR']);
