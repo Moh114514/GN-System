@@ -9,7 +9,7 @@
                 <x-theme-logo mode="light" class="crm-brand-logo crm-auth-brand-logo" />
                 <span>
                     <strong>GN-System</strong>
-                    <small>专业 · 安全 · 高效</small>
+                    <small>{{ __('navigation.brand_tagline') }}</small>
                 </span>
             </a>
 
@@ -19,7 +19,7 @@
 
             <p class="crm-auth-footnote">
                 <flux:icon.shield-check aria-hidden="true" />
-                企业级数据安全保护
+                {{ __('auth.security_notice') }}
             </p>
         </main>
 

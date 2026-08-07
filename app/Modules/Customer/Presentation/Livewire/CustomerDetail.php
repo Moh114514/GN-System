@@ -10,11 +10,9 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('客户详情')]
 class CustomerDetail extends Component
 {
     public int $customerId;
@@ -56,7 +54,7 @@ class CustomerDetail extends Component
             ipAddress: request()->ip(),
         );
         $this->reset('targetStatusId', 'statusReason');
-        Flux::toast(variant: 'success', text: '客户状态已更新。');
+        Flux::toast(variant: 'success', text: __('customers.toasts.status_updated'));
     }
 
     public function recordFollowup(CustomerFollowupManager $manager): void
@@ -75,7 +73,7 @@ class CustomerDetail extends Component
             ipAddress: request()->ip(),
         );
         $this->followupContent = '';
-        Flux::toast(variant: 'success', text: '跟进记录已保存。');
+        Flux::toast(variant: 'success', text: __('customers.toasts.followup_saved'));
     }
 
     public function render(CustomerDirectory $directory): View
@@ -83,6 +81,6 @@ class CustomerDetail extends Component
         return view('livewire.customers.customer-detail', [
             'customer' => $directory->profile($this->customerId),
             'timeline' => $directory->timeline($this->customerId, $this->timelineType),
-        ]);
+        ])->title(__('customers.title.detail'));
     }
 }

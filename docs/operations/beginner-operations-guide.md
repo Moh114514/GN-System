@@ -61,7 +61,7 @@ GN-System 当前有两套服务器环境，不能混用：
 | `d405781`、`0971130`、`b2ab309` | 增加往期月结、历史合作资格、周期边界、零订单、汇率失败提示和生成状态 | UAT 要准备历史代理商、零订单、重复点击和报价失败数据 |
 | `884f874`、`4aa35d4` | 增加既有月结回填、`unverified` 审计恢复和 `not_applicable` 只读保护 | 部署前必须备份，并确认 `000100` 和 `000200` 两个 migration |
 | `main` `2fe5d13` | 已把上述变更合入主分支，但不是已经验收的 RC | 需要创建下一个递增 RC（预计 `v0.5.0-rc.11`）后才能部署 UAT |
-| `develop`（2026-08-07 工作区） | 开始加入国际化基础设施，支持 `zh_CN`/`ko_KR` 的 Locale 保存和用户偏好 | 尚未发布；发布前备份数据库并确认 `2026_08_07_000100_add_preferred_locale_to_users_table` migration，韩文入口暂不开放 |
+| `develop`（2026-08-07 工作区） | 国际化基础设施及 PR-B 第一批界面已加入，Dashboard、客户和订单日常页面支持 `zh_CN`/`ko_KR` | 尚未发布；发布前备份数据库并确认 `2026_08_07_000100_add_preferred_locale_to_users_table` migration，代理商/配置/导出等仍待后续阶段，韩文入口暂不开放 |
 
 服务器实际版本以 `/srv/gn-system/releases/current` 和
 `/srv/gn-system/releases/history.tsv` 为准。GitHub 上看到提交，不代表服务器已经运行该提交。
@@ -77,7 +77,7 @@ UAT 和 Production 必须分别在环境文件中配置接口 ID/Key；如果服
 
 上一轮月结修复已核对完整运维手册中的服务器目录、环境文件、数据库和发布流程；没有新增 migration、依赖或服务器命令。部署 UAT 前仍需按完整手册执行门禁，并人工复验失败详情、报告下载和提示行为。
 
-国际化 PR-A 当前只在 `develop` 本机工作区完成，不能据此认为 UAT 或 Production 已支持韩文。
+国际化 PR-A 及 PR-B 第一批当前只在 `develop` 本机工作区完成，不能据此认为 UAT 或 Production 已支持韩文。
 发布时要先备份数据库，再按 RC 流程执行 migration；既有用户默认保持 `zh_CN`。业务页面、导出
 文件、队列任务和通知的韩文化属于后续阶段。
 

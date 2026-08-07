@@ -11,12 +11,10 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 use Livewire\WithPagination;
 
 #[Layout('layouts.app')]
-#[Title('订单管理')]
 class OrderCenter extends Component
 {
     use WithPagination;
@@ -170,7 +168,7 @@ class OrderCenter extends Component
                 translatorLanguageId: $this->translatorLanguageId === '' ? null : (int) $this->translatorLanguageId,
             ));
         } catch (DomainException $exception) {
-            Flux::toast(variant: 'danger', text: $exception->getMessage());
+            Flux::toast(variant: 'danger', text: __('orders.errors.unexpected', ['message' => $exception->getMessage()]));
 
             return;
         }
@@ -178,7 +176,7 @@ class OrderCenter extends Component
         $this->showCreate = false;
         $this->resetOrderForm();
         $this->resetPage();
-        Flux::toast(variant: 'success', text: '订单已保存。');
+        Flux::toast(variant: 'success', text: __('orders.messages.saved'));
     }
 
     public function complete(int $orderId, DailyOrderWorkspace $workspace): void
@@ -186,11 +184,11 @@ class OrderCenter extends Component
         try {
             $workspace->complete($orderId, CarbonImmutable::now('Asia/Shanghai'), (int) Auth::id(), request()->ip());
         } catch (DomainException $exception) {
-            Flux::toast(variant: 'danger', text: $exception->getMessage());
+            Flux::toast(variant: 'danger', text: __('orders.errors.unexpected', ['message' => $exception->getMessage()]));
 
             return;
         }
-        Flux::toast(variant: 'success', text: '订单已完成，推广费与术后提醒已同步固化。');
+        Flux::toast(variant: 'success', text: __('orders.messages.completed'));
     }
 
     public function clearFilters(): void
@@ -210,7 +208,7 @@ class OrderCenter extends Component
             'agent_id' => $this->agentFilter === '' ? null : (int) $this->agentFilter,
         ], in_array($this->perPage, [20, 50, 100], true) ? $this->perPage : 20);
 
-        return view('livewire.orders.order-center', compact('orders'));
+        return view('livewire.orders.order-center', compact('orders'))->title(__('orders.title'));
     }
 
     private function resetOrderForm(): void

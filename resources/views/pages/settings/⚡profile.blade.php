@@ -2,18 +2,23 @@
 
 use App\Concerns\ProfileValidationRules;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\View\View;
 use Flux\Flux;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Session;
 use Livewire\Attributes\Computed;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
-new #[Title('Profile settings')] class extends Component {
+new class extends Component {
     use ProfileValidationRules;
 
     public string $name = '';
     public string $email = '';
+
+    public function render(): View
+    {
+        return view('pages.settings.⚡profile')->title(__('Profile settings'));
+    }
 
     /**
      * Mount the component.

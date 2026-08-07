@@ -33,6 +33,17 @@ class OrderManagementTest extends TestCase
             ->assertDontSee('功能将在后续阶段开放');
     }
 
+    public function test_korean_users_see_translated_order_center_labels(): void
+    {
+        $user = User::factory()->create(['preferred_locale' => 'ko_KR']);
+
+        $this->actingAs($user)->get(route('orders.index'))
+            ->assertOk()
+            ->assertSee('주문 관리')
+            ->assertSee('새 주문')
+            ->assertSee('주문 번호, 고객 또는 프로젝트 검색');
+    }
+
     public function test_order_center_creates_filters_and_completes_direct_order_with_audit_trail(): void
     {
         $this->seed(PhaseTwoReferenceDataSeeder::class);

@@ -191,13 +191,13 @@ class CustomerLifecycleTest extends TestCase
         $this->assertSame($customerId, $page->items()[0]['id']);
         $response = $this->actingAs($this->user)->get(route('customers.index'));
         $response->assertOk()
-            ->assertSee('新建客户')
+            ->assertSee(__('customers.list.create'))
             ->assertSee('138****5678')
             ->assertDontSee('13800005678')
             ->assertDontSee('P123456');
-        $this->assertSame(2, substr_count($response->getContent(), '全部状态'));
-        $this->assertSame(2, substr_count($response->getContent(), '全部代理商'));
-        $this->assertSame(2, substr_count($response->getContent(), '全部机构'));
+        $this->assertSame(2, substr_count($response->getContent(), __('customers.list.all_statuses')));
+        $this->assertSame(2, substr_count($response->getContent(), __('customers.list.all_agents')));
+        $this->assertSame(2, substr_count($response->getContent(), __('customers.list.all_institutions')));
     }
 
     public function test_compact_filters_can_be_cleared_together(): void
@@ -305,23 +305,28 @@ class CustomerLifecycleTest extends TestCase
         $this->get(route('customers.index'))->assertRedirect(route('login'));
         $this->actingAs($this->user)->get(route('customers.create'))
             ->assertOk()
-            ->assertSee('新建客户')
-            ->assertSee('返回客户管理')
+            ->assertSee(__('customers.form.create_heading'))
+            ->assertSee(__('customers.form.back_to_list'))
             ->assertSee('href="'.route('customers.index').'"', false);
         $this->actingAs($this->user)->get(route('customers.show', $customerId))
             ->assertOk()
-            ->assertSee('客户详情')
+            ->assertSee(__('customers.title.detail'))
             ->assertSee('<dd class="mt-1 font-semibold">测试客户</dd>', false)
-            ->assertSee('客户编号')
-            ->assertSee('建档时间')
+            ->assertSee(__('customers.detail.profile.code'))
+            ->assertSee(__('customers.detail.profile.created_at'))
             ->assertSee($this->user->name)
-            ->assertSee('返回客户管理')
+            ->assertSee(__('customers.detail.back'))
             ->assertSee('href="'.route('customers.index').'"', false);
         $this->actingAs($this->user)->get(route('customers.edit', $customerId))
             ->assertOk()
-            ->assertSee('编辑客户')
-            ->assertSee('返回客户详情')
+            ->assertSee(__('customers.form.edit_heading'))
+            ->assertSee(__('customers.form.back_to_detail'))
             ->assertSee('href="'.route('customers.show', $customerId).'"', false);
+
+        $koUser = User::factory()->create(['preferred_locale' => 'ko_KR']);
+        $this->actingAs($koUser)->get(route('customers.index'))
+            ->assertOk()
+            ->assertSee('고객 관리');
     }
 
     private function createCustomer(): int

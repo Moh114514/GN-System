@@ -78,4 +78,19 @@ class DashboardTest extends TestCase
             ->assertSee('data-test="app-logo-dark"', false)
             ->assertSee('数据看板');
     }
+
+    public function test_korean_users_see_translated_dashboard_labels(): void
+    {
+        $user = User::factory()->create(['preferred_locale' => 'ko_KR']);
+
+        $response = $this->actingAs($user)->get(route('dashboard'));
+
+        $response
+            ->assertOk()
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('대시보드')
+            ->assertSee('신규 고객')
+            ->assertSee('월별 매출 및 주문 추이')
+            ->assertSee('고객 생애주기 개요');
+    }
 }

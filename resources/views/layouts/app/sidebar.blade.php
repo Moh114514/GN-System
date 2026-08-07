@@ -7,50 +7,50 @@
         <aside
             class="crm-sidebar"
             :class="{ 'is-open': sidebarOpen }"
-            aria-label="主导航"
+            aria-label="{{ __('navigation.main') }}"
         >
             <a href="{{ route('dashboard') }}" class="crm-brand" wire:navigate>
                 <x-theme-logo class="crm-brand-logo" />
                 <span>
                     <strong>GN-System</strong>
-                    <small>专业 · 安全 · 高效</small>
+                    <small>{{ __('navigation.brand_tagline') }}</small>
                 </span>
             </a>
 
             <nav class="crm-nav">
                 <a href="{{ route('dashboard') }}" class="crm-nav-item {{ request()->routeIs('dashboard') ? 'is-active' : '' }}" wire:navigate>
                     <flux:icon.home aria-hidden="true" />
-                    <span>总览</span>
+                    <span>{{ __('navigation.dashboard') }}</span>
                 </a>
 
                 <a href="{{ route('reminders.index') }}" class="crm-nav-item {{ request()->routeIs('reminders.*') ? 'is-active' : '' }}" wire:navigate>
                     <flux:icon.bell-alert aria-hidden="true" />
-                    <span>主动提醒</span>
+                    <span>{{ __('navigation.reminders') }}</span>
                 </a>
 
                 <a href="{{ route('customers.index') }}" class="crm-nav-item {{ request()->routeIs('customers.index', 'customers.create', 'customers.show', 'customers.edit') ? 'is-active' : '' }}" wire:navigate>
                     <flux:icon.users aria-hidden="true" />
-                    <span>客户管理</span>
+                    <span>{{ __('navigation.customers') }}</span>
                 </a>
 
                 <a href="{{ route('orders.index') }}" class="crm-nav-item {{ request()->routeIs('orders.*', 'customers.orders') ? 'is-active' : '' }}" wire:navigate>
                     <flux:icon.clipboard-document-list aria-hidden="true" />
-                    <span>订单</span>
+                    <span>{{ __('navigation.orders') }}</span>
                 </a>
 
                 <a href="{{ route('reports.search') }}" class="crm-nav-item {{ request()->routeIs('reports.search', 'reports.exports.*') ? 'is-active' : '' }}" wire:navigate>
                     <flux:icon.magnifying-glass aria-hidden="true" />
-                    <span>多维查询</span>
+                    <span>{{ __('navigation.reports') }}</span>
                 </a>
 
                 @if (auth()->user()->is_super_admin)
                     <a href="{{ route('agents.index') }}" class="crm-nav-item {{ request()->routeIs('agents.*') ? 'is-active' : '' }}" wire:navigate>
                         <flux:icon.building-office aria-hidden="true" />
-                        <span>代理商</span>
+                        <span>{{ __('navigation.agents') }}</span>
                     </a>
                     <a href="{{ route('settlements.index') }}" class="crm-nav-item {{ request()->routeIs('settlements.*') ? 'is-active' : '' }}" wire:navigate>
                         <flux:icon.banknotes aria-hidden="true" />
-                        <span>月结中心</span>
+                        <span>{{ __('navigation.settlements') }}</span>
                     </a>
                     @php
                         $configurationNavigationActive = request()->routeIs(
@@ -77,7 +77,7 @@
                                 wire:navigate
                             >
                                 <flux:icon.cog-6-tooth aria-hidden="true" />
-                                <span>配置中心</span>
+                                <span>{{ __('navigation.configuration') }}</span>
                             </a>
 
                             <button
@@ -86,7 +86,7 @@
                                 @click="open = !open"
                                 :aria-expanded="open"
                                 aria-controls="configuration-subnav"
-                                aria-label="展开或收起配置中心"
+                                aria-label="{{ __('navigation.toggle_configuration') }}"
                                 data-test="configuration-nav-toggle"
                             >
                                 <flux:icon.chevron-down
@@ -114,7 +114,7 @@
                                         data-test="configuration-subnav-overview"
                                         wire:navigate
                                     >
-                                        配置总览
+                                        {{ __('navigation.configuration_overview') }}
                                     </a>
 
                                     <a
@@ -123,7 +123,7 @@
                                         data-test="configuration-subnav-catalog"
                                         wire:navigate
                                     >
-                                        机构与字典
+                                        {{ __('navigation.catalog') }}
                                     </a>
 
                                     <a
@@ -132,7 +132,7 @@
                                         data-test="configuration-subnav-direct-sales-sources"
                                         wire:navigate
                                     >
-                                        直销来源
+                                        {{ __('navigation.direct_sales_sources') }}
                                     </a>
 
                                     <a
@@ -141,7 +141,7 @@
                                         data-test="configuration-subnav-customer-statuses"
                                         wire:navigate
                                     >
-                                        客户状态
+                                        {{ __('navigation.customer_statuses') }}
                                     </a>
 
                                     <a
@@ -150,7 +150,7 @@
                                         data-test="configuration-subnav-agent"
                                         wire:navigate
                                     >
-                                        代理商与推广费
+                                        {{ __('navigation.agent_configuration') }}
                                     </a>
 
                                     <a
@@ -159,7 +159,7 @@
                                         data-test="configuration-subnav-reminder"
                                         wire:navigate
                                     >
-                                        提醒规则
+                                        {{ __('navigation.reminder_configuration') }}
                                     </a>
 
                                     <a
@@ -168,7 +168,7 @@
                                         data-test="configuration-subnav-users"
                                         wire:navigate
                                     >
-                                        用户与权限
+                                        {{ __('navigation.users') }}
                                     </a>
 
                                     <a
@@ -177,7 +177,7 @@
                                         data-test="configuration-subnav-history"
                                         wire:navigate
                                     >
-                                        配置历史
+                                        {{ __('navigation.history') }}
                                     </a>
 
                                     <a
@@ -186,7 +186,7 @@
                                         data-test="configuration-subnav-data-maintenance"
                                         wire:navigate
                                     >
-                                        数据导入与迁移
+                                        {{ __('navigation.data_maintenance') }}
                                     </a>
                                 </div>
                             </div>
@@ -200,10 +200,10 @@
                 <a href="{{ route('security.edit') }}" class="crm-security-card" wire:navigate>
                     <span class="crm-security-title">
                         <flux:icon.shield-check aria-hidden="true" />
-                        数据安全
+                        {{ __('navigation.security_title') }}
                     </span>
-                    <span>账户保护与登录安全</span>
-                    <strong>查看安全设置 <span aria-hidden="true">›</span></strong>
+                    <span>{{ __('navigation.security_subtitle') }}</span>
+                    <strong>{{ __('navigation.security_link') }} <span aria-hidden="true">›</span></strong>
                 </a>
             </div>
         </aside>
@@ -213,7 +213,7 @@
             class="crm-scrim"
             :class="{ 'is-visible': sidebarOpen }"
             @click="sidebarOpen = false"
-            aria-label="关闭导航"
+            aria-label="{{ __('navigation.close_nav') }}"
         ></button>
 
         <div class="crm-shell">
@@ -222,12 +222,12 @@
                     type="button"
                     class="crm-icon-button crm-menu-button"
                     @click="sidebarOpen = true"
-                    aria-label="打开导航"
+                    aria-label="{{ __('navigation.open_nav') }}"
                 >
                     <flux:icon.bars-3 />
                 </button>
 
-                <h1>{{ $title ?? 'CRM 管理系统' }}</h1>
+                <h1>{{ $title ?? __('common.app_name') }}</h1>
                 <div class="crm-topbar-spacer"></div>
 
                 @php
@@ -244,7 +244,7 @@
                 >
                     <form action="{{ route('global-search') }}" method="GET" class="crm-search" @submit="open = false">
                         <flux:icon.magnifying-glass aria-hidden="true" />
-                        <label class="sr-only" for="global-search">全局搜索</label>
+                        <label class="sr-only" for="global-search">{{ __('navigation.search_label') }}</label>
                         <input
                             id="global-search"
                             x-ref="input"
@@ -253,7 +253,7 @@
                             @input="open = true"
                             name="q"
                             type="search"
-                            placeholder="搜索客户、订单、代理商、手机号等"
+                            placeholder="{{ __('navigation.search_placeholder') }}"
                             autocomplete="off"
                         >
                         <kbd>⌘ K</kbd>
@@ -266,7 +266,7 @@
                             role="menuitem"
                         >
                             <flux:icon.users aria-hidden="true" />
-                            <span>在客户中搜索<strong x-text="query ? `“${query}”` : ''"></strong></span>
+                            <span>{{ __('navigation.search_customer') }}<strong x-text="query ? `“${query}”` : ''"></strong></span>
                         </a>
                         <a
                             x-bind:href="'{{ route('reports.search') }}' + (query ? '?projectName=' + encodeURIComponent(query) : '')"
@@ -274,7 +274,7 @@
                             role="menuitem"
                         >
                             <flux:icon.clipboard-document-list aria-hidden="true" />
-                            <span>在订单项目中搜索<strong x-text="query ? `“${query}”` : ''"></strong></span>
+                            <span>{{ __('navigation.search_order') }}<strong x-text="query ? `“${query}”` : ''"></strong></span>
                         </a>
                         @if (auth()->user()->is_super_admin)
                             <a
@@ -283,7 +283,7 @@
                                 role="menuitem"
                             >
                                 <flux:icon.building-office aria-hidden="true" />
-                                <span>在代理商中搜索<strong x-text="query ? `“${query}”` : ''"></strong></span>
+                                <span>{{ __('navigation.search_agent') }}<strong x-text="query ? `“${query}”` : ''"></strong></span>
                             </a>
                         @endif
                     </div>
@@ -291,13 +291,13 @@
 
                 <form action="{{ route('dashboard') }}" method="GET" class="crm-date-form">
                     <label class="crm-date-range">
-                        <span class="sr-only">查看指定日期的看板</span>
+                        <span class="sr-only">{{ __('navigation.date_label') }}</span>
                         <input
                             data-test="topbar-date-control"
                             type="date"
                             name="date"
                             value="{{ request()->routeIs('dashboard') ? (string) request('date', now('Asia/Shanghai')->format('Y-m-d')) : now('Asia/Shanghai')->format('Y-m-d') }}"
-                            aria-label="查看指定日期的看板"
+                            aria-label="{{ __('navigation.date_label') }}"
                             onchange="this.form.requestSubmit()"
                         >
                     </label>
@@ -307,7 +307,7 @@
                     href="{{ route('reminders.index') }}"
                     class="crm-icon-button crm-notification-button"
                     data-test="reminder-notification-button"
-                    aria-label="查看主动提醒"
+                    aria-label="{{ __('navigation.view_reminders') }}"
                     wire:navigate
                 >
                     <flux:icon.bell aria-hidden="true" />
@@ -318,7 +318,7 @@
                         <span class="crm-avatar">{{ auth()->user()->initials() }}</span>
                         <span class="crm-user-copy">
                             <strong>{{ auth()->user()->name }}</strong>
-                            <small>{{ auth()->user()->is_super_admin ? '超级管理员' : '内部用户' }}</small>
+                            <small>{{ auth()->user()->is_super_admin ? __('navigation.super_admin') : __('navigation.internal_user') }}</small>
                         </span>
                         <flux:icon.chevron-down aria-hidden="true" />
                     </button>
@@ -329,9 +329,9 @@
                             <div class="truncate text-xs text-zinc-500">{{ auth()->user()->email }}</div>
                         </div>
                         <flux:menu.separator />
-                        <flux:menu.item :href="route('profile.edit')" icon="user-circle" wire:navigate>账户设置</flux:menu.item>
-                        <flux:menu.item :href="route('security.edit')" icon="shield-check" wire:navigate>安全设置</flux:menu.item>
-                        <flux:menu.item :href="route('appearance.edit')" icon="swatch" wire:navigate>外观设置</flux:menu.item>
+                        <flux:menu.item :href="route('profile.edit')" icon="user-circle" wire:navigate>{{ __('navigation.profile') }}</flux:menu.item>
+                        <flux:menu.item :href="route('security.edit')" icon="shield-check" wire:navigate>{{ __('navigation.security') }}</flux:menu.item>
+                        <flux:menu.item :href="route('appearance.edit')" icon="swatch" wire:navigate>{{ __('navigation.appearance') }}</flux:menu.item>
                         <flux:menu.separator />
                         <form method="POST" action="{{ route('logout') }}" class="w-full">
                             @csrf
@@ -342,7 +342,7 @@
                                 class="w-full cursor-pointer"
                                 data-test="logout-button"
                             >
-                                退出登录
+                                {{ __('navigation.logout') }}
                             </flux:menu.item>
                         </form>
                     </flux:menu>

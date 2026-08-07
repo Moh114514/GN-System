@@ -2,19 +2,19 @@
     class="crm-dashboard"
     wire:poll.{{ $refreshSeconds }}s="refreshDashboard"
 >
-    <section class="crm-dashboard-controls" aria-label="看板操作">
+    <section class="crm-dashboard-controls" aria-label="{{ __('dashboard.controls.actions') }}">
         <div class="crm-dashboard-range">
-            <flux:select wire:model.live="preset" size="sm" aria-label="统计区间" class="crm-dashboard-preset">
-                <option value="today">今日</option>
-                <option value="week">本周</option>
-                <option value="month">本月</option>
-                <option value="quarter">本季度</option>
-                <option value="year">本年</option>
-                <option value="custom">自定义</option>
+            <flux:select wire:model.live="preset" size="sm" aria-label="{{ __('dashboard.controls.range') }}" class="crm-dashboard-preset">
+                <option value="today">{{ __('dashboard.ranges.today') }}</option>
+                <option value="week">{{ __('dashboard.ranges.week') }}</option>
+                <option value="month">{{ __('dashboard.ranges.month') }}</option>
+                <option value="quarter">{{ __('dashboard.ranges.quarter') }}</option>
+                <option value="year">{{ __('dashboard.ranges.year') }}</option>
+                <option value="custom">{{ __('dashboard.ranges.custom') }}</option>
             </flux:select>
             @if ($preset === 'custom')
-                <div class="crm-dashboard-custom-range" role="group" aria-label="自定义日期区间">
-                    <label for="dashboard-custom-from">起始日期</label>
+                <div class="crm-dashboard-custom-range" role="group" aria-label="{{ __('dashboard.controls.custom_range') }}">
+                    <label for="dashboard-custom-from">{{ __('dashboard.controls.start_date') }}</label>
                     <flux:input
                         id="dashboard-custom-from"
                         wire:model="customFrom"
@@ -23,7 +23,7 @@
                         size="sm"
                     />
                     <span class="crm-dashboard-date-separator" aria-hidden="true">—</span>
-                    <label for="dashboard-custom-to">终止日期</label>
+                    <label for="dashboard-custom-to">{{ __('dashboard.controls.end_date') }}</label>
                     <flux:input
                         id="dashboard-custom-to"
                         wire:model="customTo"
@@ -31,7 +31,7 @@
                         type="date"
                         size="sm"
                     />
-                    <flux:button wire:click="applyCustomRange" size="sm" variant="primary">应用</flux:button>
+                    <flux:button wire:click="applyCustomRange" size="sm" variant="primary">{{ __('dashboard.controls.apply') }}</flux:button>
                 </div>
             @endif
             @if ($snapshot !== [])
@@ -42,7 +42,7 @@
             @endif
         </div>
         <div class="flex flex-wrap gap-1.5">
-            <flux:button wire:click="refreshDashboard" size="sm" variant="ghost" icon="arrow-path">刷新</flux:button>
+            <flux:button wire:click="refreshDashboard" size="sm" variant="ghost" icon="arrow-path">{{ __('dashboard.controls.refresh') }}</flux:button>
             <flux:button wire:click="export('pdf')" size="sm" variant="ghost">PDF</flux:button>
             <flux:button wire:click="export('html')" size="sm" variant="ghost">HTML</flux:button>
         </div>
@@ -52,18 +52,18 @@
     @if ($snapshot !== [])
         @php
             $metricDefinitions = [
-                ['revenue', '营收', true, 'banknotes', 'teal', 'M0,22 Q15,8 30,18 T60,12 T90,20 T110,8'],
-                ['new_customers', '新增客户', false, 'users', 'teal', 'M0,20 Q15,14 30,16 T60,10 T90,14 T110,6'],
-                ['pending_reminders', '待跟进提醒', false, 'bell-alert', 'amber', 'M0,10 Q15,18 30,12 T60,22 T90,16 T110,24'],
-                ['promotion_fee', '代理商推广费', true, 'briefcase', 'blue', 'M0,24 Q15,16 30,20 T60,14 T90,18 T110,10'],
-                ['repurchase_rate', '复购率', false, 'arrow-path', 'purple', 'M0,18 Q15,14 30,12 T60,16 T90,10 T110,6'],
+                ['revenue', __('dashboard.metrics.revenue'), true, 'banknotes', 'teal', 'M0,22 Q15,8 30,18 T60,12 T90,20 T110,8'],
+                ['new_customers', __('dashboard.metrics.new_customers'), false, 'users', 'teal', 'M0,20 Q15,14 30,16 T60,10 T90,14 T110,6'],
+                ['pending_reminders', __('dashboard.metrics.pending_reminders'), false, 'bell-alert', 'amber', 'M0,10 Q15,18 30,12 T60,22 T90,16 T110,24'],
+                ['promotion_fee', __('dashboard.metrics.promotion_fee'), true, 'briefcase', 'blue', 'M0,24 Q15,16 30,20 T60,14 T90,18 T110,10'],
+                ['repurchase_rate', __('dashboard.metrics.repurchase_rate'), false, 'arrow-path', 'purple', 'M0,18 Q15,14 30,12 T60,16 T90,10 T110,6'],
             ];
             $lifecycleDefinitions = [
-                'registered' => ['建档', 'clipboard-document', 'teal'],
-                'appointed' => ['预约', 'calendar-days', 'blue'],
-                'arrived' => ['到院', 'building-office-2', 'purple'],
-                'followed_up' => ['回访', 'phone', 'amber'],
-                'repeat' => ['复购', 'arrow-path', 'green'],
+                'registered' => [__('dashboard.lifecycle.registered'), 'clipboard-document', 'teal'],
+                'appointed' => [__('dashboard.lifecycle.appointed'), 'calendar-days', 'blue'],
+                'arrived' => [__('dashboard.lifecycle.arrived'), 'building-office-2', 'purple'],
+                'followed_up' => [__('dashboard.lifecycle.followed_up'), 'phone', 'amber'],
+                'repeat' => [__('dashboard.lifecycle.repeat'), 'arrow-path', 'green'],
             ];
             $statusTones = [
                 'registered' => 'gray',
@@ -93,7 +93,7 @@
         <div
             class="crm-dashboard-snapshot"
         >
-            <section class="crm-metrics" aria-label="核心指标">
+            <section class="crm-metrics" aria-label="{{ __('dashboard.metrics.core') }}">
                 @foreach ($metricDefinitions as [$key, $label, $money, $icon, $tone, $spark])
                     @php
                         $metric = match ($key) {
@@ -114,7 +114,7 @@
                     @endphp
                     <article class="crm-metric">
                         <span class="crm-metric-icon tone-{{ $tone }}"><flux:icon :name="$icon" /></span>
-                        <span class="crm-metric-label">{{ $label }} <span title="当前统计区间真实数据">ⓘ</span></span>
+                        <span class="crm-metric-label">{{ $label }} <span title="{{ __('dashboard.metrics.actual') }}">ⓘ</span></span>
                         <strong class="crm-number">
                             @if ($key === 'repurchase_rate')
                                 {{ number_format($metric['value'], 1) }}%
@@ -125,7 +125,7 @@
                             @endif
                         </strong>
                         <span class="crm-delta {{ $metric['change'] === null ? '' : ($metric['change'] >= 0 ? 'is-positive' : 'is-negative') }}">
-                            环比
+                            {{ __('dashboard.metrics.period_change') }}
                             @if ($metric['change'] === null)
                                 —
                             @else
@@ -143,14 +143,14 @@
             <section class="crm-dashboard-grid crm-dashboard-grid-top">
                 <article class="crm-card crm-trend-card">
                     <header class="crm-card-header">
-                        <h2>月度营收与订单趋势</h2>
-                        <div class="crm-tabs" aria-label="统计周期">
-                            <button type="button" class="is-active">月度</button>
+                        <h2>{{ __('dashboard.panels.trend') }}</h2>
+                        <div class="crm-tabs" aria-label="{{ __('dashboard.panels.period') }}">
+                            <button type="button" class="is-active">{{ __('dashboard.panels.monthly') }}</button>
                         </div>
                     </header>
                     <div class="crm-chart-legend">
-                        <span><i class="tone-teal"></i>营收（KRW）</span>
-                        <span><i class="tone-blue is-round"></i>订单数（单）</span>
+                        <span><i class="tone-teal"></i>{{ __('dashboard.panels.revenue_krw') }}</span>
+                        <span><i class="tone-blue is-round"></i>{{ __('dashboard.panels.orders_count') }}</span>
                     </div>
                     @if ($snapshot['panels']['monthly_revenue_orders'] !== [])
                         <div
@@ -160,14 +160,14 @@
                             data-chart-values="{{ json_encode($snapshot['panels']['monthly_revenue_orders'], JSON_UNESCAPED_UNICODE | JSON_HEX_APOS | JSON_HEX_QUOT) }}"
                         ></div>
                     @else
-                        <div class="crm-panel-empty"><flux:icon name="chart-bar" />当前区间暂无成交数据</div>
+                        <div class="crm-panel-empty"><flux:icon name="chart-bar" />{{ __('dashboard.panels.no_transactions') }}</div>
                     @endif
                 </article>
 
                 <article class="crm-card">
                     <header class="crm-card-header">
-                        <h2>代理商推广费排行</h2>
-                        <a class="crm-card-link" href="{{ route('agents.index') }}" wire:navigate>查看全部 <span>›</span></a>
+                        <h2>{{ __('dashboard.panels.promotion_ranking') }}</h2>
+                        <a class="crm-card-link" href="{{ route('agents.index') }}" wire:navigate>{{ __('dashboard.panels.view_all') }} <span>›</span></a>
                     </header>
                     <div class="crm-rank-list">
                         @forelse ($ranking as $index => $agent)
@@ -189,14 +189,14 @@
                                 </span>
                             </div>
                         @empty
-                            <div class="crm-panel-empty"><flux:icon name="briefcase" />当前区间暂无推广费</div>
+                            <div class="crm-panel-empty"><flux:icon name="briefcase" />{{ __('dashboard.panels.no_promotion_fee') }}</div>
                         @endforelse
                     </div>
                 </article>
 
                 <article class="crm-card">
                     <header class="crm-card-header">
-                        <h2>客户生命周期概览</h2>
+                        <h2>{{ __('dashboard.panels.lifecycle') }}</h2>
                     </header>
                     <div class="crm-funnel">
                         @foreach ($lifecycle as $stage)
@@ -212,7 +212,7 @@
                         @endforeach
                     </div>
                     <div class="crm-conversion">
-                        <span>建档至复购转化率</span>
+                        <span>{{ __('dashboard.lifecycle.conversion') }}</span>
                         <strong>{{ number_format(data_get($repeatLifecycle, 'percentage', 0), 1) }}%</strong>
                     </div>
                 </article>
@@ -221,8 +221,8 @@
             <section class="crm-dashboard-grid crm-dashboard-grid-bottom">
                 <article class="crm-card">
                     <header class="crm-card-header">
-                        <h2>今日待办提醒 <span class="crm-pill tone-red">{{ count($snapshot['panels']['today_tasks']) }}</span></h2>
-                        <a class="crm-card-link" href="{{ route('reminders.index') }}" wire:navigate>查看全部 <span>›</span></a>
+                        <h2>{{ __('dashboard.panels.today_tasks') }} <span class="crm-pill tone-red">{{ count($snapshot['panels']['today_tasks']) }}</span></h2>
+                        <a class="crm-card-link" href="{{ route('reminders.index') }}" wire:navigate>{{ __('dashboard.panels.view_all') }} <span>›</span></a>
                     </header>
                     <div class="crm-task-list">
                         @forelse ($snapshot['panels']['today_tasks'] as $task)
@@ -233,26 +233,26 @@
                                 <span class="crm-pill tone-{{ $task['priority'] >= 4 ? 'red' : ($task['priority'] >= 3 ? 'amber' : 'teal') }}">{{ $task['tag'] }}</span>
                             </div>
                         @empty
-                            <div class="crm-panel-empty"><flux:icon name="check-circle" />今天没有待办提醒</div>
+                            <div class="crm-panel-empty"><flux:icon name="check-circle" />{{ __('dashboard.panels.no_tasks') }}</div>
                         @endforelse
                     </div>
                 </article>
 
                 <article class="crm-card crm-customer-card">
                     <header class="crm-card-header">
-                        <h2>最近客户记录</h2>
-                        <a class="crm-card-link" href="{{ route('customers.index') }}" wire:navigate>查看全部 <span>›</span></a>
+                        <h2>{{ __('dashboard.panels.recent_customers') }}</h2>
+                        <a class="crm-card-link" href="{{ route('customers.index') }}" wire:navigate>{{ __('dashboard.panels.view_all') }} <span>›</span></a>
                     </header>
                     <div class="crm-table-wrap">
                         <table class="crm-table">
                             <thead>
                                 <tr>
-                                    <th>客户编号</th>
-                                    <th>姓名</th>
-                                    <th>来源</th>
-                                    <th>当前状态</th>
-                                    <th>建档日期</th>
-                                    <th>负责人</th>
+                                    <th>{{ __('dashboard.panels.customer_code') }}</th>
+                                    <th>{{ __('dashboard.panels.name') }}</th>
+                                    <th>{{ __('dashboard.panels.source') }}</th>
+                                    <th>{{ __('dashboard.panels.current_status') }}</th>
+                                    <th>{{ __('dashboard.panels.created_date') }}</th>
+                                    <th>{{ __('dashboard.panels.owner') }}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -268,7 +268,7 @@
                                         <td>{{ $customer['owner_name'] }}</td>
                                     </tr>
                                 @empty
-                                    <tr><td colspan="6" class="crm-table-empty">尚无客户记录</td></tr>
+                                    <tr><td colspan="6" class="crm-table-empty">{{ __('dashboard.panels.no_customers') }}</td></tr>
                                 @endforelse
                             </tbody>
                         </table>
@@ -277,9 +277,9 @@
 
                 <article class="crm-card">
                     <header class="crm-card-header">
-                        <h2>最近月结进度</h2>
+                        <h2>{{ __('dashboard.panels.settlement') }}</h2>
                         @if (auth()->user()->is_super_admin)
-                            <a class="crm-card-link" href="{{ route('settlements.index') }}" wire:navigate>查看明细 <span>›</span></a>
+                            <a class="crm-card-link" href="{{ route('settlements.index') }}" wire:navigate>{{ __('dashboard.panels.view_details') }} <span>›</span></a>
                         @endif
                     </header>
                     <div class="crm-settlement">
@@ -294,35 +294,35 @@
                                     style="stroke-dashoffset: {{ number_format(345.6 * (1 - min(100, max(0, $settlement['percentage'])) / 100), 2, '.', '') }}"
                                 />
                             </svg>
-                            <span><strong class="crm-number">{{ number_format($settlement['percentage'], 1) }}%</strong><small>已结算</small></span>
+                            <span><strong class="crm-number">{{ number_format($settlement['percentage'], 1) }}%</strong><small>{{ __('dashboard.panels.settled') }}</small></span>
                         </div>
                         <dl>
-                            <div><dt>已结算推广费</dt><dd class="crm-number">₩ {{ number_format($settlement['settled_amount']) }}</dd></div>
-                            <div><dt>待审核推广费</dt><dd class="crm-number">₩ {{ number_format($settlement['review_amount']) }}</dd></div>
-                            <div><dt>待确认推广费</dt><dd class="crm-number">₩ {{ number_format($settlement['pending_amount']) }}</dd></div>
-                            <div><dt>推广费合计</dt><dd class="crm-number is-primary">₩ {{ number_format($settlement['expected_amount']) }}</dd></div>
+                            <div><dt>{{ __('dashboard.panels.settled_fee') }}</dt><dd class="crm-number">₩ {{ number_format($settlement['settled_amount']) }}</dd></div>
+                            <div><dt>{{ __('dashboard.panels.review_fee') }}</dt><dd class="crm-number">₩ {{ number_format($settlement['review_amount']) }}</dd></div>
+                            <div><dt>{{ __('dashboard.panels.pending_fee') }}</dt><dd class="crm-number">₩ {{ number_format($settlement['pending_amount']) }}</dd></div>
+                            <div><dt>{{ __('dashboard.panels.total_fee') }}</dt><dd class="crm-number is-primary">₩ {{ number_format($settlement['expected_amount']) }}</dd></div>
                         </dl>
                     </div>
                     <div class="crm-settlement-foot">
-                        <span>结算周期：{{ $settlement['period_start'] }} 至 {{ $settlement['period_end'] }}</span>
-                        <span>快照口径：<strong>真实月结记录</strong></span>
+                        <span>{{ __('dashboard.panels.settlement_period', ['from' => $settlement['period_start'], 'to' => $settlement['period_end']]) }}</span>
+                        <span>{{ __('dashboard.panels.snapshot_basis') }}<strong>{{ __('dashboard.panels.real_settlement_records') }}</strong></span>
                     </div>
                 </article>
             </section>
 
             <footer class="crm-dashboard-footer">
                 <div>
-                    <span>状态说明</span>
-                    <span><i class="tone-green"></i>复购</span>
-                    <span><i class="tone-blue"></i>已预约</span>
-                    <span><i class="tone-purple"></i>已到院</span>
-                    <span><i class="tone-teal"></i>已施术</span>
-                    <span><i class="tone-amber"></i>回访中</span>
-                    <span><i class="tone-red"></i>已流失</span>
-                    <span><i class="tone-gray"></i>建档</span>
+                    <span>{{ __('dashboard.panels.status_legend') }}</span>
+                    <span><i class="tone-green"></i>{{ __('dashboard.statuses.repeat') }}</span>
+                    <span><i class="tone-blue"></i>{{ __('dashboard.statuses.appointed') }}</span>
+                    <span><i class="tone-purple"></i>{{ __('dashboard.statuses.arrived') }}</span>
+                    <span><i class="tone-teal"></i>{{ __('dashboard.statuses.treated') }}</span>
+                    <span><i class="tone-amber"></i>{{ __('dashboard.statuses.followup') }}</span>
+                    <span><i class="tone-red"></i>{{ __('dashboard.statuses.lost') }}</span>
+                    <span><i class="tone-gray"></i>{{ __('dashboard.statuses.registered') }}</span>
                 </div>
                 <span>
-                    数据更新于
+                    {{ __('dashboard.panels.updated_at') }}
                     {{ \Carbon\CarbonImmutable::parse($snapshot['generated_at'])->setTimezone('Asia/Shanghai')->format('Y-m-d H:i:s') }}
                 </span>
             </footer>

@@ -10,11 +10,9 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('客户订单')]
 class CustomerOrders extends Component
 {
     public int $customerId;
@@ -94,13 +92,13 @@ class CustomerOrders extends Component
                 translatorLanguageId: $this->translatorLanguageId === '' ? null : (int) $this->translatorLanguageId,
             ));
         } catch (DomainException $exception) {
-            Flux::toast(variant: 'danger', text: $exception->getMessage());
+            Flux::toast(variant: 'danger', text: __('orders.errors.unexpected', ['message' => $exception->getMessage()]));
 
             return;
         }
         $this->reset('institutionId', 'projectName', 'treatmentProjectId', 'amountKrw', 'translatorName', 'translatorLanguageId', 'notes');
         $this->status = 'pending';
-        Flux::toast(variant: 'success', text: '订单已保存。');
+        Flux::toast(variant: 'success', text: __('orders.messages.saved'));
         $this->loadContext($workspace);
     }
 
@@ -109,17 +107,17 @@ class CustomerOrders extends Component
         try {
             $workspace->complete($orderId, CarbonImmutable::now('Asia/Shanghai'), (int) Auth::id(), request()->ip());
         } catch (DomainException $exception) {
-            Flux::toast(variant: 'danger', text: $exception->getMessage());
+            Flux::toast(variant: 'danger', text: __('orders.errors.unexpected', ['message' => $exception->getMessage()]));
 
             return;
         }
-        Flux::toast(variant: 'success', text: '订单已完成，推广费已按当前有效规则固化。');
+        Flux::toast(variant: 'success', text: __('orders.messages.customer_completed'));
         $this->loadContext($workspace);
     }
 
     public function render(): View
     {
-        return view('livewire.orders.customer-orders');
+        return view('livewire.orders.customer-orders')->title(__('orders.customer_title'));
     }
 
     private function loadContext(DailyOrderWorkspace $workspace): void

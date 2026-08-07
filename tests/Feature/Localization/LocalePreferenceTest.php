@@ -24,7 +24,8 @@ class LocalePreferenceTest extends TestCase
 
         $this->get(route('login'))
             ->assertOk()
-            ->assertSee('<html lang="ko-KR"', false);
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('다시 오신 것을 환영합니다');
     }
 
     public function test_authenticated_locale_is_saved_to_the_user(): void
@@ -40,7 +41,8 @@ class LocalePreferenceTest extends TestCase
 
         $this->get(route('profile.edit'))
             ->assertOk()
-            ->assertSee('<html lang="ko-KR"', false);
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('프로필 설정');
     }
 
     public function test_authenticated_user_can_open_the_language_settings_page(): void

@@ -10,11 +10,9 @@ use DomainException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('数据看板')]
 class Dashboard extends Component
 {
     public string $date = '';
@@ -77,7 +75,7 @@ class Dashboard extends Component
 
     public function render(): View
     {
-        return view('livewire.reports.dashboard');
+        return view('livewire.reports.dashboard')->title(__('dashboard.title'));
     }
 
     private function loadSnapshot(

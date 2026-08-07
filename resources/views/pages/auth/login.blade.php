@@ -1,9 +1,9 @@
 <x-layouts::auth :title="__('Log in')">
     <div class="crm-login">
         <header>
-            <span class="crm-login-eyebrow">CRM 管理系统</span>
-            <h1>欢迎回来</h1>
-            <p>请输入您的账户信息以继续访问工作台</p>
+            <span class="crm-login-eyebrow">{{ __('auth.login.eyebrow') }}</span>
+            <h1>{{ __('auth.login.welcome') }}</h1>
+            <p>{{ __('auth.login.description') }}</p>
         </header>
 
         <x-auth-session-status class="text-center" :status="session('status')" />
@@ -13,7 +13,7 @@
 
             <flux:input
                 name="email"
-                label="邮箱地址"
+                :label="__('auth.login.email')"
                 :value="old('email')"
                 type="email"
                 required
@@ -26,29 +26,29 @@
             <div class="relative">
                 <flux:input
                     name="password"
-                    label="密码"
+                    :label="__('auth.login.password')"
                     type="password"
                     required
                     autocomplete="current-password"
-                    placeholder="请输入密码"
+                    :placeholder="__('auth.login.password_placeholder')"
                     icon="lock-closed"
                     viewable
                 />
 
                 @if (Route::has('password.request'))
                     <flux:link class="absolute top-0 text-sm end-0" :href="route('password.request')" wire:navigate>
-                        忘记密码？
+                        {{ __('auth.login.forgot_password') }}
                     </flux:link>
                 @endif
             </div>
 
-            <flux:checkbox name="remember" label="记住我" :checked="old('remember')" />
+            <flux:checkbox name="remember" :label="__('auth.login.remember')" :checked="old('remember')" />
 
             <flux:button variant="primary" type="submit" class="crm-login-button" data-test="login-button">
-                登录系统
+                {{ __('auth.login.submit') }}
             </flux:button>
         </form>
 
-        <p class="crm-login-help">仅限已授权的内部员工使用</p>
+        <p class="crm-login-help">{{ __('auth.login.help') }}</p>
     </div>
 </x-layouts::auth>
