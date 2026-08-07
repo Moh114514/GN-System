@@ -114,4 +114,11 @@ return [
             'institution_revenue' => '机构营收对比',
         ],
     ],
+    'fallbacks' => [
+        'missing_agent' => '未知代理商',
+        'missing_customer' => '未知客户',
+        'missing_institution' => '未知机构',
+        'missing_direct_source' => '未知直销来源',
+        'unassigned' => '未分配',
+    ],
 ];

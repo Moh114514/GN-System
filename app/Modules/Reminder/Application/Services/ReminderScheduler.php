@@ -93,7 +93,7 @@ final readonly class ReminderScheduler
                         'reminder_id' => $reminder->id,
                         'event' => 'cancelled',
                         'properties' => [
-                            'reason' => '关联预约已取消',
+                            'reason_key' => 'reminders.events.appointment_cancelled',
                             'before' => $before,
                             'after' => 'cancelled',
                         ],
@@ -104,10 +104,10 @@ final readonly class ReminderScheduler
                 continue;
             }
             foreach ([
-                [-3, '09:00', '术前 3 天确认', '确认客户到店准备和术前注意事项'],
-                [-1, '18:00', '到店前一天确认', '确认到店时间、交通与住宿安排'],
-                [0, '09:00', '今日到店接待确认', '确认客户到店后的接待流程'],
-            ] as [$days, $time, $title, $suggestion]) {
+                [-3, '09:00', 'pre_visit_3_days'],
+                [-1, '18:00', 'arrival_previous_day'],
+                [0, '09:00', 'arrival_today'],
+            ] as [$days, $time, $contentKey]) {
                 $dueAt = $appointment->scheduledAt->startOfDay()->addDays($days)->setTimeFromTimeString($time);
                 if ($dueAt->isBefore($now->startOfDay()) || $dueAt->isAfter($now->addDays(200))) {
                     continue;
@@ -118,11 +118,15 @@ final readonly class ReminderScheduler
                     dueAt: $dueAt,
                     sourceType: 'system',
                     reminderType: 'appointment',
-                    title: $title,
-                    suggestion: $suggestion,
+                    title: (string) __("reminders.system_reminders.{$contentKey}.title"),
+                    suggestion: (string) __("reminders.system_reminders.{$contentKey}.suggestion"),
                     priority: 1,
                     dedupeSource: "appointment:{$appointment->id}:{$days}:{$time}",
                     appointmentId: $appointment->id,
+                    localizedContent: [
+                        'title' => ['key' => "reminders.system_reminders.{$contentKey}.title", 'parameters' => []],
+                        'suggestion' => ['key' => "reminders.system_reminders.{$contentKey}.suggestion", 'parameters' => []],
+                    ],
                 );
             }
         }
@@ -195,6 +199,7 @@ final readonly class ReminderScheduler
         return $dueAt;
     }
 
+    /** @param array<string, array{key: string, parameters: array<string, scalar>}>|null $localizedContent */
     private function create(
         int $customerId,
         ?int $assignedTo,
@@ -207,6 +212,7 @@ final readonly class ReminderScheduler
         string $dedupeSource,
         ?int $ruleId = null,
         ?int $appointmentId = null,
+        ?array $localizedContent = null,
     ): int {
         $reminder = Reminder::query()->firstOrCreate(
             ['dedupe_key' => hash('sha256', $dedupeSource)],
@@ -219,6 +225,7 @@ final readonly class ReminderScheduler
                 'reminder_type' => $reminderType,
                 'title' => $title,
                 'suggestion' => $suggestion,
+                'localized_content' => $localizedContent,
                 'priority' => $priority,
                 'due_at' => $dueAt,
                 'status' => 'pending',

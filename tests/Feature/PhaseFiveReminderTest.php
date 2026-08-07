@@ -10,6 +10,7 @@ use App\Modules\Order\Infrastructure\Models\Appointment;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Reminder\Application\Data\CompletedTreatmentData;
 use App\Modules\Reminder\Application\Services\DatabaseTreatmentReminderGateway;
+use App\Modules\Reminder\Application\Services\ReminderContentPresenter;
 use App\Modules\Reminder\Application\Services\ReminderNotificationDispatcher;
 use App\Modules\Reminder\Application\Services\ReminderNotifier;
 use App\Modules\Reminder\Application\Services\ReminderRuleManager;
@@ -17,11 +18,14 @@ use App\Modules\Reminder\Application\Services\ReminderScheduler;
 use App\Modules\Reminder\Application\Services\ReminderWorkspace;
 use App\Modules\Reminder\Infrastructure\Models\Reminder;
 use App\Modules\Reminder\Infrastructure\Models\ReminderRule;
+use App\Modules\Reminder\Infrastructure\Models\ReminderTemplate;
 use App\Modules\Reminder\Jobs\SendReminderNotification;
 use App\Modules\Reminder\Presentation\Livewire\ReminderCreate;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
@@ -234,6 +238,139 @@ class PhaseFiveReminderTest extends TestCase
             ->assertOk()
             ->assertSee('능동 알림으로 돌아가기')
             ->assertSee('과거 알림이 없습니다.');
+    }
+
+    public function test_system_templates_and_generated_reminders_are_projected_in_korean(): void
+    {
+        $manager = app(ReminderRuleManager::class);
+        $manager->ensureSystemTemplates();
+        $template = ReminderTemplate::query()->where('system_key', 'pre_visit_confirmation')->firstOrFail();
+        $this->assertSame('术前确认', $template->name);
+
+        $previousLocale = App::getLocale();
+        App::setLocale('ko_KR');
+        $this->assertSame('시술 전 확인', app(ReminderContentPresenter::class)->template($template)['name']);
+        App::setLocale($previousLocale);
+
+        $order = Order::query()->create([
+            'customer_id' => $this->customer->id,
+            'institution_id' => Institution::query()->firstOrFail()->id,
+            'channel' => 'direct',
+            'direct_sales_source_id' => $this->source->id,
+            'project_name' => '피부 관리',
+            'amount_krw' => 10000,
+            'completed_on' => '2026-08-01',
+            'owner_id' => $this->user->id,
+            'status' => 'completed',
+        ]);
+        app(DatabaseTreatmentReminderGateway::class)->schedule(new CompletedTreatmentData(
+            orderId: $order->id,
+            customerId: $this->customer->id,
+            projectName: '피부 관리',
+            completedOn: CarbonImmutable::parse('2026-08-01'),
+            ownerId: $this->user->id,
+            actorId: $this->user->id,
+        ));
+        $this->user->update(['preferred_locale' => 'ko_KR']);
+
+        $this->actingAs($this->user)->get(route('reminders.index'))
+            ->assertOk()
+            ->assertSee('시술 후 1일차 후속 관리')
+            ->assertSee('회복 상태를 확인합니다')
+            ->assertDontSee('术后第 1 天跟进');
+    }
+
+    public function test_localization_migration_backfills_legacy_system_content(): void
+    {
+        $migration = require database_path('migrations/2026_08_07_000500_add_localized_content_to_reminders.php');
+        $migration->down();
+        $now = now();
+
+        $templateId = DB::table('reminder_templates')->insertGetId([
+            'name' => '术前确认',
+            'title' => '术前准备确认',
+            'suggestion' => '确认客户到店准备和术前注意事项',
+            'default_trigger_type' => 'date_offset',
+            'default_trigger_config' => json_encode(['field' => 'appointment_at', 'offset_days' => -3, 'time' => '09:00'], JSON_THROW_ON_ERROR),
+            'is_system' => true,
+            'is_active' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $duplicateTemplateId = DB::table('reminder_templates')->insertGetId([
+            'name' => '术前确认',
+            'title' => '术前准备确认',
+            'suggestion' => '确认客户到店准备和术前注意事项',
+            'default_trigger_type' => 'date_offset',
+            'default_trigger_config' => json_encode(['field' => 'appointment_at', 'offset_days' => -3, 'time' => '09:00'], JSON_THROW_ON_ERROR),
+            'is_system' => true,
+            'is_active' => true,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $appointmentReminderId = DB::table('reminders')->insertGetId([
+            'customer_id' => $this->customer->id,
+            'assigned_to' => $this->user->id,
+            'source_type' => 'system',
+            'reminder_type' => 'appointment',
+            'title' => '术前 3 天确认',
+            'suggestion' => '确认客户到店准备和术前注意事项',
+            'due_at' => $now->addDay(),
+            'dedupe_key' => hash('sha256', 'legacy-appointment'),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+        $postTreatmentReminderId = DB::table('reminders')->insertGetId([
+            'customer_id' => $this->customer->id,
+            'assigned_to' => $this->user->id,
+            'source_type' => 'system',
+            'reminder_type' => 'post_treatment',
+            'title' => '术后第 1 天跟进',
+            'suggestion' => '问候恢复情况',
+            'due_at' => $now->addDays(2),
+            'dedupe_key' => hash('sha256', 'legacy-post-treatment'),
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+
+        $migration->up();
+
+        $this->assertSame('pre_visit_confirmation', DB::table('reminder_templates')->where('id', $templateId)->value('system_key'));
+        $this->assertNull(DB::table('reminder_templates')->where('id', $duplicateTemplateId)->value('system_key'));
+        $previousLocale = App::getLocale();
+        App::setLocale('ko_KR');
+        try {
+            $presenter = app(ReminderContentPresenter::class);
+            $this->assertSame('시술 3일 전 확인', $presenter->reminder(Reminder::query()->findOrFail($appointmentReminderId))['title']);
+            $this->assertSame('시술 후 1일차 후속 관리', $presenter->reminder(Reminder::query()->findOrFail($postTreatmentReminderId))['title']);
+        } finally {
+            App::setLocale($previousLocale);
+        }
+    }
+
+    public function test_reminder_business_errors_follow_the_current_locale(): void
+    {
+        $previousLocale = App::getLocale();
+        App::setLocale('ko_KR');
+
+        try {
+            app(ReminderWorkspace::class)->createCustom(
+                customerId: $this->customer->id,
+                assignedTo: $this->user->id,
+                title: '사용자 입력',
+                dueAt: CarbonImmutable::now()->subMinute(),
+                notes: null,
+                suggestion: null,
+                recurrence: null,
+                templateId: null,
+                actorId: $this->user->id,
+            );
+            $this->fail('Expected a localized reminder exception.');
+        } catch (\DomainException $exception) {
+            $this->assertSame('사용자 지정 알림 시각은 현재보다 이전일 수 없습니다.', $exception->getMessage());
+        } finally {
+            App::setLocale($previousLocale);
+        }
     }
 
     public function test_creating_a_custom_reminder_dispatches_a_success_toast_before_navigation(): void

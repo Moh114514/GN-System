@@ -36,10 +36,10 @@ final class ReminderNotificationDispatcher
         if (! $actor->is_super_admin
             && $reminder->assigned_to !== $actor->id
             && $reminder->created_by !== $actor->id) {
-            throw new DomainException('无权重试此提醒的通知。');
+            throw new DomainException(__('reminders.errors.retry_forbidden'));
         }
         if (! in_array($reminder->notification_status, ['failed', 'disabled'], true)) {
-            throw new DomainException('当前通知状态无需重试。');
+            throw new DomainException(__('reminders.errors.retry_not_needed'));
         }
         $before = $reminder->notification_status;
         $reminder->update(['notification_status' => 'queued']);

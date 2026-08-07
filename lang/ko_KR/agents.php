@@ -16,4 +16,21 @@ return [
         'back' => '에이전트 관리로 돌아가기', 'profile' => '협력 프로필', 'edit' => '프로필 편집', 'name' => '에이전트 이름', 'code' => '에이전트 번호', 'type' => '유형', 'business_role' => '업무 역할', 'policy_system' => '정책 체계', 'unset_policy' => '정책 미설정', 'grade' => '현재 등급', 'unset_grade' => '등급 미설정', 'contact_name' => '담당자', 'contact_value' => '연락처', 'started' => '협력 시작', 'ended' => '협력 종료', 'effective_month' => '등급 적용 월', 'notes' => '메모', 'customers' => '유입 고객', 'customer' => '고객', 'created_at' => '등록일', 'no_customers' => '유입 고객이 없습니다.', 'orders' => '관련 주문', 'project_amount' => '프로젝트/금액', 'status' => '상태', 'promotion_fee' => '프로모션 비용', 'completed' => '완료', 'pending' => '진행 중', 'no_orders' => '관련 주문이 없습니다.', 'empty' => '—',
     ],
     'messages' => ['created' => '에이전트 프로필이 생성되었습니다.', 'updated' => '에이전트 프로필이 업데이트되었습니다. 등급 변경은 다음 달부터 적용됩니다.'],
+    'fallback' => [
+        'unset' => '미설정',
+        'unknown_policy' => '알 수 없는 정책',
+        'unknown_type' => '알 수 없는 유형',
+    ],
+    'validation' => [
+        'invalid_agent_code' => '유효하지 않은 에이전트 번호: :value',
+        'agent_code_type_suffix' => '에이전트 번호는 -:type로 끝나야 합니다.',
+        'invalid_customer_code' => '유효하지 않은 고객 번호: :value',
+        'terminated_read_only' => '종료된 에이전트는 영구 읽기 전용이므로 다시 수정할 수 없습니다.',
+        'type_code_format' => '유형 코드는 2~4자의 대문자 또는 숫자여야 합니다.',
+        'system_type_code_immutable' => '시스템 유형 코드는 수정할 수 없습니다.',
+        'ineligible_for_order_month' => '에이전트는 주문 월에 협력 자격이 없어 새 주문이나 프로모션 비용을 만들 수 없습니다.',
+        'no_effective_policy_grade' => '에이전트에 주문 월에 적용되는 정책 등급이 없습니다.',
+        'active_agent_required_for_grade_schedule' => '협력 중인 에이전트만 다음 달 등급을 지정할 수 있습니다.',
+        'grade_must_match_current_policy' => '제안 등급은 에이전트의 현재 정책 체계에 속해야 합니다.',
+    ],
 ];

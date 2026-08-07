@@ -59,7 +59,7 @@ final class ApiHzKrwCnyQuoteProvider implements KrwCnyQuoteProvider
             $rate = BigDecimal::of((string) $response->json('rate'))
                 ->toScale(6, RoundingMode::HalfUp);
             if ($rate->isLessThanOrEqualTo(0)) {
-                throw new DomainException('KRW 汇率必须大于零。');
+                throw new DomainException(__('settlements.errors.quote_must_be_positive'));
             }
         } catch (MathException|DomainException) {
             return new KrwCnyQuoteData(false, $source, failureReason: '自动报价服务未返回有效的 KRW/CNY 汇率，请人工填写结算汇率。');

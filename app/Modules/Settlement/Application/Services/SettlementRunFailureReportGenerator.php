@@ -31,7 +31,7 @@ final readonly class SettlementRunFailureReportGenerator
             foreach ($this->reader->read($run) as $index => $failure) {
                 $row = $index + 2;
                 $sheet->setCellValueExplicit('A'.$row, (string) $run->id, DataType::TYPE_STRING);
-                $sheet->setCellValueExplicit('B'.$row, $run->period_start->format('Y-m-d').' 至 '.$run->period_end->format('Y-m-d'), DataType::TYPE_STRING);
+                $sheet->setCellValueExplicit('B'.$row, __('settlements.failure_report.period', ['from' => $run->period_start->format('Y-m-d'), 'to' => $run->period_end->format('Y-m-d')]), DataType::TYPE_STRING);
                 $sheet->setCellValueExplicit('C'.$row, $failure->agentCode, DataType::TYPE_STRING);
                 $sheet->setCellValueExplicit('D'.$row, $failure->agentName, DataType::TYPE_STRING);
                 $sheet->setCellValue('E'.$row, $failure->agentId);

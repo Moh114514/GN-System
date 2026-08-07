@@ -32,10 +32,10 @@ final class SettlementNotificationDispatcher
     {
         $run = SettlementRun::query()->findOrFail($runId);
         if ($run->status !== 'completed') {
-            throw new DomainException('仅已完成月结批次可重试通知。');
+            throw new DomainException(__('settlements.errors.notification_completed_only'));
         }
         if (! in_array($run->notification_status, ['failed', 'disabled'], true)) {
-            throw new DomainException('当前通知状态无需重试。');
+            throw new DomainException(__('settlements.errors.notification_retry_unneeded'));
         }
         $run->update(['notification_status' => 'queued', 'notification_error' => null]);
         SendSettlementNotification::dispatch($run->id, $this->localeFor($run))->afterCommit();

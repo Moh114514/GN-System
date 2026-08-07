@@ -118,12 +118,24 @@ return [
                 'failed' => '실패',
                 'expired' => '만료됨',
             ],
+            'failure_reasons' => [
+                'too_many_rows' => '조회 결과가 내보내기 한도를 초과했습니다. 필터 범위를 줄인 후 다시 시도하세요.',
+                'generation_failed' => '내보내기 파일을 생성하지 못했습니다. 잠시 후 다시 시도하세요.',
+                'unexpected' => '내보내기 작업에 실패했습니다. 잠시 후 다시 시도하세요.',
+                'generic' => '내보내기에 실패했습니다. 필터 범위를 줄인 후 다시 시도하세요.',
+            ],
         ],
         'toast' => [
             'queued' => '결과가 많아 내보내기 작업이 대기열에 추가되었습니다. 완료 후 최근 내보내기에서 다운로드할 수 있습니다.',
             'failure' => ':reason',
             'failure_default' => '내보내기에 실패했습니다. 필터 범위를 줄인 후 다시 시도하세요.',
             'retry' => '내보내기 작업을 대기열에 다시 추가했습니다.',
+        ],
+        'fallbacks' => [
+            'missing_customer' => '알 수 없는 고객',
+            'missing_agent' => '알 수 없는 에이전시',
+            'missing_institution' => '알 수 없는 기관',
+            'direct_sales' => '직접 판매',
         ],
     ],
 ];

@@ -109,7 +109,7 @@
                                 <flux:button wire:click="retryExport('{{ $export->id }}')" variant="ghost" size="sm">{{ __('search.page.exports.retry') }}</flux:button>
                             @endif
                         </div>
-                        @if ($export->failure_reason)<p class="mt-1 text-red-600">{{ $export->failure_reason }}</p>@endif
+                        @if ($export->localized_failure_reason)<p class="mt-1 text-red-600">{{ $export->localized_failure_reason }}</p>@endif
                         @if ($export->sha256)<p class="mt-1 break-all font-mono text-xs text-zinc-400">SHA-256 {{ $export->sha256 }}</p>@endif
                     </div>
                 @empty

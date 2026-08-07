@@ -12,11 +12,11 @@ final class DashboardRangeFactory
     {
         $now = CarbonImmutable::now('Asia/Shanghai');
         [$from, $to, $label] = match ($preset) {
-            'today' => [$now->startOfDay(), $now, __('dashboard.ranges.today')],
-            'week' => [$now->startOfWeek(), $now, __('dashboard.ranges.week')],
-            'month' => [$now->startOfMonth(), $now, __('dashboard.ranges.month')],
-            'quarter' => [$now->startOfQuarter(), $now, __('dashboard.ranges.quarter')],
-            'year' => [$now->startOfYear(), $now, __('dashboard.ranges.year')],
+            'today' => [$now->startOfDay(), $now, 'today'],
+            'week' => [$now->startOfWeek(), $now, 'week'],
+            'month' => [$now->startOfMonth(), $now, 'month'],
+            'quarter' => [$now->startOfQuarter(), $now, 'quarter'],
+            'year' => [$now->startOfYear(), $now, 'year'],
             'custom' => $this->custom($customFrom, $customTo),
             default => throw new DomainException(__('dashboard.errors.unsupported')),
         };
@@ -39,7 +39,7 @@ final class DashboardRangeFactory
             throw new DomainException(__('dashboard.errors.custom_order'));
         }
 
-        return [$start, $end, $start->toDateString().' '.__('dashboard.ranges.to').' '.$end->toDateString()];
+        return [$start, $end, 'custom'];
     }
 
     private function date(string $value): CarbonImmutable

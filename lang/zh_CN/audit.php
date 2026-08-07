@@ -2,10 +2,21 @@
 
 return [
     'legacy_original' => '历史原始记录',
+    'index' => [
+        'back' => '返回用户管理', 'eyebrow' => '配置中心 · 安全审计', 'title' => '全局审计日志', 'description' => '仅展示已脱敏的允许字段；不显示密码、令牌、邮箱、联系方式或完整 IP 地址。',
+        'date' => '日期', 'causer' => '操作者', 'target_user' => '目标用户', 'module' => '模块', 'action' => '动作', 'per_page' => '每页', 'all_causers' => '全部操作者', 'all_target_users' => '全部目标用户', 'all_modules' => '全部模块', 'all_actions' => '全部动作', 'per_page_count' => ':count 条', 'clear_filters' => '清除筛选',
+        'table' => ['time' => '时间', 'causer' => '操作者', 'target_user' => '目标用户', 'module' => '模块', 'action' => '动作', 'description' => '说明', 'properties' => '允许属性'], 'system' => '系统', 'empty' => '没有符合条件的审计记录。',
+    ],
     'messages' => [
         'agent_created' => '代理商档案已创建',
         'agent_updated' => '代理商档案已更新',
         'agent_config_rolled_back' => '代理商政策与等级配置已回滚',
+        'agent_type_saved' => '代理商类型代码已保存',
+        'agent_type_status_changed' => '代理商类型代码状态已变更',
+        'agent_policy_saved' => '政策体系已保存',
+        'agent_policy_status_changed' => '政策体系状态已变更',
+        'agent_grade_saved' => '政策等级已保存',
+        'agent_grade_status_changed' => '政策等级状态已变更',
         'internal_user_created' => '内部用户已创建并发送邀请',
         'internal_user_invited' => '内部用户邀请已重发',
         'internal_user_role_changed' => '内部用户角色已调整',

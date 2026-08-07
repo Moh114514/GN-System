@@ -16,4 +16,21 @@ return [
         'back' => '返回代理商管理', 'profile' => '合作档案', 'edit' => '编辑档案', 'name' => '代理商名称', 'code' => '代理商编号', 'type' => '类型', 'business_role' => '业务角色', 'policy_system' => '政策体系', 'unset_policy' => '未设置政策', 'grade' => '当前等级', 'unset_grade' => '未设置等级', 'contact_name' => '联系人', 'contact_value' => '联系方式', 'started' => '合作开始', 'ended' => '合作结束', 'effective_month' => '等级生效月', 'notes' => '备注', 'customers' => '来源客户', 'customer' => '客户', 'created_at' => '建档时间', 'no_customers' => '暂无来源客户。', 'orders' => '关联订单', 'project_amount' => '项目/金额', 'status' => '状态', 'promotion_fee' => '推广费', 'completed' => '已完成', 'pending' => '待完成', 'no_orders' => '暂无关联订单。', 'empty' => '—',
     ],
     'messages' => ['created' => '代理商档案已创建。', 'updated' => '代理商档案已更新；等级变化将在下月生效。'],
+    'fallback' => [
+        'unset' => '未设置',
+        'unknown_policy' => '未知政策',
+        'unknown_type' => '未知类型',
+    ],
+    'validation' => [
+        'invalid_agent_code' => '无效代理商编号：:value',
+        'agent_code_type_suffix' => '代理商编号必须以 -:type 结尾。',
+        'invalid_customer_code' => '无效客户编号：:value',
+        'terminated_read_only' => '已终止代理商为永久只读，不能再次修改。',
+        'type_code_format' => '类型代码必须是 2 至 4 位大写字母或数字。',
+        'system_type_code_immutable' => '系统类型代码不可修改。',
+        'ineligible_for_order_month' => '代理商在订单月份不具备合作资格，不能产生新订单或推广费。',
+        'no_effective_policy_grade' => '代理商在订单月份没有生效的政策等级。',
+        'active_agent_required_for_grade_schedule' => '仅合作中的代理商可以安排下月等级。',
+        'grade_must_match_current_policy' => '建议等级必须属于代理商当前政策体系。',
+    ],
 ];

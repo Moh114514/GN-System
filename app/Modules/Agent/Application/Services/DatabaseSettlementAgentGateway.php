@@ -61,12 +61,12 @@ final readonly class DatabaseSettlementAgentGateway implements SettlementAgentGa
     {
         $agent = Agent::query()->findOrFail($agentId);
         if ($agent->cooperation_status !== 'active') {
-            throw new DomainException('仅合作中的代理商可以安排下月等级。');
+            throw new DomainException(__('agents.validation.active_agent_required_for_grade_schedule'));
         }
         $grade = PolicyGrade::query()->where('is_active', true)->findOrFail($gradeId);
         $current = $this->contexts->forMonth($agentId, $effectiveMonth->subMonthNoOverflow());
         if ((int) $grade->policy_system_id !== $current->policySystemId) {
-            throw new DomainException('建议等级必须属于代理商当前政策体系。');
+            throw new DomainException(__('agents.validation.grade_must_match_current_policy'));
         }
         AgentGradeAssignment::query()->updateOrCreate(
             ['agent_id' => $agentId, 'effective_month' => $effectiveMonth->startOfMonth()],

@@ -115,10 +115,10 @@ final readonly class ReportSearch
         return array_map(fn ($order): array => [
             'id' => $order->id,
             'customer_id' => $order->customerId,
-            'customer' => $customerNames[$order->customerId] ?? '未知客户',
-            'agent' => $order->agentId === null ? '直销' : ($agentNames[$order->agentId] ?? '未知代理商'),
+            'customer' => $customerNames[$order->customerId] ?? __('search.page.fallbacks.missing_customer'),
+            'agent' => $order->agentId === null ? __('search.page.fallbacks.direct_sales') : ($agentNames[$order->agentId] ?? __('search.page.fallbacks.missing_agent')),
             'project' => $order->projectName,
-            'institution' => $institutionNames[$order->institutionId] ?? '未知机构',
+            'institution' => $institutionNames[$order->institutionId] ?? __('search.page.fallbacks.missing_institution'),
             'translator' => $order->translatorName,
             'amount_krw' => $order->amountKrw,
             'completed_at' => $order->completedAt,

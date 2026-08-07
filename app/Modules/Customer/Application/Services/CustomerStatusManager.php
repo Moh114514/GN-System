@@ -33,22 +33,22 @@ final readonly class CustomerStatusManager
             $target = CustomerStatus::query()->whereKey($targetStatusId)->where('is_active', true)->firstOrFail();
 
             if ($current->id === $target->id) {
-                throw ValidationException::withMessages(['targetStatusId' => '目标状态与当前状态相同。']);
+                throw ValidationException::withMessages(['targetStatusId' => __('customers.validation.same_status')]);
             }
 
             $isBackward = $target->sort_order < $current->sort_order;
             if ($isBackward && ! $actor->is_super_admin) {
-                throw ValidationException::withMessages(['targetStatusId' => '只有超级管理员可以回退客户状态。']);
+                throw ValidationException::withMessages(['targetStatusId' => __('customers.validation.rollback_requires_super_admin')]);
             }
             if (! $isBackward && ! CustomerStatusTransition::query()
                 ->where('from_status_id', $current->id)
                 ->where('to_status_id', $target->id)
                 ->where('is_active', true)
                 ->exists()) {
-                throw ValidationException::withMessages(['targetStatusId' => '不能越级或使用未启用的状态流转。']);
+                throw ValidationException::withMessages(['targetStatusId' => __('customers.validation.invalid_transition')]);
             }
             if (trim($reason) === '') {
-                throw ValidationException::withMessages(['statusReason' => '请填写状态变更原因。']);
+                throw ValidationException::withMessages(['statusReason' => __('customers.validation.status_reason_required')]);
             }
 
             $customer->update(['current_status_id' => $target->id]);
@@ -135,7 +135,7 @@ final readonly class CustomerStatusManager
             $defaultStatus = CustomerStatus::query()->where('key', 'interested')->firstOrFail();
             foreach ($statuses as $input) {
                 if ($input['id'] === $defaultStatus->id && ! $input['is_active']) {
-                    throw ValidationException::withMessages(['configuration' => '默认状态“意向”不能停用。']);
+                    throw ValidationException::withMessages(['configuration' => __('customers.validation.default_status_cannot_be_disabled')]);
                 }
                 CustomerStatus::query()->whereKey($input['id'])->update([
                     'name' => trim($input['name']),

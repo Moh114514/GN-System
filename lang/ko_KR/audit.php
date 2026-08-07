@@ -2,10 +2,21 @@
 
 return [
     'legacy_original' => '과거 원문 기록',
+    'index' => [
+        'back' => '사용자 관리로 돌아가기', 'eyebrow' => '설정 센터 · 보안 감사', 'title' => '전역 감사 로그', 'description' => '마스킹된 허용 필드만 표시하며 비밀번호, 토큰, 이메일, 연락처 또는 전체 IP 주소는 표시하지 않습니다.',
+        'date' => '날짜', 'causer' => '작업자', 'target_user' => '대상 사용자', 'module' => '모듈', 'action' => '작업', 'per_page' => '페이지당', 'all_causers' => '모든 작업자', 'all_target_users' => '모든 대상 사용자', 'all_modules' => '모든 모듈', 'all_actions' => '모든 작업', 'per_page_count' => ':count개', 'clear_filters' => '필터 지우기',
+        'table' => ['time' => '시간', 'causer' => '작업자', 'target_user' => '대상 사용자', 'module' => '모듈', 'action' => '작업', 'description' => '설명', 'properties' => '허용 속성'], 'system' => '시스템', 'empty' => '조건에 맞는 감사 기록이 없습니다.',
+    ],
     'messages' => [
         'agent_created' => '에이전트 프로필이 생성되었습니다',
         'agent_updated' => '에이전트 프로필이 수정되었습니다',
         'agent_config_rolled_back' => '에이전트 정책 및 등급 설정이 롤백되었습니다',
+        'agent_type_saved' => '에이전트 유형 코드가 저장되었습니다',
+        'agent_type_status_changed' => '에이전트 유형 코드 상태가 변경되었습니다',
+        'agent_policy_saved' => '정책 체계가 저장되었습니다',
+        'agent_policy_status_changed' => '정책 체계 상태가 변경되었습니다',
+        'agent_grade_saved' => '정책 등급이 저장되었습니다',
+        'agent_grade_status_changed' => '정책 등급 상태가 변경되었습니다',
         'internal_user_created' => '내부 사용자가 생성되고 초대가 발송되었습니다',
         'internal_user_invited' => '내부 사용자 초대가 재발송되었습니다',
         'internal_user_role_changed' => '내부 사용자 역할이 변경되었습니다',

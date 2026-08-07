@@ -32,9 +32,11 @@ final class GenerateReportExport implements ShouldQueue
 
     public function failed(Throwable $exception): void
     {
+        report($exception);
         ReportExport::query()->whereKey($this->exportId)->update([
             'status' => 'failed',
-            'failure_reason' => $exception->getMessage(),
+            'failure_reason_key' => 'search.page.exports.failure_reasons.unexpected',
+            'failure_reason_parameters' => json_encode([], JSON_THROW_ON_ERROR),
         ]);
     }
 }

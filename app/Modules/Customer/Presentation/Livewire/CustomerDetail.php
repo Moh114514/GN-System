@@ -23,7 +23,7 @@ class CustomerDetail extends Component
 
     public string $statusReason = '';
 
-    public string $followupType = '日常回访';
+    public string $followupType = '';
 
     public string $followedUpOn = '';
 
@@ -38,6 +38,7 @@ class CustomerDetail extends Component
         $this->customerId = $customer;
         $this->options = $directory->options();
         $this->followedUpOn = now()->toDateString();
+        $this->followupType = __('customers.detail.followup.default_type');
     }
 
     public function changeStatus(CustomerStatusManager $manager): void

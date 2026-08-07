@@ -17,7 +17,12 @@ final readonly class ReportSearchExportGenerator
 
     public function generate(ReportExport $export): ReportExport
     {
-        $export->update(['status' => 'generating', 'failure_reason' => null]);
+        $export->update([
+            'status' => 'generating',
+            'failure_reason' => null,
+            'failure_reason_key' => null,
+            'failure_reason_parameters' => null,
+        ]);
         $criteria = $export->criteria_snapshot;
         $locale = SupportedLocale::fromCandidate($criteria['_locale'] ?? null) ?? SupportedLocale::default();
         unset($criteria['_locale']);

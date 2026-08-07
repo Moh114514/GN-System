@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Model;
  * @property string $name
  * @property string $title
  * @property string|null $suggestion
+ * @property string|null $system_key
  * @property string $default_trigger_type
  * @property array<string, mixed> $default_trigger_config
  * @property bool $is_system

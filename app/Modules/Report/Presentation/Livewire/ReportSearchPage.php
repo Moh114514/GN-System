@@ -114,7 +114,7 @@ class ReportSearchPage extends Component
 
         if ($export->status !== 'completed') {
             Flux::toast(variant: 'danger', text: __('search.page.toast.failure', [
-                'reason' => $export->failure_reason ?? __('search.page.toast.failure_default'),
+                'reason' => $manager->presentFailure($export) ?? __('search.page.toast.failure_default'),
             ]));
 
             return;
@@ -135,6 +135,9 @@ class ReportSearchPage extends Component
     ): View {
         $result = $search->paginate($this->criteria(), $this->perPage, $this->page);
         $recentExports = $exports->recent($this->user());
+        $recentExports->each(function ($export) use ($exports): void {
+            $export->setAttribute('localized_failure_reason', $exports->presentFailure($export));
+        });
 
         return view('livewire.reports.search', [
             'result' => $result,

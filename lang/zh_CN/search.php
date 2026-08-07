@@ -118,12 +118,24 @@ return [
                 'failed' => '失败',
                 'expired' => '已过期',
             ],
+            'failure_reasons' => [
+                'too_many_rows' => '查询结果超过导出上限，请缩小筛选范围后重试。',
+                'generation_failed' => '导出文件生成失败，请稍后重试。',
+                'unexpected' => '导出任务失败，请稍后重试。',
+                'generic' => '导出失败，请缩小筛选范围后重试。',
+            ],
         ],
         'toast' => [
             'queued' => '结果较多，导出任务已进入队列；完成后可在最近导出中下载。',
             'failure' => ':reason',
             'failure_default' => '导出失败，请缩小筛选范围后重试。',
             'retry' => '导出任务已重新进入队列。',
+        ],
+        'fallbacks' => [
+            'missing_customer' => '未知客户',
+            'missing_agent' => '未知代理商',
+            'missing_institution' => '未知机构',
+            'direct_sales' => '直销',
         ],
     ],
 ];

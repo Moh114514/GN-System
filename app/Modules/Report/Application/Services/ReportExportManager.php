@@ -34,7 +34,8 @@ final readonly class ReportExportManager
         if ($total > $maxRows) {
             $export = $this->createSearchExport($user, $criteria, 'failed');
             $export->update([
-                'failure_reason' => '查询结果超过导出上限，请缩小筛选范围后重试。',
+                'failure_reason_key' => 'search.page.exports.failure_reasons.too_many_rows',
+                'failure_reason_parameters' => [],
             ]);
 
             return $export->refresh();
@@ -58,7 +59,8 @@ final readonly class ReportExportManager
             report($exception);
             $export->update([
                 'status' => 'failed',
-                'failure_reason' => '导出文件生成失败，请检查存储权限后重试。',
+                'failure_reason_key' => 'search.page.exports.failure_reasons.generation_failed',
+                'failure_reason_parameters' => [],
             ]);
         }
 
@@ -72,6 +74,8 @@ final readonly class ReportExportManager
         $export->update([
             'status' => 'queued',
             'failure_reason' => null,
+            'failure_reason_key' => null,
+            'failure_reason_parameters' => null,
             'path' => null,
             'sha256' => null,
             'generated_at' => null,
@@ -103,5 +107,10 @@ final readonly class ReportExportManager
             'criteria_snapshot' => $query,
             'expires_at' => now()->addHours(24),
         ]);
+    }
+
+    public function presentFailure(ReportExport $export): ?string
+    {
+        return app(ReportExportFailurePresenter::class)->present($export);
     }
 }

@@ -69,7 +69,7 @@ final readonly class AgentManager
         DB::transaction(function () use ($agentId, $data, $actorId, $ipAddress): void {
             $agent = Agent::query()->lockForUpdate()->findOrFail($agentId);
             if ($agent->cooperation_status === 'terminated') {
-                throw new DomainException('已终止代理商为永久只读，不能再次修改。');
+                throw new DomainException(__('agents.validation.terminated_read_only'));
             }
             $type = AgentTypeCode::query()->where('is_active', true)->findOrFail($data->typeCodeId);
             $grade = PolicyGrade::query()->where('is_active', true)->findOrFail($data->policyGradeId);
@@ -112,16 +112,16 @@ final readonly class AgentManager
     {
         $normalizedCode = strtoupper(trim($code));
         if (preg_match('/^[A-Z0-9]{2,4}$/', $normalizedCode) !== 1) {
-            throw new DomainException('类型代码必须是 2 至 4 位大写字母或数字。');
+            throw new DomainException(__('agents.validation.type_code_format'));
         }
         $type = $id === null ? new AgentTypeCode(['is_system' => false, 'is_active' => true]) : AgentTypeCode::query()->findOrFail($id);
         if ($type->exists && $type->is_system && $type->code !== $normalizedCode) {
-            throw new DomainException('系统类型代码不可修改。');
+            throw new DomainException(__('agents.validation.system_type_code_immutable'));
         }
         $this->configurationHistory->capture($actorId);
         $before = $type->exists ? $type->only(['code', 'name', 'description', 'is_active']) : null;
         $type->fill(['code' => $normalizedCode, 'name' => trim($name), 'description' => $this->nullable($description)])->save();
-        $this->recordConfiguration('代理商类型代码已保存', $type, $before, $actorId, $ipAddress);
+        $this->recordConfiguration('代理商类型代码已保存', 'audit.messages.agent_type_saved', $type, $before, $actorId, $ipAddress);
     }
 
     /** @return array{id: int, code: string, name: string, description: string|null} */
@@ -143,7 +143,7 @@ final readonly class AgentManager
         $type = AgentTypeCode::query()->findOrFail($id);
         $before = $type->only(['is_active']);
         $type->update(['is_active' => ! $type->is_active]);
-        $this->recordConfiguration('代理商类型代码状态已变更', $type, $before, $actorId, $ipAddress);
+        $this->recordConfiguration('代理商类型代码状态已变更', 'audit.messages.agent_type_status_changed', $type, $before, $actorId, $ipAddress);
     }
 
     public function savePolicy(?int $id, string $name, int $actorId, ?string $ipAddress): void
@@ -152,7 +152,7 @@ final readonly class AgentManager
         $system = $id === null ? new PolicySystem(['is_active' => true]) : PolicySystem::query()->findOrFail($id);
         $before = $system->exists ? $system->only(['name', 'is_active']) : null;
         $system->fill(['name' => trim($name)])->save();
-        $this->recordConfiguration('政策体系已保存', $system, $before, $actorId, $ipAddress);
+        $this->recordConfiguration('政策体系已保存', 'audit.messages.agent_policy_saved', $system, $before, $actorId, $ipAddress);
     }
 
     /** @return array{id: int, name: string} */
@@ -169,7 +169,7 @@ final readonly class AgentManager
         $system = PolicySystem::query()->findOrFail($id);
         $before = $system->only(['is_active']);
         $system->update(['is_active' => ! $system->is_active]);
-        $this->recordConfiguration('政策体系状态已变更', $system, $before, $actorId, $ipAddress);
+        $this->recordConfiguration('政策体系状态已变更', 'audit.messages.agent_policy_status_changed', $system, $before, $actorId, $ipAddress);
     }
 
     public function saveGrade(?int $id, int $policySystemId, string $name, int $thresholdKrw, int $sortOrder, int $actorId, ?string $ipAddress): void
@@ -184,7 +184,7 @@ final readonly class AgentManager
             'monthly_threshold_krw' => $thresholdKrw,
             'sort_order' => $sortOrder,
         ])->save();
-        $this->recordConfiguration('政策等级已保存', $grade, $before, $actorId, $ipAddress);
+        $this->recordConfiguration('政策等级已保存', 'audit.messages.agent_grade_saved', $grade, $before, $actorId, $ipAddress);
     }
 
     /** @return array{id: int, policy_system_id: int, name: string, monthly_threshold_krw: int, sort_order: int} */
@@ -207,11 +207,11 @@ final readonly class AgentManager
         $grade = PolicyGrade::query()->findOrFail($id);
         $before = $grade->only(['is_active']);
         $grade->update(['is_active' => ! $grade->is_active]);
-        $this->recordConfiguration('政策等级状态已变更', $grade, $before, $actorId, $ipAddress);
+        $this->recordConfiguration('政策等级状态已变更', 'audit.messages.agent_grade_status_changed', $grade, $before, $actorId, $ipAddress);
     }
 
     /** @param array<string, mixed>|null $before */
-    private function recordConfiguration(string $description, Model $model, ?array $before, int $actorId, ?string $ipAddress): void
+    private function recordConfiguration(string $description, string $messageKey, Model $model, ?array $before, int $actorId, ?string $ipAddress): void
     {
         $this->audit->record(
             description: $description,
@@ -221,6 +221,7 @@ final readonly class AgentManager
             logName: 'agent-configuration',
             event: $before === null ? 'created' : 'updated',
             ipAddress: $ipAddress,
+            messageKey: $messageKey,
         );
     }
 

@@ -64,7 +64,7 @@
             <form wire:submit="approve" class="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
                 <h3 class="font-semibold">{{ __('settlements.detail.approve_heading') }}</h3>
                 @if ($settlement->exchange_rate_quote_error)
-                    <p class="mt-2 text-sm text-amber-700 dark:text-amber-300">{{ __('settlements.detail.quote_unavailable_hint') }}{{ $settlement->exchange_rate_quote_error }}</p>
+                    <p class="mt-2 text-sm text-amber-700 dark:text-amber-300">{{ __('settlements.detail.quote_unavailable_hint') }}{{ __($settlement->exchange_rate_quote_error_key ?: 'settlements.quote_failures.unavailable', $settlement->exchange_rate_quote_error_parameters ?? []) }}</p>
                 @elseif ($settlement->exchange_rate_quote_status === 'available')
                     <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ __('settlements.detail.quote_filled_hint', ['time' => $settlement->exchange_rate_quoted_at?->format('Y-m-d H:i')]) }}</p>
                 @else

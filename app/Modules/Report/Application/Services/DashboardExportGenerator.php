@@ -18,6 +18,8 @@ final class DashboardExportGenerator
 
     private const PDF_CACHE_PATH = 'framework/cache/dompdf';
 
+    public function __construct(private readonly DashboardSnapshotPresenter $presenter) {}
+
     /** @param array<string, mixed> $snapshot */
     public function generate(User $user, string $format, array $snapshot): ReportExport
     {
@@ -26,6 +28,13 @@ final class DashboardExportGenerator
         }
         $locale = SupportedLocale::fromCandidate($snapshot['locale'] ?? app()->getLocale()) ?? SupportedLocale::default();
         $snapshot = [...$snapshot, 'locale' => $locale->value];
+        $previousLocale = app()->getLocale();
+        app()->setLocale($locale->value);
+        try {
+            $snapshot = $this->presenter->present($snapshot);
+        } finally {
+            app()->setLocale($previousLocale);
+        }
         $reusableExport = $this->reusableExport($user, $format, $snapshot);
         if ($reusableExport !== null) {
             return $reusableExport;

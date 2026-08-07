@@ -55,7 +55,7 @@ final readonly class DatabaseDailyCommissionGateway implements DailyCommissionGa
                 ->first();
         }
         if ($override === null && $rule === null) {
-            throw new DomainException('该代理商等级在所选机构和订单月份没有生效的推广费率。');
+            throw new DomainException(__('settlements.errors.commission_rate_missing'));
         }
 
         if ($override !== null) {
@@ -134,7 +134,7 @@ final readonly class DatabaseDailyCommissionGateway implements DailyCommissionGa
         }
 
         if (DB::table('settlement_items')->where('order_commission_id', $commission->id)->exists()) {
-            throw new DomainException('订单已进入月结明细，必须先更正或撤回月结后才能回退订单状态。');
+            throw new DomainException(__('settlements.errors.order_in_settlement'));
         }
 
         $commission->delete();

@@ -2,6 +2,7 @@
 
 namespace App\Modules\Reminder\Presentation\Livewire;
 
+use App\Modules\Reminder\Application\Services\ReminderContentPresenter;
 use App\Modules\Reminder\Application\Services\ReminderRuleManager;
 use App\Modules\Reminder\Infrastructure\Models\ReminderRule;
 use App\Modules\Reminder\Infrastructure\Models\ReminderTemplate;
@@ -112,20 +113,22 @@ class ReminderConfiguration extends Component
     public function editTemplate(int $id): void
     {
         $template = ReminderTemplate::query()->whereNull('owner_id')->findOrFail($id);
+        $content = app(ReminderContentPresenter::class)->template($template);
         $this->editingTemplateId = $id;
-        $this->templateName = (string) $template->name;
-        $this->templateTitle = (string) $template->title;
-        $this->templateSuggestion = (string) $template->suggestion;
+        $this->templateName = $content['name'];
+        $this->templateTitle = $content['title'];
+        $this->templateSuggestion = (string) $content['suggestion'];
     }
 
     public function copyTemplate(int $id, ReminderRuleManager $manager): void
     {
         $template = ReminderTemplate::query()->whereNull('owner_id')->findOrFail($id);
+        $content = app(ReminderContentPresenter::class)->template($template);
         $manager->saveTemplate(
             null,
-            __('reminders.copy_suffix', ['name' => $template->name]),
-            (string) $template->title,
-            $template->suggestion,
+            __('reminders.copy_suffix', ['name' => $content['name']]),
+            $content['title'],
+            $content['suggestion'],
             (string) $template->default_trigger_type,
             $template->default_trigger_config,
             null,
@@ -139,9 +142,20 @@ class ReminderConfiguration extends Component
 
     public function render(): View
     {
+        $content = app(ReminderContentPresenter::class);
+        $templates = ReminderTemplate::query()->whereNull('owner_id')->orderByDesc('is_system')->get()
+            ->map(function (ReminderTemplate $template) use ($content): ReminderTemplate {
+                $values = $content->template($template);
+                $template->setAttribute('name', $values['name']);
+                $template->setAttribute('title', $values['title']);
+                $template->setAttribute('suggestion', $values['suggestion']);
+
+                return $template;
+            });
+
         return view('livewire.reminders.reminder-configuration', [
             'rules' => ReminderRule::query()->latest()->get(),
-            'templates' => ReminderTemplate::query()->whereNull('owner_id')->orderByDesc('is_system')->get(),
+            'templates' => $templates,
             'dingtalkEnabled' => (bool) config('dingtalk.enabled') && config('dingtalk.webhook_url'),
         ])->title(__('reminders.titles.configuration'));
     }

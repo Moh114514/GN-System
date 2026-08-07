@@ -11,7 +11,7 @@ use Illuminate\Support\Carbon;
  * @property string $id
  * @property Carbon $period_start
  * @property Carbon $period_end
- * @property array<string, string>|null $errors
+ * @property array<string, string|array{message_key: string, parameters: array<string, scalar>}>|null $errors
  * @property string $status
  * @property int $total_agents
  * @property int $processed_agents

@@ -18,7 +18,7 @@ final class DingTalkClient implements StaffNotificationSender
     public function send(string $title, string $text, ?string $link = null): void
     {
         if (! $this->enabled()) {
-            throw new DomainException('钉钉通知未启用或 Webhook 未配置。');
+            throw new DomainException(__('reminders.errors.dingtalk_not_configured'));
         }
         $url = (string) config('dingtalk.webhook_url');
         $secret = (string) config('dingtalk.secret');
@@ -37,7 +37,9 @@ final class DingTalkClient implements StaffNotificationSender
         ]);
         $response->throw();
         if ((int) $response->json('errcode', 0) !== 0) {
-            throw new DomainException('钉钉机器人拒绝消息：'.(string) $response->json('errmsg', '未知错误'));
+            throw new DomainException(__('reminders.errors.dingtalk_rejected', [
+                'reason' => (string) $response->json('errmsg', __('reminders.errors.unknown_remote_error')),
+            ]));
         }
     }
 }

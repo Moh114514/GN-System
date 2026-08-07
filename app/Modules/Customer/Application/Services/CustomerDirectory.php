@@ -7,6 +7,7 @@ use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Config\Application\Contracts\InstitutionReferenceReader;
 use App\Modules\Customer\Domain\BlindIndex;
+use App\Modules\Customer\Domain\CustomerLabelLocalizer;
 use App\Modules\Customer\Domain\SensitiveValueMasker;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerContact;
@@ -23,6 +24,7 @@ final readonly class CustomerDirectory
 {
     public function __construct(
         private BlindIndex $blindIndex,
+        private CustomerLabelLocalizer $labels,
         private SensitiveValueMasker $masker,
         private AgentReferenceReader $agents,
         private InstitutionReferenceReader $institutions,
@@ -70,18 +72,22 @@ final readonly class CustomerDirectory
             ->get()
             ->keyBy('id');
 
-        $items = $page->getCollection()->map(fn (Customer $customer): array => [
-            'id' => $customer->id,
-            'code' => $customer->code,
-            'name' => $customer->name,
-            'contact_masked' => $this->masker->mask(data_get($customer->primaryContact, 'value_encrypted')),
-            'document_masked' => $this->masker->mask(data_get($customer->identityDocument, 'number_encrypted'), 1, 3),
-            'status' => (string) data_get($customer->currentStatus, 'name', '未设置'),
-            'source' => $customer->original_channel === 'agent'
-                ? (string) ($agentLabels[(int) $customer->source_agent_id]['name'] ?? '未知代理商')
-                : (string) data_get($directLabels->get($customer->source_direct_sales_id), 'name', '未知直销来源'),
-            'created_at' => $customer->created_at?->format('Y-m-d H:i'),
-        ]);
+        $items = $page->getCollection()->map(function (Customer $customer) use ($agentLabels, $directLabels): array {
+            return [
+                'id' => $customer->id,
+                'code' => $customer->code,
+                'name' => $customer->name,
+                'contact_masked' => $this->masker->mask(data_get($customer->primaryContact, 'value_encrypted')),
+                'document_masked' => $this->masker->mask(data_get($customer->identityDocument, 'number_encrypted'), 1, 3),
+                'status' => $customer->currentStatus === null
+                    ? __('customers.fallback.unset')
+                    : $this->labels->status((string) $customer->currentStatus->key, $customer->currentStatus->name),
+                'source' => $customer->original_channel === 'agent'
+                    ? (string) ($agentLabels[(int) $customer->source_agent_id]['name'] ?? __('customers.fallback.unknown_agent'))
+                    : (string) data_get($directLabels->get($customer->source_direct_sales_id), 'name', __('customers.fallback.unknown_direct_source')),
+                'created_at' => $customer->created_at?->format('Y-m-d H:i'),
+            ];
+        });
 
         // PHPStan treats the inferred array shape as invariant even though it matches the declared shape.
         // @phpstan-ignore return.type
@@ -101,8 +107,21 @@ final readonly class CustomerDirectory
             'agents' => array_values($this->agents->activeAgents()),
             'direct_sources' => DirectSalesSource::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name'])->toArray(),
             'institutions' => array_values($this->institutions->activeInstitutions()),
-            'statuses' => CustomerStatus::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'key', 'name', 'stage_id', 'sort_order'])->toArray(),
-            'stages' => CustomerLifecycleStage::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'key', 'name', 'sort_order'])->toArray(),
+            'statuses' => CustomerStatus::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'key', 'name', 'stage_id', 'sort_order'])
+                ->map(fn (CustomerStatus $status): array => [
+                    'id' => $status->id,
+                    'key' => $status->key,
+                    'name' => $this->labels->status((string) $status->key, $status->name),
+                    'stage_id' => $status->stage_id,
+                    'sort_order' => $status->sort_order,
+                ])->all(),
+            'stages' => CustomerLifecycleStage::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'key', 'name', 'sort_order'])
+                ->map(fn (CustomerLifecycleStage $stage): array => [
+                    'id' => $stage->id,
+                    'key' => $stage->key,
+                    'name' => $this->labels->stage((string) $stage->key, $stage->name),
+                    'sort_order' => $stage->sort_order,
+                ])->all(),
         ];
     }
 
@@ -121,7 +140,9 @@ final readonly class CustomerDirectory
             'source_agent_id' => $customer->source_agent_id,
             'source_direct_sales_id' => $customer->source_direct_sales_id,
             'current_status_id' => $customer->current_status_id,
-            'current_status' => data_get($customer->currentStatus, 'name'),
+            'current_status' => $customer->currentStatus === null
+                ? null
+                : $this->labels->status((string) $customer->currentStatus->key, $customer->currentStatus->name),
             'contact' => data_get($customer->primaryContact, 'value_encrypted'),
             'identity_document' => data_get($customer->identityDocument, 'number_encrypted'),
             'project_intention' => $customer->project_intention,
@@ -147,15 +168,20 @@ final readonly class CustomerDirectory
             ->filter()
             ->map(fn ($id): int => (int) $id)
             ->all();
-        $statuses = CustomerStatus::query()->whereKey($statusIds)->pluck('name', 'id');
+        $statuses = CustomerStatus::query()->whereKey($statusIds)->get(['id', 'key', 'name'])
+            ->mapWithKeys(fn (CustomerStatus $status): array => [
+                $status->id => $this->labels->status((string) $status->key, $status->name),
+            ]);
         foreach (CustomerStatusHistory::query()->where('customer_id', $customerId)->get() as $history) {
             $events[] = [
                 'type' => 'status',
                 'occurred_at' => $history->changed_at->toIso8601String(),
-                'title' => '状态变更',
-                'content' => ($history->from_status_id === null ? '建档' : ($statuses[$history->from_status_id] ?? '未知状态'))
-                    .' → '.($statuses[$history->to_status_id] ?? '未知状态')
-                    .'；'.$history->reason,
+                'title' => __('customers.timeline.status_changed'),
+                'content' => ($history->from_status_id === null
+                    ? __('customers.timeline.registered')
+                    : ($statuses[$history->from_status_id] ?? __('customers.fallback.unknown_status')))
+                    .' → '.($statuses[$history->to_status_id] ?? __('customers.fallback.unknown_status'))
+                    .'（'.($history->from_status_id === null ? __('customers.timeline.customer_registered') : $history->reason).'）',
                 'owner_id' => $history->changed_by,
                 'meta' => [],
             ];
@@ -168,7 +194,7 @@ final readonly class CustomerDirectory
                 'type' => $entry->event === 'created' ? 'created' : 'profile',
                 'occurred_at' => $entry->occurredAt->toIso8601String(),
                 'title' => $entry->description,
-                'content' => $entry->event === 'updated' ? '客户资料已更新并留痕' : '客户档案创建',
+                'content' => $entry->event === 'updated' ? __('customers.timeline.profile_updated') : __('customers.timeline.customer_profile_created'),
                 'owner_id' => $entry->causerId,
                 'meta' => $entry->properties,
             ];
@@ -184,8 +210,8 @@ final readonly class CustomerDirectory
             $events[] = [
                 'type' => 'created',
                 'occurred_at' => $customer->created_at?->toIso8601String(),
-                'title' => '客户建档',
-                'content' => '客户档案已建立',
+                'title' => __('customers.timeline.customer_registered'),
+                'content' => __('customers.timeline.customer_profile_created'),
                 'owner_id' => $customer->owner_id,
                 'meta' => [],
             ];

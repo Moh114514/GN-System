@@ -16,7 +16,10 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class ReminderWorkspace
 {
-    public function __construct(private ReminderCustomerReader $customers) {}
+    public function __construct(
+        private ReminderCustomerReader $customers,
+        private ReminderContentPresenter $content,
+    ) {}
 
     /** @return array<int, ReminderCustomerData> */
     public function customerCandidates(): array
@@ -41,6 +44,9 @@ final readonly class ReminderWorkspace
             ->orderBy('priority')
             ->orderBy('due_at')
             ->paginate(30);
+        $page->setCollection($page->getCollection()->map(
+            fn (Reminder $reminder): Reminder => $this->content->applyToReminder($reminder),
+        ));
 
         return $page;
     }
@@ -60,10 +66,10 @@ final readonly class ReminderWorkspace
         $this->customers->byId($customerId);
         User::query()->findOrFail($assignedTo);
         if ($dueAt->isBefore(CarbonImmutable::now())) {
-            throw new DomainException('自定义提醒时间不能早于当前时间。');
+            throw new DomainException(__('reminders.errors.custom_due_past'));
         }
         if ($recurrence !== null && ! in_array($recurrence['unit'] ?? null, ['day', 'week', 'month'], true)) {
-            throw new DomainException('周期提醒单位无效。');
+            throw new DomainException(__('reminders.errors.invalid_recurrence_unit'));
         }
         $template = $templateId === null ? null : ReminderTemplate::query()->where('is_active', true)->findOrFail($templateId);
         $dedupe = hash('sha256', implode(':', ['custom', $actorId, $customerId, $dueAt->toIso8601String(), trim($title)]));
@@ -94,7 +100,7 @@ final readonly class ReminderWorkspace
         DB::transaction(function () use ($id, $actor, $notes): void {
             $reminder = $this->findVisible($id, $actor);
             if (! in_array($reminder->status, ['pending', 'snoozed', 'transferred'], true)) {
-                throw new DomainException('当前提醒状态不可完成。');
+                throw new DomainException(__('reminders.errors.invalid_completion_status'));
             }
             $reminder->update([
                 'status' => 'completed',
@@ -110,7 +116,7 @@ final readonly class ReminderWorkspace
     public function snooze(int $id, CarbonImmutable $until, string $reason, User $actor): void
     {
         if (trim($reason) === '' || $until->isBefore(CarbonImmutable::now())) {
-            throw new DomainException('延期必须填写原因并选择未来时间。');
+            throw new DomainException(__('reminders.errors.snooze_reason_and_future'));
         }
         $reminder = $this->findVisible($id, $actor);
         $before = $reminder->due_at->toIso8601String();
@@ -130,7 +136,7 @@ final readonly class ReminderWorkspace
     public function cancel(int $id, string $reason, User $actor): void
     {
         if (trim($reason) === '') {
-            throw new DomainException('关闭提醒必须填写原因。');
+            throw new DomainException(__('reminders.errors.cancel_reason_required'));
         }
         $reminder = $this->findVisible($id, $actor);
         $reminder->update(['status' => 'cancelled']);

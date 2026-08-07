@@ -412,6 +412,45 @@ class PhaseSixReportingConfigurationTest extends TestCase
         }
     }
 
+    public function test_export_failures_store_safe_keys_and_localize_recent_exports(): void
+    {
+        $export = ReportExport::query()->create([
+            'created_by' => $this->user->id,
+            'kind' => 'search',
+            'format' => 'xlsx',
+            'status' => 'queued',
+            'criteria_snapshot' => [],
+            'expires_at' => now()->addHour(),
+        ]);
+
+        (new GenerateReportExport($export->id))->failed(new \RuntimeException('storage credential leaked'));
+        $export->refresh();
+        $this->assertSame('search.page.exports.failure_reasons.unexpected', $export->failure_reason_key);
+        $this->assertNull($export->failure_reason);
+        $this->assertSame([], $export->failure_reason_parameters);
+
+        ReportExport::query()->create([
+            'created_by' => $this->user->id,
+            'kind' => 'search',
+            'format' => 'xlsx',
+            'status' => 'failed',
+            'criteria_snapshot' => [],
+            'failure_reason' => 'legacy internal storage path',
+            'expires_at' => now()->addHour(),
+        ]);
+        $previousLocale = App::getLocale();
+        App::setLocale('ko_KR');
+        try {
+            $this->actingAs($this->user)->get(route('reports.search'))
+                ->assertOk()
+                ->assertSee(__('search.page.exports.failure_reasons.generic'))
+                ->assertDontSee('legacy internal storage path')
+                ->assertDontSee('storage credential leaked');
+        } finally {
+            App::setLocale($previousLocale);
+        }
+    }
+
     public function test_dashboard_exports_are_locale_specific_and_do_not_reuse_another_language(): void
     {
         Storage::fake('local');
@@ -430,6 +469,8 @@ class PhaseSixReportingConfigurationTest extends TestCase
             $this->assertNotSame($zhExport->id, $koExport->id);
             $this->assertSame('zh_CN', $zhExport->data_snapshot['locale']);
             $this->assertSame('ko_KR', $koExport->data_snapshot['locale']);
+            $this->assertSame('意向', $zhExport->data_snapshot['panels']['recent_customers'][0]['status_name']);
+            $this->assertSame('관심', $koExport->data_snapshot['panels']['recent_customers'][0]['status_name']);
             $this->assertSame(2, ReportExport::query()->where('kind', 'dashboard')->count());
             $this->assertStringContainsString('<html lang="zh-CN">', Storage::disk('local')->get($zhExport->path));
             $this->assertStringContainsString('GN-System 数据看板', Storage::disk('local')->get($zhExport->path));
@@ -532,6 +573,23 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->count());
     }
 
+    public function test_structured_failure_migration_is_additive_and_reversible(): void
+    {
+        $migration = require database_path('migrations/2026_08_07_000400_add_structured_failure_messages_to_settlement_runs_and_report_exports.php');
+
+        $migration->down();
+        $this->assertFalse(Schema::hasColumn('report_exports', 'failure_reason_key'));
+        $this->assertFalse(Schema::hasColumn('report_exports', 'failure_reason_parameters'));
+        $this->assertFalse(Schema::hasColumn('settlements', 'exchange_rate_quote_error_key'));
+        $this->assertFalse(Schema::hasColumn('settlements', 'exchange_rate_quote_error_parameters'));
+
+        $migration->up();
+        $this->assertTrue(Schema::hasColumn('report_exports', 'failure_reason_key'));
+        $this->assertTrue(Schema::hasColumn('report_exports', 'failure_reason_parameters'));
+        $this->assertTrue(Schema::hasColumn('settlements', 'exchange_rate_quote_error_key'));
+        $this->assertTrue(Schema::hasColumn('settlements', 'exchange_rate_quote_error_parameters'));
+    }
+
     public function test_phase_six_navigation_and_configuration_children_return_to_parent(): void
     {
         $admin = User::factory()->superAdmin()->withTwoFactor()->create();
@@ -558,5 +616,12 @@ class PhaseSixReportingConfigurationTest extends TestCase
                 ->assertSee('返回配置中心')
                 ->assertSee('href="'.route('configuration.index').'"', false);
         }
+
+        $admin->update(['preferred_locale' => 'ko_KR']);
+        $this->actingAs($admin)->get(route('audit-logs.index'))
+            ->assertOk()
+            ->assertSee('전역 감사 로그')
+            ->assertSee('사용자 관리로 돌아가기')
+            ->assertDontSee('全局审计日志');
     }
 }

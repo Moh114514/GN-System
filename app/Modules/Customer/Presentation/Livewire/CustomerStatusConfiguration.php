@@ -7,11 +7,9 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
-use Livewire\Attributes\Title;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
-#[Title('客户状态配置')]
 class CustomerStatusConfiguration extends Component
 {
     /** @var array<int, array<string, mixed>> */
@@ -42,12 +40,12 @@ class CustomerStatusConfiguration extends Component
         ]);
         $manager->saveConfiguration($this->stages, $this->statuses, Auth::user(), request()->ip());
         $this->loadConfiguration($manager);
-        Flux::toast(variant: 'success', text: '客户状态配置已保存。');
+        Flux::toast(variant: 'success', text: __('config.customer_status.toast.saved'));
     }
 
     public function render(): View
     {
-        return view('livewire.customers.customer-status-configuration');
+        return view('livewire.customers.customer-status-configuration')->title(__('config.customer_status.title'));
     }
 
     private function loadConfiguration(CustomerStatusManager $manager): void

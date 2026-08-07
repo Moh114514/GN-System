@@ -4,6 +4,7 @@ namespace App\Modules\Customer\Application\Services;
 
 use App\Modules\Customer\Application\Contracts\ReportCustomerReader;
 use App\Modules\Customer\Domain\BlindIndex;
+use App\Modules\Customer\Domain\CustomerLabelLocalizer;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerContact;
 use App\Modules\Customer\Infrastructure\Models\CustomerIdentityDocument;
@@ -12,7 +13,7 @@ use Illuminate\Support\Facades\DB;
 
 final readonly class DatabaseReportCustomerReader implements ReportCustomerReader
 {
-    public function __construct(private BlindIndex $blindIndex) {}
+    public function __construct(private BlindIndex $blindIndex, private CustomerLabelLocalizer $labels) {}
 
     public function globalSearch(string $query, int $limit): array
     {
@@ -39,12 +40,14 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
             ->orderBy('customers.name')
             ->orderBy('customers.id')
             ->limit(max(1, $limit))
-            ->get(['customers.id', 'customers.code', 'customers.name', 'status.name as status_name'])
+            ->get(['customers.id', 'customers.code', 'customers.name', 'status.key as status_key', 'status.name as status_name'])
             ->map(fn (Customer $customer): array => [
                 'id' => (int) $customer->id,
                 'code' => (string) $customer->code,
                 'name' => (string) $customer->name,
-                'status' => (string) ($customer->getAttribute('status_name') ?: '未设置'),
+                'status' => $customer->getAttribute('status_name') === null
+                    ? __('customers.fallback.unset')
+                    : $this->labels->status((string) $customer->getAttribute('status_key'), (string) $customer->getAttribute('status_name')),
             ])
             ->all();
 
@@ -138,7 +141,7 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
                 'source_type' => (string) $row->original_channel,
                 'source_id' => (int) ($row->source_agent_id ?? $row->source_direct_sales_id),
                 'key' => $row->original_channel === 'direct'
-                    ? (string) ($row->getAttribute('direct_source_name') ?: '未知直销来源')
+                    ? (string) ($row->getAttribute('direct_source_name') ?: '__dashboard_missing_direct_source__')
                     : '',
                 'value' => (int) $row->getAttribute('value'),
             ])
@@ -169,9 +172,15 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
                 'name' => (string) $customer->name,
                 'source_type' => (string) $customer->original_channel,
                 'source_id' => (int) ($customer->source_agent_id ?? $customer->source_direct_sales_id),
-                'source_name' => (string) ($customer->getAttribute('source_name') ?: '未知直销来源'),
+                'source_name' => (string) ($customer->getAttribute('source_name') ?: '__dashboard_missing_direct_source__'),
                 'status_key' => (string) ($customer->getAttribute('status_key') ?: 'registered'),
-                'status_name' => (string) ($customer->getAttribute('status_name') ?: '建档'),
+                'status_name' => (string) ($customer->getAttribute('status_name') ?? ''),
+                'status_translation_key' => $customer->getAttribute('status_name') === null
+                    ? 'customers.timeline.registered'
+                    : $this->labels->statusTranslationKey(
+                        (string) $customer->getAttribute('status_key'),
+                        (string) $customer->getAttribute('status_name'),
+                    ),
                 'owner_id' => (int) ($customer->owner_id ?? 0),
                 'created_on' => $customer->created_at?->setTimezone('Asia/Shanghai')->toDateString() ?? '',
             ])

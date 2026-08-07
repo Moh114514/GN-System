@@ -791,6 +791,68 @@ class PhaseFiveSettlementTest extends TestCase
             ->assertSee('代理商在当月没有生效政策等级。');
     }
 
+    public function test_korean_failure_detail_and_xlsx_render_structured_reason_after_locale_restore(): void
+    {
+        Storage::fake('local');
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'partial_failed',
+            'total_agents' => 1,
+            'failed_agents' => 1,
+            'errors' => [(string) $this->agent->id => [
+                'message_key' => 'settlements.failure_reasons.missing_commission_snapshot',
+                'parameters' => ['order_id' => 181],
+            ]],
+        ]);
+
+        $this->assertDatabaseHas('settlement_runs', ['id' => $run->id]);
+        $this->admin->update(['preferred_locale' => 'ko_KR']);
+        $previousLocale = App::getLocale();
+        App::setLocale('ko_KR');
+        try {
+            $reason = __('settlements.failure_reasons.missing_commission_snapshot', ['order_id' => 181]);
+            $this->actingAs($this->admin)->get(route('settlements.runs.failures', $run))
+                ->assertOk()
+                ->assertSee($reason);
+            $path = app(SettlementRunFailureReportGenerator::class)->generate($run);
+            $sheet = IOFactory::load(Storage::disk('local')->path($path))->getActiveSheet();
+            $this->assertSame($reason, $sheet->getCell('F2')->getValue());
+            $sheet->getParent()->disconnectWorksheets();
+        } finally {
+            App::setLocale($previousLocale);
+        }
+    }
+
+    public function test_missing_agent_policy_is_persisted_as_a_structured_key_in_any_locale(): void
+    {
+        $agentWithoutGrade = $this->createSettlementAgent(100);
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'running',
+            'total_agents' => 1,
+        ]);
+        $previousLocale = App::getLocale();
+        App::setLocale('ko_KR');
+        try {
+            try {
+                app(SettlementGenerator::class)->generate($run->id, $agentWithoutGrade->id);
+                $this->fail('Expected the missing policy grade to prevent settlement generation.');
+            } catch (DomainException $exception) {
+                app(SettlementGenerator::class)->markFailed($run->id, $agentWithoutGrade->id, $exception);
+            }
+        } finally {
+            App::setLocale($previousLocale);
+        }
+
+        $failure = $run->fresh()->errors[(string) $agentWithoutGrade->id];
+        $this->assertSame('settlements.failure_reasons.agent_policy_missing', $failure['message_key']);
+        $this->assertSame([], $failure['parameters']);
+    }
+
     public function test_failed_run_diagnostics_keep_original_id_when_agent_is_missing(): void
     {
         Storage::fake('local');
@@ -802,13 +864,15 @@ class PhaseFiveSettlementTest extends TestCase
             'status' => 'partial_failed',
             'total_agents' => 1,
             'failed_agents' => 1,
-            'errors' => [(string) $missingAgentId => '代理商已被删除。'],
+            'errors' => [(string) $missingAgentId => 'SQLSTATE connection password=secret /srv/private'],
         ]);
 
         $this->actingAs($this->admin)->get(route('settlements.runs.failures', $run))
             ->assertOk()
             ->assertSee('未知')
             ->assertSee('代理商不存在或已删除')
+            ->assertSee(__('settlements.failure_reasons.legacy_unknown'))
+            ->assertDontSee('password=secret')
             ->assertSee((string) $missingAgentId);
 
         $path = app(SettlementRunFailureReportGenerator::class)->generate($run);
@@ -836,7 +900,7 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('D2')->getDataType());
         $this->assertSame('=1+1', $sheet->getCell('D2')->getValue());
         $this->assertSame(DataType::TYPE_STRING, $sheet->getCell('F2')->getDataType());
-        $this->assertSame('=HYPERLINK("https://example.com","查看")', $sheet->getCell('F2')->getValue());
+        $this->assertSame(__('settlements.failure_reasons.legacy_unknown'), $sheet->getCell('F2')->getValue());
         $spreadsheet->disconnectWorksheets();
     }
 
@@ -853,13 +917,17 @@ class PhaseFiveSettlementTest extends TestCase
         $generator = app(SettlementGenerator::class);
 
         $generator->markFailed($run->id, $this->agent->id, new RuntimeException('unexpected failure one'));
-        $firstMessage = $run->fresh()->errors[(string) $this->agent->id];
+        $firstFailure = $run->fresh()->errors[(string) $this->agent->id];
+        $firstMessage = __('settlements.failure_reasons.unexpected', $firstFailure['parameters']);
         $generator->markFailed($run->id, $this->agent->id, new RuntimeException('unexpected failure two'));
-        $secondMessage = $run->fresh()->errors[(string) $this->agent->id];
+        $secondFailure = $run->fresh()->errors[(string) $this->agent->id];
+        $secondMessage = __('settlements.failure_reasons.unexpected', $secondFailure['parameters']);
 
         preg_match('/参考编号：(.+?)。$/u', $firstMessage, $firstMatches);
         preg_match('/参考编号：(.+?)。$/u', $secondMessage, $secondMatches);
-        $references = [$firstMatches[1] ?? null, $secondMatches[1] ?? null];
+        $this->assertSame('settlements.failure_reasons.unexpected', $firstFailure['message_key']);
+        $this->assertSame('settlements.failure_reasons.unexpected', $secondFailure['message_key']);
+        $references = [$firstFailure['parameters']['reference'] ?? null, $secondFailure['parameters']['reference'] ?? null];
         $this->assertNotNull($references[0]);
         $this->assertNotNull($references[1]);
         $this->assertNotSame($references[0], $references[1]);

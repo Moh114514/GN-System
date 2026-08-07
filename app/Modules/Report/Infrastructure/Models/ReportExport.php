@@ -15,6 +15,8 @@ use Illuminate\Support\Carbon;
  * @property array<string, int|string|null> $criteria_snapshot
  * @property array<string, mixed>|null $data_snapshot
  * @property string|null $failure_reason
+ * @property string|null $failure_reason_key
+ * @property array<string, scalar>|null $failure_reason_parameters
  * @property string|null $path
  * @property string|null $sha256
  * @property Carbon|null $generated_at
@@ -35,6 +37,7 @@ class ReportExport extends Model
         return [
             'criteria_snapshot' => 'array',
             'data_snapshot' => 'array',
+            'failure_reason_parameters' => 'array',
             'generated_at' => 'datetime',
             'expires_at' => 'datetime',
         ];

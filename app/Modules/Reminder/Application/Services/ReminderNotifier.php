@@ -13,6 +13,7 @@ final readonly class ReminderNotifier
     public function __construct(
         private StaffNotificationSender $sender,
         private ReminderCustomerReader $customers,
+        private ReminderContentPresenter $content,
     ) {}
 
     public function send(int $reminderId): void
@@ -28,15 +29,16 @@ final readonly class ReminderNotifier
             return;
         }
         $customer = $this->customers->byId((int) $reminder->customer_id);
+        $content = $this->content->reminder($reminder);
         $owner = $reminder->assigned_to === null ? null : User::query()->find($reminder->assigned_to);
         $ownerName = $owner === null ? __('reminders.notifications.unassigned') : $owner->name;
         $this->sender->send(
-            (string) $reminder->title,
+            $content['title'],
             __('reminders.notifications.body', [
                 'customer' => $customer->name,
                 'owner' => $ownerName,
                 'due_at' => $reminder->due_at->format('Y-m-d H:i'),
-                'suggestion' => $reminder->suggestion ?: __('reminders.notifications.no_script'),
+                'suggestion' => $content['suggestion'] ?: __('reminders.notifications.no_script'),
             ]),
             route('reminders.index'),
         );

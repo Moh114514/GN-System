@@ -92,19 +92,19 @@ final readonly class CustomerProfileManager
             $expected = sprintf("%s-%0{$digits}d", $prefix, ((int) $sequence->last_number) + 1);
             $confirmedCode = strtoupper(trim($confirmedCode));
             if ($automaticCode && $confirmedCode !== $expected) {
-                throw new CustomerCodeChanged('客户编号已被其他建档占用，请确认刷新后的编号。');
+                throw new CustomerCodeChanged(__('customers.validation.code_changed'));
             }
 
             if (preg_match('/^'.preg_quote($prefix, '/').'-([0-9]{'.$digits.'})$/', $confirmedCode, $matches) !== 1) {
-                throw ValidationException::withMessages(['confirmedCode' => '客户编号必须符合当前来源的编号规则。']);
+                throw ValidationException::withMessages(['confirmedCode' => __('customers.validation.code_format')]);
             }
             if (Customer::query()->where('code', $confirmedCode)->exists()) {
-                throw ValidationException::withMessages(['confirmedCode' => '客户编号已存在。']);
+                throw ValidationException::withMessages(['confirmedCode' => __('customers.validation.code_exists')]);
             }
 
             $status = CustomerStatus::query()->where('key', 'interested')->where('is_active', true)->first();
             if ($status === null) {
-                throw ValidationException::withMessages(['status' => '默认客户状态“意向”未启用，请联系超级管理员。']);
+                throw ValidationException::withMessages(['status' => __('customers.validation.default_status_inactive')]);
             }
 
             $customer = Customer::query()->create([
@@ -169,7 +169,7 @@ final readonly class CustomerProfileManager
                 || data_get($document, 'number_encrypted', '') !== trim($profile->identityDocument);
 
             if ($sensitiveChanged && ! $sensitiveChangeConfirmed) {
-                throw ValidationException::withMessages(['sensitiveConfirmation' => '请先确认敏感信息变更差异。']);
+                throw ValidationException::withMessages(['sensitiveConfirmation' => __('customers.validation.sensitive_confirmation_required')]);
             }
 
             $before = $customer->only([
@@ -228,7 +228,7 @@ final readonly class CustomerProfileManager
         if ($channel === 'agent') {
             $agent = $this->agents->agentsByIds([$sourceId])[$sourceId] ?? null;
             if ($agent === null) {
-                throw ValidationException::withMessages(['sourceId' => '所选代理商不存在或不可用。']);
+                throw ValidationException::withMessages(['sourceId' => __('customers.validation.agent_unavailable')]);
             }
 
             return [$agent['code'], 4];
@@ -236,7 +236,7 @@ final readonly class CustomerProfileManager
 
         $source = DirectSalesSource::query()->whereKey($sourceId)->where('is_active', true)->first();
         if ($channel !== 'direct' || $source === null) {
-            throw ValidationException::withMessages(['sourceId' => '所选直销来源不存在或不可用。']);
+            throw ValidationException::withMessages(['sourceId' => __('customers.validation.direct_source_unavailable')]);
         }
 
         return [$source->code, 6];

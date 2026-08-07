@@ -200,6 +200,40 @@ class CustomerLifecycleTest extends TestCase
         $this->assertSame(2, substr_count($response->getContent(), __('customers.list.all_institutions')));
     }
 
+    public function test_korean_locale_localizes_default_statuses_and_timeline_without_translating_custom_status_names(): void
+    {
+        $customerId = $this->createCustomer();
+        app()->setLocale('ko_KR');
+        $directory = app(CustomerDirectory::class);
+
+        $this->assertSame('관심', $directory->profile($customerId)['current_status']);
+        $this->assertSame('관심', collect($directory->options()['statuses'])->firstWhere('key', 'interested')['name']);
+
+        $quoted = CustomerStatus::query()->where('key', 'quoted')->firstOrFail();
+        app(CustomerStatusManager::class)->change($customerId, $quoted->id, '견적 전달', $this->user, null);
+        $timeline = $directory->timeline($customerId, 'status');
+        $changed = collect($timeline)->first(fn (array $event): bool => str_contains($event['content'], '견적 전달'));
+        $this->assertSame('상태 변경', $changed['title']);
+        $this->assertStringContainsString('관심 → 견적 완료', $changed['content']);
+
+        CustomerStatus::query()->where('key', 'interested')->update(['name' => '自定义意向']);
+        $this->assertSame('自定义意向', collect($directory->options()['statuses'])->firstWhere('key', 'interested')['name']);
+    }
+
+    public function test_korean_locale_localizes_customer_status_validation_errors(): void
+    {
+        app()->setLocale('ko_KR');
+        $customerId = $this->createCustomer();
+        $quoted = CustomerStatus::query()->where('key', 'quoted')->firstOrFail();
+
+        try {
+            app(CustomerStatusManager::class)->change($customerId, $quoted->id, '', $this->user, null);
+            $this->fail('Expected a validation exception for an empty reason.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(__('customers.validation.status_reason_required'), $exception->errors()['statusReason'][0]);
+        }
+    }
+
     public function test_compact_filters_can_be_cleared_together(): void
     {
         Livewire::actingAs($this->user)
@@ -327,6 +361,17 @@ class CustomerLifecycleTest extends TestCase
         $this->actingAs($koUser)->get(route('customers.index'))
             ->assertOk()
             ->assertSee('고객 관리');
+
+        $koAdmin = User::factory()->superAdmin()->withTwoFactor()->create(['preferred_locale' => 'ko_KR']);
+        $this->actingAs($koAdmin)->get(route('customer-statuses.index'))
+            ->assertOk()
+            ->assertSee('라이프사이클 상태 설정')
+            ->assertSee('설정 센터로 돌아가기')
+            ->assertDontSee('生命周期状态配置');
+        $this->actingAs($koAdmin)->get(route('direct-sales-sources.index'))
+            ->assertOk()
+            ->assertSee('직접 판매 소스 설정')
+            ->assertDontSee('直销来源配置');
     }
 
     private function createCustomer(): int

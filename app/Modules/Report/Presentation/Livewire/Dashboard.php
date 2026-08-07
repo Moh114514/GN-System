@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Report\Application\Services\DashboardExportGenerator;
 use App\Modules\Report\Application\Services\DashboardRangeFactory;
 use App\Modules\Report\Application\Services\DashboardService;
+use App\Modules\Report\Application\Services\DashboardSnapshotPresenter;
 use DomainException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
@@ -85,7 +86,9 @@ class Dashboard extends Component
     ): void {
         try {
             $range = $ranges->make($this->preset, $this->customFrom, $this->customTo);
-            $this->snapshot = $dashboard->snapshot($range, $force)->toArray();
+            $this->snapshot = app(DashboardSnapshotPresenter::class)->present(
+                $dashboard->snapshot($range, $force)->toArray(),
+            );
             $this->rangeError = null;
             $this->dispatch('dashboard-updated');
         } catch (DomainException $exception) {
