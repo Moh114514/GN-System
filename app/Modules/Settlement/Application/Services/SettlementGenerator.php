@@ -38,7 +38,9 @@ final readonly class SettlementGenerator
                 ->lockForUpdate()
                 ->first();
             if ($existing !== null && $existing->settlement_run_id !== $runId) {
-                throw new StructuredSettlementFailure('settlements.failure_reasons.existing_settlement');
+                $this->markExisting($run, $agentId);
+
+                return;
             }
             $rebuild = false;
             if ($existing !== null) {
@@ -184,6 +186,35 @@ final readonly class SettlementGenerator
         Cache::put($run->progress_key, [
             'total' => $run->total_agents,
             'processed' => $run->processed_agents,
+            'existing' => $run->existing_agents,
+            'failed' => $run->failed_agents,
+        ], now()->addDays(7));
+        $this->finishIfComplete($run);
+    }
+
+    private function markExisting(SettlementRun $run, int $agentId): void
+    {
+        $existingAgentIds = array_map('intval', $run->existing_agent_ids ?? []);
+        if (in_array($agentId, $existingAgentIds, true)) {
+            $this->finishIfComplete($run);
+
+            return;
+        }
+        $errors = $run->errors ?? [];
+        if (array_key_exists((string) $agentId, $errors)) {
+            $errors = array_diff_key($errors, [(string) $agentId => true]);
+            $run->failed_agents = max(0, $run->failed_agents - 1);
+        }
+        $existingAgentIds[] = $agentId;
+        sort($existingAgentIds);
+        $run->existing_agent_ids = $existingAgentIds;
+        $run->existing_agents = count($existingAgentIds);
+        $run->errors = $errors === [] ? null : $errors;
+        $run->save();
+        Cache::put($run->progress_key, [
+            'total' => $run->total_agents,
+            'processed' => $run->processed_agents,
+            'existing' => $run->existing_agents,
             'failed' => $run->failed_agents,
         ], now()->addDays(7));
         $this->finishIfComplete($run);
@@ -217,7 +248,7 @@ final readonly class SettlementGenerator
 
     private function finishIfComplete(SettlementRun $run): void
     {
-        if ($run->processed_agents + $run->failed_agents < $run->total_agents) {
+        if ($run->processed_agents + $run->existing_agents + $run->failed_agents < $run->total_agents) {
             return;
         }
         $run->status = $run->failed_agents > 0 ? 'partial_failed' : 'completed';

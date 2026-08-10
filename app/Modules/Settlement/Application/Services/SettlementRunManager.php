@@ -5,6 +5,7 @@ namespace App\Modules\Settlement\Application\Services;
 use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
 use App\Modules\Settlement\Application\Data\SettlementPeriodData;
 use App\Modules\Settlement\Application\Data\SettlementRunStartResult;
+use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
 use App\Modules\Settlement\Jobs\GenerateAgentSettlement;
 use Carbon\CarbonImmutable;
@@ -66,25 +67,37 @@ final readonly class SettlementRunManager
 
             return new SettlementRunStartResult($existing, $outcome);
         }
-        $agents = $this->agents->eligibleForPeriod($period->start, $period->end);
+        $eligibleAgentIds = $this->agents->eligibleForPeriod($period->start, $period->end);
+        $existingAgentIds = $eligibleAgentIds === []
+            ? []
+            : Settlement::query()
+                ->whereIn('agent_id', $eligibleAgentIds)
+                ->whereDate('period_start', $period->start)
+                ->whereDate('period_end', $period->end)
+                ->pluck('agent_id')
+                ->map(static fn ($agentId): int => (int) $agentId)
+                ->all();
+        $pendingAgentIds = array_values(array_diff($eligibleAgentIds, $existingAgentIds));
         $run = SettlementRun::query()->create([
             'configuration_id' => $period->configurationId,
             'period_start' => $period->start,
             'period_end' => $period->end,
             'trigger_source' => $source,
-            'status' => $agents === [] ? 'completed' : 'running',
-            'total_agents' => count($agents),
+            'status' => $pendingAgentIds === [] ? 'completed' : 'running',
+            'total_agents' => count($eligibleAgentIds),
+            'existing_agents' => count($existingAgentIds),
+            'existing_agent_ids' => $existingAgentIds,
             'progress_key' => 'settlement:run:'.Str::uuid(),
             'initiated_by' => $actorId,
             'started_at' => now(),
-            'completed_at' => $agents === [] ? now() : null,
+            'completed_at' => $pendingAgentIds === [] ? now() : null,
         ]);
-        if ($agents === []) {
+        if ($pendingAgentIds === []) {
             return new SettlementRunStartResult($run->refresh(), 'created_and_completed');
         }
         $jobs = array_map(
             fn (int $agentId): GenerateAgentSettlement => new GenerateAgentSettlement($run->id, $agentId),
-            $agents,
+            $pendingAgentIds,
         );
         $batch = Bus::batch($jobs)
             ->name("月结 {$period->start->toDateString()} 至 {$period->end->toDateString()}")

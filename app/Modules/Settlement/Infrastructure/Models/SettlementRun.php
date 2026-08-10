@@ -15,6 +15,8 @@ use Illuminate\Support\Carbon;
  * @property string $status
  * @property int $total_agents
  * @property int $processed_agents
+ * @property int $existing_agents
+ * @property array<int, int>|null $existing_agent_ids
  * @property int $failed_agents
  * @property int $total_consumption_krw
  * @property int $total_commission_krw
@@ -45,6 +47,7 @@ class SettlementRun extends Model
             'period_start' => 'date',
             'period_end' => 'date',
             'errors' => 'array',
+            'existing_agent_ids' => 'array',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
             'notified_at' => 'datetime',

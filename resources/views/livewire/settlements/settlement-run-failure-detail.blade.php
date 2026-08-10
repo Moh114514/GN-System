@@ -19,6 +19,7 @@
         <div class="crm-card"><span class="text-xs text-zinc-500">{{ __('settlements.failure.run_status') }}</span><strong class="mt-1 block">{{ __('settlements.run_statuses.'.$run->status) }}</strong></div>
         <div class="crm-card"><span class="text-xs text-zinc-500">{{ __('settlements.failure.total_agents') }}</span><strong class="mt-1 block">{{ $run->total_agents }}</strong></div>
         <div class="crm-card"><span class="text-xs text-zinc-500">{{ __('settlements.failure.success_count') }}</span><strong class="mt-1 block text-emerald-700">{{ $run->processed_agents }}</strong></div>
+        <div class="crm-card"><span class="text-xs text-zinc-500">{{ __('settlements.failure.existing_count') }}</span><strong class="mt-1 block text-sky-700">{{ $run->existing_agents }}</strong></div>
         <div class="crm-card"><span class="text-xs text-zinc-500">{{ __('settlements.failure.failed_count') }}</span><strong class="mt-1 block text-red-700">{{ $run->failed_agents }}</strong></div>
     </section>
 

@@ -43,7 +43,7 @@
                 @php($isCollapsed = in_array((string) $run->id, $collapsedRunIds, true))
                 <tr wire:key="settlement-run-{{ $run->id }}" class="cursor-pointer" wire:click="toggleRun('{{ $run->id }}')" wire:keydown.enter="toggleRun('{{ $run->id }}')" wire:keydown.space.prevent="toggleRun('{{ $run->id }}')" tabindex="0" role="button" aria-label="{{ __($isCollapsed ? 'settlements.center.expand' : 'settlements.center.collapse') }}{{ __('settlements.center.runs') }}">
                     <td>{{ $run->period_start->format('Y-m-d') }} {{ __('settlements.labels.date_to') }} {{ $run->period_end->format('Y-m-d') }}<div class="text-xs text-zinc-500">{{ ['manual' => __('settlements.center.manual'), 'historical' => __('settlements.center.historical_manual'), 'scheduled' => __('settlements.center.scheduled')][$run->trigger_source] ?? $run->trigger_source }}</div></td>
-                    <td>{{ $run->processed_agents + $run->failed_agents }}/{{ $run->total_agents }}<div class="text-xs text-red-600">{{ __('settlements.center.failed_count', ['count' => $run->failed_agents]) }}</div></td>
+                    <td>{{ $run->processed_agents + $run->existing_agents + $run->failed_agents }}/{{ $run->total_agents }}<div class="text-xs text-zinc-500">{{ __('settlements.center.generated_count', ['count' => $run->processed_agents]) }} · {{ __('settlements.center.existing_count', ['count' => $run->existing_agents]) }}</div><div class="text-xs text-red-600">{{ __('settlements.center.failed_count', ['count' => $run->failed_agents]) }}</div></td>
                     <td>₩ {{ number_format($run->total_consumption_krw) }}<div class="text-xs text-zinc-500">{{ __('settlements.detail.commission') }} ₩ {{ number_format($run->total_commission_krw) }}</div></td>
                     <td>{{ __('settlements.run_statuses.'.$run->status) }}<div class="text-xs text-zinc-500">{{ __('settlements.center.dingtalk', ['status' => __('settlements.notification_statuses.'.$run->notification_status)]) }}</div></td>
                     <td class="space-x-2" x-on:keydown.stop>
@@ -71,5 +71,24 @@
             @empty<tr><td colspan="5" class="py-8 text-center text-zinc-500">{{ __('settlements.center.empty') }}</td></tr>@endforelse
             </tbody>
         </table></div>
+        @if ($unboundSettlements->isNotEmpty())
+            <div class="mt-8 border-t border-zinc-200 pt-5 dark:border-zinc-700">
+                <h4 class="font-semibold">{{ __('settlements.center.unbound_heading') }}</h4>
+                <p class="mt-1 text-sm text-zinc-500">{{ __('settlements.center.unbound_description') }}</p>
+                <div class="crm-table-wrap mt-4"><table class="crm-table">
+                    <thead><tr><th>{{ __('settlements.center.period') }}</th><th>{{ __('settlements.center.agent') }}</th><th>{{ __('settlements.center.consumption_commission') }}</th><th>{{ __('settlements.center.status') }}</th></tr></thead>
+                    <tbody>
+                    @foreach ($unboundSettlements as $settlement)
+                        <tr wire:key="unbound-settlement-{{ $settlement->id }}">
+                            <td>{{ $settlement->period_start->format('Y-m-d') }} {{ __('settlements.labels.date_to') }} {{ $settlement->period_end->format('Y-m-d') }}</td>
+                            <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $settlement->id) }}" wire:navigate>{{ data_get($settlement->snapshot, 'agent.name', __('settlements.labels.unknown_agent')) }}</a></td>
+                            <td>₩ {{ number_format($settlement->total_consumption_krw) }}<div class="text-xs text-zinc-500">{{ __('settlements.detail.commission') }} ₩ {{ number_format($settlement->total_commission_krw) }}</div></td>
+                            <td>{{ __('settlements.settlement_statuses.'.$settlement->status) }}</td>
+                        </tr>
+                    @endforeach
+                    </tbody>
+                </table></div>
+            </div>
+        @endif
     </section>
 </div>

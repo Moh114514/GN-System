@@ -725,6 +725,48 @@ select:focus[data-flux-control] {
     color: var(--crm-primary-dark);
 }
 
+.crm-language-trigger {
+    display: inline-flex;
+    height: 36px;
+    align-items: center;
+    flex-direction: row;
+    gap: 6px;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    background: transparent;
+    padding: 0 12px;
+    color: var(--crm-ink-secondary);
+    font-size: 13px;
+    line-height: 1;
+    white-space: nowrap;
+    transition: background-color 150ms ease, color 150ms ease;
+}
+
+.crm-language-trigger:hover,
+.crm-language-trigger:focus-visible {
+    border-color: transparent;
+    background: var(--crm-line-soft);
+    color: var(--crm-ink);
+}
+
+.crm-language-trigger:focus-visible {
+    outline: 2px solid var(--crm-primary);
+    outline-offset: 2px;
+}
+
+.crm-language-trigger svg {
+    flex: 0 0 auto;
+}
+
+.crm-language-trigger > svg:first-child {
+    width: 17px;
+}
+
+.crm-language-trigger > svg:last-child {
+    width: 13px;
+    color: var(--crm-muted);
+}
+
 .crm-notification-button>span {
     position: absolute;
     top: -6px;
@@ -1875,7 +1917,8 @@ select:focus[data-flux-control] {
 
     .crm-topbar h1,
     .crm-date-range,
-    .crm-user-copy {
+    .crm-user-copy,
+    .crm-language-label {
         display: none;
     }
 

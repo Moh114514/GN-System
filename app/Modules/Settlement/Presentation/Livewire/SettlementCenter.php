@@ -6,6 +6,7 @@ use App\Modules\Settlement\Application\Data\SettlementRunStartResult;
 use App\Modules\Settlement\Application\Services\SettlementNotificationDispatcher;
 use App\Modules\Settlement\Application\Services\SettlementPeriodCalculator;
 use App\Modules\Settlement\Application\Services\SettlementRunManager;
+use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
 use Carbon\CarbonImmutable;
 use DomainException;
@@ -114,6 +115,12 @@ class SettlementCenter extends Component
             'runs' => SettlementRun::query()
                 ->with(['settlements' => fn ($query) => $query->orderBy('agent_id')->orderBy('id')])
                 ->latest('period_end')
+                ->limit(24)
+                ->get(),
+            'unboundSettlements' => Settlement::query()
+                ->whereNull('settlement_run_id')
+                ->latest('period_end')
+                ->latest('id')
                 ->limit(24)
                 ->get(),
             'historicalPeriods' => array_slice($periods, 1),

@@ -32,6 +32,7 @@ use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
@@ -169,6 +170,62 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame('existing_completed', $manager->startWithResult('manual', $this->admin->id)->outcome);
         $this->assertDatabaseCount('settlement_runs', 1);
         $this->assertDatabaseCount('settlements', 1);
+    }
+
+    public function test_existing_settlement_is_counted_without_dispatching_a_generation_job(): void
+    {
+        Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'paid',
+            'generation_status' => 'not_applicable',
+            'snapshot' => ['source' => 'historical_import', 'agent' => ['name' => $this->agent->name]],
+        ]);
+        Bus::fake();
+
+        $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
+        $run->refresh();
+
+        $this->assertSame('completed', $run->status);
+        $this->assertSame(1, $run->total_agents);
+        $this->assertSame(0, $run->processed_agents);
+        $this->assertSame(1, $run->existing_agents);
+        $this->assertSame(0, $run->failed_agents);
+        $this->assertNull($run->queue_batch_id);
+        Bus::assertNothingBatched();
+    }
+
+    public function test_generation_batch_only_dispatches_agents_without_existing_settlements(): void
+    {
+        Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'paid',
+            'generation_status' => 'not_applicable',
+            'snapshot' => ['source' => 'historical_import', 'agent' => ['name' => $this->agent->name]],
+        ]);
+        $pendingAgent = $this->createSettlementAgent(1);
+        AgentGradeAssignment::query()->create([
+            'agent_id' => $pendingAgent->id,
+            'policy_grade_id' => $this->grade->id,
+            'effective_month' => '2026-01-01',
+            'approved_by' => $this->admin->id,
+            'reason' => '测试',
+        ]);
+        Bus::fake();
+
+        $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
+        $run->refresh();
+
+        $this->assertSame('running', $run->status);
+        $this->assertSame(2, $run->total_agents);
+        $this->assertSame(1, $run->existing_agents);
+        $this->assertSame(0, $run->processed_agents);
+        $this->assertSame(0, $run->failed_agents);
+        Bus::assertBatched(static fn ($batch): bool => $batch->jobs->count() === 1
+            && $batch->jobs->first()->agentId === $pendingAgent->id);
     }
 
     public function test_historical_run_uses_period_eligibility_instead_of_current_status(): void
@@ -449,7 +506,7 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertDatabaseHas('activity_log', ['log_name' => 'settlement', 'subject_id' => $settlement->id, 'event' => 'settled']);
     }
 
-    public function test_rejection_requires_reason_and_historical_period_is_not_overwritten(): void
+    public function test_existing_historical_settlement_is_not_overwritten_or_marked_as_failure(): void
     {
         $settlement = Settlement::query()->create([
             'agent_id' => $this->agent->id,
@@ -465,10 +522,17 @@ class PhaseFiveSettlementTest extends TestCase
             'status' => 'running',
             'total_agents' => 1,
             'progress_key' => 'test',
+            'failed_agents' => 1,
+            'errors' => [(string) $this->agent->id => ['message_key' => 'settlements.failure_reasons.existing_settlement', 'parameters' => []]],
         ]);
-        $this->expectException(DomainException::class);
+        app(SettlementGenerator::class)->generate($run->id, $this->agent->id);
         app(SettlementGenerator::class)->generate($run->id, $this->agent->id);
         $this->assertSame('paid', $settlement->refresh()->status);
+        $this->assertSame('completed', $run->refresh()->status);
+        $this->assertSame(1, $run->existing_agents);
+        $this->assertSame(0, $run->failed_agents);
+        $this->assertNull($run->errors);
+        $this->assertSame([$this->agent->id], $run->existing_agent_ids);
     }
 
     public function test_detail_prefills_a_configured_quote_and_records_manual_override_at_six_decimals(): void
@@ -754,6 +818,24 @@ class PhaseFiveSettlementTest extends TestCase
             ->assertDontSee('可折叠代理商')
             ->call('toggleRun', $run->id)
             ->assertSee('可折叠代理商');
+    }
+
+    public function test_settlement_center_shows_historical_settlements_without_a_batch(): void
+    {
+        $settlement = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-06-30',
+            'status' => 'paid',
+            'generation_status' => 'not_applicable',
+            'snapshot' => ['source' => 'historical_import', 'agent' => ['name' => '未关联历史代理商']],
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(SettlementCenter::class)
+            ->assertSee('未关联批次的历史月结')
+            ->assertSee('未关联历史代理商')
+            ->assertSee('href="'.route('settlements.show', $settlement->id).'"', false);
     }
 
     public function test_failed_run_detail_and_xlsx_report_expose_only_current_failures(): void
