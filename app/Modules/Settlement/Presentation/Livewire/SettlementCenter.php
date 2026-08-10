@@ -3,6 +3,7 @@
 namespace App\Modules\Settlement\Presentation\Livewire;
 
 use App\Modules\Settlement\Application\Data\SettlementRunStartResult;
+use App\Modules\Settlement\Application\Services\SettlementDisplayReader;
 use App\Modules\Settlement\Application\Services\SettlementNotificationDispatcher;
 use App\Modules\Settlement\Application\Services\SettlementPeriodCalculator;
 use App\Modules\Settlement\Application\Services\SettlementRunManager;
@@ -107,18 +108,28 @@ class SettlementCenter extends Component
         }
     }
 
-    public function render(): View
+    public function render(SettlementDisplayReader $display): View
     {
         $periods = app(SettlementPeriodCalculator::class)->recentClosedPeriods(CarbonImmutable::now(), 13);
+        $runs = SettlementRun::query()
+            ->with(['settlements', 'members.settlement'])
+            ->latest('period_end')
+            ->limit(24)
+            ->get();
+        $memberDisplays = [];
+        foreach ($runs as $run) {
+            $memberDisplays[(string) $run->id] = $display->forMembers($run->members);
+        }
 
         return view('livewire.settlements.settlement-center', [
-            'runs' => SettlementRun::query()
-                ->with(['settlements' => fn ($query) => $query->orderBy('agent_id')->orderBy('id')])
-                ->latest('period_end')
-                ->limit(24)
-                ->get(),
+            'runs' => $runs,
+            'memberDisplays' => $memberDisplays,
             'unboundSettlements' => Settlement::query()
                 ->whereNull('settlement_run_id')
+                ->whereNotExists(fn ($query) => $query
+                    ->selectRaw('1')
+                    ->from('settlement_run_members')
+                    ->whereColumn('settlement_run_members.settlement_id', 'settlements.id'))
                 ->latest('period_end')
                 ->latest('id')
                 ->limit(24)

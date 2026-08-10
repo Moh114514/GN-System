@@ -38,7 +38,7 @@ final readonly class SettlementRunFailureReportGenerator
                 $sheet->setCellValueExplicit('F'.$row, $failure->reason, DataType::TYPE_STRING);
             }
             $sheet->freezePane('A2');
-            $sheet->setAutoFilter('A1:F'.max(1, count($run->errors ?? []) + 1));
+            $sheet->setAutoFilter('A1:F'.max(1, $run->members()->where('outcome', 'failed')->count() + count($run->errors ?? []) + 1));
             $sheet->getStyle('A1:F1')->getFont()->setBold(true);
             $sheet->getStyle('F:F')->getAlignment()->setWrapText(true)->setVertical(Alignment::VERTICAL_TOP);
             $sheet->getColumnDimension('A')->setWidth(38);

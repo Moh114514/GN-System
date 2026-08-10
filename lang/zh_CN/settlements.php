@@ -14,6 +14,14 @@ return [
         'date_to' => '至',
     ],
     'center' => [
+        'outcome_pending' => '待处理',
+        'outcome_generated' => '本批生成',
+        'outcome_existing' => '已有月结',
+        'outcome_failed' => '失败',
+        'member_status_pending' => '等待生成',
+        'member_status_generated' => '待审核',
+        'member_status_existing' => '历史已对账',
+        'member_status_failed' => '处理失败',
         'description' => '根据已完成订单自动汇总推广费，生成月结并跟踪结算单的审核与处理进度。',
         'generate_latest' => '生成最新月结',
         'cycle_configuration' => '结算周期配置',
@@ -53,7 +61,7 @@ return [
     'run_statuses' => [
         'queued' => '排队中',
         'running' => '处理中',
-        'completed' => '已生成',
+        'completed' => '已完成',
         'partial_failed' => '部分失败',
         'failed' => '失败',
     ],

@@ -8,6 +8,7 @@ use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementGradeSuggestion;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
+use App\Modules\Settlement\Infrastructure\Models\SettlementRunMember;
 use Brick\Math\BigDecimal;
 use Brick\Math\Exception\MathException;
 use Brick\Math\RoundingMode;
@@ -129,6 +130,16 @@ final readonly class SettlementWorkflow
                 $itemsRemoved = DB::table('settlement_items')->where('settlement_id', $settlement->id)->delete();
                 $documentsRemoved = $this->documents->discard((int) $settlement->id);
                 SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->delete();
+                SettlementRunMember::query()
+                    ->where('settlement_id', $settlement->id)
+                    ->where('outcome', 'generated')
+                    ->update([
+                        'settlement_id' => null,
+                        'outcome' => 'pending',
+                        'error_message_key' => null,
+                        'error_parameters' => null,
+                        'processed_at' => null,
+                    ]);
             }
             $attributes = match ($targetStatus) {
                 'settled' => [

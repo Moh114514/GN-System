@@ -4,6 +4,14 @@ return [
     'titles' => ['center' => '월말 정산 센터', 'detail' => '월말 정산 상세', 'failure_detail' => '월말 정산 실패 상세'],
     'labels' => ['current' => '월말 정산', 'historical' => '이전 월말 정산', 'unknown_agent' => '에이전시', 'pending' => '검토 대기', 'date_to' => '~'],
     'center' => [
+        'outcome_pending' => '처리 대기',
+        'outcome_generated' => '이번 배치 생성',
+        'outcome_existing' => '기존 정산',
+        'outcome_failed' => '실패',
+        'member_status_pending' => '생성 대기',
+        'member_status_generated' => '검토 대기',
+        'member_status_existing' => '과거 대사 완료',
+        'member_status_failed' => '처리 실패',
         'description' => '완료된 주문의 프로모션 비용을 자동 집계하여 월말 정산을 생성하고 정산서의 검토 및 처리 진행 상황을 추적합니다.',
         'generate_latest' => '최신 정산 생성', 'cycle_configuration' => '정산 주기 설정',
         'cycle_description' => '경계일에 이전 주기를 마감하며 변경 사항은 다음 경계일부터 적용됩니다.',
@@ -11,7 +19,7 @@ return [
         'historical_heading' => '이전 정산 생성', 'historical_description' => '마감된 과거 주기를 선택하여 기존 생성·검토·정산 절차를 재사용합니다. 이미 존재하는 주기는 중복 생성하지 않습니다.', 'historical_period' => '과거 기준일', 'select_period' => '주기를 선택하세요', 'generate_historical' => '이전 정산 생성',
         'runs' => '정산 배치', 'period' => '주기', 'progress' => '진행', 'consumption_commission' => '소비/프로모션 비용', 'status' => '상태', 'manual' => '수동', 'historical_manual' => '과거 수동', 'scheduled' => '자동', 'failed_count' => '실패 :count건', 'generated_count' => '새로 생성 :count건', 'existing_count' => '기존 기록 :count건', 'agent' => '에이전시', 'unbound_heading' => '배치에 연결되지 않은 과거 정산', 'unbound_description' => '정산 기록은 존재하지만 생성 배치와 연결되지 않은 항목도 여기에서 상세를 확인할 수 있습니다.', 'dingtalk' => '딩톡: :status', 'view_failures' => '실패 :count건 보기', 'retry_failed' => '실패 항목 재시도', 'retry_dingtalk' => '딩톡 재시도', 'download_all' => '전체 다운로드', 'expand' => '펼치기', 'collapse' => '접기', 'empty' => '생성된 정산 배치가 없습니다.',
     ],
-    'run_statuses' => ['queued' => '대기 중', 'running' => '처리 중', 'completed' => '생성 완료', 'partial_failed' => '일부 실패', 'failed' => '실패'],
+    'run_statuses' => ['queued' => '대기 중', 'running' => '처리 중', 'completed' => '완료', 'partial_failed' => '일부 실패', 'failed' => '실패'],
     'notification_statuses' => ['pending' => '발송 대기', 'queued' => '대기열', 'sent' => '발송됨', 'failed' => '발송 실패', 'disabled' => '사용 안 함'],
     'settlement_statuses' => ['pending_review' => '검토 대기', 'rejected' => '반려됨', 'approved' => '승인됨', 'settled' => '정산 완료', 'paid' => '과거 지급 완료', 'reconciled' => '과거 대사 완료'],
     'detail' => [

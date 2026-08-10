@@ -18,17 +18,17 @@ class GenerateAgentSettlement implements ShouldQueue
     public array $backoff = [10, 60, 300];
 
     public function __construct(
-        public string $runId,
-        public int $agentId,
+        public int $memberId,
+        public ?int $agentId = null,
     ) {}
 
     public function handle(SettlementGenerator $generator): void
     {
-        $generator->generate($this->runId, $this->agentId);
+        $generator->generate((string) $this->memberId);
     }
 
     public function failed(Throwable $exception): void
     {
-        app(SettlementGenerator::class)->markFailed($this->runId, $this->agentId, $exception);
+        app(SettlementGenerator::class)->markFailed((string) $this->memberId, $exception);
     }
 }

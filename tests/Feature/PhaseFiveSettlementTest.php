@@ -751,7 +751,7 @@ class PhaseFiveSettlementTest extends TestCase
         try {
             Livewire::actingAs($this->admin)
                 ->test(SettlementCenter::class)
-                ->assertSee('생성 완료')
+                ->assertSee('완료')
                 ->assertSee('검토 대기')
                 ->assertDontSee('已生成')
                 ->assertDontSee('待审核');

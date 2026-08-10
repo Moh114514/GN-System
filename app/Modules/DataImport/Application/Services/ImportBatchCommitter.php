@@ -64,6 +64,7 @@ final readonly class ImportBatchCommitter
                 $this->commitCustomers($batch);
                 $this->commitMonthlyDetails($batch);
                 $this->commitSettlements($batch);
+                $this->settlements->materializeHistoricalItems($batch->id);
 
                 throw new DryRunRollback;
             });
@@ -317,6 +318,7 @@ final readonly class ImportBatchCommitter
                 throw new RuntimeException('月结汇总缺少可推导结算周期的结算日期。');
             }
 
+            $agent = $this->agents->resolveAgentReference($this->requiredString($data, 'agent_code'));
             $this->settlements->upsertSettlement(new SettlementImportData(
                 agentId: $agentId,
                 periodStart: $periodStart,
@@ -328,6 +330,7 @@ final readonly class ImportBatchCommitter
                 payoutAmountCnyFen: (int) $data['payout_cny_fen'],
                 status: (string) $data['status'],
                 importBatchId: $batch->id,
+                agentSnapshot: $agent === null ? null : ['id' => $agent->id, 'code' => $agent->code, 'name' => $agent->name],
             ));
         }
     }
