@@ -103,7 +103,10 @@ final readonly class SettlementRunManager
             return new SettlementRunStartResult($run->refresh(), 'created_and_completed');
         }
 
-        $jobs = $pendingMembers->map(fn (SettlementRunMember $member): GenerateAgentSettlement => new GenerateAgentSettlement($member->id, (int) $member->agent_id))->all();
+        $jobs = $pendingMembers->map(fn (SettlementRunMember $member): GenerateAgentSettlement => new GenerateAgentSettlement(
+            memberId: $member->id,
+            agentId: (int) $member->agent_id,
+        ))->all();
         $batch = Bus::batch($jobs)
             ->name("Settlement {$period->start->toDateString()} to {$period->end->toDateString()}")
             ->allowFailures()
@@ -129,7 +132,10 @@ final readonly class SettlementRunManager
                 'error_parameters' => null,
                 'processed_at' => null,
             ]);
-            GenerateAgentSettlement::dispatch($member->id, (int) $member->agent_id);
+            GenerateAgentSettlement::dispatch(
+                memberId: $member->id,
+                agentId: (int) $member->agent_id,
+            );
         }
 
         return $this->summary->update($run);

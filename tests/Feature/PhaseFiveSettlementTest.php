@@ -16,6 +16,7 @@ use App\Modules\Order\Application\Data\DailyOrderData;
 use App\Modules\Settlement\Application\Contracts\CommissionConfigurationGateway;
 use App\Modules\Settlement\Application\Data\HistoricalCommissionRuleData;
 use App\Modules\Settlement\Application\Services\ExchangeRateQuoteService;
+use App\Modules\Settlement\Application\Services\SettlementDocumentGenerator;
 use App\Modules\Settlement\Application\Services\SettlementGenerator;
 use App\Modules\Settlement\Application\Services\SettlementNotificationDispatcher;
 use App\Modules\Settlement\Application\Services\SettlementPeriodCalculator;
@@ -28,6 +29,8 @@ use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
 use App\Modules\Settlement\Infrastructure\Models\SettlementGradeSuggestion;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
+use App\Modules\Settlement\Infrastructure\Models\SettlementRunMember;
+use App\Modules\Settlement\Jobs\GenerateAgentSettlement;
 use App\Modules\Settlement\Jobs\SendSettlementNotification;
 use App\Modules\Settlement\Presentation\Livewire\SettlementCenter;
 use Carbon\CarbonImmutable;
@@ -198,6 +201,131 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame(0, $run->failed_agents);
         $this->assertNull($run->queue_batch_id);
         Bus::assertNothingBatched();
+    }
+
+    public function test_archive_uses_member_settlements_and_only_appears_for_real_documents(): void
+    {
+        Storage::fake('local');
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'historical',
+            'status' => 'completed',
+            'total_agents' => 2,
+            'existing_agents' => 2,
+        ]);
+        $historical = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'paid',
+            'generation_status' => 'not_applicable',
+            'snapshot' => ['source' => 'historical_import'],
+        ]);
+        $generatedAgent = $this->createSettlementAgent(1);
+        $generated = Settlement::query()->create([
+            'agent_id' => $generatedAgent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'settled',
+            'generation_status' => 'generated',
+            'snapshot' => ['agent' => ['name' => $generatedAgent->name]],
+        ]);
+        SettlementRunMember::query()->create(['settlement_run_id' => $run->id, 'agent_id' => $this->agent->id, 'settlement_id' => $historical->id, 'outcome' => 'existing', 'processed_at' => now()]);
+        SettlementRunMember::query()->create(['settlement_run_id' => $run->id, 'agent_id' => $generatedAgent->id, 'settlement_id' => $generated->id, 'outcome' => 'existing', 'processed_at' => now()]);
+
+        Livewire::actingAs($this->admin)->test(SettlementCenter::class)->assertDontSee(route('settlements.archive', $run->id), false);
+
+        foreach ([$historical, $generated] as $settlement) {
+            $path = "settlements/{$settlement->id}/settlement-{$settlement->id}.pdf";
+            Storage::disk('local')->put($path, 'pdf');
+            SettlementDocument::query()->create([
+                'settlement_id' => $settlement->id,
+                'format' => 'pdf',
+                'path' => $path,
+                'sha256' => hash('sha256', 'pdf'),
+                'content_snapshot' => [],
+                'generated_at' => now(),
+            ]);
+        }
+
+        Livewire::actingAs($this->admin)->test(SettlementCenter::class)->assertSee(__('settlements.center.download_documents', ['count' => 2]));
+        $path = app(SettlementDocumentGenerator::class)->archiveRun($run->id);
+        $archive = new \ZipArchive;
+        $this->assertTrue($archive->open(Storage::disk('local')->path($path)));
+        $this->assertSame('settlement-'.$historical->id.'.pdf', $archive->getNameIndex(0));
+        $this->assertSame('settlement-'.$generated->id.'.pdf', $archive->getNameIndex(1));
+        $archive->close();
+    }
+
+    public function test_old_job_payload_can_resolve_a_run_and_agent_without_member_id(): void
+    {
+        $this->createCompletedOrder(10005);
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'queued',
+            'total_agents' => 1,
+        ]);
+
+        $job = new GenerateAgentSettlement(memberId: null, runId: $run->id, agentId: $this->agent->id);
+        $job->handle(app(SettlementGenerator::class));
+
+        $this->assertDatabaseHas('settlement_run_members', [
+            'settlement_run_id' => $run->id,
+            'agent_id' => $this->agent->id,
+            'outcome' => 'generated',
+        ]);
+    }
+
+    public function test_member_backfill_recalculates_legacy_run_totals_from_members(): void
+    {
+        $other = $this->createSettlementAgent(1);
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'historical',
+            'status' => 'completed',
+            'total_agents' => 99,
+            'processed_agents' => 99,
+            'existing_agents' => 0,
+            'failed_agents' => 4,
+            'total_consumption_krw' => 1,
+            'total_commission_krw' => 1,
+            'existing_agent_ids' => [$other->id],
+        ]);
+        Settlement::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'paid',
+            'generation_status' => 'generated',
+            'total_consumption_krw' => 100,
+            'total_commission_krw' => 10,
+        ]);
+        Settlement::query()->create([
+            'agent_id' => $other->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'paid',
+            'generation_status' => 'not_applicable',
+            'total_consumption_krw' => 200,
+            'total_commission_krw' => 20,
+        ]);
+
+        $migration = require base_path('database/migrations/2026_08_10_000400_backfill_settlement_run_members.php');
+        $migration->up();
+
+        $run->refresh();
+        $this->assertSame(2, $run->total_agents);
+        $this->assertSame(1, $run->processed_agents);
+        $this->assertSame(1, $run->existing_agents);
+        $this->assertSame(0, $run->failed_agents);
+        $this->assertSame(300, $run->total_consumption_krw);
+        $this->assertSame(30, $run->total_commission_krw);
+        $this->assertSame([$other->id], $run->existing_agent_ids);
     }
 
     public function test_generation_batch_only_dispatches_agents_without_existing_settlements(): void
@@ -878,6 +1006,21 @@ class PhaseFiveSettlementTest extends TestCase
             ->assertSee('未关联批次的历史月结')
             ->assertSee('未关联历史代理商')
             ->assertSee('href="'.route('settlements.show', $settlement->id).'"', false);
+    }
+
+    public function test_missing_agent_snapshots_fall_back_to_current_agent_reference_on_center_and_detail(): void
+    {
+        $settlement = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-06-30',
+            'status' => 'paid',
+            'generation_status' => 'not_applicable',
+            'snapshot' => ['source' => 'historical_import'],
+        ]);
+
+        Livewire::actingAs($this->admin)->test(SettlementCenter::class)->assertSee($this->agent->name);
+        $this->actingAs($this->admin)->get(route('settlements.show', $settlement))->assertOk()->assertSee($this->agent->name);
     }
 
     public function test_failed_run_detail_and_xlsx_report_expose_only_current_failures(): void

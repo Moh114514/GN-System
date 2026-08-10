@@ -18,17 +18,38 @@ class GenerateAgentSettlement implements ShouldQueue
     public array $backoff = [10, 60, 300];
 
     public function __construct(
-        public int $memberId,
+        public ?int $memberId = null,
+        public ?string $runId = null,
         public ?int $agentId = null,
     ) {}
 
     public function handle(SettlementGenerator $generator): void
     {
-        $generator->generate((string) $this->memberId);
+        if ($this->memberId !== null) {
+            $generator->generate((string) $this->memberId);
+
+            return;
+        }
+
+        if ($this->runId !== null && $this->agentId !== null) {
+            $generator->generate($this->runId, $this->agentId);
+
+            return;
+        }
+
+        throw new \UnexpectedValueException('结算任务缺少成员或运行批次定位信息。');
     }
 
     public function failed(Throwable $exception): void
     {
-        app(SettlementGenerator::class)->markFailed((string) $this->memberId, $exception);
+        if ($this->memberId !== null) {
+            app(SettlementGenerator::class)->markFailed((string) $this->memberId, $exception);
+
+            return;
+        }
+
+        if ($this->runId !== null && $this->agentId !== null) {
+            app(SettlementGenerator::class)->markFailed($this->runId, $this->agentId, $exception);
+        }
     }
 }

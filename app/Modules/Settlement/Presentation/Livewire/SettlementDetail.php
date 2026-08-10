@@ -3,6 +3,7 @@
 namespace App\Modules\Settlement\Presentation\Livewire;
 
 use App\Modules\Settlement\Application\Services\ExchangeRateQuoteService;
+use App\Modules\Settlement\Application\Services\SettlementDisplayReader;
 use App\Modules\Settlement\Application\Services\SettlementGenerator;
 use App\Modules\Settlement\Application\Services\SettlementWorkflow;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
@@ -144,7 +145,7 @@ class SettlementDetail extends Component
         $this->run(fn () => $workflow->reviewSuggestion($id, $accept, $this->suggestionReason, (int) Auth::id()), $accept ? __('settlements.toasts.suggestion_approved') : __('settlements.toasts.suggestion_rejected'));
     }
 
-    public function render(): View
+    public function render(SettlementDisplayReader $display): View
     {
         $settlement = Settlement::query()->findOrFail($this->settlementId);
         $items = DB::table('settlement_items')->where('settlement_id', $settlement->id)->orderBy('id')->get();
@@ -179,6 +180,7 @@ class SettlementDetail extends Component
 
         return view('livewire.settlements.settlement-detail', [
             'settlement' => $settlement,
+            'agentDisplay' => $display->agent($settlement),
             'items' => $items,
             'documents' => SettlementDocument::query()->where('settlement_id', $settlement->id)->get(),
             'suggestion' => SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->first(),

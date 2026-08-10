@@ -74,6 +74,55 @@ return new class extends Migration
                     $member,
                 );
             }
+
+            $summary = DB::table('settlement_run_members as member')
+                ->leftJoin('settlements', 'settlements.id', '=', 'member.settlement_id')
+                ->where('member.settlement_run_id', $run->id)
+                ->selectRaw('COUNT(*) as total_agents')
+                ->selectRaw("COUNT(*) FILTER (WHERE member.outcome = 'generated') as processed_agents")
+                ->selectRaw("COUNT(*) FILTER (WHERE member.outcome = 'existing') as existing_agents")
+                ->selectRaw("COUNT(*) FILTER (WHERE member.outcome = 'failed') as failed_agents")
+                ->selectRaw('COALESCE(SUM(settlements.total_consumption_krw), 0) as total_consumption_krw')
+                ->selectRaw('COALESCE(SUM(settlements.total_commission_krw), 0) as total_commission_krw')
+                ->first();
+
+            if ($summary !== null && (int) $summary->total_agents > 0) {
+                $existingAgentIds = DB::table('settlement_run_members')
+                    ->where('settlement_run_id', $run->id)
+                    ->where('outcome', 'existing')
+                    ->orderBy('agent_id')
+                    ->pluck('agent_id')
+                    ->map(static fn ($agentId): int => (int) $agentId)
+                    ->values()
+                    ->all();
+                $errors = [];
+                DB::table('settlement_run_members')
+                    ->where('settlement_run_id', $run->id)
+                    ->where('outcome', 'failed')
+                    ->orderBy('agent_id')
+                    ->get(['agent_id', 'error_message_key', 'error_parameters'])
+                    ->each(function (object $member) use (&$errors): void {
+                        $parameters = is_string($member->error_parameters)
+                            ? (json_decode($member->error_parameters, true) ?: [])
+                            : ($member->error_parameters ?? []);
+                        $errors[(string) $member->agent_id] = [
+                            'message_key' => $member->error_message_key ?? 'settlements.failure_reasons.legacy_unknown',
+                            'parameters' => is_array($parameters) ? $parameters : [],
+                        ];
+                    });
+
+                DB::table('settlement_runs')->where('id', $run->id)->update([
+                    'total_agents' => (int) $summary->total_agents,
+                    'processed_agents' => (int) $summary->processed_agents,
+                    'existing_agents' => (int) $summary->existing_agents,
+                    'existing_agent_ids' => json_encode($existingAgentIds, JSON_THROW_ON_ERROR),
+                    'failed_agents' => (int) $summary->failed_agents,
+                    'total_consumption_krw' => (int) $summary->total_consumption_krw,
+                    'total_commission_krw' => (int) $summary->total_commission_krw,
+                    'errors' => json_encode($errors, JSON_THROW_ON_ERROR),
+                    'updated_at' => $now,
+                ]);
+            }
         });
     }
 

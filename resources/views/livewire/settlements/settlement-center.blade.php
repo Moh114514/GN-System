@@ -55,7 +55,7 @@
                             <flux:button wire:click.stop="retry('{{ $run->id }}')" size="sm" variant="ghost">{{ __('settlements.center.retry_failed') }}</flux:button>
                         @endif
                         @if (in_array($run->notification_status, ['failed', 'disabled'], true))<flux:button wire:click.stop="retryNotification('{{ $run->id }}')" size="sm" variant="ghost">{{ __('settlements.center.retry_dingtalk') }}</flux:button>@endif
-                        @if ($run->processed_agents > 0)<a class="text-sm font-semibold text-teal-700" href="{{ route('settlements.archive', $run->id) }}" x-on:click.stop>{{ __('settlements.center.download_all') }}</a>@endif
+                        @if (($documentCounts[(string) $run->id] ?? 0) > 0)<a class="text-sm font-semibold text-teal-700" href="{{ route('settlements.archive', $run->id) }}" x-on:click.stop>{{ __('settlements.center.download_documents', ['count' => $documentCounts[(string) $run->id]]) }}</a>@endif
                     </td>
                 </tr>
                 @if (! $isCollapsed)
@@ -79,7 +79,8 @@
                     @else
                         @foreach ($run->settlements as $settlement)
                             <tr class="bg-zinc-50/70 dark:bg-zinc-800/40">
-                                <td colspan="2"><a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $settlement->id) }}" wire:navigate>{{ data_get($settlement->snapshot, 'agent.name', __('settlements.labels.unknown_agent')) }}</a></td>
+                                @php($agentDisplay = $legacyDisplays[$settlement->id] ?? ['code' => '', 'name' => __('settlements.labels.unknown_agent').' #'.$settlement->agent_id])
+                                <td colspan="2"><a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $settlement->id) }}" wire:navigate>{{ $agentDisplay['code'] }} {{ $agentDisplay['name'] }}</a></td>
                                 <td>{{ __('settlements.center.outcome_generated') }}</td>
                                 <td>{{ __('settlements.detail.commission') }} ₩{{ number_format($settlement->total_commission_krw) }}</td>
                                 <td>{{ __('settlements.center.member_status_generated') }}</td>
@@ -100,7 +101,8 @@
                     @foreach ($unboundSettlements as $settlement)
                         <tr wire:key="unbound-settlement-{{ $settlement->id }}">
                             <td>{{ $settlement->period_start->format('Y-m-d') }} {{ __('settlements.labels.date_to') }} {{ $settlement->period_end->format('Y-m-d') }}</td>
-                            <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $settlement->id) }}" wire:navigate>{{ data_get($settlement->snapshot, 'agent.name', __('settlements.labels.unknown_agent').' #'.$settlement->agent_id) }}</a></td>
+                            @php($agentDisplay = $unboundDisplays[$settlement->id] ?? ['code' => '', 'name' => __('settlements.labels.unknown_agent').' #'.$settlement->agent_id])
+                            <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $settlement->id) }}" wire:navigate>{{ $agentDisplay['code'] }} {{ $agentDisplay['name'] }}</a></td>
                             <td>₩{{ number_format($settlement->total_consumption_krw) }}<div class="text-xs text-zinc-500">{{ __('settlements.detail.commission') }} ₩{{ number_format($settlement->total_commission_krw) }}</div></td>
                             <td>{{ __('settlements.settlement_statuses.'.$settlement->status) }}</td>
                         </tr>

@@ -54,6 +54,7 @@ return [
         'retry_failed' => '重试失败项',
         'retry_dingtalk' => '重试钉钉',
         'download_all' => '下载全部',
+        'download_documents' => '下载结算单（:count）',
         'expand' => '展开',
         'collapse' => '收起',
         'empty' => '尚未生成月结批次。',

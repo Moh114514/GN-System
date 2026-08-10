@@ -14,16 +14,30 @@ final readonly class SettlementDisplayReader
     /** @return array{id: int|null, code: string, name: string} */
     public function agent(Settlement $settlement): array
     {
-        $snapshot = $settlement->snapshot ?? [];
-        $snapshotAgent = is_array($snapshot['agent'] ?? null) ? $snapshot['agent'] : [];
-        $agentId = isset($snapshotAgent['id']) ? (int) $snapshotAgent['id'] : (int) $settlement->agent_id;
-        $reference = $agentId > 0 ? ($this->agents->agentsByIds([$agentId])[$agentId] ?? null) : null;
+        return $this->forSettlements(new Collection([$settlement]))[(int) $settlement->id];
+    }
 
-        return [
-            'id' => $agentId > 0 ? $agentId : null,
-            'code' => (string) ($snapshotAgent['code'] ?? $reference['code'] ?? ''),
-            'name' => (string) ($snapshotAgent['name'] ?? $reference['name'] ?? __('settlements.labels.unknown_agent').' #'.$agentId),
-        ];
+    /**
+     * @param  Collection<int, Settlement>  $settlements
+     * @return array<int, array{id: int|null, code: string, name: string}>
+     */
+    public function forSettlements(Collection $settlements): array
+    {
+        $agentIds = $settlements->map(static fn (Settlement $settlement): int => (int) $settlement->agent_id)->unique()->values()->all();
+        $references = $this->agents->agentsByIds($agentIds);
+        $result = [];
+        foreach ($settlements as $settlement) {
+            $snapshotAgent = is_array(data_get($settlement->snapshot, 'agent')) ? data_get($settlement->snapshot, 'agent') : [];
+            $agentId = (int) $settlement->agent_id;
+            $reference = $references[$agentId] ?? null;
+            $result[(int) $settlement->id] = [
+                'id' => $agentId > 0 ? $agentId : null,
+                'code' => (string) ($snapshotAgent['code'] ?? $reference['code'] ?? ''),
+                'name' => (string) ($snapshotAgent['name'] ?? $reference['name'] ?? __('settlements.labels.unknown_agent').' #'.$agentId),
+            ];
+        }
+
+        return $result;
     }
 
     /**

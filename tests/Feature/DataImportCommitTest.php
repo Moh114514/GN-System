@@ -16,6 +16,7 @@ use App\Modules\DataImport\Infrastructure\Models\ImportRow;
 use App\Modules\DataImport\Presentation\Livewire\ImportManager;
 use App\Modules\Settlement\Application\Contracts\SettlementImportGateway;
 use App\Modules\Settlement\Application\Data\SettlementImportData;
+use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -97,6 +98,27 @@ class DataImportCommitTest extends TestCase
         $this->assertDatabaseCount('customers', 0);
         $this->assertDatabaseCount('orders', 0);
         $this->assertDatabaseCount('order_commissions', 0);
+    }
+
+    public function test_formal_commit_materializes_historical_settlement_items(): void
+    {
+        [, $batch, $file] = $this->batch();
+        $batch->update(['total_rows' => 3, 'valid_rows' => 3]);
+        $this->agentRow($batch, $file);
+        $this->detailRow($batch, $file, 'SZ-JG', scheduledOn: '2026-07-15');
+        $this->summaryRow($batch, $file);
+
+        $committer = app(ImportBatchCommitter::class);
+        $committer->dryRun($batch);
+        $committer->commit($batch);
+
+        $settlement = Settlement::query()->where('import_batch_id', $batch->id)->firstOrFail();
+        $this->assertDatabaseHas('settlement_items', [
+            'settlement_id' => $settlement->id,
+            'import_batch_id' => $batch->id,
+            'commission_krw' => 1350000,
+        ]);
+        $this->assertSame(1, $settlement->fresh()->item_count);
     }
 
     public function test_commit_rejects_a_validated_batch_without_a_passed_dry_run(): void
@@ -189,6 +211,7 @@ class DataImportCommitTest extends TestCase
         string $agentCode,
         string $customerCode = 'SZ-JG-0001',
         int $sourceRow = 3,
+        ?string $scheduledOn = '2026-07-15',
     ): void {
         ImportRow::query()->create([
             'import_batch_id' => $batch->id,
@@ -205,6 +228,29 @@ class DataImportCommitTest extends TestCase
                 'amount_krw' => 12000000,
                 'rate_bps' => 1125,
                 'commission_krw' => 1350000,
+                'scheduled_on' => $scheduledOn,
+            ],
+        ]);
+    }
+
+    private function summaryRow(ImportBatch $batch, ImportFile $file): void
+    {
+        ImportRow::query()->create([
+            'import_batch_id' => $batch->id,
+            'import_file_id' => $file->id,
+            'source_row' => 4,
+            'profile' => ImportProfile::SettlementSummary,
+            'status' => ImportRowStatus::Valid,
+            'normalized_data' => [
+                'agent_code' => 'SZ-JG',
+                'period_start' => '2026-07-01',
+                'period_end' => '2026-07-31',
+                'settled_on' => '2026-08-01',
+                'exchange_rate_krw_per_cny' => '190',
+                'consumption_krw' => 12000000,
+                'commission_krw' => 1350000,
+                'payout_cny_fen' => 7105263,
+                'status' => 'reconciled',
             ],
         ]);
     }

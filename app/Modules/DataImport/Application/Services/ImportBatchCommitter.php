@@ -102,6 +102,7 @@ final readonly class ImportBatchCommitter
                 $this->commitCustomers($batch);
                 $this->commitMonthlyDetails($batch);
                 $this->commitSettlements($batch);
+                $this->settlements->materializeHistoricalItems($batch->id);
 
                 $completedAt = now();
                 $batch->update([

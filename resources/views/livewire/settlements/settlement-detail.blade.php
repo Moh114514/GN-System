@@ -39,7 +39,7 @@
 
     <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <div class="flex flex-wrap items-start justify-between gap-4">
-            <div><p class="text-xs font-medium text-zinc-400">{{ __('settlements.detail.eyebrow') }}</p><h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ data_get($settlement->snapshot, 'agent.name', __('settlements.labels.unknown_agent')) }}</h2><p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ $settlement->period_start->format('Y-m-d') }} {{ __('settlements.labels.date_to') }} {{ $settlement->period_end->format('Y-m-d') }}</p></div>
+            <div><p class="text-xs font-medium text-zinc-400">{{ __('settlements.detail.eyebrow') }}</p><h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ $agentDisplay['code'] }} {{ $agentDisplay['name'] }}</h2><p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ $settlement->period_start->format('Y-m-d') }} {{ __('settlements.labels.date_to') }} {{ $settlement->period_end->format('Y-m-d') }}</p></div>
             <div class="flex flex-wrap items-center justify-end gap-3">
                 <div class="flex items-center gap-2" :aria-label="__('settlements.detail.batch_navigation')">
                     @if ($previousSettlement)

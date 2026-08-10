@@ -4,6 +4,7 @@ namespace App\Modules\Settlement\Application\Services;
 
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
+use App\Modules\Settlement\Infrastructure\Models\SettlementRunMember;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 use Illuminate\Support\Facades\DB;
@@ -121,7 +122,10 @@ final class SettlementDocumentGenerator
     public function archiveRun(string $runId): string
     {
         $documents = SettlementDocument::query()
-            ->whereIn('settlement_id', Settlement::query()->where('settlement_run_id', $runId)->pluck('id'))
+            ->whereIn('settlement_id', SettlementRunMember::query()
+                ->where('settlement_run_id', $runId)
+                ->whereNotNull('settlement_id')
+                ->pluck('settlement_id'))
             ->orderBy('settlement_id')
             ->orderBy('format')
             ->get();
