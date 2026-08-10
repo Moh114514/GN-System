@@ -7,6 +7,7 @@ return [
         'historical_grade_month_invalid' => '과거 등급 보완은 현재 월 이전의 월만 입력할 수 있습니다.',
         'historical_grade_before_cooperation' => '과거 등급 적용 월은 협력 시작 월보다 빠를 수 없습니다.',
         'grade_correction_requires_missing_current' => '현재 유효한 등급이 있으므로 일반 등급 변경 절차를 사용해야 합니다.',
+        'initial_grade_month_invalid' => '신규 대리점의 초기 등급은 현재 월부터 적용되어야 합니다.',
     ],
     'imports' => [
         'historical_reason_required' => '과거 설정 보완에는 보정 사유가 필요합니다.',

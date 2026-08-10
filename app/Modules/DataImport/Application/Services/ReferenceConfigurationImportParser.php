@@ -305,7 +305,10 @@ final readonly class ReferenceConfigurationImportParser
             } elseif ($month->lt($currentMonth)) {
                 $error = __('imports.errors.historical_date_not_allowed', ['effective_month' => $month->format('Y-m-d')]);
             } elseif ($month->eq($currentMonth)) {
-                $error = __('historical_correction.agents.normal_grade_current_locked');
+                $agentCode = (string) ($row->normalized_data['agent_code'] ?? '');
+                if (! $cooperationMonths->has($agentCode)) {
+                    $error = __('historical_correction.agents.normal_grade_current_locked');
+                }
             } elseif ($month->gt($nextMonth)) {
                 $error = __('historical_correction.agents.normal_grade_future_invalid');
             }

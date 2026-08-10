@@ -131,14 +131,14 @@ class ReferenceConfigurationImportTest extends TestCase
     public function test_valid_workbook_is_previewed_dry_run_and_committed_atomically_in_dependency_order(): void
     {
         Livewire::test(ReferenceConfigurationImportManager::class)
-            ->set('workbook', $this->exampleUploadWithoutGradeAssignment())
+            ->set('workbook', $this->exampleUpload())
             ->call('stageWorkbook');
 
         $batch = ImportBatch::query()->with('files')->sole();
         app(ReferenceConfigurationImportParser::class)->parse($batch);
         $batch->refresh();
         $this->assertSame(ImportBatchStatus::Validated, $batch->status);
-        $this->assertSame(7, $batch->valid_rows);
+        $this->assertSame(8, $batch->valid_rows);
         $this->assertSame(0, $batch->error_rows);
 
         app(ReferenceConfigurationImportCommitter::class)->dryRun($batch);
@@ -161,7 +161,10 @@ class ReferenceConfigurationImportTest extends TestCase
         $this->assertDatabaseHas('policy_grades', ['name' => 'UAT 银级', 'monthly_threshold_krw' => 1000000]);
         $this->assertDatabaseHas('commission_rules', ['rate_bps' => 1200, 'is_active' => true]);
         $this->assertDatabaseHas('agents', ['code' => 'UATP5-UAT', 'name' => 'UAT 示例代理商']);
-        $this->assertDatabaseCount('agent_grade_assignments', 0);
+        $this->assertDatabaseCount('agent_grade_assignments', 1);
+        $this->assertDatabaseHas('agent_grade_assignments', [
+            'effective_month' => now()->startOfMonth()->toDateString(),
+        ]);
         $this->assertDatabaseHas('activity_log', [
             'log_name' => 'reference-configuration-import',
             'description' => '完成基础配置导入',
@@ -419,20 +422,6 @@ class ReferenceConfigurationImportTest extends TestCase
         unlink($path);
 
         return UploadedFile::fake()->createWithContent('基础配置.xlsx', $contents === false ? '' : $contents);
-    }
-
-    private function exampleUploadWithoutGradeAssignment(): UploadedFile
-    {
-        $path = app(ReferenceConfigurationTemplateGenerator::class)->example();
-        $workbook = IOFactory::load($path);
-        $sheet = $workbook->getSheetByName(array_keys(ReferenceConfigurationTemplateGenerator::HEADERS)[7]);
-        $sheet?->removeRow(2);
-        (new Xlsx($workbook))->save($path);
-        $workbook->disconnectWorksheets();
-        $contents = file_get_contents($path) ?: '';
-        unlink($path);
-
-        return UploadedFile::fake()->createWithContent('reference-without-grade.xlsx', $contents);
     }
 
     private function exampleUploadWithCommissionMonth(string $month): UploadedFile

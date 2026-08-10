@@ -113,6 +113,64 @@ final readonly class DatabaseReferenceConfigurationImportGateway implements Refe
         return Agent::query()->pluck('id', 'code')->all();
     }
 
+    /**
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return array<int, array<string, mixed>>
+     */
+    public function createInitialGradeAssignments(array $rows, int $actorId, string $batchId): array
+    {
+        $currentMonth = CarbonImmutable::now()->startOfMonth();
+        $remaining = [];
+
+        foreach ($rows as $row) {
+            $agent = Agent::query()->where('code', $this->normalizer->agent($row['agent_code']))->firstOrFail();
+            $current = AgentGradeAssignment::query()
+                ->where('agent_id', $agent->id)
+                ->whereDate('effective_month', '<=', $currentMonth)
+                ->latest('effective_month')
+                ->lockForUpdate()
+                ->first();
+            if ($agent->import_batch_id !== $batchId || $current !== null) {
+                $remaining[] = $row;
+
+                continue;
+            }
+
+            if (CarbonImmutable::parse($row['effective_month'])->startOfMonth()->ne($currentMonth)) {
+                throw new DomainException(__('historical_correction.agents.initial_grade_month_invalid'));
+            }
+
+            $system = PolicySystem::query()->where('name', $row['policy_system'])->firstOrFail();
+            $grade = PolicyGrade::query()
+                ->where('policy_system_id', $system->id)
+                ->where('name', $row['policy_grade'])
+                ->firstOrFail();
+            $assignment = AgentGradeAssignment::query()
+                ->where('agent_id', $agent->id)
+                ->whereDate('effective_month', $currentMonth)
+                ->lockForUpdate()
+                ->first();
+            if ($assignment !== null) {
+                if ((int) $assignment->policy_grade_id === (int) $grade->id
+                    && trim((string) $assignment->reason) === trim((string) ($row['reason'] ?? ''))) {
+                    continue;
+                }
+
+                throw new DomainException(__('agents.validation.grade_correction_conflict'));
+            }
+            AgentGradeAssignment::query()->create([
+                'agent_id' => $agent->id,
+                'policy_grade_id' => $grade->id,
+                'effective_month' => $currentMonth,
+                'approved_by' => $actorId,
+                'reason' => trim((string) ($row['reason'] ?? '')),
+                'import_batch_id' => $batchId,
+            ]);
+        }
+
+        return $remaining;
+    }
+
     public function upsertGradeAssignments(array $rows, int $actorId, string $batchId): void
     {
         $currentMonth = CarbonImmutable::now()->startOfMonth();

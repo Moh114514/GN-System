@@ -170,6 +170,7 @@ final readonly class ReferenceConfigurationImportCommitter
         if ($batch->operation_mode === ImportOperationMode::HistoricalCorrection) {
             $this->agents->importHistoricalGradeAssignments($gradeAssignments, $actorId, $batch->id, $ipAddress);
         } else {
+            $gradeAssignments = $this->agents->createInitialGradeAssignments($gradeAssignments, $actorId, $batch->id);
             $this->agents->upsertGradeAssignments($gradeAssignments, $actorId, $batch->id);
         }
     }

@@ -138,8 +138,10 @@ final readonly class AgentManager
             if ($month->gt($currentMonth)) {
                 throw new DomainException(__('agents.validation.correction_effective_month_invalid'));
             }
-            $cooperationMonth = CarbonImmutable::parse($agent->cooperation_started_on)->startOfMonth();
-            if ($month->lt($cooperationMonth)) {
+            $cooperationMonth = $agent->cooperation_started_on === null
+                ? null
+                : CarbonImmutable::parse($agent->cooperation_started_on)->startOfMonth();
+            if ($cooperationMonth !== null && $month->lt($cooperationMonth)) {
                 throw new DomainException(__('agents.validation.correction_before_cooperation'));
             }
             $reason = trim($reason);
@@ -154,17 +156,6 @@ final readonly class AgentManager
                 ->first();
             if ($current !== null) {
                 throw new DomainException(__('historical_correction.agents.grade_correction_requires_missing_current'));
-            }
-            $assignment = AgentGradeAssignment::query()
-                ->where('agent_id', $agentId)
-                ->whereDate('effective_month', $month)
-                ->lockForUpdate()
-                ->first();
-            if ($assignment !== null) {
-                if ((int) $assignment->policy_grade_id === $grade->id && trim((string) $assignment->reason) === $reason) {
-                    return;
-                }
-                throw new DomainException(__('agents.validation.grade_correction_conflict'));
             }
             $assignment = AgentGradeAssignment::query()->create([
                 'agent_id' => $agentId,

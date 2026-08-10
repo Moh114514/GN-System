@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Agent\Application\Services\DatabaseReferenceConfigurationImportGateway;
 use App\Modules\Agent\Infrastructure\Models\Agent;
 use App\Modules\Agent\Infrastructure\Models\AgentGradeAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
@@ -12,6 +13,8 @@ use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Order\Application\Contracts\DailyOrderGateway;
 use App\Modules\Order\Application\Data\DailyOrderData;
+use App\Modules\Settlement\Application\Contracts\CommissionConfigurationGateway;
+use App\Modules\Settlement\Application\Data\HistoricalCommissionRuleData;
 use App\Modules\Settlement\Application\Services\ExchangeRateQuoteService;
 use App\Modules\Settlement\Application\Services\SettlementGenerator;
 use App\Modules\Settlement\Application\Services\SettlementNotificationDispatcher;
@@ -40,6 +43,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -504,6 +508,44 @@ class PhaseFiveSettlementTest extends TestCase
         $workflow->settle($settlement->id, $this->admin->id, null);
         $this->assertDatabaseHas('settlements', ['id' => $settlement->id, 'status' => 'settled']);
         $this->assertDatabaseHas('activity_log', ['log_name' => 'settlement', 'subject_id' => $settlement->id, 'event' => 'settled']);
+    }
+
+    public function test_historical_grade_and_rate_correction_does_not_change_settled_snapshot_or_items(): void
+    {
+        $orderId = $this->createCompletedOrder(10000);
+        $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
+        $settlement = Settlement::query()->where('settlement_run_id', $run->id)->firstOrFail();
+        app(SettlementWorkflow::class)->approve($settlement->id, '200', $this->admin->id, '127.0.0.1');
+        app(SettlementWorkflow::class)->settle($settlement->id, $this->admin->id, null);
+
+        $commissionBefore = DB::table('order_commissions')->where('order_id', $orderId)->first();
+        $itemBefore = DB::table('settlement_items')->where('settlement_id', $settlement->id)->first();
+        $settlementBefore = $settlement->fresh()->only(['status', 'total_consumption_krw', 'total_commission_krw', 'snapshot']);
+        $batchId = (string) Str::uuid();
+        $policySystem = PolicySystem::query()->findOrFail($this->grade->policy_system_id);
+
+        app(DatabaseReferenceConfigurationImportGateway::class)->importHistoricalGradeAssignments([[
+            'agent_code' => $this->agent->code,
+            'policy_system' => $policySystem->name,
+            'policy_grade' => $this->grade->name,
+            'effective_month' => '2026-04-01',
+            'reason' => '历史月等级纠错',
+        ]], $this->admin->id, $batchId, null);
+        app(CommissionConfigurationGateway::class)->importHistoricalCorrectionRule(new HistoricalCommissionRuleData(
+            policyGradeId: $this->grade->id,
+            institutionId: $this->institution->id,
+            rateBps: 1500,
+            effectiveMonth: CarbonImmutable::parse('2026-04-01'),
+            isActive: true,
+            importBatchId: $batchId,
+            reason: '历史月费率纠错',
+            actorId: $this->admin->id,
+            ipAddress: null,
+        ));
+
+        $this->assertEquals($commissionBefore, DB::table('order_commissions')->where('order_id', $orderId)->first());
+        $this->assertEquals($itemBefore, DB::table('settlement_items')->where('settlement_id', $settlement->id)->first());
+        $this->assertSame($settlementBefore, $settlement->fresh()->only(['status', 'total_consumption_krw', 'total_commission_krw', 'snapshot']));
     }
 
     public function test_existing_historical_settlement_is_not_overwritten_or_marked_as_failure(): void

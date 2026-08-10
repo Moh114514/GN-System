@@ -30,6 +30,12 @@ interface ReferenceConfigurationImportGateway
      */
     public function upsertAgents(array $rows, string $batchId): array;
 
+    /**
+     * @param  array<int, array<string, mixed>>  $rows
+     * @return array<int, array<string, mixed>> rows not handled as initial assignments
+     */
+    public function createInitialGradeAssignments(array $rows, int $actorId, string $batchId): array;
+
     /** @param array<int, array<string, mixed>> $rows */
     public function upsertGradeAssignments(array $rows, int $actorId, string $batchId): void;
 

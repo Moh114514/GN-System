@@ -52,6 +52,8 @@ final readonly class ReferenceConfigurationTemplateGenerator
             '代理商等级分配' => ['UATP5-UAT', 'UAT 示例政策', 'UAT 银级', $month, '基础配置导入'],
         ];
 
+        $examples[array_key_last($examples)][3] = now()->startOfMonth()->format('Y-m-d');
+
         foreach (self::HEADERS as $title => $headers) {
             $sheet = new Worksheet($spreadsheet, $title);
             $spreadsheet->addSheet($sheet);

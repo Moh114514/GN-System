@@ -324,6 +324,31 @@ class PhaseFourAgentCommissionTest extends TestCase
         );
     }
 
+    public function test_grade_correction_allows_legacy_agent_without_cooperation_start_date(): void
+    {
+        $agent = Agent::query()->create([
+            'agent_type_code_id' => AgentTypeCode::query()->where('code', 'JG')->value('id'),
+            'code' => 'LEGACY-JG',
+            'name' => '历史代理商',
+            'cooperation_started_on' => null,
+            'cooperation_status' => 'active',
+        ]);
+
+        app(AgentManager::class)->correctGrade(
+            $agent->id,
+            $this->grade->id,
+            CarbonImmutable::parse('2026-04-01'),
+            '历史代理商等级补录',
+            $this->admin->id,
+            null,
+        );
+
+        $this->assertDatabaseHas('agent_grade_assignments', [
+            'agent_id' => $agent->id,
+            'effective_month' => '2026-04-01',
+        ]);
+    }
+
     public function test_existing_grade_change_remains_scheduled_for_next_month(): void
     {
         $next = PolicyGrade::query()->create([
@@ -367,6 +392,36 @@ class PhaseFourAgentCommissionTest extends TestCase
 
         $this->expectException(DomainException::class);
         $gateway->upsertGradeAssignments([$row], $this->admin->id, 'normal-batch');
+    }
+
+    public function test_normal_grade_import_schedules_existing_agent_change_for_next_month(): void
+    {
+        $nextGrade = PolicyGrade::query()->create([
+            'policy_system_id' => $this->grade->policy_system_id,
+            'name' => '白金',
+            'monthly_threshold_krw' => 0,
+            'sort_order' => 20,
+            'is_active' => true,
+        ]);
+        $gateway = app(DatabaseReferenceConfigurationImportGateway::class);
+        $gateway->upsertGradeAssignments([[
+            'agent_code' => $this->agent->code,
+            'policy_system' => PolicySystem::query()->findOrFail($nextGrade->policy_system_id)->name,
+            'policy_grade' => $nextGrade->name,
+            'effective_month' => '2026-08-01',
+            'reason' => '正常调级',
+        ]], $this->admin->id, (string) Str::uuid());
+
+        $this->assertDatabaseHas('agent_grade_assignments', [
+            'agent_id' => $this->agent->id,
+            'policy_grade_id' => $this->grade->id,
+            'effective_month' => '2026-07-01',
+        ]);
+        $this->assertDatabaseHas('agent_grade_assignments', [
+            'agent_id' => $this->agent->id,
+            'policy_grade_id' => $nextGrade->id,
+            'effective_month' => '2026-08-01',
+        ]);
     }
 
     public function test_historical_grade_import_is_past_only_and_idempotent(): void
