@@ -28,6 +28,9 @@ final readonly class AgentManager
     {
         return DB::transaction(function () use ($data, $actorId, $ipAddress): int {
             $type = AgentTypeCode::query()->where('is_active', true)->findOrFail($data->typeCodeId);
+            if ($data->policyGradeId === null) {
+                throw new DomainException(__('agents.validation.grade_required'));
+            }
             $grade = PolicyGrade::query()->where('is_active', true)->findOrFail($data->policyGradeId);
             PolicySystem::query()->where('is_active', true)->findOrFail($grade->policy_system_id);
             $code = $this->normalizer->agent($data->codePrefix.'-'.$type->code, (string) $type->code);
@@ -72,7 +75,9 @@ final readonly class AgentManager
                 throw new DomainException(__('agents.validation.terminated_read_only'));
             }
             $type = AgentTypeCode::query()->where('is_active', true)->findOrFail($data->typeCodeId);
-            $grade = PolicyGrade::query()->where('is_active', true)->findOrFail($data->policyGradeId);
+            $grade = $data->policyGradeId === null
+                ? null
+                : PolicyGrade::query()->where('is_active', true)->findOrFail($data->policyGradeId);
             $before = $agent->only(['name', 'agent_type_code_id', 'business_role', 'contact_name', 'cooperation_started_on', 'cooperation_ended_on', 'cooperation_status', 'notes']);
             $agent->update([
                 'agent_type_code_id' => $type->id,
@@ -90,7 +95,13 @@ final readonly class AgentManager
                 ->whereDate('effective_month', '<=', CarbonImmutable::now()->startOfMonth())
                 ->latest('effective_month')
                 ->first();
-            if ($current === null || (int) $current->policy_grade_id !== (int) $grade->id) {
+            if ($current === null && $grade !== null) {
+                throw new DomainException(__('agents.validation.grade_missing_correction_required'));
+            }
+            if ($current !== null && $grade === null) {
+                throw new DomainException(__('agents.validation.grade_required'));
+            }
+            if ($current !== null && (int) $current->policy_grade_id !== (int) $grade->id) {
                 AgentGradeAssignment::query()->updateOrCreate(
                     ['agent_id' => $agentId, 'effective_month' => CarbonImmutable::now()->addMonthNoOverflow()->startOfMonth()],
                     ['policy_grade_id' => $grade->id, 'approved_by' => $actorId, 'reason' => '代理商档案调整等级'],
@@ -98,12 +109,76 @@ final readonly class AgentManager
             }
             $this->audit->record(
                 description: '代理商档案已更新',
-                properties: ['before' => $before, 'after' => $agent->only(array_keys($before)), 'next_policy_grade_id' => $grade->id],
+                properties: ['before' => $before, 'after' => $agent->only(array_keys($before)), 'next_policy_grade_id' => $grade?->id],
                 causerId: $actorId,
                 subject: $agent,
                 logName: 'agent',
                 event: 'updated',
                 ipAddress: $ipAddress,
+            );
+        });
+    }
+
+    public function correctGrade(
+        int $agentId,
+        int $policyGradeId,
+        CarbonImmutable $effectiveMonth,
+        string $reason,
+        int $actorId,
+        ?string $ipAddress,
+    ): void {
+        DB::transaction(function () use ($agentId, $policyGradeId, $effectiveMonth, $reason, $actorId, $ipAddress): void {
+            $agent = Agent::query()->lockForUpdate()->findOrFail($agentId);
+            if ($agent->cooperation_status === 'terminated') {
+                throw new DomainException(__('agents.validation.terminated_read_only'));
+            }
+            $grade = PolicyGrade::query()->where('is_active', true)->findOrFail($policyGradeId);
+            $month = $effectiveMonth->startOfMonth();
+            $currentMonth = CarbonImmutable::now()->startOfMonth();
+            if ($month->gt($currentMonth)) {
+                throw new DomainException(__('agents.validation.correction_effective_month_invalid'));
+            }
+            $cooperationMonth = CarbonImmutable::parse($agent->cooperation_started_on)->startOfMonth();
+            if ($month->lt($cooperationMonth)) {
+                throw new DomainException(__('agents.validation.correction_before_cooperation'));
+            }
+            $reason = trim($reason);
+            if ($reason === '') {
+                throw new DomainException(__('agents.validation.correction_reason_required'));
+            }
+            $assignment = AgentGradeAssignment::query()
+                ->where('agent_id', $agentId)
+                ->whereDate('effective_month', $month)
+                ->lockForUpdate()
+                ->first();
+            if ($assignment !== null) {
+                if ((int) $assignment->policy_grade_id === $grade->id && trim((string) $assignment->reason) === $reason) {
+                    return;
+                }
+                throw new DomainException(__('agents.validation.grade_correction_conflict'));
+            }
+            $assignment = AgentGradeAssignment::query()->create([
+                'agent_id' => $agentId,
+                'policy_grade_id' => $grade->id,
+                'effective_month' => $month,
+                'approved_by' => $actorId,
+                'reason' => $reason,
+            ]);
+            $this->audit->record(
+                description: __('agents.audit.historical_grade_corrected'),
+                properties: [
+                    'agent_id' => $agentId,
+                    'policy_grade_id' => $grade->id,
+                    'effective_month' => $month->toDateString(),
+                    'reason' => $reason,
+                    'operation' => 'historical_grade_correction',
+                ],
+                causerId: $actorId,
+                subject: $assignment,
+                logName: 'agent-grade-history',
+                event: 'historical_correction_imported',
+                ipAddress: $ipAddress,
+                messageKey: 'agents.audit.historical_grade_corrected',
             );
         });
     }

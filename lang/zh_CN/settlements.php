@@ -204,6 +204,8 @@ return [
         'agent_override_month_locked' => '已开始月份的代理商特批不可修改，请配置下月特批。',
         'rate_out_of_range' => '费率必须在 0 到 10000 基点之间。',
         'closed_month_rate_locked' => '不能新增或修改已经结束月份的费率配置。',
+        'historical_rate_conflict' => '历史费率与已有记录冲突：相同政策等级、机构和生效月份的业务内容不同，整批导入已阻止。',
+        'historical_rate_month_invalid' => '历史费率补录只能写入当前月份之前的月份。',
         'period_boundary_rebuild_failed' => '无法根据已保存配置重建月结周期边界。',
         'boundary_day_invalid' => '月结边界日必须在 1 至 28 日之间。',
         'trigger_time_invalid' => '月结触发时间格式无效。',
@@ -219,6 +221,7 @@ return [
         'failure_report_file_missing' => '报告文件未生成，请联系管理员。',
     ],
     'audit' => [
+        'historical_rate_imported' => '历史机构费率补录已完成',
         'rejected' => '月结已驳回', 'approved' => '月结已审核通过', 'settled' => '月结已确认结清',
         'status_corrected' => '月结状态已人工更正', 'generation_recovered' => '月结历史生成状态已核验为不适用',
         'recovery_batch_created' => '月结已创建恢复批次并重新生成',

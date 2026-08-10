@@ -8,11 +8,13 @@ use App\Modules\Config\Application\Contracts\ReferenceConfigurationImportGateway
 use App\Modules\Customer\Application\Contracts\ReferenceConfigurationImportGateway as CustomerReferences;
 use App\Modules\DataImport\Application\Exceptions\DryRunRollback;
 use App\Modules\DataImport\Domain\ImportBatchStatus;
+use App\Modules\DataImport\Domain\ImportOperationMode;
 use App\Modules\DataImport\Domain\ImportProfile;
 use App\Modules\DataImport\Domain\ImportRowStatus;
 use App\Modules\DataImport\Infrastructure\Models\ImportBatch;
 use App\Modules\DataImport\Infrastructure\Models\ImportRow;
 use App\Modules\Settlement\Application\Contracts\CommissionConfigurationGateway;
+use App\Modules\Settlement\Application\Data\HistoricalCommissionRuleData;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -129,26 +131,43 @@ final readonly class ReferenceConfigurationImportCommitter
             if (! is_int($gradeId) || ! is_int($institutionId)) {
                 throw new RuntimeException("费率引用不存在：{$gradeKey} / {$row['institution_code']}。");
             }
-            $this->commissions->saveRule(
-                policyGradeId: $gradeId,
-                institutionId: $institutionId,
-                rateBps: (int) $row['rate_bps'],
-                effectiveMonth: CarbonImmutable::parse((string) $row['effective_month']),
-                actorId: $batch->created_by,
-                ipAddress: $ipAddress,
-                isActive: (bool) $row['is_active'],
-            );
+            $effectiveMonth = CarbonImmutable::parse((string) $row['effective_month']);
+            if ($batch->operation_mode === ImportOperationMode::HistoricalCorrection
+                && $effectiveMonth->startOfMonth()->lt(CarbonImmutable::now()->startOfMonth())) {
+                $this->commissions->importHistoricalCorrectionRule(new HistoricalCommissionRuleData(
+                    policyGradeId: $gradeId,
+                    institutionId: $institutionId,
+                    rateBps: (int) $row['rate_bps'],
+                    effectiveMonth: $effectiveMonth,
+                    isActive: (bool) $row['is_active'],
+                    importBatchId: $batch->id,
+                    reason: (string) ($batch->operation_reason ?? ''),
+                    actorId: $batch->created_by,
+                    ipAddress: $ipAddress,
+                ));
+            } else {
+                $this->commissions->saveRule(
+                    policyGradeId: $gradeId,
+                    institutionId: $institutionId,
+                    rateBps: (int) $row['rate_bps'],
+                    effectiveMonth: $effectiveMonth,
+                    actorId: $batch->created_by,
+                    ipAddress: $ipAddress,
+                    isActive: (bool) $row['is_active'],
+                );
+            }
         }
 
         $this->agents->upsertAgents(
             $this->rows($batch, ImportProfile::Agent),
             $batch->id,
         );
-        $this->agents->upsertGradeAssignments(
-            $this->rows($batch, ImportProfile::GradeAssignment),
-            $batch->created_by,
-            $batch->id,
-        );
+        $gradeAssignments = $this->rows($batch, ImportProfile::GradeAssignment);
+        if ($batch->operation_mode === ImportOperationMode::HistoricalCorrection) {
+            $this->agents->importHistoricalGradeAssignments($gradeAssignments, $batch->created_by, $batch->id, $ipAddress);
+        } else {
+            $this->agents->upsertGradeAssignments($gradeAssignments, $batch->created_by, $batch->id);
+        }
     }
 
     /** @return array<int, array<string, mixed>> */

@@ -187,6 +187,7 @@ final class ImportIssueRecorder
     {
         return match ($stage) {
             'relation_validation' => 'relation_unresolved',
+            'business_validation' => 'historical_date_not_allowed',
             'summary_validation' => 'summary_mismatch',
             default => 'field_validation_failed',
         };

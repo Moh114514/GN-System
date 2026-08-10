@@ -9,12 +9,13 @@ use App\Modules\Agent\Infrastructure\Models\AgentGradeAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Agent\Infrastructure\Models\PolicyGrade;
 use App\Modules\Agent\Infrastructure\Models\PolicySystem;
+use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use Carbon\CarbonImmutable;
 use RuntimeException;
 
 final readonly class DatabaseReferenceConfigurationImportGateway implements ReferenceConfigurationImportGateway
 {
-    public function __construct(private AgentCodeNormalizer $normalizer) {}
+    public function __construct(private AgentCodeNormalizer $normalizer, private AuditRecorder $audit) {}
 
     public function referenceKeys(): array
     {
@@ -134,6 +135,55 @@ final readonly class DatabaseReferenceConfigurationImportGateway implements Refe
                 $assignment->import_batch_id = $batchId;
             }
             $assignment->save();
+        }
+    }
+
+    public function importHistoricalGradeAssignments(array $rows, int $actorId, string $batchId, ?string $ipAddress): void
+    {
+        foreach ($rows as $row) {
+            $agent = Agent::query()->where('code', $this->normalizer->agent($row['agent_code']))->firstOrFail();
+            $system = PolicySystem::query()->where('name', $row['policy_system'])->firstOrFail();
+            $grade = PolicyGrade::query()
+                ->where('policy_system_id', $system->id)
+                ->where('name', $row['policy_grade'])
+                ->firstOrFail();
+            $month = CarbonImmutable::parse($row['effective_month'])->startOfMonth();
+            $assignment = AgentGradeAssignment::query()
+                ->where('agent_id', $agent->id)
+                ->whereDate('effective_month', $month)
+                ->lockForUpdate()
+                ->first();
+            if ($assignment !== null) {
+                if ((int) $assignment->policy_grade_id === (int) $grade->id && trim((string) $assignment->reason) === trim((string) $row['reason'])) {
+                    continue;
+                }
+                throw new \DomainException(__('agents.validation.grade_correction_conflict'));
+            }
+            $assignment = AgentGradeAssignment::query()->create([
+                'agent_id' => $agent->id,
+                'policy_grade_id' => $grade->id,
+                'effective_month' => $month,
+                'approved_by' => $actorId,
+                'reason' => trim((string) $row['reason']),
+                'import_batch_id' => $batchId,
+            ]);
+            $this->audit->record(
+                description: __('agents.audit.historical_grade_corrected'),
+                properties: [
+                    'agent_id' => $agent->id,
+                    'policy_grade_id' => $grade->id,
+                    'effective_month' => $month->toDateString(),
+                    'reason' => $row['reason'],
+                    'import_batch_id' => $batchId,
+                    'operation' => 'historical_grade_import',
+                ],
+                causerId: $actorId,
+                subject: $assignment,
+                logName: 'agent-grade-history',
+                event: 'historical_correction_imported',
+                ipAddress: $ipAddress,
+                messageKey: 'agents.audit.historical_grade_corrected',
+            );
         }
     }
 }

@@ -27,6 +27,27 @@
         </dl>
     </section>
 
+    <section class="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+        <h3 class="text-lg font-semibold">{{ __('agents.detail.grade_history') }}</h3>
+        <div class="crm-table-wrap mt-4"><table class="crm-table">
+            <thead><tr><th>{{ __('agents.detail.effective_month') }}</th><th>{{ __('agents.detail.policy_system') }}</th><th>{{ __('agents.detail.grade') }}</th><th>{{ __('agents.detail.reason') }}</th><th>{{ __('agents.detail.source') }}</th><th>{{ __('agents.detail.history_status') }}</th></tr></thead>
+            <tbody>
+            @forelse ($agent['grade_history'] as $history)
+                <tr>
+                    <td>{{ $history['effective_month'] }}</td>
+                    <td>{{ $history['policy_system'] ?? __('agents.detail.unset_policy') }}</td>
+                    <td>{{ $history['policy_grade'] ?? __('agents.detail.unset_grade') }}</td>
+                    <td>{{ $history['reason'] ?: __('agents.detail.empty') }}</td>
+                    <td>{{ __('agents.detail.sources.'.$history['source']) }}</td>
+                    <td>{{ __('agents.detail.history_statuses.'.$history['status']) }}</td>
+                </tr>
+            @empty
+                <tr><td colspan="6" class="py-8 text-center text-zinc-500">{{ __('agents.detail.no_grade_history') }}</td></tr>
+            @endforelse
+            </tbody>
+        </table></div>
+    </section>
+
     <div class="mt-6 grid gap-6 xl:grid-cols-2">
         <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
             <h3 class="text-lg font-semibold">{{ __('agents.detail.customers') }}</h3>

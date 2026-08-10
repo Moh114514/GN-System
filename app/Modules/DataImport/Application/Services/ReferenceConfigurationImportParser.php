@@ -6,6 +6,7 @@ use App\Modules\Agent\Application\Contracts\AgentImportGateway;
 use App\Modules\Agent\Application\Contracts\ReferenceConfigurationImportGateway as AgentReferences;
 use App\Modules\Config\Application\Contracts\ReferenceConfigurationImportGateway as ConfigReferences;
 use App\Modules\DataImport\Domain\ImportBatchStatus;
+use App\Modules\DataImport\Domain\ImportOperationMode;
 use App\Modules\DataImport\Domain\ImportProfile;
 use App\Modules\DataImport\Domain\ImportRowStatus;
 use App\Modules\DataImport\Infrastructure\EncryptedImportStorage;
@@ -129,6 +130,9 @@ final readonly class ReferenceConfigurationImportParser
             $failureStage = 'relation_validation';
             $this->validateRelationships($batch);
             $this->issues->syncRows($batch, 'relation_validation', false);
+            $failureStage = 'business_validation';
+            $this->validateBusinessDates($batch);
+            $this->issues->syncRows($batch, 'business_validation', false);
             $failureStage = 'summary_validation';
             $this->refreshCounts($batch);
         } catch (Throwable $exception) {
@@ -262,6 +266,23 @@ final readonly class ReferenceConfigurationImportParser
         }
     }
 
+    private function validateBusinessDates(ImportBatch $batch): void
+    {
+        if ($batch->operation_mode === ImportOperationMode::HistoricalCorrection) {
+            return;
+        }
+
+        $currentMonth = CarbonImmutable::now()->startOfMonth();
+        foreach ($batch->rows()->where('status', ImportRowStatus::Valid)->whereIn('profile', [ImportProfile::CommissionRule, ImportProfile::GradeAssignment])->orderBy('id')->get() as $row) {
+            $month = CarbonImmutable::parse((string) ($row->normalized_data['effective_month'] ?? ''))->startOfMonth();
+            if ($month->lt($currentMonth)) {
+                $errors = $row->errors ?? [];
+                $errors[] = __('imports.errors.historical_date_not_allowed', ['effective_month' => $month->format('Y-m-d')]);
+                $row->update(['status' => ImportRowStatus::Error, 'errors' => $errors]);
+            }
+        }
+    }
+
     private function refreshCounts(ImportBatch $batch): void
     {
         $total = $batch->rows()->count();
@@ -281,7 +302,7 @@ final readonly class ReferenceConfigurationImportParser
             'warning_rows' => $fieldWarnings,
             'error_rows' => $fieldErrors,
         ];
-        foreach (['normalization', 'relation_validation', 'summary_validation'] as $stage) {
+        foreach (['normalization', 'relation_validation', 'business_validation', 'summary_validation'] as $stage) {
             $issueCount = $batch->issues()->where('stage', $stage)->count();
             $summary['stages'][$stage] = [
                 'status' => $issueCount > 0 ? 'failed' : 'passed',

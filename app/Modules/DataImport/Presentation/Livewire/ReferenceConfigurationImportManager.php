@@ -6,6 +6,7 @@ use App\Modules\DataImport\Application\Services\ImportIssueReportGenerator;
 use App\Modules\DataImport\Application\Services\ReferenceConfigurationImportCommitter;
 use App\Modules\DataImport\Application\Services\ReferenceConfigurationTemplateGenerator;
 use App\Modules\DataImport\Domain\ImportBatchStatus;
+use App\Modules\DataImport\Domain\ImportOperationMode;
 use App\Modules\DataImport\Infrastructure\EncryptedImportStorage;
 use App\Modules\DataImport\Infrastructure\Models\ImportBatch;
 use App\Modules\DataImport\Infrastructure\Models\ImportFile;
@@ -28,6 +29,10 @@ class ReferenceConfigurationImportManager extends Component
 
     public ?TemporaryUploadedFile $workbook = null;
 
+    public string $operationMode = 'normal';
+
+    public ?string $operationReason = null;
+
     public ?string $selectedBatchId = null;
 
     public bool $confirmImport = false;
@@ -46,13 +51,20 @@ class ReferenceConfigurationImportManager extends Component
                 'mimes:xlsx',
                 'max:'.config('data-import.max_file_kilobytes'),
             ],
+            'operationMode' => ['required', 'string', 'in:normal,historical_correction'],
+            'operationReason' => ['nullable', 'string', 'max:2000', 'required_if:operationMode,historical_correction'],
         ]);
 
         $userId = Auth::id();
         abort_unless(is_int($userId) && $this->workbook instanceof TemporaryUploadedFile, 403);
+        if ($this->operationMode === ImportOperationMode::HistoricalCorrection->value) {
+            abort_unless((bool) Auth::user()?->is_super_admin, 403);
+        }
         $batch = ImportBatch::query()->create([
             'created_by' => $userId,
             'kind' => 'reference_configuration',
+            'operation_mode' => ImportOperationMode::from($this->operationMode),
+            'operation_reason' => $this->operationReason,
             'status' => ImportBatchStatus::Uploaded,
         ]);
         $stored = $storage->store($batch->id, $this->workbook);
@@ -68,7 +80,8 @@ class ReferenceConfigurationImportManager extends Component
         ]);
         ParseReferenceConfigurationImport::dispatch($batch->id, app()->getLocale());
         $this->selectedBatchId = $batch->id;
-        $this->reset('workbook', 'confirmImport');
+        $this->reset('workbook', 'confirmImport', 'operationReason');
+        $this->operationMode = ImportOperationMode::Normal->value;
         unset($this->batches, $this->selectedBatch);
         Flux::toast(variant: 'success', text: __('imports.toast.reference_uploaded'));
     }

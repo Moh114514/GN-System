@@ -45,6 +45,8 @@ return [
         'agent_override_month_locked' => '이미 시작된 월의 에이전시 특별 승인은 변경할 수 없습니다. 다음 달 특별 승인을 설정하세요.',
         'rate_out_of_range' => '요율은 0에서 10000 베이시스포인트 사이여야 합니다.',
         'closed_month_rate_locked' => '종료된 월의 요율 설정은 추가하거나 변경할 수 없습니다.',
+        'historical_rate_conflict' => '과거 수수료율 충돌: 동일한 정책 등급·기관·적용 월의 업무 값이 다르므로 전체 배치를 중단했습니다.',
+        'historical_rate_month_invalid' => '과거 수수료율 보완은 현재 월 이전의 월만 입력할 수 있습니다.',
         'period_boundary_rebuild_failed' => '저장된 설정에서 정산 기간 경계를 다시 만들 수 없습니다.',
         'boundary_day_invalid' => '정산 경계일은 1에서 28 사이여야 합니다.',
         'trigger_time_invalid' => '정산 실행 시간 형식이 올바르지 않습니다.',
@@ -60,6 +62,7 @@ return [
         'failure_report_file_missing' => '보고서 파일이 생성되지 않았습니다. 관리자에게 문의하세요.',
     ],
     'audit' => [
+        'historical_rate_imported' => '과거 기관 수수료율 보완이 완료되었습니다.',
         'rejected' => '정산 반려', 'approved' => '정산 승인', 'settled' => '정산 완료 확인',
         'status_corrected' => '정산 상태 수동 수정', 'generation_recovered' => '정산 과거 생성 상태를 대상 제외로 검증',
         'recovery_batch_created' => '정산 복구 배치 생성 및 재생성',

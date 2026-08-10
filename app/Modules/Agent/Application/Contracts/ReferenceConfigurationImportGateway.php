@@ -32,4 +32,7 @@ interface ReferenceConfigurationImportGateway
 
     /** @param array<int, array<string, mixed>> $rows */
     public function upsertGradeAssignments(array $rows, int $actorId, string $batchId): void;
+
+    /** @param array<int, array<string, mixed>> $rows */
+    public function importHistoricalGradeAssignments(array $rows, int $actorId, string $batchId, ?string $ipAddress): void;
 }
