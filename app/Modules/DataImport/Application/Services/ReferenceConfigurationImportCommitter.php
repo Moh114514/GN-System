@@ -39,7 +39,7 @@ final readonly class ReferenceConfigurationImportCommitter
         try {
             $this->assertValidated($batch);
             DB::transaction(function () use ($batch): void {
-                $this->write($batch, null);
+                $this->write($batch, null, $batch->created_by);
                 throw new DryRunRollback;
             });
         } catch (DryRunRollback) {
@@ -61,16 +61,18 @@ final readonly class ReferenceConfigurationImportCommitter
         }
     }
 
-    public function commit(ImportBatch $batch, ?string $ipAddress): void
+    public function commit(ImportBatch $batch, ?string $ipAddress, ?int $committedBy = null): void
     {
         try {
             $this->assertValidated($batch, true);
             $batch->update(['status' => ImportBatchStatus::Committing]);
             $this->stages->update($batch, 'commit', 'running');
-            DB::transaction(function () use ($batch, $ipAddress): void {
-                $this->write($batch, $ipAddress);
+            $actorId = $committedBy ?? $batch->created_by;
+            DB::transaction(function () use ($batch, $ipAddress, $actorId): void {
+                $this->write($batch, $ipAddress, $actorId);
                 $batch->update([
                     'status' => ImportBatchStatus::Completed,
+                    'committed_by' => $actorId,
                     'completed_at' => now(),
                     'rollback_expires_at' => null,
                 ]);
@@ -82,7 +84,7 @@ final readonly class ReferenceConfigurationImportCommitter
                         'summary' => $batch->summary,
                         'processing_order' => ['基础字典', '政策等级', '费率', '代理商', '等级分配'],
                     ],
-                    causerId: $batch->created_by,
+                    causerId: $actorId,
                     logName: 'reference-configuration-import',
                     event: 'completed',
                     ipAddress: $ipAddress,
@@ -103,7 +105,7 @@ final readonly class ReferenceConfigurationImportCommitter
         }
     }
 
-    private function write(ImportBatch $batch, ?string $ipAddress): void
+    private function write(ImportBatch $batch, ?string $ipAddress, int $actorId): void
     {
         $institutions = $this->config->upsertInstitutions(
             $this->rows($batch, ImportProfile::Institution),
@@ -132,8 +134,10 @@ final readonly class ReferenceConfigurationImportCommitter
                 throw new RuntimeException("费率引用不存在：{$gradeKey} / {$row['institution_code']}。");
             }
             $effectiveMonth = CarbonImmutable::parse((string) $row['effective_month']);
-            if ($batch->operation_mode === ImportOperationMode::HistoricalCorrection
-                && $effectiveMonth->startOfMonth()->lt(CarbonImmutable::now()->startOfMonth())) {
+            if ($batch->operation_mode === ImportOperationMode::HistoricalCorrection) {
+                if (! $effectiveMonth->startOfMonth()->lt(CarbonImmutable::now()->startOfMonth())) {
+                    throw new RuntimeException(__('settlements.errors.historical_rate_month_invalid'));
+                }
                 $this->commissions->importHistoricalCorrectionRule(new HistoricalCommissionRuleData(
                     policyGradeId: $gradeId,
                     institutionId: $institutionId,
@@ -142,7 +146,7 @@ final readonly class ReferenceConfigurationImportCommitter
                     isActive: (bool) $row['is_active'],
                     importBatchId: $batch->id,
                     reason: (string) ($batch->operation_reason ?? ''),
-                    actorId: $batch->created_by,
+                    actorId: $actorId,
                     ipAddress: $ipAddress,
                 ));
             } else {
@@ -151,7 +155,7 @@ final readonly class ReferenceConfigurationImportCommitter
                     institutionId: $institutionId,
                     rateBps: (int) $row['rate_bps'],
                     effectiveMonth: $effectiveMonth,
-                    actorId: $batch->created_by,
+                    actorId: $actorId,
                     ipAddress: $ipAddress,
                     isActive: (bool) $row['is_active'],
                 );
@@ -164,9 +168,9 @@ final readonly class ReferenceConfigurationImportCommitter
         );
         $gradeAssignments = $this->rows($batch, ImportProfile::GradeAssignment);
         if ($batch->operation_mode === ImportOperationMode::HistoricalCorrection) {
-            $this->agents->importHistoricalGradeAssignments($gradeAssignments, $batch->created_by, $batch->id, $ipAddress);
+            $this->agents->importHistoricalGradeAssignments($gradeAssignments, $actorId, $batch->id, $ipAddress);
         } else {
-            $this->agents->upsertGradeAssignments($gradeAssignments, $batch->created_by, $batch->id);
+            $this->agents->upsertGradeAssignments($gradeAssignments, $actorId, $batch->id);
         }
     }
 
@@ -186,6 +190,10 @@ final readonly class ReferenceConfigurationImportCommitter
     {
         if ($batch->kind !== 'reference_configuration' || $batch->status !== ImportBatchStatus::Validated) {
             throw new RuntimeException('只有零错误且已完成事务预演的基础配置批次可以确认导入。');
+        }
+
+        if ($batch->operation_mode === ImportOperationMode::HistoricalCorrection && trim((string) $batch->operation_reason) === '') {
+            throw new RuntimeException(__('historical_correction.imports.historical_reason_required'));
         }
 
         if ($requireDryRun && ($batch->summary['stages']['dry_run']['status'] ?? null) !== 'passed') {

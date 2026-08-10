@@ -146,6 +146,15 @@ final readonly class AgentManager
             if ($reason === '') {
                 throw new DomainException(__('agents.validation.correction_reason_required'));
             }
+            $current = AgentGradeAssignment::query()
+                ->where('agent_id', $agentId)
+                ->whereDate('effective_month', '<=', $currentMonth)
+                ->latest('effective_month')
+                ->lockForUpdate()
+                ->first();
+            if ($current !== null) {
+                throw new DomainException(__('historical_correction.agents.grade_correction_requires_missing_current'));
+            }
             $assignment = AgentGradeAssignment::query()
                 ->where('agent_id', $agentId)
                 ->whereDate('effective_month', $month)
@@ -176,7 +185,7 @@ final readonly class AgentManager
                 causerId: $actorId,
                 subject: $assignment,
                 logName: 'agent-grade-history',
-                event: 'historical_correction_imported',
+                event: 'historical_grade_corrected',
                 ipAddress: $ipAddress,
                 messageKey: 'agents.audit.historical_grade_corrected',
             );

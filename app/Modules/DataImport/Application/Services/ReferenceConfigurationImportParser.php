@@ -268,16 +268,51 @@ final readonly class ReferenceConfigurationImportParser
 
     private function validateBusinessDates(ImportBatch $batch): void
     {
-        if ($batch->operation_mode === ImportOperationMode::HistoricalCorrection) {
-            return;
-        }
-
         $currentMonth = CarbonImmutable::now()->startOfMonth();
+        $nextMonth = $currentMonth->addMonthNoOverflow();
+        $historical = $batch->operation_mode === ImportOperationMode::HistoricalCorrection;
+        $cooperationMonths = $batch->rows()
+            ->where('profile', ImportProfile::Agent)
+            ->where('status', ImportRowStatus::Valid)
+            ->get()
+            ->mapWithKeys(function (ImportRow $row): array {
+                $data = $row->normalized_data ?? [];
+
+                return [(string) ($data['code'] ?? '') => isset($data['cooperation_started_on'])
+                    ? CarbonImmutable::parse((string) $data['cooperation_started_on'])->startOfMonth()
+                    : null];
+            });
+
         foreach ($batch->rows()->where('status', ImportRowStatus::Valid)->whereIn('profile', [ImportProfile::CommissionRule, ImportProfile::GradeAssignment])->orderBy('id')->get() as $row) {
             $month = CarbonImmutable::parse((string) ($row->normalized_data['effective_month'] ?? ''))->startOfMonth();
-            if ($month->lt($currentMonth)) {
+            $error = null;
+            if ($row->profile === ImportProfile::CommissionRule) {
+                if ($historical && ! $month->lt($currentMonth)) {
+                    $error = __('settlements.errors.historical_rate_month_invalid');
+                } elseif (! $historical && $month->lt($currentMonth)) {
+                    $error = __('imports.errors.historical_date_not_allowed', ['effective_month' => $month->format('Y-m-d')]);
+                }
+            } elseif ($historical) {
+                if (! $month->lt($currentMonth)) {
+                    $error = __('historical_correction.agents.historical_grade_month_invalid');
+                } else {
+                    $agentCode = (string) ($row->normalized_data['agent_code'] ?? '');
+                    $cooperationMonth = $cooperationMonths->get($agentCode);
+                    if ($cooperationMonth instanceof CarbonImmutable && $month->lt($cooperationMonth)) {
+                        $error = __('historical_correction.agents.historical_grade_before_cooperation');
+                    }
+                }
+            } elseif ($month->lt($currentMonth)) {
+                $error = __('imports.errors.historical_date_not_allowed', ['effective_month' => $month->format('Y-m-d')]);
+            } elseif ($month->eq($currentMonth)) {
+                $error = __('historical_correction.agents.normal_grade_current_locked');
+            } elseif ($month->gt($nextMonth)) {
+                $error = __('historical_correction.agents.normal_grade_future_invalid');
+            }
+
+            if ($error !== null) {
                 $errors = $row->errors ?? [];
-                $errors[] = __('imports.errors.historical_date_not_allowed', ['effective_month' => $month->format('Y-m-d')]);
+                $errors[] = $error;
                 $row->update(['status' => ImportRowStatus::Error, 'errors' => $errors]);
             }
         }

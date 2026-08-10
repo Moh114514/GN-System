@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Agent\Application\Data\AgentProfileData;
 use App\Modules\Agent\Application\Services\AgentDirectory;
 use App\Modules\Agent\Application\Services\AgentManager;
+use App\Modules\Agent\Application\Services\DatabaseReferenceConfigurationImportGateway;
 use App\Modules\Agent\Infrastructure\Models\Agent;
 use App\Modules\Agent\Infrastructure\Models\AgentGradeAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
@@ -26,6 +27,7 @@ use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
@@ -115,6 +117,7 @@ class PhaseFourAgentCommissionTest extends TestCase
         CommissionRule::query()->firstOrFail()->update(['rate_bps' => 500]);
         $this->assertSame(1250, OrderCommission::query()->findOrFail($commission->id)->rule_snapshot['rate_bps']);
 
+        AgentGradeAssignment::query()->where('agent_id', $this->agent->id)->delete();
         $manager = app(AgentManager::class);
         $manager->correctGrade($this->agent->id, $this->grade->id, CarbonImmutable::parse('2026-04-01'), '历史等级纠错', $this->admin->id, null);
         $unchanged = OrderCommission::query()->findOrFail($commission->id);
@@ -294,7 +297,7 @@ class PhaseFourAgentCommissionTest extends TestCase
             notes: null,
         );
         $manager->update($agent->id, $data, $this->admin->id, null);
-        $this->assertDatabaseCount('agent_grade_assignments', 1);
+        $this->assertDatabaseMissing('agent_grade_assignments', ['agent_id' => $agent->id]);
 
         $manager->correctGrade($agent->id, $this->grade->id, CarbonImmutable::parse('2026-04-01'), '历史等级补录', $this->admin->id, null);
         $this->assertDatabaseHas('agent_grade_assignments', [
@@ -306,6 +309,19 @@ class PhaseFourAgentCommissionTest extends TestCase
         $profile = app(AgentDirectory::class)->profile($agent->id);
         $this->assertSame($this->grade->id, $profile['policy_grade_id']);
         $this->assertSame('2026-04-01', $profile['grade_effective_month']);
+    }
+
+    public function test_grade_correction_rejects_agent_that_already_has_current_grade(): void
+    {
+        $this->expectException(DomainException::class);
+        app(AgentManager::class)->correctGrade(
+            $this->agent->id,
+            $this->grade->id,
+            CarbonImmutable::parse('2026-04-01'),
+            '不应绕过正常调级流程',
+            $this->admin->id,
+            null,
+        );
     }
 
     public function test_existing_grade_change_remains_scheduled_for_next_month(): void
@@ -336,6 +352,47 @@ class PhaseFourAgentCommissionTest extends TestCase
             'effective_month' => '2026-08-01',
         ]);
         $this->assertSame($this->grade->id, app(AgentDirectory::class)->profile($this->agent->id)['policy_grade_id']);
+    }
+
+    public function test_normal_grade_import_never_overwrites_current_or_schedules_missing_grade(): void
+    {
+        $gateway = app(DatabaseReferenceConfigurationImportGateway::class);
+        $row = [
+            'agent_code' => $this->agent->code,
+            'policy_system' => PolicySystem::query()->findOrFail($this->grade->policy_system_id)->name,
+            'policy_grade' => $this->grade->name,
+            'effective_month' => '2026-07-01',
+            'reason' => '普通导入当前月',
+        ];
+
+        $this->expectException(DomainException::class);
+        $gateway->upsertGradeAssignments([$row], $this->admin->id, 'normal-batch');
+    }
+
+    public function test_historical_grade_import_is_past_only_and_idempotent(): void
+    {
+        $agent = Agent::query()->create([
+            'agent_type_code_id' => AgentTypeCode::query()->where('code', 'JG')->value('id'),
+            'code' => 'HISTORY-JG',
+            'name' => '历史等级代理商',
+            'cooperation_started_on' => '2026-01-15',
+            'cooperation_status' => 'active',
+        ]);
+        $row = [
+            'agent_code' => $agent->code,
+            'policy_system' => PolicySystem::query()->findOrFail($this->grade->policy_system_id)->name,
+            'policy_grade' => $this->grade->name,
+            'effective_month' => '2026-04-01',
+            'reason' => '历史等级迁移',
+        ];
+        $gateway = app(DatabaseReferenceConfigurationImportGateway::class);
+        $batchId = (string) Str::uuid();
+        $gateway->importHistoricalGradeAssignments([$row], $this->admin->id, $batchId, null);
+        $gateway->importHistoricalGradeAssignments([$row], $this->admin->id, $batchId, null);
+        $this->assertSame(1, AgentGradeAssignment::query()->where('agent_id', $agent->id)->count());
+
+        $this->expectException(DomainException::class);
+        $gateway->importHistoricalGradeAssignments([['agent_code' => $agent->code, 'policy_system' => $row['policy_system'], 'policy_grade' => $row['policy_grade'], 'effective_month' => '2026-08-01', 'reason' => '未来']], $this->admin->id, $batchId, null);
     }
 
     public function test_phase_four_pages_enforce_roles_and_navigation(): void

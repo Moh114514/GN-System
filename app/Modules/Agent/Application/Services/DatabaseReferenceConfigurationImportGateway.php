@@ -11,6 +11,7 @@ use App\Modules\Agent\Infrastructure\Models\PolicyGrade;
 use App\Modules\Agent\Infrastructure\Models\PolicySystem;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use Carbon\CarbonImmutable;
+use DomainException;
 use RuntimeException;
 
 final readonly class DatabaseReferenceConfigurationImportGateway implements ReferenceConfigurationImportGateway
@@ -114,6 +115,9 @@ final readonly class DatabaseReferenceConfigurationImportGateway implements Refe
 
     public function upsertGradeAssignments(array $rows, int $actorId, string $batchId): void
     {
+        $currentMonth = CarbonImmutable::now()->startOfMonth();
+        $nextMonth = $currentMonth->addMonthNoOverflow();
+
         foreach ($rows as $row) {
             $agent = Agent::query()->where('code', $this->normalizer->agent($row['agent_code']))->firstOrFail();
             $system = PolicySystem::query()->where('name', $row['policy_system'])->firstOrFail();
@@ -122,19 +126,48 @@ final readonly class DatabaseReferenceConfigurationImportGateway implements Refe
                 ->where('name', $row['policy_grade'])
                 ->firstOrFail();
             $month = CarbonImmutable::parse($row['effective_month'])->startOfMonth();
-            $assignment = AgentGradeAssignment::query()->firstOrNew([
-                'agent_id' => $agent->id,
-                'effective_month' => $month,
-            ]);
-            $assignment->fill([
-                'policy_grade_id' => $grade->id,
-                'approved_by' => $actorId,
-                'reason' => $row['reason'],
-            ]);
-            if (! $assignment->exists) {
-                $assignment->import_batch_id = $batchId;
+            if ($month->lt($currentMonth)) {
+                throw new DomainException(__('imports.errors.historical_date_not_allowed', ['effective_month' => $month->format('Y-m-d')]));
             }
-            $assignment->save();
+            if ($month->eq($currentMonth)) {
+                throw new DomainException(__('historical_correction.agents.normal_grade_current_locked'));
+            }
+            if ($month->gt($nextMonth)) {
+                throw new DomainException(__('historical_correction.agents.normal_grade_future_invalid'));
+            }
+
+            $assignment = AgentGradeAssignment::query()
+                ->where('agent_id', $agent->id)
+                ->whereDate('effective_month', $month)
+                ->lockForUpdate()
+                ->first();
+            if ($assignment !== null) {
+                if ((int) $assignment->policy_grade_id === (int) $grade->id
+                    && trim((string) $assignment->reason) === trim((string) ($row['reason'] ?? ''))) {
+                    continue;
+                }
+
+                throw new DomainException(__('agents.validation.grade_correction_conflict'));
+            }
+
+            $current = AgentGradeAssignment::query()
+                ->where('agent_id', $agent->id)
+                ->whereDate('effective_month', '<=', $currentMonth)
+                ->latest('effective_month')
+                ->lockForUpdate()
+                ->first();
+            if ($current === null) {
+                throw new DomainException(__('agents.validation.grade_missing_correction_required'));
+            }
+
+            AgentGradeAssignment::query()->create([
+                'agent_id' => $agent->id,
+                'policy_grade_id' => $grade->id,
+                'effective_month' => $month,
+                'approved_by' => $actorId,
+                'reason' => trim((string) ($row['reason'] ?? '')),
+                'import_batch_id' => $batchId,
+            ]);
         }
     }
 
@@ -148,23 +181,35 @@ final readonly class DatabaseReferenceConfigurationImportGateway implements Refe
                 ->where('name', $row['policy_grade'])
                 ->firstOrFail();
             $month = CarbonImmutable::parse($row['effective_month'])->startOfMonth();
+            $currentMonth = CarbonImmutable::now()->startOfMonth();
+            if (! $month->lt($currentMonth)) {
+                throw new DomainException(__('historical_correction.agents.historical_grade_month_invalid'));
+            }
+            if ($agent->cooperation_started_on !== null
+                && $month->lt(CarbonImmutable::parse($agent->cooperation_started_on)->startOfMonth())) {
+                throw new DomainException(__('historical_correction.agents.historical_grade_before_cooperation'));
+            }
+            $reason = trim((string) ($row['reason'] ?? ''));
+            if ($reason === '') {
+                throw new DomainException(__('agents.validation.correction_reason_required'));
+            }
             $assignment = AgentGradeAssignment::query()
                 ->where('agent_id', $agent->id)
                 ->whereDate('effective_month', $month)
                 ->lockForUpdate()
                 ->first();
             if ($assignment !== null) {
-                if ((int) $assignment->policy_grade_id === (int) $grade->id && trim((string) $assignment->reason) === trim((string) $row['reason'])) {
+                if ((int) $assignment->policy_grade_id === (int) $grade->id && trim((string) $assignment->reason) === $reason) {
                     continue;
                 }
-                throw new \DomainException(__('agents.validation.grade_correction_conflict'));
+                throw new DomainException(__('agents.validation.grade_correction_conflict'));
             }
             $assignment = AgentGradeAssignment::query()->create([
                 'agent_id' => $agent->id,
                 'policy_grade_id' => $grade->id,
                 'effective_month' => $month,
                 'approved_by' => $actorId,
-                'reason' => trim((string) $row['reason']),
+                'reason' => $reason,
                 'import_batch_id' => $batchId,
             ]);
             $this->audit->record(
@@ -173,7 +218,7 @@ final readonly class DatabaseReferenceConfigurationImportGateway implements Refe
                     'agent_id' => $agent->id,
                     'policy_grade_id' => $grade->id,
                     'effective_month' => $month->toDateString(),
-                    'reason' => $row['reason'],
+                    'reason' => $reason,
                     'import_batch_id' => $batchId,
                     'operation' => 'historical_grade_import',
                 ],

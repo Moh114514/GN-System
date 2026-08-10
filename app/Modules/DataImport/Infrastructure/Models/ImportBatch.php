@@ -14,6 +14,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property string $id
  * @property int $created_by
+ * @property int|null $committed_by
  * @property string $kind
  * @property ImportOperationMode $operation_mode
  * @property string|null $operation_reason
@@ -74,6 +75,12 @@ class ImportBatch extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function committer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'committed_by');
     }
 
     public function canRollback(): bool

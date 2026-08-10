@@ -131,14 +131,14 @@ class ReferenceConfigurationImportTest extends TestCase
     public function test_valid_workbook_is_previewed_dry_run_and_committed_atomically_in_dependency_order(): void
     {
         Livewire::test(ReferenceConfigurationImportManager::class)
-            ->set('workbook', $this->exampleUpload())
+            ->set('workbook', $this->exampleUploadWithoutGradeAssignment())
             ->call('stageWorkbook');
 
         $batch = ImportBatch::query()->with('files')->sole();
         app(ReferenceConfigurationImportParser::class)->parse($batch);
         $batch->refresh();
         $this->assertSame(ImportBatchStatus::Validated, $batch->status);
-        $this->assertSame(8, $batch->valid_rows);
+        $this->assertSame(7, $batch->valid_rows);
         $this->assertSame(0, $batch->error_rows);
 
         app(ReferenceConfigurationImportCommitter::class)->dryRun($batch);
@@ -161,7 +161,7 @@ class ReferenceConfigurationImportTest extends TestCase
         $this->assertDatabaseHas('policy_grades', ['name' => 'UAT 银级', 'monthly_threshold_krw' => 1000000]);
         $this->assertDatabaseHas('commission_rules', ['rate_bps' => 1200, 'is_active' => true]);
         $this->assertDatabaseHas('agents', ['code' => 'UATP5-UAT', 'name' => 'UAT 示例代理商']);
-        $this->assertDatabaseCount('agent_grade_assignments', 1);
+        $this->assertDatabaseCount('agent_grade_assignments', 0);
         $this->assertDatabaseHas('activity_log', [
             'log_name' => 'reference-configuration-import',
             'description' => '完成基础配置导入',
@@ -183,6 +183,32 @@ class ReferenceConfigurationImportTest extends TestCase
         $this->expectExceptionMessage('事务预演');
 
         app(ReferenceConfigurationImportCommitter::class)->commit($batch, null);
+    }
+
+    public function test_commit_records_the_actual_committer_separately_from_uploader(): void
+    {
+        $committer = User::factory()->superAdmin()->withTwoFactor()->create();
+        $batch = ImportBatch::query()->create([
+            'created_by' => $this->admin->id,
+            'kind' => 'reference_configuration',
+            'operation_mode' => ImportOperationMode::Normal,
+            'status' => ImportBatchStatus::Validated,
+        ]);
+
+        $service = app(ReferenceConfigurationImportCommitter::class);
+        $service->dryRun($batch);
+        $service->commit($batch->fresh(), null, $committer->id);
+
+        $this->assertDatabaseHas('import_batches', [
+            'id' => $batch->id,
+            'created_by' => $this->admin->id,
+            'committed_by' => $committer->id,
+        ]);
+        $this->assertDatabaseHas('activity_log', [
+            'log_name' => 'reference-configuration-import',
+            'event' => 'completed',
+            'causer_id' => $committer->id,
+        ]);
     }
 
     public function test_relationship_errors_block_confirmation_and_identify_the_source_row(): void
@@ -395,12 +421,30 @@ class ReferenceConfigurationImportTest extends TestCase
         return UploadedFile::fake()->createWithContent('基础配置.xlsx', $contents === false ? '' : $contents);
     }
 
+    private function exampleUploadWithoutGradeAssignment(): UploadedFile
+    {
+        $path = app(ReferenceConfigurationTemplateGenerator::class)->example();
+        $workbook = IOFactory::load($path);
+        $sheet = $workbook->getSheetByName(array_keys(ReferenceConfigurationTemplateGenerator::HEADERS)[7]);
+        $sheet?->removeRow(2);
+        (new Xlsx($workbook))->save($path);
+        $workbook->disconnectWorksheets();
+        $contents = file_get_contents($path) ?: '';
+        unlink($path);
+
+        return UploadedFile::fake()->createWithContent('reference-without-grade.xlsx', $contents);
+    }
+
     private function exampleUploadWithCommissionMonth(string $month): UploadedFile
     {
         $path = app(ReferenceConfigurationTemplateGenerator::class)->example();
         $workbook = IOFactory::load($path);
         $commissionSheet = $workbook->getSheetByName(array_keys(ReferenceConfigurationTemplateGenerator::HEADERS)[5]);
         $commissionSheet?->setCellValue('E2', $month);
+        $agentSheet = $workbook->getSheetByName(array_keys(ReferenceConfigurationTemplateGenerator::HEADERS)[6]);
+        $agentSheet?->setCellValue('G2', '2026-01-01');
+        $gradeSheet = $workbook->getSheetByName(array_keys(ReferenceConfigurationTemplateGenerator::HEADERS)[7]);
+        $gradeSheet?->setCellValue('D2', $month);
         (new Xlsx($workbook))->save($path);
         $workbook->disconnectWorksheets();
         $contents = file_get_contents($path) ?: '';

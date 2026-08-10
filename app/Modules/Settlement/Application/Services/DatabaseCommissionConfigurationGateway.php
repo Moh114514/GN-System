@@ -131,6 +131,9 @@ final readonly class DatabaseCommissionConfigurationGateway implements Commissio
 
     public function importHistoricalCorrectionRule(HistoricalCommissionRuleData $data): void
     {
+        if (trim($data->reason) === '') {
+            throw new DomainException(__('historical_correction.settlements.historical_reason_required'));
+        }
         $month = $this->validateRate($data->rateBps, $data->effectiveMonth);
         if (! $month->lt(CarbonImmutable::now()->startOfMonth())) {
             throw new DomainException(__('settlements.errors.historical_rate_month_invalid'));

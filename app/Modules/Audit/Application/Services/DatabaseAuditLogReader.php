@@ -25,6 +25,7 @@ final class DatabaseAuditLogReader implements AuditLogReader
         'rate_bps', 'effective_month', 'effective_from', 'effective_until', 'completed_on',
         'completion_precision', 'ip_address', 'reason', 'exchange_rate_krw_per_cny',
         'exchange_rate_quote_source', 'exchange_rate_quoted_at', 'exchange_rate_manual_override',
+        'import_batch_id', 'operation',
     ];
 
     /** @var array<int, string> */

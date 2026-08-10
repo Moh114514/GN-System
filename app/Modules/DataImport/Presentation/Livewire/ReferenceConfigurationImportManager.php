@@ -121,7 +121,7 @@ class ReferenceConfigurationImportManager extends Component
         ], [
             'confirmImport.accepted' => __('imports.toast.confirm_required'),
         ]);
-        $committer->commit($this->ownedBatch(), request()->ip());
+        $committer->commit($this->ownedBatch(), request()->ip(), (int) Auth::id());
         $this->confirmImport = false;
         unset($this->batches, $this->selectedBatch);
         Flux::toast(variant: 'success', text: __('imports.toast.reference_completed'));
