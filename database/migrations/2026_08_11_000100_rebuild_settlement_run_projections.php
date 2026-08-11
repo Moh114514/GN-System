@@ -42,12 +42,20 @@ return new class extends Migration
 
             $hasPending = $members->contains(static fn ($member): bool => $member->outcome === 'pending');
             $hasFailed = $members->contains(static fn ($member): bool => $member->outcome === 'failed');
-            $status = $hasPending ? 'running' : ($hasFailed ? 'partial_failed' : 'completed');
+            $memberCount = $members->count();
+            $legacyJobsMayStillBeQueued = in_array($run->status, ['queued', 'running'], true)
+                && (int) $run->total_agents > $memberCount;
+            $status = $legacyJobsMayStillBeQueued
+                ? 'running'
+                : ($hasPending ? 'running' : ($hasFailed ? 'partial_failed' : 'completed'));
             $completedAt = $status === 'running' ? null : ($run->completed_at ?? now());
+            $totalAgents = $legacyJobsMayStillBeQueued
+                ? max((int) $run->total_agents, (int) $summary->total_agents)
+                : (int) $summary->total_agents;
 
             DB::table('settlement_runs')->where('id', $run->id)->update([
                 'status' => $status,
-                'total_agents' => (int) $summary->total_agents,
+                'total_agents' => $totalAgents,
                 'processed_agents' => (int) $summary->processed_agents,
                 'existing_agents' => (int) $summary->existing_agents,
                 'existing_agent_ids' => json_encode($existingAgentIds, JSON_THROW_ON_ERROR),

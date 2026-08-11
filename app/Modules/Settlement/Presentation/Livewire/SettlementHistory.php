@@ -91,11 +91,14 @@ class SettlementHistory extends Component
             ->when($this->search !== '', function (Builder $query) use ($display): void {
                 $term = '%'.$this->search.'%';
                 $matchingAgentIds = $display->matchingAgentIds($this->search);
-                $query->where(function (Builder $query) use ($term): void {
+                $query->where(function (Builder $query) use ($term, $matchingAgentIds): void {
                     $query->whereRaw("COALESCE(snapshot->'agent'->>'code', '') ILIKE ?", [$term])
                         ->orWhereRaw("COALESCE(snapshot->'agent'->>'name', '') ILIKE ?", [$term])
                         ->orWhereRaw('CAST(agent_id AS TEXT) ILIKE ?', [$term]);
-                })->when($matchingAgentIds !== [], fn (Builder $query): Builder => $query->orWhereIn('agent_id', $matchingAgentIds));
+                    if ($matchingAgentIds !== []) {
+                        $query->orWhereIn('agent_id', $matchingAgentIds);
+                    }
+                });
             });
     }
 }

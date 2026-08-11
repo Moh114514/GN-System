@@ -478,6 +478,41 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertNotNull($failedRun->fresh()->completed_at);
     }
 
+    public function test_projection_migration_preserves_legacy_runs_with_unmaterialized_jobs(): void
+    {
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'running',
+            'total_agents' => 2,
+            'processed_agents' => 1,
+            'completed_at' => null,
+        ]);
+        $settlement = Settlement::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'pending_review',
+            'generation_status' => 'generated',
+        ]);
+        SettlementRunMember::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $this->agent->id,
+            'settlement_id' => $settlement->id,
+            'outcome' => 'generated',
+        ]);
+
+        $migration = require base_path('database/migrations/2026_08_11_000100_rebuild_settlement_run_projections.php');
+        $migration->up();
+
+        $run->refresh();
+        $this->assertSame(2, $run->total_agents);
+        $this->assertSame('running', $run->status);
+        $this->assertNull($run->completed_at);
+    }
+
     public function test_generation_batch_only_dispatches_agents_without_existing_settlements(): void
     {
         Settlement::query()->create([
@@ -1176,14 +1211,52 @@ class PhaseFiveSettlementTest extends TestCase
             'generation_status' => 'not_applicable',
             'snapshot' => ['source' => 'historical_import'],
         ]);
-
         Livewire::actingAs($this->admin)->test(SettlementCenter::class)->assertDontSee($this->agent->name);
         Livewire::actingAs($this->admin)
             ->test(SettlementHistory::class)
             ->assertSee($this->agent->name)
             ->set('search', $this->agent->name)
-            ->assertSee($this->agent->name);
+            ->assertSee($this->agent->name)
+            ->assertSee('2026-06');
         $this->actingAs($this->admin)->get(route('settlements.show', $settlement))->assertOk()->assertSee($this->agent->name);
+    }
+
+    public function test_historical_agent_fallback_search_keeps_run_settlements_out_of_results(): void
+    {
+        Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-06-30',
+            'status' => 'paid',
+            'generation_status' => 'not_applicable',
+            'snapshot' => ['source' => 'historical_import'],
+        ]);
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'completed',
+            'total_agents' => 1,
+            'processed_agents' => 1,
+        ]);
+        Settlement::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'paid',
+            'generation_status' => 'generated',
+            'snapshot' => ['agent' => ['name' => $this->agent->name]],
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(SettlementHistory::class)
+            ->set('search', $this->agent->name)
+            ->assertSee('2026-06')
+            ->assertDontSee('2026-07')
+            ->set('month', '2026-06')
+            ->assertSee('2026-06')
+            ->assertDontSee('2026-07');
     }
 
     public function test_historical_archive_supports_month_status_search_and_pagination(): void
