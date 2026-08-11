@@ -45,6 +45,8 @@ docker compose exec postgres psql -U gn_system -d postgres -c "\l"
 docker compose exec app composer test
 ```
 
+测试 CLI 的 PHP `memory_limit` 由 `phpunit.xml` 覆盖为 `512M`；Web 请求和 PHP-FPM 继续使用 `docker/php/php.ini` 中的 `256M`。
+
 完整提交门禁：
 
 ```powershell
