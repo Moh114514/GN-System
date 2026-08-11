@@ -2,6 +2,7 @@
 
 namespace App\Modules\Auth\Application\Services;
 
+use App\Infrastructure\Localization\SupportedLocale;
 use App\Models\User;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Auth\Application\Contracts\UserManagementGateway;
@@ -33,10 +34,14 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
 
     public function invite(string $name, string $email, bool $isSuperAdmin, int $actorId, ?string $ipAddress): array
     {
+        $inviter = User::query()->find($actorId);
+        $preferredLocale = $inviter?->preferredLocale() ?? SupportedLocale::default()->value;
+
         $user = User::query()->create([
             'name' => trim($name),
             'email' => mb_strtolower(trim($email)),
             'password' => Str::password(48),
+            'preferred_locale' => $preferredLocale,
             'is_super_admin' => $isSuperAdmin,
             'is_active' => true,
             'invitation_status' => 'pending',

@@ -5,6 +5,7 @@ namespace App\Modules\Auth\Presentation\Http\Controllers;
 use App\Actions\Auth\CompleteInvitation;
 use App\Concerns\PasswordValidationRules;
 use App\Models\User;
+use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
 use Illuminate\Support\Facades\App;
@@ -32,23 +33,26 @@ final class AccountInvitationController extends Controller
 
     public function store(Request $request, string $token): Response
     {
-        $data = $request->validate([
-            'email' => ['required', 'email'],
-            'password' => $this->passwordRules(),
-            'password_confirmation' => ['required', 'string'],
-        ]);
-        $user = $this->resolveUser($data['email'], $token);
-        DB::transaction(function () use ($data, $token, $user): void {
-            $locked = User::query()->lockForUpdate()->findOrFail($user->id);
-            abort_unless(in_array($locked->invitation_status, ['pending', 'sent', 'failed'], true), 404);
-            abort_unless(Password::broker(config('fortify.passwords'))->tokenExists($locked, $token), 404);
+        $user = $this->resolveUser((string) $request->input('email'), $token);
 
-            $this->completeInvitation->complete($locked, $data);
+        return $this->withUserLocale($user, function () use ($request, $token, $user): Response {
+            $data = $request->validate([
+                'email' => ['required', 'email'],
+                'password' => $this->passwordRules(),
+                'password_confirmation' => ['required', 'string'],
+            ]);
+            DB::transaction(function () use ($data, $token, $user): void {
+                $locked = User::query()->lockForUpdate()->findOrFail($user->id);
+                abort_unless(in_array($locked->invitation_status, ['pending', 'sent', 'failed'], true), 404);
+                abort_unless(Password::broker(config('fortify.passwords'))->tokenExists($locked, $token), 404);
 
-            Password::broker(config('fortify.passwords'))->deleteToken($locked);
+                $this->completeInvitation->complete($locked, $data);
+
+                Password::broker(config('fortify.passwords'))->deleteToken($locked);
+            });
+
+            return response(view('pages::auth.account-invitation-success', ['email' => $user->email])->render());
         });
-
-        return $this->renderForUser($user, 'pages::auth.account-invitation-success', ['email' => $user->email]);
     }
 
     private function resolveUser(string $email, string $token): User
@@ -66,11 +70,17 @@ final class AccountInvitationController extends Controller
     /** @param array<string, mixed> $data */
     private function renderForUser(User $user, string $view, array $data): Response
     {
+        return $this->withUserLocale($user, fn (): Response => response(view($view, $data)->render()));
+    }
+
+    /** @param Closure(): Response $callback */
+    private function withUserLocale(User $user, Closure $callback): Response
+    {
         $previousLocale = App::getLocale();
         App::setLocale($user->preferredLocale());
 
         try {
-            return response(view($view, $data)->render());
+            return $callback();
         } finally {
             App::setLocale($previousLocale);
         }

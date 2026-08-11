@@ -127,6 +127,24 @@ class PasswordResetTest extends TestCase
         });
     }
 
+    public function test_new_invitations_inherit_the_inviter_locale_and_send_through_the_real_gateway(): void
+    {
+        Notification::fake();
+        $admin = User::factory()->create(['preferred_locale' => 'ko_KR']);
+
+        $result = app(UserManagementGateway::class)->invite(
+            '한국 사용자',
+            'korean@example.com',
+            false,
+            $admin->id,
+            null,
+        );
+        $invited = User::query()->findOrFail($result['id']);
+
+        $this->assertSame('ko_KR', $invited->preferred_locale);
+        Notification::assertSentTo($invited, InternalUserInvitationNotification::class);
+    }
+
     public function test_logged_in_admin_can_complete_an_invitation_without_switching_sessions(): void
     {
         Notification::fake();
@@ -183,6 +201,73 @@ class PasswordResetTest extends TestCase
         $this->assertSame(5, $user->session_version);
         $this->assertNull($user->remember_token);
         $this->assertDatabaseMissing('sessions', ['id' => 'user-reset-session']);
+    }
+
+    public function test_invitation_validation_errors_use_the_target_users_locale(): void
+    {
+        $admin = User::factory()->create(['preferred_locale' => 'zh_CN']);
+        $invited = User::factory()->create([
+            'email' => 'invite-validation@example.com',
+            'preferred_locale' => 'ko_KR',
+            'invitation_status' => 'pending',
+        ]);
+        $token = Password::broker()->createToken($invited);
+
+        $response = $this->from(route('account.invitation', ['token' => $token, 'email' => $invited->email]))
+            ->actingAs($admin)->post(
+                route('account.invitation.store', ['token' => $token, 'email' => $invited->email]),
+                [
+                    'email' => $invited->email,
+                    'password' => 'short',
+                    'password_confirmation' => 'short',
+                ],
+            );
+        $response->assertSessionHasErrors('password');
+        $this->assertStringContainsString('비밀번호', session('errors')->first('password'));
+
+        $followUp = $this->get($response->headers->get('Location'));
+        $followUp
+            ->assertOk()
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('내부 계정 초대 수락');
+    }
+
+    public function test_password_reset_success_explains_when_the_current_users_session_was_invalidated(): void
+    {
+        $user = User::factory()->create(['invitation_status' => 'accepted']);
+        $token = Password::broker()->createToken($user);
+
+        $this->actingAs($user)->post(route('account.password-reset.store', [
+            'token' => $token,
+            'email' => $user->email,
+        ]), [
+            'email' => $user->email,
+            'password' => 'password',
+            'password_confirmation' => 'password',
+        ])->assertOk()
+            ->assertSee(__('auth.password_reset.success_session_invalidated'))
+            ->assertDontSee(__('auth.password_reset.success_current_session', ['email' => $user->email]));
+    }
+
+    public function test_password_reset_success_keeps_another_logged_in_users_session_message(): void
+    {
+        $admin = User::factory()->create(['email' => 'admin-reset@example.com']);
+        $target = User::factory()->create([
+            'email' => 'target-reset@example.com',
+            'invitation_status' => 'accepted',
+        ]);
+        $token = Password::broker()->createToken($target);
+
+        $this->actingAs($admin)->post(route('account.password-reset.store', [
+            'token' => $token,
+            'email' => $target->email,
+        ]), [
+            'email' => $target->email,
+            'password' => 'password',
+            'password_confirmation' => 'password',
+        ])->assertOk()
+            ->assertSee(__('auth.password_reset.success_current_session', ['email' => $admin->email]))
+            ->assertDontSee(__('auth.password_reset.success_session_invalidated'));
     }
 
     public function test_invitation_notification_has_a_distinct_url_and_locale_preference(): void

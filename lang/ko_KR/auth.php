@@ -50,6 +50,7 @@ return [
         'success_title' => '비밀번호가 재설정되었습니다',
         'success_account' => ':email 계정의 비밀번호가 재설정되었습니다.',
         'success_current_session' => '현재 브라우저는 :email 계정으로 계속 로그인되어 있습니다.',
+        'success_session_invalidated' => '현재 계정의 로그인 세션이 만료되었습니다. 다시 로그인해 주세요.',
         'success_description' => '비밀번호가 변경되었습니다. 다시 로그인해 주세요.',
         'login' => '로그인으로 이동',
     ],

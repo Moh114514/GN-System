@@ -50,6 +50,7 @@ return [
         'success_title' => '密码已重置',
         'success_account' => '账号 :email 的密码已重置完成。',
         'success_current_session' => '当前浏览器仍登录为 :email。',
+        'success_session_invalidated' => '当前账号的登录会话已失效，请重新登录。',
         'success_description' => '您的密码已更新，请重新登录。',
         'login' => '前往登录',
     ],

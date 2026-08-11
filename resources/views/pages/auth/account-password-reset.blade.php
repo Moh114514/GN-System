@@ -2,7 +2,7 @@
     <div class="flex flex-col gap-6">
         <x-auth-header :title="__('auth.password_reset.title')" :description="__('auth.password_reset.description')" />
 
-        <form method="POST" action="{{ route('account.password-reset.store', $token) }}" class="flex flex-col gap-6">
+        <form method="POST" action="{{ route('account.password-reset.store', ['token' => $token, 'email' => $email]) }}" class="flex flex-col gap-6">
             @csrf
             <input type="hidden" name="email" value="{{ $email }}">
 
