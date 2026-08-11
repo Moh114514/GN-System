@@ -16,7 +16,7 @@ final readonly class AgentProfileData
         public CarbonImmutable $cooperationStartedOn,
         public ?CarbonImmutable $cooperationEndedOn,
         public string $cooperationStatus,
-        public int $policyGradeId,
+        public ?int $policyGradeId,
         public ?string $notes,
     ) {}
 }

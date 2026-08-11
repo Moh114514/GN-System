@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Agent\Application\Data\AgentProfileData;
 use App\Modules\Agent\Application\Services\AgentDirectory;
 use App\Modules\Agent\Application\Services\AgentManager;
+use App\Modules\Agent\Application\Services\DatabaseReferenceConfigurationImportGateway;
 use App\Modules\Agent\Infrastructure\Models\Agent;
 use App\Modules\Agent\Infrastructure\Models\AgentGradeAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
@@ -26,6 +27,7 @@ use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Spatie\Activitylog\Models\Activity;
 use Tests\TestCase;
@@ -114,6 +116,14 @@ class PhaseFourAgentCommissionTest extends TestCase
 
         CommissionRule::query()->firstOrFail()->update(['rate_bps' => 500]);
         $this->assertSame(1250, OrderCommission::query()->findOrFail($commission->id)->rule_snapshot['rate_bps']);
+
+        AgentGradeAssignment::query()->where('agent_id', $this->agent->id)->delete();
+        $manager = app(AgentManager::class);
+        $manager->correctGrade($this->agent->id, $this->grade->id, CarbonImmutable::parse('2026-04-01'), '历史等级纠错', $this->admin->id, null);
+        $unchanged = OrderCommission::query()->findOrFail($commission->id);
+        $this->assertSame(1250, (int) $unchanged->rate_bps);
+        $this->assertSame(1251, (int) $unchanged->amount_krw);
+        $this->assertSame(1250, $unchanged->rule_snapshot['rate_bps']);
     }
 
     public function test_institution_override_precedes_global_override_and_grade_rule(): void
@@ -263,6 +273,183 @@ class PhaseFourAgentCommissionTest extends TestCase
         $gateway->saveRule($this->grade->id, $this->institution->id, 1300, CarbonImmutable::parse('2026-07-01'), $this->admin->id, null);
     }
 
+    public function test_missing_current_grade_requires_explicit_correction_and_becomes_effective_immediately(): void
+    {
+        $agent = Agent::query()->create([
+            'agent_type_code_id' => AgentTypeCode::query()->where('code', 'JG')->value('id'),
+            'code' => 'NO-GRADE-JG',
+            'name' => '无等级代理商',
+            'cooperation_started_on' => '2026-01-15',
+            'cooperation_status' => 'active',
+        ]);
+        $manager = app(AgentManager::class);
+        $data = new AgentProfileData(
+            typeCodeId: (int) $agent->agent_type_code_id,
+            codePrefix: 'NO-GRADE',
+            name: $agent->name,
+            businessRole: null,
+            contactName: null,
+            contactValue: null,
+            cooperationStartedOn: CarbonImmutable::parse('2026-01-15'),
+            cooperationEndedOn: null,
+            cooperationStatus: 'active',
+            policyGradeId: null,
+            notes: null,
+        );
+        $manager->update($agent->id, $data, $this->admin->id, null);
+        $this->assertDatabaseMissing('agent_grade_assignments', ['agent_id' => $agent->id]);
+
+        $manager->correctGrade($agent->id, $this->grade->id, CarbonImmutable::parse('2026-04-01'), '历史等级补录', $this->admin->id, null);
+        $this->assertDatabaseHas('agent_grade_assignments', [
+            'agent_id' => $agent->id,
+            'policy_grade_id' => $this->grade->id,
+            'effective_month' => '2026-04-01',
+            'reason' => '历史等级补录',
+        ]);
+        $profile = app(AgentDirectory::class)->profile($agent->id);
+        $this->assertSame($this->grade->id, $profile['policy_grade_id']);
+        $this->assertSame('2026-04-01', $profile['grade_effective_month']);
+    }
+
+    public function test_grade_correction_rejects_agent_that_already_has_current_grade(): void
+    {
+        $this->expectException(DomainException::class);
+        app(AgentManager::class)->correctGrade(
+            $this->agent->id,
+            $this->grade->id,
+            CarbonImmutable::parse('2026-04-01'),
+            '不应绕过正常调级流程',
+            $this->admin->id,
+            null,
+        );
+    }
+
+    public function test_grade_correction_allows_legacy_agent_without_cooperation_start_date(): void
+    {
+        $agent = Agent::query()->create([
+            'agent_type_code_id' => AgentTypeCode::query()->where('code', 'JG')->value('id'),
+            'code' => 'LEGACY-JG',
+            'name' => '历史代理商',
+            'cooperation_started_on' => null,
+            'cooperation_status' => 'active',
+        ]);
+
+        app(AgentManager::class)->correctGrade(
+            $agent->id,
+            $this->grade->id,
+            CarbonImmutable::parse('2026-04-01'),
+            '历史代理商等级补录',
+            $this->admin->id,
+            null,
+        );
+
+        $this->assertDatabaseHas('agent_grade_assignments', [
+            'agent_id' => $agent->id,
+            'effective_month' => '2026-04-01',
+        ]);
+    }
+
+    public function test_existing_grade_change_remains_scheduled_for_next_month(): void
+    {
+        $next = PolicyGrade::query()->create([
+            'policy_system_id' => $this->grade->policy_system_id,
+            'name' => '白金',
+            'monthly_threshold_krw' => 0,
+            'sort_order' => 20,
+            'is_active' => true,
+        ]);
+        app(AgentManager::class)->update($this->agent->id, new AgentProfileData(
+            typeCodeId: (int) $this->agent->agent_type_code_id,
+            codePrefix: 'TEST',
+            name: $this->agent->name,
+            businessRole: null,
+            contactName: null,
+            contactValue: null,
+            cooperationStartedOn: CarbonImmutable::parse('2026-01-01'),
+            cooperationEndedOn: null,
+            cooperationStatus: 'active',
+            policyGradeId: $next->id,
+            notes: null,
+        ), $this->admin->id, null);
+        $this->assertDatabaseHas('agent_grade_assignments', [
+            'agent_id' => $this->agent->id,
+            'policy_grade_id' => $next->id,
+            'effective_month' => '2026-08-01',
+        ]);
+        $this->assertSame($this->grade->id, app(AgentDirectory::class)->profile($this->agent->id)['policy_grade_id']);
+    }
+
+    public function test_normal_grade_import_never_overwrites_current_or_schedules_missing_grade(): void
+    {
+        $gateway = app(DatabaseReferenceConfigurationImportGateway::class);
+        $row = [
+            'agent_code' => $this->agent->code,
+            'policy_system' => PolicySystem::query()->findOrFail($this->grade->policy_system_id)->name,
+            'policy_grade' => $this->grade->name,
+            'effective_month' => '2026-07-01',
+            'reason' => '普通导入当前月',
+        ];
+
+        $this->expectException(DomainException::class);
+        $gateway->upsertGradeAssignments([$row], $this->admin->id, 'normal-batch');
+    }
+
+    public function test_normal_grade_import_schedules_existing_agent_change_for_next_month(): void
+    {
+        $nextGrade = PolicyGrade::query()->create([
+            'policy_system_id' => $this->grade->policy_system_id,
+            'name' => '白金',
+            'monthly_threshold_krw' => 0,
+            'sort_order' => 20,
+            'is_active' => true,
+        ]);
+        $gateway = app(DatabaseReferenceConfigurationImportGateway::class);
+        $gateway->upsertGradeAssignments([[
+            'agent_code' => $this->agent->code,
+            'policy_system' => PolicySystem::query()->findOrFail($nextGrade->policy_system_id)->name,
+            'policy_grade' => $nextGrade->name,
+            'effective_month' => '2026-08-01',
+            'reason' => '正常调级',
+        ]], $this->admin->id, (string) Str::uuid());
+
+        $this->assertDatabaseHas('agent_grade_assignments', [
+            'agent_id' => $this->agent->id,
+            'policy_grade_id' => $this->grade->id,
+            'effective_month' => '2026-07-01',
+        ]);
+        $this->assertDatabaseHas('agent_grade_assignments', [
+            'agent_id' => $this->agent->id,
+            'policy_grade_id' => $nextGrade->id,
+            'effective_month' => '2026-08-01',
+        ]);
+    }
+
+    public function test_historical_grade_import_is_past_only_and_idempotent(): void
+    {
+        $agent = Agent::query()->create([
+            'agent_type_code_id' => AgentTypeCode::query()->where('code', 'JG')->value('id'),
+            'code' => 'HISTORY-JG',
+            'name' => '历史等级代理商',
+            'cooperation_started_on' => '2026-01-15',
+            'cooperation_status' => 'active',
+        ]);
+        $row = [
+            'agent_code' => $agent->code,
+            'policy_system' => PolicySystem::query()->findOrFail($this->grade->policy_system_id)->name,
+            'policy_grade' => $this->grade->name,
+            'effective_month' => '2026-04-01',
+            'reason' => '历史等级迁移',
+        ];
+        $gateway = app(DatabaseReferenceConfigurationImportGateway::class);
+        $batchId = (string) Str::uuid();
+        $gateway->importHistoricalGradeAssignments([$row], $this->admin->id, $batchId, null);
+        $gateway->importHistoricalGradeAssignments([$row], $this->admin->id, $batchId, null);
+        $this->assertSame(1, AgentGradeAssignment::query()->where('agent_id', $agent->id)->count());
+
+        $this->expectException(DomainException::class);
+        $gateway->importHistoricalGradeAssignments([['agent_code' => $agent->code, 'policy_system' => $row['policy_system'], 'policy_grade' => $row['policy_grade'], 'effective_month' => '2026-08-01', 'reason' => '未来']], $this->admin->id, $batchId, null);
+    }
+
     public function test_phase_four_pages_enforce_roles_and_navigation(): void
     {
         $this->actingAs($this->user)->get(route('agents.index'))->assertForbidden();
@@ -277,7 +464,8 @@ class PhaseFourAgentCommissionTest extends TestCase
             ->assertSee('政策体系')
             ->assertSee('当前等级')
             ->assertSee('返回代理商管理')
-            ->assertSee('href="'.route('agents.index').'"', false);
+            ->assertSee('href="'.route('agents.index').'"', false)
+            ->assertSee(__('agents.detail.grade_history'));
         $this->actingAs($this->admin)->get(route('agent-configuration.index'))
             ->assertOk()
             ->assertSee('代理商与推广费配置')

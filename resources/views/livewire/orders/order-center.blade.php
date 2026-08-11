@@ -170,7 +170,7 @@
                 <tbody>
                     @forelse ($orders as $order)
                         <tr wire:key="managed-order-{{ $order['id'] }}">
-                            <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('orders.show', $order['id']) }}" wire:navigate>{{ $order['project_name'] }}</a><div class="text-xs text-zinc-500">#{{ $order['id'] }}</div></td>
+                            <td class="w-[32rem] max-w-[32rem]"><a class="line-clamp-2 overflow-hidden whitespace-normal break-words font-semibold leading-5 text-teal-700 hover:underline" title="{{ $order['project_name'] }}" href="{{ route('orders.show', $order['id']) }}" wire:navigate>{{ $order['project_name'] }}</a><div class="mt-1 text-xs text-zinc-500">#{{ $order['id'] }}</div></td>
                             <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('customers.show', $order['customer_id']) }}" wire:navigate>{{ $order['customer_name'] }}</a><div class="text-xs text-zinc-500">{{ $order['customer_code'] }}</div></td>
                             <td>{{ $order['institution'] }}<div class="text-xs text-zinc-500">{{ $order['channel'] === 'agent' ? __('orders.channels.agent') : __('orders.channels.direct') }} · {{ $order['source'] }}</div></td>
                             <td>₩ {{ number_format($order['amount_krw']) }}</td>

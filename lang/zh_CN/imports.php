@@ -17,7 +17,7 @@ return [
     'stages' => [
         'names' => [
             'file_detection' => '文件识别', 'field_validation' => '字段校验', 'normalization' => '数据标准化',
-            'relation_validation' => '关联校验', 'summary_validation' => '汇总校验',
+            'relation_validation' => '关联校验', 'business_validation' => '业务规则校验', 'summary_validation' => '汇总校验',
             'dry_run' => '事务预演', 'commit' => '正式写入',
         ],
         'statuses' => [
@@ -68,6 +68,9 @@ return [
         'empty_batch' => '请选择或上传一个批次查看预览。',
     ],
     'reference' => [
+        'operation_mode_label' => '导入模式', 'operation_modes' => ['normal' => '普通配置', 'historical_correction' => '历史配置补录'],
+        'operation_reason_label' => '补录/纠错原因', 'operation_reason_placeholder' => '历史配置补录必须填写原因',
+        'operation_mode' => '导入模式', 'operation_reason' => '原因',
         'eyebrow' => '配置中心 · 批量维护', 'title' => '基础配置导入',
         'files' => ['example' => '基础配置导入-填写示例.xlsx'],
         'description' => '用一个包含八个工作表的 XLSX 工作簿批量维护基础配置。上传后先预览和检查，由管理员确认后才会正式写入。',
@@ -103,6 +106,7 @@ return [
         'file_detection_failed' => '文件识别失败，请检查文件格式和工作表。',
         'field_validation_failed' => '字段校验失败，请检查导入文件。',
         'relation_validation_failed' => '关联校验失败，请检查导入数据之间的关联编码。',
+        'historical_date_not_allowed' => '普通配置模式不允许写入历史月份 :effective_month，请切换到受控历史纠错模式。',
         'relation_unresolved' => '数据关联校验失败，请检查关联编码。',
         'institution_code_missing' => '机构代码“:institution_code”不存在。',
         'agent_missing' => '代理商“:agent_code”不存在。',

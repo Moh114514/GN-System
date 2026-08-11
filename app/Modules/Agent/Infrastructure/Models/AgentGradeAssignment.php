@@ -3,6 +3,7 @@
 namespace App\Modules\Agent\Infrastructure\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Carbon;
 
 /**
@@ -20,5 +21,11 @@ class AgentGradeAssignment extends Model
     protected function casts(): array
     {
         return ['effective_month' => 'date'];
+    }
+
+    /** @return BelongsTo<PolicyGrade, $this> */
+    public function policyGrade(): BelongsTo
+    {
+        return $this->belongsTo(PolicyGrade::class);
     }
 }

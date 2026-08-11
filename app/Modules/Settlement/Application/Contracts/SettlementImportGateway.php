@@ -12,6 +12,8 @@ interface SettlementImportGateway
 
     public function upsertSettlement(SettlementImportData $data): int;
 
+    public function materializeHistoricalItems(string $importBatchId): void;
+
     /** @return array<int, string> */
     public function rollbackBlockers(string $batchId, DateTimeInterface $completedAt): array;
 

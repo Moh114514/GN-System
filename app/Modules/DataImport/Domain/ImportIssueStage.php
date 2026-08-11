@@ -8,6 +8,7 @@ enum ImportIssueStage: string
     case FieldValidation = 'field_validation';
     case Normalization = 'normalization';
     case RelationValidation = 'relation_validation';
+    case BusinessValidation = 'business_validation';
     case SummaryValidation = 'summary_validation';
     case DryRun = 'dry_run';
     case Commit = 'commit';

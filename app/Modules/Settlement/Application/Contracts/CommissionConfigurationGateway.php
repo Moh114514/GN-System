@@ -2,6 +2,7 @@
 
 namespace App\Modules\Settlement\Application\Contracts;
 
+use App\Modules\Settlement\Application\Data\HistoricalCommissionRuleData;
 use Carbon\CarbonImmutable;
 
 interface CommissionConfigurationGateway
@@ -18,6 +19,8 @@ interface CommissionConfigurationGateway
         ?string $ipAddress,
         bool $isActive = true,
     ): void;
+
+    public function importHistoricalCorrectionRule(HistoricalCommissionRuleData $data): void;
 
     public function saveOverride(
         int $agentId,

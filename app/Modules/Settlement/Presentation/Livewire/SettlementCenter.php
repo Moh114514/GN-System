@@ -3,10 +3,12 @@
 namespace App\Modules\Settlement\Presentation\Livewire;
 
 use App\Modules\Settlement\Application\Data\SettlementRunStartResult;
+use App\Modules\Settlement\Application\Services\SettlementDisplayReader;
 use App\Modules\Settlement\Application\Services\SettlementNotificationDispatcher;
 use App\Modules\Settlement\Application\Services\SettlementPeriodCalculator;
 use App\Modules\Settlement\Application\Services\SettlementRunManager;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
+use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
 use Carbon\CarbonImmutable;
 use DomainException;
@@ -107,22 +109,44 @@ class SettlementCenter extends Component
         }
     }
 
-    public function render(): View
+    public function render(SettlementDisplayReader $display): View
     {
         $periods = app(SettlementPeriodCalculator::class)->recentClosedPeriods(CarbonImmutable::now(), 13);
+        $runs = SettlementRun::query()
+            ->with(['settlements', 'members.settlement'])
+            ->latest('period_end')
+            ->limit(24)
+            ->get();
+        $memberDisplays = [];
+        $legacyDisplays = [];
+        foreach ($runs as $run) {
+            $memberDisplays[(string) $run->id] = $display->forMembers($run->members);
+            foreach ($display->forSettlements($run->settlements) as $settlementId => $agentDisplay) {
+                $legacyDisplays[$settlementId] = $agentDisplay;
+            }
+        }
+        $historicalSettlementCount = Settlement::query()
+            ->whereNull('settlement_run_id')
+            ->whereNotExists(fn ($query) => $query
+                ->selectRaw('1')
+                ->from('settlement_run_members')
+                ->whereColumn('settlement_run_members.settlement_id', 'settlements.id'))
+            ->count();
+        $documentCounts = SettlementDocument::query()
+            ->join('settlement_run_members', 'settlement_run_members.settlement_id', '=', 'settlement_documents.settlement_id')
+            ->whereIn('settlement_run_members.settlement_run_id', $runs->pluck('id'))
+            ->selectRaw('settlement_run_members.settlement_run_id as run_id, COUNT(DISTINCT settlement_documents.id) as document_count')
+            ->groupBy('settlement_run_members.settlement_run_id')
+            ->pluck('document_count', 'run_id')
+            ->mapWithKeys(static fn ($count, $runId): array => [(string) $runId => (int) $count])
+            ->all();
 
         return view('livewire.settlements.settlement-center', [
-            'runs' => SettlementRun::query()
-                ->with(['settlements' => fn ($query) => $query->orderBy('agent_id')->orderBy('id')])
-                ->latest('period_end')
-                ->limit(24)
-                ->get(),
-            'unboundSettlements' => Settlement::query()
-                ->whereNull('settlement_run_id')
-                ->latest('period_end')
-                ->latest('id')
-                ->limit(24)
-                ->get(),
+            'runs' => $runs,
+            'memberDisplays' => $memberDisplays,
+            'legacyDisplays' => $legacyDisplays,
+            'documentCounts' => $documentCounts,
+            'historicalSettlementCount' => $historicalSettlementCount,
             'historicalPeriods' => array_slice($periods, 1),
         ]);
     }

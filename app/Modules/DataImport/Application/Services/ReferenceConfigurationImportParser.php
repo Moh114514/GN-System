@@ -6,6 +6,7 @@ use App\Modules\Agent\Application\Contracts\AgentImportGateway;
 use App\Modules\Agent\Application\Contracts\ReferenceConfigurationImportGateway as AgentReferences;
 use App\Modules\Config\Application\Contracts\ReferenceConfigurationImportGateway as ConfigReferences;
 use App\Modules\DataImport\Domain\ImportBatchStatus;
+use App\Modules\DataImport\Domain\ImportOperationMode;
 use App\Modules\DataImport\Domain\ImportProfile;
 use App\Modules\DataImport\Domain\ImportRowStatus;
 use App\Modules\DataImport\Infrastructure\EncryptedImportStorage;
@@ -129,6 +130,9 @@ final readonly class ReferenceConfigurationImportParser
             $failureStage = 'relation_validation';
             $this->validateRelationships($batch);
             $this->issues->syncRows($batch, 'relation_validation', false);
+            $failureStage = 'business_validation';
+            $this->validateBusinessDates($batch);
+            $this->issues->syncRows($batch, 'business_validation', false);
             $failureStage = 'summary_validation';
             $this->refreshCounts($batch);
         } catch (Throwable $exception) {
@@ -262,6 +266,61 @@ final readonly class ReferenceConfigurationImportParser
         }
     }
 
+    private function validateBusinessDates(ImportBatch $batch): void
+    {
+        $currentMonth = CarbonImmutable::now()->startOfMonth();
+        $nextMonth = $currentMonth->addMonthNoOverflow();
+        $historical = $batch->operation_mode === ImportOperationMode::HistoricalCorrection;
+        $cooperationMonths = $batch->rows()
+            ->where('profile', ImportProfile::Agent)
+            ->where('status', ImportRowStatus::Valid)
+            ->get()
+            ->mapWithKeys(function (ImportRow $row): array {
+                $data = $row->normalized_data ?? [];
+
+                return [(string) ($data['code'] ?? '') => isset($data['cooperation_started_on'])
+                    ? CarbonImmutable::parse((string) $data['cooperation_started_on'])->startOfMonth()
+                    : null];
+            });
+
+        foreach ($batch->rows()->where('status', ImportRowStatus::Valid)->whereIn('profile', [ImportProfile::CommissionRule, ImportProfile::GradeAssignment])->orderBy('id')->get() as $row) {
+            $month = CarbonImmutable::parse((string) ($row->normalized_data['effective_month'] ?? ''))->startOfMonth();
+            $error = null;
+            if ($row->profile === ImportProfile::CommissionRule) {
+                if ($historical && ! $month->lt($currentMonth)) {
+                    $error = __('settlements.errors.historical_rate_month_invalid');
+                } elseif (! $historical && $month->lt($currentMonth)) {
+                    $error = __('imports.errors.historical_date_not_allowed', ['effective_month' => $month->format('Y-m-d')]);
+                }
+            } elseif ($historical) {
+                if (! $month->lt($currentMonth)) {
+                    $error = __('historical_correction.agents.historical_grade_month_invalid');
+                } else {
+                    $agentCode = (string) ($row->normalized_data['agent_code'] ?? '');
+                    $cooperationMonth = $cooperationMonths->get($agentCode);
+                    if ($cooperationMonth instanceof CarbonImmutable && $month->lt($cooperationMonth)) {
+                        $error = __('historical_correction.agents.historical_grade_before_cooperation');
+                    }
+                }
+            } elseif ($month->lt($currentMonth)) {
+                $error = __('imports.errors.historical_date_not_allowed', ['effective_month' => $month->format('Y-m-d')]);
+            } elseif ($month->eq($currentMonth)) {
+                $agentCode = (string) ($row->normalized_data['agent_code'] ?? '');
+                if (! $cooperationMonths->has($agentCode)) {
+                    $error = __('historical_correction.agents.normal_grade_current_locked');
+                }
+            } elseif ($month->gt($nextMonth)) {
+                $error = __('historical_correction.agents.normal_grade_future_invalid');
+            }
+
+            if ($error !== null) {
+                $errors = $row->errors ?? [];
+                $errors[] = $error;
+                $row->update(['status' => ImportRowStatus::Error, 'errors' => $errors]);
+            }
+        }
+    }
+
     private function refreshCounts(ImportBatch $batch): void
     {
         $total = $batch->rows()->count();
@@ -281,7 +340,7 @@ final readonly class ReferenceConfigurationImportParser
             'warning_rows' => $fieldWarnings,
             'error_rows' => $fieldErrors,
         ];
-        foreach (['normalization', 'relation_validation', 'summary_validation'] as $stage) {
+        foreach (['normalization', 'relation_validation', 'business_validation', 'summary_validation'] as $stage) {
             $issueCount = $batch->issues()->where('stage', $stage)->count();
             $summary['stages'][$stage] = [
                 'status' => $issueCount > 0 ? 'failed' : 'passed',

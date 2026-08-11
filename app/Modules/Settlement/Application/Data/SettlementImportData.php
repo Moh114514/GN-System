@@ -17,5 +17,7 @@ final readonly class SettlementImportData
         public int $payoutAmountCnyFen,
         public string $status,
         public ?string $importBatchId,
+        /** @var array{id: int, code: string, name: string}|null */
+        public ?array $agentSnapshot = null,
     ) {}
 }

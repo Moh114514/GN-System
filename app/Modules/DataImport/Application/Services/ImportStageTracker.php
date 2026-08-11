@@ -12,6 +12,7 @@ final class ImportStageTracker
         'field_validation' => 'pending',
         'normalization' => 'pending',
         'relation_validation' => 'pending',
+        'business_validation' => 'pending',
         'summary_validation' => 'pending',
         'dry_run' => 'not_started',
         'commit' => 'not_started',

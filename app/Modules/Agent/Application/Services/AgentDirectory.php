@@ -151,9 +151,41 @@ final readonly class AgentDirectory
             'policy_grade' => $grade?->name,
             'policy_grade_id' => $grade?->id,
             'grade_effective_month' => $assignment?->effective_month?->format('Y-m-d'),
+            'grade_history' => $this->gradeHistory($agentId),
             'customers' => $this->customers->customersForAgent($agentId),
             'orders' => $this->orders->forAgent($agentId),
         ];
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    private function gradeHistory(int $agentId): array
+    {
+        $month = CarbonImmutable::now()->startOfMonth();
+        $assignments = AgentGradeAssignment::query()
+            ->where('agent_id', $agentId)
+            ->with(['policyGrade.policySystem'])
+            ->orderByDesc('effective_month')
+            ->get();
+        $currentId = $assignments
+            ->filter(fn (AgentGradeAssignment $assignment): bool => $assignment->effective_month->lte($month))
+            ->sortByDesc('effective_month')
+            ->first()?->id;
+
+        return $assignments->map(function (AgentGradeAssignment $assignment) use ($month, $currentId): array {
+            $grade = $assignment->policyGrade;
+            $system = $grade?->policySystem;
+
+            return [
+                'effective_month' => $assignment->effective_month->format('Y-m-d'),
+                'policy_system' => $system?->name,
+                'policy_grade' => $grade?->name,
+                'reason' => $assignment->reason,
+                'source' => $assignment->import_batch_id === null ? 'manual' : 'import',
+                'status' => $assignment->id === $currentId
+                    ? 'current'
+                    : ($assignment->effective_month->gt($month) ? 'pending' : 'historical'),
+            ];
+        })->values()->all();
     }
 
     /** @param array<int, int> $agentIds

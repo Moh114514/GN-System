@@ -41,6 +41,14 @@ class SettlementRun extends Model
             ->orderBy('id');
     }
 
+    /** @return HasMany<SettlementRunMember, $this> */
+    public function members(): HasMany
+    {
+        return $this->hasMany(SettlementRunMember::class)
+            ->orderBy('agent_id')
+            ->orderBy('id');
+    }
+
     protected function casts(): array
     {
         return [

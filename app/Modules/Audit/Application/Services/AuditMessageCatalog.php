@@ -66,6 +66,7 @@ final class AuditMessageCatalog
         'settlements.audit.status_corrected',
         'settlements.audit.generation_recovered',
         'settlements.audit.recovery_batch_created',
+        'settlements.refresh.audit',
     ];
 
     /** @var array<string, string>|null */
