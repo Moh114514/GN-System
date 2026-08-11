@@ -60,7 +60,7 @@ class SettlementHistory extends Component
 
     public function render(SettlementDisplayReader $display): View
     {
-        $historical = $this->historicalQuery()
+        $historical = $this->historicalQuery($display)
             ->when($this->month !== '' && preg_match('/^\d{4}-\d{2}$/', $this->month) === 1, function (Builder $query): void {
                 $start = CarbonImmutable::createFromFormat('!Y-m', $this->month)->startOfMonth();
                 $query->whereDate('period_start', '>=', $start->toDateString())
@@ -72,29 +72,15 @@ class SettlementHistory extends Component
             ->latest('id')
             ->paginate(24);
 
-        $allHistorical = $this->historicalQuery()->get();
-        $allDisplays = $display->forSettlements($allHistorical);
-        $agentOptions = collect($allDisplays)
-            ->map(static fn (array $agent, int $settlementId): array => [
-                'id' => (int) ($agent['id'] ?? 0),
-                'code' => $agent['code'],
-                'name' => $agent['name'],
-                'settlement_id' => $settlementId,
-            ])
-            ->filter(static fn (array $agent): bool => $agent['id'] > 0)
-            ->unique('id')
-            ->sortBy(fn (array $agent): string => $agent['name'].' '.$agent['code'])
-            ->values();
-
         return view('livewire.settlements.settlement-history', [
             'settlements' => $historical,
             'agentDisplays' => $display->forSettlements($historical->getCollection()),
-            'agentOptions' => $agentOptions,
+            'agentOptions' => collect($display->agentOptions()),
         ])->title(__('settlements.archive.title'));
     }
 
     /** @return Builder<Settlement> */
-    private function historicalQuery(): Builder
+    private function historicalQuery(SettlementDisplayReader $display): Builder
     {
         return Settlement::query()
             ->whereNull('settlement_run_id')
@@ -102,13 +88,14 @@ class SettlementHistory extends Component
                 ->selectRaw('1')
                 ->from('settlement_run_members')
                 ->whereColumn('settlement_run_members.settlement_id', 'settlements.id'))
-            ->when($this->search !== '', function (Builder $query): void {
+            ->when($this->search !== '', function (Builder $query) use ($display): void {
                 $term = '%'.$this->search.'%';
+                $matchingAgentIds = $display->matchingAgentIds($this->search);
                 $query->where(function (Builder $query) use ($term): void {
                     $query->whereRaw("COALESCE(snapshot->'agent'->>'code', '') ILIKE ?", [$term])
                         ->orWhereRaw("COALESCE(snapshot->'agent'->>'name', '') ILIKE ?", [$term])
                         ->orWhereRaw('CAST(agent_id AS TEXT) ILIKE ?', [$term]);
-                });
+                })->when($matchingAgentIds !== [], fn (Builder $query): Builder => $query->orWhereIn('agent_id', $matchingAgentIds));
             });
     }
 }

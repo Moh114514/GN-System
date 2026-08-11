@@ -29,6 +29,7 @@ final readonly class SettlementWorkflow
         private SettlementGenerator $generator,
         private SettlementOrderReader $orders,
         private SettlementRunSummaryUpdater $summary,
+        private SettlementFreshnessChecker $freshness,
     ) {}
 
     public function reject(int $settlementId, string $reason, int $actorId, ?string $ipAddress): void
@@ -61,6 +62,7 @@ final readonly class SettlementWorkflow
             if ($settlement->generation_status !== 'generated') {
                 throw new DomainException(__('settlements.errors.generation_required'));
             }
+            $this->assertFresh($settlement);
             $manualOverride = $settlement->exchange_rate_quote_status !== 'available'
                 || $settlement->exchange_rate_krw_per_cny === null
                 || (string) $settlement->exchange_rate_krw_per_cny !== (string) $rate;
@@ -95,6 +97,7 @@ final readonly class SettlementWorkflow
             if ($settlement->status !== 'approved') {
                 throw new DomainException(__('settlements.errors.only_approved_settle'));
             }
+            $this->assertFresh($settlement);
             $settlement->update([
                 'status' => 'settled',
                 'settled_on' => now()->toDateString(),
@@ -123,6 +126,9 @@ final readonly class SettlementWorkflow
             }
             if ($settlement->status === $targetStatus) {
                 throw new DomainException(__('settlements.errors.same_correction_status'));
+            }
+            if (in_array($targetStatus, ['approved', 'settled'], true)) {
+                $this->assertFresh($settlement);
             }
 
             $before = $this->statusSnapshot($settlement);
@@ -223,6 +229,9 @@ final readonly class SettlementWorkflow
             }
             if ($settlement->generation_status !== 'generated' || $settlement->settlement_run_id === null) {
                 throw new DomainException(__('settlements.refresh.errors.generation_required'));
+            }
+            if (SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->where('status', 'accepted')->exists()) {
+                throw new DomainException(__('settlements.errors.accepted_grade_blocks_correction'));
             }
 
             $before = [
@@ -483,6 +492,13 @@ final readonly class SettlementWorkflow
         }
 
         return $rate;
+    }
+
+    private function assertFresh(Settlement $settlement): void
+    {
+        if ($this->freshness->check($settlement)->isStale()) {
+            throw new DomainException(__('settlements.detail.freshness_description'));
+        }
     }
 
     private function assertSuperAdmin(int $actorId): void

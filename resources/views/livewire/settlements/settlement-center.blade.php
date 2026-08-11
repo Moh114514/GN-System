@@ -68,7 +68,7 @@
                                     @if ($settlement)
                                         <a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $settlement->id) }}" wire:navigate>{{ $agentDisplay['code'] ?? '' }} {{ $agentDisplay['name'] ?? __('settlements.labels.unknown_agent').' #'.$member->agent_id }}</a>
                                     @else
-                                        <span class="font-semibold">{{ __('settlements.labels.unknown_agent').' #'.$member->agent_id }}</span>
+                                        <span class="font-semibold">{{ $agentDisplay['code'] ?? '' }} {{ $agentDisplay['name'] ?? __('settlements.labels.unknown_agent').' #'.$member->agent_id }}</span>
                                     @endif
                                 </td>
                                 <td>{{ __('settlements.center.outcome_'.$member->outcome) }}</td>

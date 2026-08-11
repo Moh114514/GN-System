@@ -11,6 +11,37 @@ final readonly class SettlementDisplayReader
 {
     public function __construct(private AgentReferenceReader $agents) {}
 
+    /** @return list<int> */
+    public function matchingAgentIds(string $search): array
+    {
+        return array_map('intval', array_keys($this->agents->matchingAgents($search)));
+    }
+
+    /** @return list<array{id: int, code: string, name: string}> */
+    public function agentOptions(): array
+    {
+        $options = [];
+        foreach ($this->agents->matchingAgents('') as $agent) {
+            $id = (int) $agent['id'];
+            if ($id <= 0) {
+                continue;
+            }
+
+            $options[$id] = [
+                'id' => $id,
+                'code' => $agent['code'],
+                'name' => $agent['name'],
+            ];
+        }
+
+        usort($options, static fn (array $left, array $right): int => strcmp(
+            $left['name'].' '.$left['code'],
+            $right['name'].' '.$right['code'],
+        ));
+
+        return $options;
+    }
+
     /** @return array{id: int|null, code: string, name: string} */
     public function agent(Settlement $settlement): array
     {
@@ -46,23 +77,15 @@ final readonly class SettlementDisplayReader
      */
     public function forMembers(Collection $members): array
     {
-        $settlements = $members->pluck('settlement')->filter();
-        $agentIds = $settlements->map(static fn (Settlement $settlement): int => (int) $settlement->agent_id)->unique()->values()->all();
+        $agentIds = $members->map(static fn (SettlementRunMember $member): int => (int) $member->agent_id)->unique()->values()->all();
         $references = $this->agents->agentsByIds($agentIds);
         $result = [];
         foreach ($members as $member) {
             $settlement = $member->settlement;
-            if (! $settlement instanceof Settlement) {
-                $result[(int) $member->id] = [
-                    'id' => (int) $member->agent_id,
-                    'code' => '',
-                    'name' => __('settlements.labels.unknown_agent').' #'.$member->agent_id,
-                ];
-
-                continue;
-            }
-            $snapshotAgent = is_array(data_get($settlement->snapshot, 'agent')) ? data_get($settlement->snapshot, 'agent') : [];
-            $agentId = (int) $settlement->agent_id;
+            $snapshotAgent = $settlement instanceof Settlement && is_array(data_get($settlement->snapshot, 'agent'))
+                ? data_get($settlement->snapshot, 'agent')
+                : [];
+            $agentId = (int) $member->agent_id;
             $reference = $references[$agentId] ?? null;
             $result[(int) $member->id] = [
                 'id' => $agentId,

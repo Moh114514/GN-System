@@ -214,6 +214,58 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame('补录本周期遗漏订单', $properties['reason']);
     }
 
+    public function test_stale_settlement_cannot_be_approved_or_settled(): void
+    {
+        $this->createCompletedOrder(10000);
+        $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
+        $settlement = Settlement::query()->where('settlement_run_id', $run->id)->firstOrFail();
+        $this->createCompletedOrder(20000);
+
+        try {
+            app(SettlementWorkflow::class)->approve($settlement->id, '180', $this->admin->id, null);
+            $this->fail('A stale settlement must not be approved.');
+        } catch (DomainException) {
+            $this->assertSame('pending_review', $settlement->fresh()->status);
+        }
+
+        $settlement->update(['status' => 'approved']);
+        try {
+            app(SettlementWorkflow::class)->settle($settlement->id, $this->admin->id, null);
+            $this->fail('A stale settlement must not be settled.');
+        } catch (DomainException) {
+            $this->assertSame('approved', $settlement->fresh()->status);
+        }
+    }
+
+    public function test_refresh_is_blocked_after_grade_suggestion_was_accepted(): void
+    {
+        $higher = PolicyGrade::query()->create([
+            'policy_system_id' => $this->grade->policy_system_id,
+            'name' => '升级级',
+            'monthly_threshold_krw' => 500,
+            'sort_order' => 20,
+            'is_active' => true,
+        ]);
+        $this->createCompletedOrder(10000);
+        $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
+        $settlement = Settlement::query()->where('settlement_run_id', $run->id)->firstOrFail();
+        $suggestion = SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->firstOrFail();
+        $this->assertSame($higher->id, (int) $suggestion->recommended_grade_id);
+
+        app(SettlementWorkflow::class)->reviewSuggestion($suggestion->id, true, '人工确认升级', $this->admin->id);
+        $this->createCompletedOrder(20000);
+
+        try {
+            app(SettlementWorkflow::class)->refreshSettlement($settlement->id, '补录订单', $this->admin->id, null);
+            $this->fail('An accepted grade suggestion must block refresh.');
+        } catch (DomainException) {
+            $this->assertDatabaseHas('settlement_grade_suggestions', [
+                'id' => $suggestion->id,
+                'status' => 'accepted',
+            ]);
+        }
+    }
+
     public function test_settlement_refresh_only_allows_pending_review_or_rejected(): void
     {
         $this->createCompletedOrder(10000);
@@ -324,7 +376,10 @@ class PhaseFiveSettlementTest extends TestCase
         ]);
 
         $job = new GenerateAgentSettlement(memberId: null, runId: $run->id, agentId: $this->agent->id);
-        $job->handle(app(SettlementGenerator::class));
+        unset($job->memberId);
+        /** @var GenerateAgentSettlement $restoredJob */
+        $restoredJob = unserialize(serialize($job), ['allowed_classes' => [GenerateAgentSettlement::class]]);
+        $restoredJob->handle(app(SettlementGenerator::class));
 
         $this->assertDatabaseHas('settlement_run_members', [
             'settlement_run_id' => $run->id,
@@ -371,6 +426,8 @@ class PhaseFiveSettlementTest extends TestCase
 
         $migration = require base_path('database/migrations/2026_08_10_000400_backfill_settlement_run_members.php');
         $migration->up();
+        $projectionMigration = require base_path('database/migrations/2026_08_11_000100_rebuild_settlement_run_projections.php');
+        $projectionMigration->up();
 
         $run->refresh();
         $this->assertSame(2, $run->total_agents);
@@ -380,6 +437,45 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame(300, $run->total_consumption_krw);
         $this->assertSame(30, $run->total_commission_krw);
         $this->assertSame([$other->id], $run->existing_agent_ids);
+        $this->assertSame('completed', $run->status);
+        $this->assertNotNull($run->completed_at);
+    }
+
+    public function test_projection_migration_repairs_pending_and_failed_run_statuses(): void
+    {
+        $failedAgent = $this->createSettlementAgent(1);
+        $pendingRun = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'historical',
+            'status' => 'completed',
+            'completed_at' => now(),
+        ]);
+        $failedRun = SettlementRun::query()->create([
+            'period_start' => '2026-08-01',
+            'period_end' => '2026-08-31',
+            'trigger_source' => 'historical',
+            'status' => 'running',
+        ]);
+        SettlementRunMember::query()->create([
+            'settlement_run_id' => $pendingRun->id,
+            'agent_id' => $this->agent->id,
+            'outcome' => 'pending',
+        ]);
+        SettlementRunMember::query()->create([
+            'settlement_run_id' => $failedRun->id,
+            'agent_id' => $failedAgent->id,
+            'outcome' => 'failed',
+            'error_message_key' => 'settlements.failure_reasons.legacy_unknown',
+        ]);
+
+        $migration = require base_path('database/migrations/2026_08_11_000100_rebuild_settlement_run_projections.php');
+        $migration->up();
+
+        $this->assertSame('running', $pendingRun->fresh()->status);
+        $this->assertNull($pendingRun->fresh()->completed_at);
+        $this->assertSame('partial_failed', $failedRun->fresh()->status);
+        $this->assertNotNull($failedRun->fresh()->completed_at);
     }
 
     public function test_generation_batch_only_dispatches_agents_without_existing_settlements(): void
@@ -1082,7 +1178,11 @@ class PhaseFiveSettlementTest extends TestCase
         ]);
 
         Livewire::actingAs($this->admin)->test(SettlementCenter::class)->assertDontSee($this->agent->name);
-        Livewire::actingAs($this->admin)->test(SettlementHistory::class)->assertSee($this->agent->name);
+        Livewire::actingAs($this->admin)
+            ->test(SettlementHistory::class)
+            ->assertSee($this->agent->name)
+            ->set('search', $this->agent->name)
+            ->assertSee($this->agent->name);
         $this->actingAs($this->admin)->get(route('settlements.show', $settlement))->assertOk()->assertSee($this->agent->name);
     }
 
@@ -1119,6 +1219,59 @@ class PhaseFiveSettlementTest extends TestCase
             ->set('search', 'HIST-B')
             ->assertSee('归档代理商 B')
             ->assertDontSee('2026-05');
+    }
+
+    public function test_historical_archive_paginates_records_without_loading_all_rows_for_the_table(): void
+    {
+        for ($index = 0; $index < 25; $index++) {
+            $start = CarbonImmutable::create(2024, 1, 1)->addMonths($index);
+            Settlement::query()->create([
+                'agent_id' => $this->agent->id,
+                'period_start' => $start->toDateString(),
+                'period_end' => $start->endOfMonth()->toDateString(),
+                'status' => 'paid',
+                'generation_status' => 'not_applicable',
+                'snapshot' => ['source' => 'historical_import'],
+            ]);
+        }
+
+        Livewire::actingAs($this->admin)
+            ->test(SettlementHistory::class)
+            ->assertSee('2026-01')
+            ->assertDontSee('2024-01')
+            ->call('gotoPage', 2)
+            ->assertSee('2024-01');
+    }
+
+    public function test_pending_and_failed_members_use_their_agent_reference_for_display(): void
+    {
+        $other = $this->createSettlementAgent(1);
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'partial_failed',
+            'total_agents' => 2,
+            'failed_agents' => 1,
+        ]);
+        SettlementRunMember::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $this->agent->id,
+            'outcome' => 'pending',
+        ]);
+        SettlementRunMember::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $other->id,
+            'outcome' => 'failed',
+            'error_message_key' => 'settlements.failure_reasons.legacy_unknown',
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(SettlementCenter::class)
+            ->assertSee($this->agent->code)
+            ->assertSee($this->agent->name)
+            ->assertSee($other->code)
+            ->assertSee($other->name);
     }
 
     public function test_settlement_detail_links_snapshot_project_name_when_order_exists(): void

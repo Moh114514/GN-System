@@ -12,16 +12,23 @@ class GenerateAgentSettlement implements ShouldQueue
 {
     use Batchable, Queueable;
 
+    public ?int $memberId = null;
+
+    public ?string $runId = null;
+
+    public ?int $agentId = null;
+
     public int $tries = 3;
 
     /** @var array<int, int> */
     public array $backoff = [10, 60, 300];
 
-    public function __construct(
-        public ?int $memberId = null,
-        public ?string $runId = null,
-        public ?int $agentId = null,
-    ) {}
+    public function __construct(?int $memberId = null, ?string $runId = null, ?int $agentId = null)
+    {
+        $this->memberId = $memberId;
+        $this->runId = $runId;
+        $this->agentId = $agentId;
+    }
 
     public function handle(SettlementGenerator $generator): void
     {

@@ -22,6 +22,22 @@ final class DatabaseAgentReferenceReader implements AgentReferenceReader
         );
     }
 
+    public function matchingAgents(string $search): array
+    {
+        $search = trim($search);
+
+        return $this->serialize(
+            Agent::query()
+                ->when($search !== '', fn ($query) => $query->where(function ($query) use ($search): void {
+                    $term = '%'.$search.'%';
+                    $query->where('name', 'ilike', $term)
+                        ->orWhere('code', 'ilike', $term);
+                }))
+                ->orderBy('name')
+                ->get(['id', 'code', 'name', 'cooperation_status']),
+        );
+    }
+
     public function agentById(int $id): array
     {
         $agent = Agent::query()->findOrFail($id, ['id', 'code', 'name', 'cooperation_status']);
