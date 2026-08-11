@@ -30,6 +30,7 @@
     "Ensure your account is using a long, random password to stay secure": "使用足够长且随机的密码以保护账户安全",
     "Forgot password": "忘记密码",
     "Forgot your password?": "忘记密码？",
+    "Hello!": "您好！",
     "Hide recovery codes": "隐藏恢复码",
     "Light": "浅色",
     "Log in": "登录",
@@ -53,6 +54,7 @@
     "Recovery codes let you regain access if you lose your 2FA device. Store them in a secure password manager.": "恢复码可在双因素认证设备丢失时恢复账户访问，请将其保存在安全的密码管理器中。",
     "Regenerate codes": "重新生成恢复码",
     "Remember me": "记住我",
+    "Regards,": "此致，",
     "Resend verification email": "重新发送验证邮件",
     "Reset password": "重置密码",
     "Save": "保存",
@@ -71,5 +73,6 @@
     "Verify authentication code": "验证身份验证码",
     "View recovery codes": "查看恢复码",
     "When you enable two-factor authentication, you will be prompted for a secure pin during login. This pin can be retrieved from a TOTP-supported application on your phone.": "启用后，登录时需要输入手机身份验证器生成的动态验证码。",
-    "You will be prompted for a secure, random pin during login, which you can retrieve from the TOTP-supported application on your phone.": "登录时需要输入手机身份验证器生成的动态验证码。"
+    "You will be prompted for a secure, random pin during login, which you can retrieve from the TOTP-supported application on your phone.": "登录时需要输入手机身份验证器生成的动态验证码。",
+    "If you're having trouble clicking the \":actionText\" button, copy and paste the URL below\ninto your web browser:": "如果无法点击“:actionText”按钮，请复制下面的链接并粘贴到浏览器中打开："
 }

@@ -7,7 +7,6 @@
         <flux:button wire:click="generate" icon="play" variant="primary">{{ __('settlements.center.generate_latest') }}</flux:button>
     </section>
 
-
     <section class="mb-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <h3 class="font-semibold">{{ __('settlements.center.cycle_configuration') }}</h3>
         <p class="mt-1 text-sm text-zinc-500">{{ __('settlements.center.cycle_description') }}</p>
@@ -43,8 +42,8 @@
                 @php($isCollapsed = in_array((string) $run->id, $collapsedRunIds, true))
                 <tr wire:key="settlement-run-{{ $run->id }}" class="cursor-pointer" wire:click="toggleRun('{{ $run->id }}')" wire:keydown.enter="toggleRun('{{ $run->id }}')" wire:keydown.space.prevent="toggleRun('{{ $run->id }}')" tabindex="0" role="button" aria-label="{{ __($isCollapsed ? 'settlements.center.expand' : 'settlements.center.collapse') }}{{ __('settlements.center.runs') }}">
                     <td>{{ $run->period_start->format('Y-m-d') }} {{ __('settlements.labels.date_to') }} {{ $run->period_end->format('Y-m-d') }}<div class="text-xs text-zinc-500">{{ ['manual' => __('settlements.center.manual'), 'historical' => __('settlements.center.historical_manual'), 'scheduled' => __('settlements.center.scheduled')][$run->trigger_source] ?? $run->trigger_source }}</div></td>
-                    <td>{{ $run->processed_agents + $run->failed_agents }}/{{ $run->total_agents }}<div class="text-xs text-red-600">{{ __('settlements.center.failed_count', ['count' => $run->failed_agents]) }}</div></td>
-                    <td>₩ {{ number_format($run->total_consumption_krw) }}<div class="text-xs text-zinc-500">{{ __('settlements.detail.commission') }} ₩ {{ number_format($run->total_commission_krw) }}</div></td>
+                    <td>{{ $run->processed_agents + $run->existing_agents + $run->failed_agents }}/{{ $run->total_agents }}<div class="text-xs text-zinc-500">{{ __('settlements.center.generated_count', ['count' => $run->processed_agents]) }} · {{ __('settlements.center.existing_count', ['count' => $run->existing_agents]) }}</div><div class="text-xs text-red-600">{{ __('settlements.center.failed_count', ['count' => $run->failed_agents]) }}</div></td>
+                    <td>₩{{ number_format($run->total_consumption_krw) }}<div class="text-xs text-zinc-500">{{ __('settlements.detail.commission') }} ₩{{ number_format($run->total_commission_krw) }}</div></td>
                     <td>{{ __('settlements.run_statuses.'.$run->status) }}<div class="text-xs text-zinc-500">{{ __('settlements.center.dingtalk', ['status' => __('settlements.notification_statuses.'.$run->notification_status)]) }}</div></td>
                     <td class="space-x-2" x-on:keydown.stop>
                         <button type="button" class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-zinc-700 hover:bg-zinc-100" wire:click.stop="toggleRun('{{ $run->id }}')" aria-expanded="{{ $isCollapsed ? 'false' : 'true' }}">
@@ -56,20 +55,49 @@
                             <flux:button wire:click.stop="retry('{{ $run->id }}')" size="sm" variant="ghost">{{ __('settlements.center.retry_failed') }}</flux:button>
                         @endif
                         @if (in_array($run->notification_status, ['failed', 'disabled'], true))<flux:button wire:click.stop="retryNotification('{{ $run->id }}')" size="sm" variant="ghost">{{ __('settlements.center.retry_dingtalk') }}</flux:button>@endif
-                        @if ($run->processed_agents > 0)<a class="text-sm font-semibold text-teal-700" href="{{ route('settlements.archive', $run->id) }}" x-on:click.stop>{{ __('settlements.center.download_all') }}</a>@endif
+                        @if (($documentCounts[(string) $run->id] ?? 0) > 0)<a class="text-sm font-semibold text-teal-700" href="{{ route('settlements.archive', $run->id) }}" x-on:click.stop>{{ __('settlements.center.download_documents', ['count' => $documentCounts[(string) $run->id]]) }}</a>@endif
                     </td>
                 </tr>
                 @if (! $isCollapsed)
-                @foreach ($run->settlements as $settlement)
-                    <tr class="bg-zinc-50/70 dark:bg-zinc-800/40">
-                        <td colspan="2"><a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $settlement->id) }}" wire:navigate>{{ data_get($settlement->snapshot, 'agent.name', __('settlements.labels.unknown_agent')) }}</a></td>
-                        <td>{{ __('settlements.detail.commission') }} ₩ {{ number_format($settlement->total_commission_krw) }}</td>
-                        <td colspan="2">{{ __('settlements.settlement_statuses.'.$settlement->status) }}</td>
-                    </tr>
-                @endforeach
+                    @if ($run->members->isNotEmpty())
+                        @foreach ($run->members as $member)
+                            @php($settlement = $member->settlement)
+                            @php($agentDisplay = $memberDisplays[(string) $run->id][$member->id] ?? null)
+                            <tr class="bg-zinc-50/70 dark:bg-zinc-800/40">
+                                <td colspan="2">
+                                    @if ($settlement)
+                                        <a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $settlement->id) }}" wire:navigate>{{ $agentDisplay['code'] ?? '' }} {{ $agentDisplay['name'] ?? __('settlements.labels.unknown_agent').' #'.$member->agent_id }}</a>
+                                    @else
+                                        <span class="font-semibold">{{ $agentDisplay['code'] ?? '' }} {{ $agentDisplay['name'] ?? __('settlements.labels.unknown_agent').' #'.$member->agent_id }}</span>
+                                    @endif
+                                </td>
+                                <td>{{ __('settlements.center.outcome_'.$member->outcome) }}</td>
+                                <td>{{ $settlement ? __('settlements.detail.commission').' ₩'.number_format($settlement->total_commission_krw) : ($member->error_message_key ? __($member->error_message_key, $member->error_parameters ?? []) : '—') }}</td>
+                                <td>{{ __('settlements.center.member_status_'.$member->outcome) }}</td>
+                            </tr>
+                        @endforeach
+                    @else
+                        @foreach ($run->settlements as $settlement)
+                            <tr class="bg-zinc-50/70 dark:bg-zinc-800/40">
+                                @php($agentDisplay = $legacyDisplays[$settlement->id] ?? ['code' => '', 'name' => __('settlements.labels.unknown_agent').' #'.$settlement->agent_id])
+                                <td colspan="2"><a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $settlement->id) }}" wire:navigate>{{ $agentDisplay['code'] }} {{ $agentDisplay['name'] }}</a></td>
+                                <td>{{ __('settlements.center.outcome_generated') }}</td>
+                                <td>{{ __('settlements.detail.commission') }} ₩{{ number_format($settlement->total_commission_krw) }}</td>
+                                <td>{{ __('settlements.center.member_status_generated') }}</td>
+                            </tr>
+                        @endforeach
+                    @endif
                 @endif
             @empty<tr><td colspan="5" class="py-8 text-center text-zinc-500">{{ __('settlements.center.empty') }}</td></tr>@endforelse
             </tbody>
         </table></div>
+        <div class="mt-8 flex flex-col gap-4 border-t border-zinc-200 pt-5 dark:border-zinc-700 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h4 class="font-semibold">{{ __('settlements.archive.center_heading') }}</h4>
+                <p class="mt-1 text-sm text-zinc-500">{{ __('settlements.archive.center_description') }}</p>
+                <p class="mt-2 text-sm text-zinc-500">{{ __('settlements.archive.center_count', ['count' => $historicalSettlementCount]) }}</p>
+            </div>
+            <a class="shrink-0 text-sm font-semibold text-teal-700 hover:underline" href="{{ route('settlements.history') }}" wire:navigate>{{ __('settlements.archive.view_all') }}</a>
+        </div>
     </section>
 </div>

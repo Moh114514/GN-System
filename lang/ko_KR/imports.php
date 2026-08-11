@@ -16,6 +16,7 @@ return [
     ],
     'stages' => [
         'names' => [
+            'business_validation' => '업무 규칙 검증',
             'file_detection' => '파일 식별', 'field_validation' => '필드 검증', 'normalization' => '데이터 표준화',
             'relation_validation' => '관계 검증', 'summary_validation' => '요약 검증', 'dry_run' => '트랜잭션 사전 실행', 'commit' => '정식 반영',
         ],
@@ -62,6 +63,9 @@ return [
         'empty_batch' => '미리보기를 보려면 배치를 선택하거나 업로드하세요.',
     ],
     'reference' => [
+        'operation_mode_label' => '가져오기 모드', 'operation_modes' => ['normal' => '일반 설정', 'historical_correction' => '과거 설정 보완'],
+        'operation_reason_label' => '보완/정정 사유', 'operation_reason_placeholder' => '과거 설정 보완에는 사유가 필요합니다',
+        'operation_mode' => '가져오기 모드', 'operation_reason' => '사유',
         'eyebrow' => '설정 센터 · 일괄 유지 관리', 'title' => '기준 설정 가져오기',
         'files' => ['example' => '기준 설정 가져오기-작성 예시.xlsx'],
         'description' => '8개 시트가 포함된 XLSX 통합 문서로 기준 설정을 일괄 관리합니다. 업로드 후 미리보기와 검사를 진행하며 관리자가 확인한 후 정식 반영합니다.',
@@ -91,6 +95,7 @@ return [
         'file_detection_failed' => '파일을 식별하지 못했습니다. 파일 형식과 시트를 확인해 주세요.',
         'field_validation_failed' => '필드 검증에 실패했습니다. 가져오기 파일을 확인해 주세요.',
         'relation_validation_failed' => '연관 검증에 실패했습니다. 데이터의 연관 코드를 확인해 주세요.',
+        'historical_date_not_allowed' => '일반 설정 모드에서는 과거 월 :effective_month 을 입력할 수 없습니다. 통제된 과거 정정 모드를 사용하세요.',
         'relation_unresolved' => '데이터 연관을 확인하지 못했습니다. 연관 코드를 확인해 주세요.',
         'institution_code_missing' => '기관 코드 “:institution_code”가 존재하지 않습니다.',
         'agent_missing' => '대리점 “:agent_code”가 존재하지 않습니다.',

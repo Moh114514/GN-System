@@ -31,6 +31,7 @@ return [
         'description' => '새 사용자는 일회용 비밀번호 설정 링크로 활성화됩니다. 계정을 비활성화하면 로그인할 수 없고 기존 세션도 즉시 종료됩니다.',
         'audit_link' => '전역 감사 로그 보기',
         'invite_heading' => '내부 사용자 초대',
+        'invite_description' => '계정을 만든 후 해당 이메일로 로그인 초대 메일을 보냅니다.',
         'name' => '이름',
         'email' => '이메일',
         'super_admin' => '슈퍼 관리자',
@@ -40,6 +41,9 @@ return [
         'table' => ['user' => '사용자', 'role' => '역할', 'account' => '계정', 'invitation' => '초대', 'actions' => '작업'],
         'actions' => ['make_internal' => '내부 사용자로 변경', 'make_super_admin' => '슈퍼 관리자로 지정', 'disable' => '비활성화', 'enable' => '활성화', 'resend' => '초대 재발송'],
         'toast' => [
+            'password_reset_action' => '비밀번호 재설정 메일 보내기',
+            'password_reset_sent' => '비밀번호 재설정 메일을 보냈습니다.',
+            'password_reset_failed' => '비밀번호 재설정 메일을 보내지 못했습니다. SMTP 설정을 확인하세요.',
             'invited' => '사용자가 생성되었고 일회용 비밀번호 설정 링크를 보냈습니다.',
             'invitation_failed' => '사용자는 생성되었지만 초대 메일 발송에 실패했습니다. 메일 설정을 확인한 후 다시 보내세요.',
             'resent' => '초대 메일을 다시 보냈습니다.',

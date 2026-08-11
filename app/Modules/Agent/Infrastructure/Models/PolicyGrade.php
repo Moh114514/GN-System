@@ -3,6 +3,7 @@
 namespace App\Modules\Agent\Infrastructure\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
  * @property int $id
@@ -19,5 +20,11 @@ class PolicyGrade extends Model
     protected function casts(): array
     {
         return ['is_active' => 'boolean'];
+    }
+
+    /** @return BelongsTo<PolicySystem, $this> */
+    public function policySystem(): BelongsTo
+    {
+        return $this->belongsTo(PolicySystem::class);
     }
 }

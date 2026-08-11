@@ -25,6 +25,11 @@ final readonly class ConfigurationUserCoordinator
         return $this->users->resendInvitation($userId, $actorId, $ipAddress);
     }
 
+    public function sendPasswordResetLink(int $userId, int $actorId, ?string $ipAddress): string
+    {
+        return $this->users->sendPasswordResetLink($userId, $actorId, $ipAddress);
+    }
+
     public function changeRole(int $userId, bool $isSuperAdmin, int $actorId, ?string $ipAddress): void
     {
         $this->users->changeRole($userId, $isSuperAdmin, $actorId, $ipAddress);

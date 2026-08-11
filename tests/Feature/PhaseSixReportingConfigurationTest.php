@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Modules\Auth\Application\Contracts\UserManagementGateway;
+use App\Modules\Auth\Infrastructure\Notifications\InternalUserInvitationNotification;
 use App\Modules\Config\Application\Services\ConfigurationCatalogManager;
 use App\Modules\Customer\Application\Contracts\ConfigurationHistoryGateway as CustomerConfigurationHistory;
 use App\Modules\Customer\Domain\BlindIndex;
@@ -25,7 +26,6 @@ use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use DomainException;
-use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\DB;
@@ -497,7 +497,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $invited = $users->invite('Invited User', 'invite@example.com', false, $admin->id, null);
         $this->assertSame('sent', $invited['invitation_status']);
         $invitedUser = User::query()->findOrFail($invited['id']);
-        Notification::assertSentTo($invitedUser, ResetPassword::class);
+        Notification::assertSentTo($invitedUser, InternalUserInvitationNotification::class);
         $users->setActive($invitedUser->id, false, $admin->id, null);
         $this->assertFalse($invitedUser->fresh()->is_active);
         $this->assertSame(2, $invitedUser->fresh()->session_version);

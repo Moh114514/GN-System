@@ -12,13 +12,15 @@
         </a>
     </section>
 
-    <form wire:submit="invite" class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+    <form wire:submit="invite" class="w-full max-w-[720px] rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <h3 class="font-semibold">{{ __('config.user_management.invite_heading') }}</h3>
-        <div class="mt-4 grid gap-4 md:grid-cols-[1fr_1fr_auto_auto]">
-            <flux:input wire:model="name" :label="__('config.user_management.name')" />
-            <flux:input wire:model="email" type="email" :label="__('config.user_management.email')" />
-            <flux:checkbox wire:model="isSuperAdmin" :label="__('config.user_management.super_admin')" class="self-end pb-2" />
-            <flux:button type="submit" variant="primary" class="self-end">{{ __('config.user_management.create_invitation') }}</flux:button>
+        <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{{ __('config.user_management.invite_description') }}</p>
+        <div class="mt-5 grid gap-4 sm:grid-cols-[1fr_1.5fr]">
+            <flux:input wire:model="name" :label="__('config.user_management.name')" class="min-w-0" />
+            <flux:input wire:model="email" type="email" :label="__('config.user_management.email')" class="min-w-0" />
+        </div>
+        <div class="mt-5 flex justify-end">
+            <flux:button type="submit" variant="primary" class="w-auto shrink-0">{{ __('config.user_management.create_invitation') }}</flux:button>
         </div>
     </form>
 
@@ -47,6 +49,8 @@
                                     </flux:button>
                                     @if (in_array($user['invitation_status'], ['pending', 'failed', 'sent'], true))
                                         <flux:button wire:click="resend({{ $user['id'] }})" variant="ghost" size="sm">{{ __('config.user_management.actions.resend') }}</flux:button>
+                                    @elseif ($user['invitation_status'] === 'accepted')
+                                        <flux:button wire:click="resetPassword({{ $user['id'] }})" variant="ghost" size="sm">{{ __('config.user_management.toast.password_reset_action') }}</flux:button>
                                     @endif
                                 </div>
                             </td>

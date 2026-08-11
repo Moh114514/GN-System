@@ -39,6 +39,7 @@ return [
         'description' => '新用户通过一次性密码设置链接激活；停用账号后，该用户将无法登录，已登录的也会立即退出。',
         'audit_link' => '查看全局审计日志',
         'invite_heading' => '邀请内部用户',
+        'invite_description' => '创建账户后，系统会向该邮箱发送登录邀请。',
         'name' => '姓名',
         'email' => '邮箱',
         'super_admin' => '超级管理员',
@@ -48,6 +49,9 @@ return [
         'table' => ['user' => '用户', 'role' => '角色', 'account' => '账号', 'invitation' => '邀请', 'actions' => '操作'],
         'actions' => ['make_internal' => '改为内部用户', 'make_super_admin' => '设为超级管理员', 'disable' => '停用', 'enable' => '启用', 'resend' => '重发邀请'],
         'toast' => [
+            'password_reset_action' => '发送密码重置邮件',
+            'password_reset_sent' => '密码重置邮件已发送。',
+            'password_reset_failed' => '密码重置邮件发送失败，请检查 SMTP 配置。',
             'invited' => '用户已创建，一次性密码设置链接已发送。',
             'invitation_failed' => '用户已创建，但邀请邮件发送失败；请检查邮件配置后重发。',
             'resent' => '邀请邮件已重发。',

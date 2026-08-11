@@ -9,4 +9,10 @@ interface SettlementOrderReader
 {
     /** @return array<int, SettlementOrderData> */
     public function completedForAgent(int $agentId, CarbonImmutable $periodStart, CarbonImmutable $periodEnd): array;
+
+    /**
+     * @param  array<int, int>  $orderIds
+     * @return array<int, int>
+     */
+    public function existingOrderIds(array $orderIds): array;
 }

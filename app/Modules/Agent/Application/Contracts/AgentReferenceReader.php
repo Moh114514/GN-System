@@ -12,6 +12,9 @@ interface AgentReferenceReader
      */
     public function agentsByIds(array $ids): array;
 
+    /** @return array<int, array{id: int, code: string, name: string, cooperation_status: string}> */
+    public function matchingAgents(string $search): array;
+
     /** @return array{id: int, code: string, name: string, cooperation_status: string} */
     public function agentById(int $id): array;
 }

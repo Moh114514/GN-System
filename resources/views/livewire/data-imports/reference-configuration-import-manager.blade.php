@@ -27,6 +27,13 @@
         <h3 class="text-lg font-semibold">{{ __('imports.reference.upload_title') }}</h3>
         <p class="mt-1 text-sm text-zinc-600">{{ __('imports.reference.upload_description') }}</p>
         <form wire:submit="stageWorkbook" class="mt-5 space-y-4">
+            <flux:select wire:model="operationMode" :label="__('imports.reference.operation_mode_label')">
+                <flux:select.option value="normal">{{ __('imports.reference.operation_modes.normal') }}</flux:select.option>
+                <flux:select.option value="historical_correction">{{ __('imports.reference.operation_modes.historical_correction') }}</flux:select.option>
+            </flux:select>
+            <flux:textarea wire:model="operationReason" :label="__('imports.reference.operation_reason_label')" :placeholder="__('imports.reference.operation_reason_placeholder')" />
+            @error('operationMode') <p class="text-sm text-red-600">{{ $message }}</p> @enderror
+            @error('operationReason') <p class="text-sm text-red-600">{{ $message }}</p> @enderror
             <flux:input wire:model="workbook" type="file" accept=".xlsx" :label="__('imports.reference.workbook_label')" />
             @error('workbook') <p class="text-sm text-red-600">{{ $message }}</p> @enderror
             <flux:button type="submit" variant="primary" wire:loading.attr="disabled" wire:target="workbook,stageWorkbook">
@@ -46,6 +53,7 @@
                             <span class="text-xs text-zinc-400">{{ $batch->created_at->format('Y-m-d H:i') }}</span>
                         </span>
                         <span class="mt-1 block text-sm text-zinc-500">{{ __('imports.reference.rows_summary', ['valid' => $batch->valid_rows, 'errors' => $batch->error_rows, 'total' => $batch->total_rows]) }}</span>
+                        <span class="mt-0.5 block text-xs text-zinc-500">{{ __('imports.reference.operation_mode') }}: {{ __('imports.reference.operation_modes.'.($batch->operation_mode?->value ?? 'normal')) }}</span>
                         <span class="mt-0.5 block truncate text-xs text-zinc-400">#{{ $batch->id }}</span>
                     </button>
                 @empty
@@ -62,6 +70,10 @@
                         <div>
                             <h3 class="font-semibold">{{ __('imports.reference.preview') }}</h3>
                             <p class="mt-1 text-sm text-zinc-600">{{ __('imports.reference.rows_summary', ['valid' => $batch->valid_rows, 'errors' => $batch->error_rows, 'total' => $batch->total_rows]) }}</p>
+                            <p class="mt-1 text-sm text-zinc-500">{{ __('imports.reference.operation_mode') }}: {{ __('imports.reference.operation_modes.'.($batch->operation_mode?->value ?? 'normal')) }}</p>
+                            @if ($batch->operation_reason)
+                                <p class="mt-1 text-sm text-zinc-500">{{ __('imports.reference.operation_reason') }}: {{ $batch->operation_reason }}</p>
+                            @endif
                         </div>
                         <div class="flex flex-wrap gap-2">
                             @if ($batch->error_rows > 0 || $batch->failure_reason)

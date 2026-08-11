@@ -40,6 +40,16 @@ class AgentForm extends Component
 
     public string $policyGradeId = '';
 
+    public bool $hasCurrentGrade = true;
+
+    public string $correctionGradeId = '';
+
+    public string $correctionEffectiveMonth = '';
+
+    public string $correctionReason = '';
+
+    public bool $confirmCorrection = false;
+
     public string $notes = '';
 
     /** @var array<string, mixed> */
@@ -65,6 +75,10 @@ class AgentForm extends Component
         $this->cooperationEndedOn = (string) ($profile['cooperation_ended_on'] ?? '');
         $this->cooperationStatus = (string) $profile['cooperation_status'];
         $this->policyGradeId = (string) ($profile['policy_grade_id'] ?? '');
+        $this->hasCurrentGrade = $profile['policy_grade_id'] !== null;
+        $this->correctionEffectiveMonth = $this->cooperationStartedOn === ''
+            ? now()->startOfMonth()->toDateString()
+            : CarbonImmutable::parse($this->cooperationStartedOn)->startOfMonth()->toDateString();
         $this->notes = (string) ($profile['notes'] ?? '');
     }
 
@@ -80,7 +94,7 @@ class AgentForm extends Component
             'cooperationStartedOn' => ['required', 'date'],
             'cooperationEndedOn' => [$this->cooperationStatus === 'terminated' ? 'required' : 'nullable', 'date', 'after_or_equal:cooperationStartedOn'],
             'cooperationStatus' => ['required', 'in:active,paused,terminated'],
-            'policyGradeId' => ['required', 'integer'],
+            'policyGradeId' => [$this->agentId === null || $this->hasCurrentGrade ? 'required' : 'nullable', 'integer'],
             'notes' => ['nullable', 'string', 'max:5000'],
         ]);
         $data = new AgentProfileData(
@@ -93,7 +107,7 @@ class AgentForm extends Component
             cooperationStartedOn: CarbonImmutable::parse($this->cooperationStartedOn),
             cooperationEndedOn: $this->cooperationEndedOn === '' ? null : CarbonImmutable::parse($this->cooperationEndedOn),
             cooperationStatus: $this->cooperationStatus,
-            policyGradeId: (int) $this->policyGradeId,
+            policyGradeId: $this->policyGradeId === '' ? null : (int) $this->policyGradeId,
             notes: $this->notes,
         );
 
@@ -111,6 +125,37 @@ class AgentForm extends Component
             return null;
         }
         Flux::toast(variant: 'success', text: __('agents.messages.updated'));
+
+        return $this->redirectRoute('agents.show', ['agent' => $this->agentId], navigate: true);
+    }
+
+    public function saveGradeCorrection(AgentManager $manager): mixed
+    {
+        abort_unless($this->agentId !== null && ! $this->hasCurrentGrade, 422);
+        $this->validate([
+            'correctionGradeId' => ['required', 'integer'],
+            'correctionEffectiveMonth' => ['required', 'date'],
+            'correctionReason' => ['required', 'string', 'max:2000'],
+            'confirmCorrection' => ['accepted'],
+        ], [
+            'confirmCorrection.accepted' => __('agents.form.correction_confirm'),
+        ]);
+
+        try {
+            $manager->correctGrade(
+                $this->agentId,
+                (int) $this->correctionGradeId,
+                CarbonImmutable::parse($this->correctionEffectiveMonth),
+                $this->correctionReason,
+                (int) Auth::id(),
+                request()->ip(),
+            );
+        } catch (DomainException $exception) {
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
+
+            return null;
+        }
+        Flux::toast(variant: 'success', text: __('agents.messages.grade_corrected'));
 
         return $this->redirectRoute('agents.show', ['agent' => $this->agentId], navigate: true);
     }

@@ -4,6 +4,7 @@ namespace App\Modules\DataImport\Infrastructure\Models;
 
 use App\Models\User;
 use App\Modules\DataImport\Domain\ImportBatchStatus;
+use App\Modules\DataImport\Domain\ImportOperationMode;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -13,7 +14,10 @@ use Illuminate\Support\Carbon;
 /**
  * @property string $id
  * @property int $created_by
+ * @property int|null $committed_by
  * @property string $kind
+ * @property ImportOperationMode $operation_mode
+ * @property string|null $operation_reason
  * @property ImportBatchStatus $status
  * @property int $total_rows
  * @property int $valid_rows
@@ -40,6 +44,7 @@ class ImportBatch extends Model
     {
         return [
             'status' => ImportBatchStatus::class,
+            'operation_mode' => ImportOperationMode::class,
             'summary' => 'array',
             'completed_at' => 'datetime',
             'rollback_expires_at' => 'datetime',
@@ -70,6 +75,12 @@ class ImportBatch extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /** @return BelongsTo<User, $this> */
+    public function committer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'committed_by');
     }
 
     public function canRollback(): bool

@@ -13,6 +13,27 @@ final readonly class SettlementRunFailureReader
     /** @return array<int, SettlementRunFailureData> */
     public function read(SettlementRun $run): array
     {
+        $members = $run->members()->where('outcome', 'failed')->get();
+        if ($members->isNotEmpty()) {
+            $agentIds = $members->pluck('agent_id')->map(static fn ($id): int => (int) $id)->all();
+            $agents = $this->agents->agentsByIds($agentIds);
+            $failures = [];
+            foreach ($members as $member) {
+                $agent = $agents[(int) $member->agent_id] ?? null;
+                $failures[] = new SettlementRunFailureData(
+                    agentId: (int) $member->agent_id,
+                    agentCode: $agent['code'] ?? __('settlements.failure_fallbacks.agent_code'),
+                    agentName: $agent['name'] ?? __('settlements.failure_fallbacks.agent_name'),
+                    reason: $this->reason([
+                        'message_key' => $member->error_message_key,
+                        'parameters' => $member->error_parameters ?? [],
+                    ]),
+                );
+            }
+
+            return $failures;
+        }
+
         $agentIds = [];
         foreach (array_keys($run->errors ?? []) as $rawAgentId) {
             $agentId = (int) $rawAgentId;

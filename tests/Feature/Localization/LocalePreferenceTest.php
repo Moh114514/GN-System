@@ -73,6 +73,18 @@ class LocalePreferenceTest extends TestCase
             ->assertSee(__('navigation.language'));
     }
 
+    public function test_authenticated_topbar_exposes_language_switcher(): void
+    {
+        $this->actingAs(User::factory()->create())
+            ->get(route('profile.edit'))
+            ->assertOk()
+            ->assertSee('data-test="topbar-language-button"', false)
+            ->assertSee('data-test="topbar-language-option-zh_CN"', false)
+            ->assertSee('data-test="topbar-language-option-ko_KR"', false)
+            ->assertSee('action="'.route('locale.update').'"', false)
+            ->assertSee(__('language.options.ko_KR', [], 'ko_KR'));
+    }
+
     public function test_inactive_user_message_follows_preferred_locale(): void
     {
         $user = User::factory()->create([

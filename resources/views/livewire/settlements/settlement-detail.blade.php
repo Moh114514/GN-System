@@ -1,11 +1,31 @@
 <div>
-    <x-page-back :href="route('settlements.index')" :label="__('settlements.detail.back')" class="mb-4" />
+    <x-page-back :href="$isHistoricalArchive ? route('settlements.history') : route('settlements.index')" :label="$isHistoricalArchive ? __('settlements.detail.back_history') : __('settlements.detail.back')" class="mb-4" />
 
     @php($canRegenerateGeneration = in_array($settlement->generation_status, ['pending', 'unverified'], true))
     @php($needsRegeneration = in_array($settlement->status, ['pending_review', 'rejected']) && $canRegenerateGeneration && $settlement->settlement_run_id !== null)
     @php($generationUnverified = $settlement->generation_status === 'unverified')
     @php($generationNotApplicable = $settlement->generation_status === 'not_applicable')
     @php($generationRecoveryRequired = $generationUnverified && $settlement->settlement_run_id === null)
+    @php($canRefresh = in_array($settlement->status, ['pending_review', 'rejected'], true) && $settlement->generation_status === 'generated' && $freshness?->isStale())
+    @if ($canRefresh)
+        <section id="settlement-freshness-alert" data-business-alert tabindex="-1" class="scroll-mt-20 mb-5 rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
+            <h3 class="font-semibold">{{ __('settlements.detail.freshness_heading') }}</h3>
+            <p class="mt-1 text-sm">{{ __('settlements.detail.freshness_description') }}</p>
+            <div class="mt-3 grid gap-3 text-sm sm:grid-cols-2">
+                <div class="rounded-lg bg-white/60 p-3 dark:bg-zinc-900/40"><strong>{{ __('settlements.detail.current_settlement') }}</strong><br>{{ $freshness->settlementItemCount }} {{ __('settlements.detail.orders_count') }} · ₩{{ number_format($freshness->settlementConsumptionKrw) }} · {{ __('settlements.detail.commission') }} ₩{{ number_format($freshness->settlementCommissionKrw) }}</div>
+                <div class="rounded-lg bg-white/60 p-3 dark:bg-zinc-900/40"><strong>{{ __('settlements.detail.current_orders') }}</strong><br>{{ $freshness->currentItemCount }} {{ __('settlements.detail.orders_count') }} · ₩{{ number_format($freshness->currentConsumptionKrw) }} · {{ __('settlements.detail.commission') }} ₩{{ number_format($freshness->currentCommissionKrw) }}</div>
+            </div>
+            <form wire:submit="refreshSettlement" class="mt-4 space-y-3">
+                <flux:textarea wire:model="refreshReason" :label="__('settlements.detail.refresh_reason')" rows="2" required />
+                <flux:button type="submit" wire:loading.attr="disabled" wire:target="refreshSettlement" variant="primary">{{ __('settlements.detail.refresh_settlement') }}</flux:button>
+            </form>
+        </section>
+    @elseif ($freshness?->isStale())
+        <section id="settlement-freshness-alert" data-business-alert tabindex="-1" class="scroll-mt-20 mb-5 rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
+            <h3 class="font-semibold">{{ __('settlements.detail.freshness_heading') }}</h3>
+            <p class="mt-1 text-sm">{{ __('settlements.detail.freshness_locked_description') }}</p>
+        </section>
+    @endif
     @if ($needsRegeneration)
         <section id="{{ $needsRegeneration ? 'settlement-generation-alert' : 'settlement-generation-regeneration-note' }}" data-business-alert data-business-alert-key="{{ $settlement->id }}-{{ $settlement->generation_status }}-regeneration" tabindex="-1" class="scroll-mt-20 mb-5 rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
             <h3 class="font-semibold">{{ __('settlements.detail.generation_pending_heading') }}</h3>
@@ -39,7 +59,7 @@
 
     <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <div class="flex flex-wrap items-start justify-between gap-4">
-            <div><p class="text-xs font-medium text-zinc-400">{{ __('settlements.detail.eyebrow') }}</p><h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ data_get($settlement->snapshot, 'agent.name', __('settlements.labels.unknown_agent')) }}</h2><p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ $settlement->period_start->format('Y-m-d') }} {{ __('settlements.labels.date_to') }} {{ $settlement->period_end->format('Y-m-d') }}</p></div>
+            <div><p class="text-xs font-medium text-zinc-400">{{ __('settlements.detail.eyebrow') }}</p><h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ $agentDisplay['code'] }} {{ $agentDisplay['name'] }}</h2><p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ $settlement->period_start->format('Y-m-d') }} {{ __('settlements.labels.date_to') }} {{ $settlement->period_end->format('Y-m-d') }}</p></div>
             <div class="flex flex-wrap items-center justify-end gap-3">
                 <div class="flex items-center gap-2" :aria-label="__('settlements.detail.batch_navigation')">
                     @if ($previousSettlement)
@@ -95,8 +115,25 @@
             <p class="mt-3 text-sm text-zinc-500">{{ __('settlements.detail.zero_order_hint') }}</p>
         @endif
         <div class="crm-table-wrap mt-4"><table class="crm-table"><thead><tr><th>{{ __('settlements.detail.order') }}</th><th>{{ __('settlements.detail.project_date') }}</th><th>{{ __('settlements.detail.consumption') }}</th><th>{{ __('settlements.detail.rate') }}</th><th>{{ __('settlements.detail.commission') }}</th></tr></thead><tbody>
-            @forelse ($items as $item) @php($snapshot = is_string($item->rule_snapshot) ? json_decode($item->rule_snapshot, true) : (array) $item->rule_snapshot)
-                <tr><td>#{{ data_get($snapshot, 'order.id') }}</td><td>{{ data_get($snapshot, 'order.project_name') }}<div class="text-xs text-zinc-500">{{ data_get($snapshot, 'order.completed_on') }}</div></td><td>₩ {{ number_format($item->consumption_krw) }}</td><td>{{ number_format(data_get($snapshot, 'rate_bps', 0) / 100, 2) }}%</td><td>₩ {{ number_format($item->commission_krw) }}</td></tr>
+            @forelse ($items as $item) @php($snapshot = is_string($item->rule_snapshot) ? json_decode($item->rule_snapshot, true) : (array) $item->rule_snapshot) @php($orderId = (int) data_get($snapshot, 'order.id'))
+                <tr>
+                    <td>
+                        @if (in_array($orderId, $existingOrderIds, true))
+                            <a class="font-semibold text-teal-700 hover:underline" href="{{ route('orders.show', $orderId) }}" wire:navigate>#{{ $orderId }}</a>
+                        @else
+                            <span class="font-semibold">#{{ $orderId }}</span><div class="text-xs text-zinc-500">{{ __('settlements.archive.archived_order') }}</div>
+                        @endif
+                    </td>
+                    <td class="w-[32rem] max-w-[32rem]">
+                        @if (in_array($orderId, $existingOrderIds, true))
+                            <a class="line-clamp-2 overflow-hidden whitespace-normal break-words font-semibold leading-5 text-teal-700 hover:underline" href="{{ route('orders.show', $orderId) }}" wire:navigate title="{{ data_get($snapshot, 'order.project_name') }}">{{ data_get($snapshot, 'order.project_name') }}</a>
+                        @else
+                            <div class="line-clamp-2 overflow-hidden whitespace-normal break-words" title="{{ data_get($snapshot, 'order.project_name') }}">{{ data_get($snapshot, 'order.project_name') }}</div>
+                        @endif
+                        <div class="mt-1 text-xs text-zinc-500">{{ data_get($snapshot, 'order.completed_on') }}</div>
+                    </td>
+                    <td>₩ {{ number_format($item->consumption_krw) }}</td><td>{{ number_format(data_get($snapshot, 'rate_bps', 0) / 100, 2) }}%</td><td>₩ {{ number_format($item->commission_krw) }}</td>
+                </tr>
             @empty<tr><td colspan="5" class="py-8 text-center text-zinc-500">{{ __('settlements.detail.items_empty') }}</td></tr>@endforelse
         </tbody></table></div>
     </section>

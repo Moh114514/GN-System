@@ -3,15 +3,24 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Agent\Infrastructure\Models\PolicyGrade;
+use App\Modules\Agent\Infrastructure\Models\PolicySystem;
+use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\DataImport\Application\Services\ImportIssueMessagePresenter;
 use App\Modules\DataImport\Application\Services\ReferenceConfigurationImportCommitter;
 use App\Modules\DataImport\Application\Services\ReferenceConfigurationImportParser;
 use App\Modules\DataImport\Application\Services\ReferenceConfigurationTemplateGenerator;
 use App\Modules\DataImport\Domain\ImportBatchStatus;
+use App\Modules\DataImport\Domain\ImportOperationMode;
 use App\Modules\DataImport\Infrastructure\EncryptedImportStorage;
 use App\Modules\DataImport\Infrastructure\Models\ImportBatch;
 use App\Modules\DataImport\Jobs\ParseReferenceConfigurationImport;
 use App\Modules\DataImport\Presentation\Livewire\ReferenceConfigurationImportManager;
+use App\Modules\Settlement\Application\Contracts\CommissionConfigurationGateway;
+use App\Modules\Settlement\Application\Data\HistoricalCommissionRuleData;
+use App\Modules\Settlement\Infrastructure\Models\CommissionRule;
+use Carbon\CarbonImmutable;
+use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
@@ -153,6 +162,9 @@ class ReferenceConfigurationImportTest extends TestCase
         $this->assertDatabaseHas('commission_rules', ['rate_bps' => 1200, 'is_active' => true]);
         $this->assertDatabaseHas('agents', ['code' => 'UATP5-UAT', 'name' => 'UAT 示例代理商']);
         $this->assertDatabaseCount('agent_grade_assignments', 1);
+        $this->assertDatabaseHas('agent_grade_assignments', [
+            'effective_month' => now()->startOfMonth()->toDateString(),
+        ]);
         $this->assertDatabaseHas('activity_log', [
             'log_name' => 'reference-configuration-import',
             'description' => '完成基础配置导入',
@@ -174,6 +186,32 @@ class ReferenceConfigurationImportTest extends TestCase
         $this->expectExceptionMessage('事务预演');
 
         app(ReferenceConfigurationImportCommitter::class)->commit($batch, null);
+    }
+
+    public function test_commit_records_the_actual_committer_separately_from_uploader(): void
+    {
+        $committer = User::factory()->superAdmin()->withTwoFactor()->create();
+        $batch = ImportBatch::query()->create([
+            'created_by' => $this->admin->id,
+            'kind' => 'reference_configuration',
+            'operation_mode' => ImportOperationMode::Normal,
+            'status' => ImportBatchStatus::Validated,
+        ]);
+
+        $service = app(ReferenceConfigurationImportCommitter::class);
+        $service->dryRun($batch);
+        $service->commit($batch->fresh(), null, $committer->id);
+
+        $this->assertDatabaseHas('import_batches', [
+            'id' => $batch->id,
+            'created_by' => $this->admin->id,
+            'committed_by' => $committer->id,
+        ]);
+        $this->assertDatabaseHas('activity_log', [
+            'log_name' => 'reference-configuration-import',
+            'event' => 'completed',
+            'causer_id' => $committer->id,
+        ]);
     }
 
     public function test_relationship_errors_block_confirmation_and_identify_the_source_row(): void
@@ -317,6 +355,66 @@ class ReferenceConfigurationImportTest extends TestCase
         $this->assertStringContainsString('1-32 位大写字母、数字、下划线或连字符', $error);
     }
 
+    public function test_normal_mode_rejects_historical_commission_month_during_parser_validation(): void
+    {
+        Livewire::test(ReferenceConfigurationImportManager::class)
+            ->set('workbook', $this->exampleUploadWithCommissionMonth(now()->subMonths(2)->startOfMonth()->format('Y-m-d')))
+            ->call('stageWorkbook');
+
+        $batch = ImportBatch::query()->with('files')->sole();
+        app(ReferenceConfigurationImportParser::class)->parse($batch);
+
+        $this->assertSame(ImportOperationMode::Normal, $batch->fresh()->operation_mode);
+        $this->assertSame(ImportBatchStatus::NeedsReview, $batch->fresh()->status);
+        $this->assertDatabaseHas('import_issues', ['import_batch_id' => $batch->id, 'stage' => 'business_validation']);
+    }
+
+    public function test_historical_mode_persists_and_commits_a_past_commission_month(): void
+    {
+        Livewire::test(ReferenceConfigurationImportManager::class)
+            ->set('operationMode', ImportOperationMode::HistoricalCorrection->value)
+            ->set('operationReason', '历史费率补录测试')
+            ->set('workbook', $this->exampleUploadWithCommissionMonth('2026-04-01'))
+            ->call('stageWorkbook');
+
+        $batch = ImportBatch::query()->with('files')->sole();
+        $this->assertSame(ImportOperationMode::HistoricalCorrection, $batch->operation_mode);
+        app(ReferenceConfigurationImportParser::class)->parse($batch);
+        $batch->refresh();
+        $this->assertSame(ImportBatchStatus::Validated, $batch->status);
+        app(ReferenceConfigurationImportCommitter::class)->dryRun($batch);
+        app(ReferenceConfigurationImportCommitter::class)->commit($batch, null);
+
+        $this->assertDatabaseHas('commission_rules', ['effective_month' => '2026-04-01', 'rate_bps' => 1200, 'import_batch_id' => $batch->id]);
+    }
+
+    public function test_historical_commission_rule_is_idempotent_and_conflicts_are_rejected(): void
+    {
+        $system = PolicySystem::query()->create(['name' => '测试政策', 'is_active' => true]);
+        $grade = PolicyGrade::query()->create([
+            'policy_system_id' => $system->id,
+            'name' => '测试等级',
+            'monthly_threshold_krw' => 0,
+            'sort_order' => 1,
+            'is_active' => true,
+        ]);
+        $institution = Institution::query()->create(['code' => 'TEST', 'name' => '测试机构', 'is_active' => true]);
+        $rule = CommissionRule::query()->create([
+            'policy_grade_id' => $grade->id,
+            'institution_id' => $institution->id,
+            'rate_bps' => 1200,
+            'effective_month' => '2026-04-01',
+            'is_active' => true,
+        ]);
+        $data = new HistoricalCommissionRuleData($grade->id, $institution->id, 1200, CarbonImmutable::parse('2026-04-01'), true, 'batch-id', '测试', $this->admin->id, null);
+        app(CommissionConfigurationGateway::class)->importHistoricalCorrectionRule($data);
+        $this->assertSame(1, CommissionRule::query()->where('id', $rule->id)->count());
+
+        $this->expectException(DomainException::class);
+        app(CommissionConfigurationGateway::class)
+            ->importHistoricalCorrectionRule(new HistoricalCommissionRuleData($grade->id, $institution->id, 1300, CarbonImmutable::parse('2026-04-01'), true, 'batch-id', '测试', $this->admin->id, null));
+    }
+
     private function exampleUpload(): UploadedFile
     {
         $path = app(ReferenceConfigurationTemplateGenerator::class)->example();
@@ -324,5 +422,23 @@ class ReferenceConfigurationImportTest extends TestCase
         unlink($path);
 
         return UploadedFile::fake()->createWithContent('基础配置.xlsx', $contents === false ? '' : $contents);
+    }
+
+    private function exampleUploadWithCommissionMonth(string $month): UploadedFile
+    {
+        $path = app(ReferenceConfigurationTemplateGenerator::class)->example();
+        $workbook = IOFactory::load($path);
+        $commissionSheet = $workbook->getSheetByName(array_keys(ReferenceConfigurationTemplateGenerator::HEADERS)[5]);
+        $commissionSheet?->setCellValue('E2', $month);
+        $agentSheet = $workbook->getSheetByName(array_keys(ReferenceConfigurationTemplateGenerator::HEADERS)[6]);
+        $agentSheet?->setCellValue('G2', '2026-01-01');
+        $gradeSheet = $workbook->getSheetByName(array_keys(ReferenceConfigurationTemplateGenerator::HEADERS)[7]);
+        $gradeSheet?->setCellValue('D2', $month);
+        (new Xlsx($workbook))->save($path);
+        $workbook->disconnectWorksheets();
+        $contents = file_get_contents($path) ?: '';
+        unlink($path);
+
+        return UploadedFile::fake()->createWithContent('历史费率.xlsx', $contents);
     }
 }

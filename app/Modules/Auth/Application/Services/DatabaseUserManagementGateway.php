@@ -2,9 +2,12 @@
 
 namespace App\Modules\Auth\Application\Services;
 
+use App\Infrastructure\Localization\SupportedLocale;
 use App\Models\User;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Auth\Application\Contracts\UserManagementGateway;
+use App\Modules\Auth\Infrastructure\Notifications\InternalUserInvitationNotification;
+use App\Modules\Auth\Infrastructure\Notifications\UserPasswordResetNotification;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
@@ -31,10 +34,14 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
 
     public function invite(string $name, string $email, bool $isSuperAdmin, int $actorId, ?string $ipAddress): array
     {
+        $inviter = User::query()->find($actorId);
+        $preferredLocale = $inviter?->preferredLocale() ?? SupportedLocale::default()->value;
+
         $user = User::query()->create([
             'name' => trim($name),
             'email' => mb_strtolower(trim($email)),
             'password' => Str::password(48),
+            'preferred_locale' => $preferredLocale,
             'is_super_admin' => $isSuperAdmin,
             'is_active' => true,
             'invitation_status' => 'pending',
@@ -68,6 +75,38 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
             logName: 'auth-user-management',
             event: 'invitation_resent',
             ipAddress: $ipAddress,
+        );
+
+        return $status;
+    }
+
+    public function sendPasswordResetLink(int $userId, int $actorId, ?string $ipAddress): string
+    {
+        $user = User::query()->findOrFail($userId);
+        if ($user->invitation_status !== 'accepted') {
+            throw new DomainException(__('auth.errors.password_reset_not_available'));
+        }
+
+        $status = 'failed';
+        try {
+            $token = Password::broker()->createToken($user);
+            $user->notify(new UserPasswordResetNotification($token, initiatedByAdministrator: true));
+            $status = 'sent';
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+
+        $this->audit->record(
+            description: $status === 'sent' ? __('audit.messages.internal_user_password_reset_sent') : __('audit.messages.internal_user_password_reset_failed'),
+            properties: ['user_id' => $user->id, 'status' => $status],
+            causerId: $actorId,
+            subject: $user,
+            logName: 'auth-user-management',
+            event: $status === 'sent' ? 'password_reset_requested' : 'password_reset_failed',
+            ipAddress: $ipAddress,
+            messageKey: $status === 'sent'
+                ? 'audit.messages.internal_user_password_reset_sent'
+                : 'audit.messages.internal_user_password_reset_failed',
         );
 
         return $status;
@@ -133,11 +172,12 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
     {
         try {
             $token = Password::broker()->createToken($user);
-            $user->sendPasswordResetNotification($token);
+            $user->notify(new InternalUserInvitationNotification($token));
             $user->update(['invitation_status' => 'sent', 'invitation_sent_at' => now()]);
 
             return 'sent';
-        } catch (Throwable) {
+        } catch (Throwable $exception) {
+            report($exception);
             $user->update(['invitation_status' => 'failed', 'invitation_sent_at' => now()]);
 
             return 'failed';

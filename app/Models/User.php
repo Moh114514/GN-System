@@ -2,8 +2,12 @@
 
 namespace App\Models;
 
+use App\Infrastructure\Localization\SupportedLocale;
+use App\Modules\Auth\Infrastructure\Notifications\InternalUserInvitationNotification;
+use App\Modules\Auth\Infrastructure\Notifications\UserPasswordResetNotification;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Translation\HasLocalePreference;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -39,7 +43,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
     'invitation_sent_at', 'disabled_at', 'disabled_by', 'remember_token', 'session_version',
 ])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
-class User extends Authenticatable
+class User extends Authenticatable implements HasLocalePreference
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable, TwoFactorAuthenticatable;
@@ -78,5 +82,21 @@ class User extends Authenticatable
         return Str::length($initials) > 1
             ? Str::substr($initials, 0, 1).Str::substr($initials, -1)
             : $initials;
+    }
+
+    public function preferredLocale(): string
+    {
+        $locale = SupportedLocale::fromCandidate($this->preferred_locale);
+
+        return $locale instanceof SupportedLocale
+            ? $locale->value
+            : SupportedLocale::default()->value;
+    }
+
+    public function sendPasswordResetNotification($token): void
+    {
+        $this->notify($this->invitation_status === 'accepted'
+            ? new UserPasswordResetNotification($token)
+            : new InternalUserInvitationNotification($token));
     }
 }

@@ -49,6 +49,19 @@ class UserManagement extends Component
         });
     }
 
+    public function resetPassword(int $id, ConfigurationUserCoordinator $users): void
+    {
+        $this->run(function () use ($id, $users): void {
+            $status = $users->sendPasswordResetLink($id, (int) Auth::id(), request()->ip());
+            Flux::toast(
+                variant: $status === 'sent' ? 'success' : 'danger',
+                text: $status === 'sent'
+                    ? __('config.user_management.toast.password_reset_sent')
+                    : __('config.user_management.toast.password_reset_failed'),
+            );
+        });
+    }
+
     public function toggleRole(int $id, bool $makeSuperAdmin, ConfigurationUserCoordinator $users): void
     {
         $this->run(fn () => $users->changeRole($id, $makeSuperAdmin, (int) Auth::id(), request()->ip()), __('config.user_management.toast.role_updated'));

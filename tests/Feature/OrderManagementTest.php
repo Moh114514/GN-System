@@ -33,6 +33,39 @@ class OrderManagementTest extends TestCase
             ->assertDontSee('功能将在后续阶段开放');
     }
 
+    public function test_order_center_clamps_long_project_names_without_changing_the_source_text(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $source = DirectSalesSource::query()->create(['code' => 'LONG', 'name' => '长名称测试', 'is_active' => true]);
+        $customer = Customer::query()->create([
+            'code' => 'LONG-000001',
+            'name' => '长名称测试客户',
+            'original_channel' => 'direct',
+            'source_direct_sales_id' => $source->id,
+            'owner_id' => $user->id,
+        ]);
+        $projectName = '超声刀400 240万韩元，皮秒祛斑（Pico toning）20万韩元，Lituo 1V，面部提升及长期护理组合项目';
+        $order = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'channel' => 'direct',
+            'direct_sales_source_id' => $source->id,
+            'project_name' => $projectName,
+            'amount_krw' => 2400000,
+            'status' => 'pending',
+            'owner_id' => $user->id,
+        ]);
+
+        Livewire::actingAs($user)->test(OrderCenter::class)
+            ->assertSee($projectName)
+            ->assertSee('w-[32rem] max-w-[32rem]', false)
+            ->assertSee('line-clamp-2', false)
+            ->assertSee('title="'.$projectName.'"', false)
+            ->assertSee('#'.$order->id);
+    }
+
     public function test_korean_users_see_translated_order_center_labels(): void
     {
         $user = User::factory()->create(['preferred_locale' => 'ko_KR']);

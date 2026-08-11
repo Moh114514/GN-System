@@ -313,6 +313,43 @@
                 </a>
 
                 <flux:dropdown position="bottom" align="end">
+                    <button
+                        type="button"
+                        class="crm-language-trigger"
+                        data-test="topbar-language-button"
+                        aria-label="{{ __('navigation.language') }}"
+                    >
+                        <flux:icon.globe-alt aria-hidden="true" />
+                        <span class="crm-language-label">
+                            {{ __('language.options.'.app()->getLocale(), [], app()->getLocale()) }}
+                        </span>
+                        <flux:icon.chevron-down aria-hidden="true" />
+                    </button>
+
+                    <flux:menu>
+                        @foreach (config('localization.supported', []) as $locale => $label)
+                            <form method="POST" action="{{ route('locale.update') }}" class="w-full">
+                                @csrf
+                                <input type="hidden" name="locale" value="{{ $locale }}">
+                                <flux:menu.item
+                                    as="button"
+                                    type="submit"
+                                    class="w-full cursor-pointer"
+                                    data-test="topbar-language-option-{{ $locale }}"
+                                >
+                                    <span class="flex w-full items-center justify-between gap-4">
+                                        <span>{{ __('language.options.'.$locale, [], $locale) }}</span>
+                                        @if (app()->getLocale() === $locale)
+                                            <flux:icon.check class="size-4" aria-hidden="true" />
+                                        @endif
+                                    </span>
+                                </flux:menu.item>
+                            </form>
+                        @endforeach
+                    </flux:menu>
+                </flux:dropdown>
+
+                <flux:dropdown position="bottom" align="end">
                     <button type="button" class="crm-user-pill" data-test="sidebar-menu-button">
                         <span class="crm-avatar">{{ auth()->user()->initials() }}</span>
                         <span class="crm-user-copy">

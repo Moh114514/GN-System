@@ -22,6 +22,7 @@
 - [ADR-0005：日常业务的同步 Application 契约](adr/0005-daily-application-contracts.md)
 - [ADR-0006：订单完成与推广费核算的同步 Application 契约](adr/0006-synchronous-order-commission-contract.md)
 - [ADR-0007：月结批处理与员工提醒一致性](adr/0007-phase-five-settlement-reminder-processing.md)
+- [ADR-0009：月结批次成员关系与历史月结来源](adr/0009-settlement-run-members-and-historical-sources.md)
 
 ## 模块实现
 

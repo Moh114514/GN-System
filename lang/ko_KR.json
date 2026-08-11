@@ -30,6 +30,7 @@
     "Ensure your account is using a long, random password to stay secure": "계정을 안전하게 보호하려면 길고 무작위적인 비밀번호를 사용하세요",
     "Forgot password": "비밀번호 찾기",
     "Forgot your password?": "비밀번호를 잊으셨나요?",
+    "Hello!": "안녕하세요!",
     "Hide recovery codes": "복구 코드 숨기기",
     "Light": "밝게",
     "Log in": "로그인",
@@ -53,6 +54,7 @@
     "Recovery codes let you regain access if you lose your 2FA device. Store them in a secure password manager.": "복구 코드는 2단계 인증 기기를 잃어버렸을 때 계정에 다시 액세스할 수 있게 합니다. 안전한 비밀번호 관리자에 보관하세요.",
     "Regenerate codes": "복구 코드 재생성",
     "Remember me": "로그인 상태 유지",
+    "Regards,": "감사합니다.",
     "Resend verification email": "인증 이메일 다시 보내기",
     "Reset password": "비밀번호 재설정",
     "Save": "저장",
@@ -71,5 +73,6 @@
     "Verify authentication code": "인증 코드 확인",
     "View recovery codes": "복구 코드 보기",
     "When you enable two-factor authentication, you will be prompted for a secure pin during login. This pin can be retrieved from a TOTP-supported application on your phone.": "2단계 인증을 활성화하면 로그인할 때 휴대폰의 TOTP 지원 앱에서 확인한 보안 PIN을 입력해야 합니다.",
-    "You will be prompted for a secure, random pin during login, which you can retrieve from the TOTP-supported application on your phone.": "로그인할 때 휴대폰의 TOTP 지원 앱에서 확인한 보안 PIN을 입력해야 합니다."
+    "You will be prompted for a secure, random pin during login, which you can retrieve from the TOTP-supported application on your phone.": "로그인할 때 휴대폰의 TOTP 지원 앱에서 확인한 보안 PIN을 입력해야 합니다.",
+    "If you're having trouble clicking the \":actionText\" button, copy and paste the URL below\ninto your web browser:": "\":actionText\" 버튼을 클릭하기 어렵다면 아래 링크를 복사하여 웹 브라우저에 붙여 넣으세요:"
 }
