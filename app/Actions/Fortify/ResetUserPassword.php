@@ -4,6 +4,7 @@ namespace App\Actions\Fortify;
 
 use App\Concerns\PasswordValidationRules;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
 use Laravel\Fortify\Contracts\ResetsUserPasswords;
 
@@ -22,10 +23,24 @@ class ResetUserPassword implements ResetsUserPasswords
             'password' => $this->passwordRules(),
         ])->validate();
 
-        $user->forceFill([
-            'password' => $input['password'],
-            'invitation_status' => 'accepted',
-            'email_verified_at' => $user->email_verified_at ?? now(),
-        ])->save();
+        DB::transaction(function () use ($input, $user): void {
+            $locked = User::query()->lockForUpdate()->findOrFail($user->id);
+            $attributes = ['password' => $input['password']];
+
+            if ($locked->invitation_status !== 'accepted') {
+                $attributes += [
+                    'invitation_status' => 'accepted',
+                    'email_verified_at' => $locked->email_verified_at ?? now(),
+                ];
+            } else {
+                $attributes += [
+                    'session_version' => $locked->session_version + 1,
+                    'remember_token' => null,
+                ];
+            }
+
+            $locked->forceFill($attributes)->save();
+            DB::table('sessions')->where('user_id', $locked->id)->delete();
+        });
     }
 }
