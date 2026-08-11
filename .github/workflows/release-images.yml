@@ -180,28 +180,54 @@ jobs:
           web_source="${WEB_IMAGE}:${CANDIDATE_TAG}"
           web_target="${WEB_IMAGE}:${RELEASE_TAG}"
 
-          source_app_digest=$(docker buildx imagetools inspect "${app_source}" \
-            | awk '$1 == "Digest:" { print $2; exit }')
-          source_web_digest=$(docker buildx imagetools inspect "${web_source}" \
-            | awk '$1 == "Digest:" { print $2; exit }')
+          inspect_manifest() {
+            local image_ref=$1
 
-          if [[ -z ${source_app_digest} || -z ${source_web_digest} ]]; then
-            echo "Accepted RC images are incomplete: ${CANDIDATE_TAG}" >&2
-            exit 1
-          fi
+            docker buildx imagetools inspect \
+              --format '{{json .Manifest}}' "${image_ref}" \
+              | jq -ce '
+                if (.mediaType | type) != "string"
+                  or (.digest | type) != "string"
+                  or (.digest | test("^sha256:[0-9a-f]{64}$") | not)
+                then
+                  error("manifest must contain a valid mediaType and sha256 digest")
+                else
+                  {mediaType, digest}
+                end
+              '
+          }
 
-          docker buildx imagetools create --tag "${app_target}" "${app_source}"
-          docker buildx imagetools create --tag "${web_target}" "${web_source}"
+          source_app_manifest=$(inspect_manifest "${app_source}")
+          source_web_manifest=$(inspect_manifest "${web_source}")
+          source_app_type=$(jq -r '.mediaType' <<<"${source_app_manifest}")
+          source_app_digest=$(jq -r '.digest' <<<"${source_app_manifest}")
+          source_web_type=$(jq -r '.mediaType' <<<"${source_web_manifest}")
+          source_web_digest=$(jq -r '.digest' <<<"${source_web_manifest}")
 
-          target_app_digest=$(docker buildx imagetools inspect "${app_target}" \
-            | awk '$1 == "Digest:" { print $2; exit }')
-          target_web_digest=$(docker buildx imagetools inspect "${web_target}" \
-            | awk '$1 == "Digest:" { print $2; exit }')
+          printf 'Accepted RC manifests:\napp: %s (%s)\nweb: %s (%s)\n' \
+            "${source_app_digest}" "${source_app_type}" \
+            "${source_web_digest}" "${source_web_type}"
 
-          if [[ ${source_app_digest} != "${target_app_digest}" ]] \
+          docker buildx imagetools create --prefer-index=false --tag "${app_target}" "${app_source}"
+          docker buildx imagetools create --prefer-index=false --tag "${web_target}" "${web_source}"
+
+          target_app_manifest=$(inspect_manifest "${app_target}")
+          target_web_manifest=$(inspect_manifest "${web_target}")
+          target_app_type=$(jq -r '.mediaType' <<<"${target_app_manifest}")
+          target_app_digest=$(jq -r '.digest' <<<"${target_app_manifest}")
+          target_web_type=$(jq -r '.mediaType' <<<"${target_web_manifest}")
+          target_web_digest=$(jq -r '.digest' <<<"${target_web_manifest}")
+
+          printf 'Promoted stable manifests:\napp: %s (%s)\nweb: %s (%s)\n' \
+            "${target_app_digest}" "${target_app_type}" \
+            "${target_web_digest}" "${target_web_type}"
+
+          if [[ ${source_app_type} != "${target_app_type}" ]] \
+            || [[ ${source_web_type} != "${target_web_type}" ]] \
+            || [[ ${source_app_digest} != "${target_app_digest}" ]] \
             || [[ ${source_web_digest} != "${target_web_digest}" ]]
           then
-            echo "Stable image digests do not match the accepted RC." >&2
+            echo "Stable image manifest types or digests do not match the accepted RC." >&2
             exit 1
           fi
 
