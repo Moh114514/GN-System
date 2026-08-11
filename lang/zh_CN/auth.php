@@ -54,6 +54,7 @@ return [
         'login' => '前往登录',
     ],
     'mail' => [
+        'salutation' => 'GN-System',
         'invitation' => [
             'subject' => '您收到了 GN-System 内部账户邀请',
             'greeting' => '您好，:name：',
@@ -63,8 +64,10 @@ return [
         ],
         'password_reset' => [
             'subject' => 'GN-System 密码重置请求',
+            'admin_subject' => 'GN-System 账户密码重置通知',
             'greeting' => '您好，:name：',
             'body' => '我们收到了您的密码重置请求，请使用下面的按钮设置新密码。',
+            'admin_body' => '管理员已为您发起 GN-System 账户密码重置，请使用下面的按钮设置新密码。',
             'action' => '重置密码',
             'expiration' => '此密码重置链接将在 :count 分钟后失效。',
         ],

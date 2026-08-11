@@ -22,9 +22,10 @@ final class InternalUserInvitationNotification extends ResetPassword
 
         return (new MailMessage)
             ->subject(__('auth.mail.invitation.subject'))
-            ->line(__('auth.mail.invitation.greeting', ['name' => $notifiable->name]))
+            ->greeting(__('auth.mail.invitation.greeting', ['name' => $notifiable->name]))
             ->line(__('auth.mail.invitation.body'))
             ->action(__('auth.mail.invitation.action'), $url)
-            ->line(__('auth.mail.invitation.expiration', ['count' => config('auth.passwords.'.config('auth.defaults.passwords').'.expire')]));
+            ->line(__('auth.mail.invitation.expiration', ['count' => config('auth.passwords.'.config('auth.defaults.passwords').'.expire')]))
+            ->salutation(__('auth.mail.salutation'));
     }
 }

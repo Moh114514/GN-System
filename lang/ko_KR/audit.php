@@ -25,6 +25,8 @@ return [
         'admin_enabled' => '슈퍼 관리자가 활성화되었습니다',
         'admin_disabled' => '슈퍼 관리자가 비활성화되었습니다',
         'admin_password_reset' => '슈퍼 관리자 비밀번호가 초기화되었습니다',
+        'internal_user_password_reset_sent' => '내부 사용자 비밀번호 재설정 이메일이 전송되었습니다',
+        'internal_user_password_reset_failed' => '내부 사용자 비밀번호 재설정 이메일 전송에 실패했습니다',
         'institution_saved' => '기관 설정이 저장되었습니다',
         'institution_status_changed' => '기관 활성 상태가 변경되었습니다',
         'institution_deleted' => '참조되지 않는 기관이 삭제되었습니다',

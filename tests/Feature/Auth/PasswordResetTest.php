@@ -3,6 +3,7 @@
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
+use App\Modules\Auth\Application\Contracts\UserManagementGateway;
 use App\Modules\Auth\Infrastructure\Notifications\InternalUserInvitationNotification;
 use App\Modules\Auth\Infrastructure\Notifications\UserPasswordResetNotification;
 use Illuminate\Contracts\Translation\HasLocalePreference;
@@ -196,6 +197,95 @@ class PasswordResetTest extends TestCase
 
         $this->assertStringContainsString('/account/invitation/', (string) $mail->actionUrl);
         $this->assertSame(__('auth.mail.invitation.subject'), $mail->subject);
+    }
+
+    public function test_rendered_auth_notifications_do_not_contain_default_english_mail_copy(): void
+    {
+        $user = User::factory()->create();
+        App::setLocale('zh_CN');
+
+        $invitation = (string) (new InternalUserInvitationNotification('invitation-token'))
+            ->toMail($user)
+            ->render();
+        $passwordReset = (string) (new UserPasswordResetNotification('reset-token'))
+            ->toMail($user)
+            ->render();
+
+        foreach ([$invitation, $passwordReset] as $html) {
+            $this->assertStringNotContainsString('Hello!', $html);
+            $this->assertStringNotContainsString('Regards,', $html);
+            $this->assertStringNotContainsString("If you're having trouble clicking", $html);
+        }
+
+        $this->assertStringContainsString(__('auth.mail.invitation.body'), $invitation);
+        $this->assertStringContainsString(__('auth.mail.password_reset.body'), $passwordReset);
+    }
+
+    public function test_account_credentials_pages_use_the_target_users_locale_without_changing_current_session_locale(): void
+    {
+        $admin = User::factory()->create([
+            'email' => 'admin@example.com',
+            'preferred_locale' => 'zh_CN',
+        ]);
+        $invited = User::factory()->create([
+            'email' => 'invite@example.com',
+            'preferred_locale' => 'ko_KR',
+            'invitation_status' => 'pending',
+        ]);
+        $invitationToken = Password::broker()->createToken($invited);
+
+        $this->actingAs($admin)
+            ->get(route('account.invitation', ['token' => $invitationToken, 'email' => $invited->email]))
+            ->assertOk()
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('내부 계정 초대 수락');
+
+        $accepted = User::factory()->create([
+            'email' => 'reset@example.com',
+            'preferred_locale' => 'ko_KR',
+            'invitation_status' => 'accepted',
+        ]);
+        $resetToken = Password::broker()->createToken($accepted);
+
+        $this->actingAs($admin)
+            ->get(route('account.password-reset', ['token' => $resetToken, 'email' => $accepted->email]))
+            ->assertOk()
+            ->assertSee('<html lang="ko-KR"', false)
+            ->assertSee('비밀번호 재설정');
+
+        $this->assertSame('zh_CN', App::getLocale());
+        $this->assertAuthenticatedAs($admin);
+    }
+
+    public function test_administrator_password_reset_notification_uses_administrator_initiated_copy(): void
+    {
+        $user = User::factory()->create();
+        App::setLocale('zh_CN');
+
+        $mail = (new UserPasswordResetNotification('reset-token', initiatedByAdministrator: true))->toMail($user);
+
+        $this->assertSame(__('auth.mail.password_reset.admin_subject'), $mail->subject);
+        $this->assertContains(__('auth.mail.password_reset.admin_body'), $mail->introLines);
+        $this->assertNotContains(__('auth.mail.password_reset.body'), $mail->introLines);
+    }
+
+    public function test_administrator_password_reset_audit_uses_the_localized_message_catalog(): void
+    {
+        Notification::fake();
+        $admin = User::factory()->create();
+        $target = User::factory()->create(['invitation_status' => 'accepted']);
+
+        $status = app(UserManagementGateway::class)->sendPasswordResetLink($target->id, $admin->id, null);
+
+        $this->assertSame('sent', $status);
+        $this->assertDatabaseHas('activity_log', [
+            'event' => 'password_reset_requested',
+            'description' => __('audit.messages.internal_user_password_reset_sent'),
+        ]);
+        $this->assertDatabaseHas('activity_log', [
+            'event' => 'password_reset_requested',
+            'properties->message_key' => 'audit.messages.internal_user_password_reset_sent',
+        ]);
     }
 
     public function test_invalid_or_reused_invitation_tokens_cannot_be_used(): void

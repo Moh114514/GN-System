@@ -25,6 +25,8 @@ return [
         'admin_enabled' => '超级管理员已启用',
         'admin_disabled' => '超级管理员已停用',
         'admin_password_reset' => '超级管理员密码已重置',
+        'internal_user_password_reset_sent' => '内部用户密码重置邮件已发送',
+        'internal_user_password_reset_failed' => '内部用户密码重置邮件发送失败',
         'institution_saved' => '机构配置已保存',
         'institution_status_changed' => '机构启用状态已变更',
         'institution_deleted' => '未引用机构已删除',

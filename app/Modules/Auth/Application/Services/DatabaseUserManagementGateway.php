@@ -85,20 +85,23 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
         $status = 'failed';
         try {
             $token = Password::broker()->createToken($user);
-            $user->notify(new UserPasswordResetNotification($token));
+            $user->notify(new UserPasswordResetNotification($token, initiatedByAdministrator: true));
             $status = 'sent';
         } catch (Throwable $exception) {
             report($exception);
         }
 
         $this->audit->record(
-            description: $status === 'sent' ? 'Password reset link sent' : 'Password reset link failed',
+            description: $status === 'sent' ? __('audit.messages.internal_user_password_reset_sent') : __('audit.messages.internal_user_password_reset_failed'),
             properties: ['user_id' => $user->id, 'status' => $status],
             causerId: $actorId,
             subject: $user,
             logName: 'auth-user-management',
             event: $status === 'sent' ? 'password_reset_requested' : 'password_reset_failed',
             ipAddress: $ipAddress,
+            messageKey: $status === 'sent'
+                ? 'audit.messages.internal_user_password_reset_sent'
+                : 'audit.messages.internal_user_password_reset_failed',
         );
 
         return $status;

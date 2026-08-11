@@ -54,6 +54,7 @@ return [
         'login' => '로그인으로 이동',
     ],
     'mail' => [
+        'salutation' => 'GN-System',
         'invitation' => [
             'subject' => 'GN-System 내부 계정 초대가 도착했습니다',
             'greeting' => ':name 님, 안녕하세요.',
@@ -63,8 +64,10 @@ return [
         ],
         'password_reset' => [
             'subject' => 'GN-System 비밀번호 재설정 요청',
+            'admin_subject' => 'GN-System 계정 비밀번호 재설정 안내',
             'greeting' => ':name 님, 안녕하세요.',
             'body' => '비밀번호 재설정 요청을 받았습니다. 아래 버튼을 사용하여 새 비밀번호를 설정하세요.',
+            'admin_body' => '관리자가 GN-System 계정의 비밀번호 재설정을 시작했습니다. 아래 버튼을 사용하여 새 비밀번호를 설정하세요.',
             'action' => '비밀번호 재설정',
             'expiration' => '이 비밀번호 재설정 링크는 :count분 후 만료됩니다.',
         ],

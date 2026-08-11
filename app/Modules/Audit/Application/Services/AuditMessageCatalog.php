@@ -25,6 +25,8 @@ final class AuditMessageCatalog
         'audit.messages.admin_enabled',
         'audit.messages.admin_disabled',
         'audit.messages.admin_password_reset',
+        'audit.messages.internal_user_password_reset_sent',
+        'audit.messages.internal_user_password_reset_failed',
         'audit.messages.institution_saved',
         'audit.messages.institution_status_changed',
         'audit.messages.institution_deleted',

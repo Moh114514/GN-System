@@ -27,6 +27,8 @@ class ResetUserPassword implements ResetsUserPasswords
             $locked = User::query()->lockForUpdate()->findOrFail($user->id);
             $attributes = ['password' => $input['password']];
 
+            // Temporary compatibility for invitations issued before the dedicated invitation route.
+            // Remove this branch after the legacy Password Broker tokens have expired in production.
             if ($locked->invitation_status !== 'accepted') {
                 $attributes += [
                     'invitation_status' => 'accepted',
