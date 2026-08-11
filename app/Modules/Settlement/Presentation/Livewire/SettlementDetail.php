@@ -4,11 +4,14 @@ namespace App\Modules\Settlement\Presentation\Livewire;
 
 use App\Modules\Settlement\Application\Services\ExchangeRateQuoteService;
 use App\Modules\Settlement\Application\Services\SettlementDisplayReader;
+use App\Modules\Settlement\Application\Services\SettlementFreshnessChecker;
 use App\Modules\Settlement\Application\Services\SettlementGenerator;
+use App\Modules\Settlement\Application\Services\SettlementOrderLinkReader;
 use App\Modules\Settlement\Application\Services\SettlementWorkflow;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
 use App\Modules\Settlement\Infrastructure\Models\SettlementGradeSuggestion;
+use App\Modules\Settlement\Infrastructure\Models\SettlementRunMember;
 use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -35,6 +38,8 @@ class SettlementDetail extends Component
     public string $correctionReason = '';
 
     public string $generationRecoveryBasis = '';
+
+    public string $refreshReason = '';
 
     public function mount(int $settlement, ExchangeRateQuoteService $quotes): void
     {
@@ -106,6 +111,16 @@ class SettlementDetail extends Component
         $this->run(fn () => $workflow->regenerateDocuments($this->settlementId), __('settlements.toasts.documents_regenerated'));
     }
 
+    public function refreshSettlement(SettlementWorkflow $workflow): void
+    {
+        $this->validate(['refreshReason' => ['required', 'string', 'max:2000']]);
+        $this->run(
+            fn () => $workflow->refreshSettlement($this->settlementId, $this->refreshReason, (int) Auth::id(), request()->ip()),
+            __('settlements.refresh.toast'),
+        );
+        $this->refreshReason = '';
+    }
+
     public function regenerateSettlement(SettlementGenerator $generator): void
     {
         $record = Settlement::query()->findOrFail($this->settlementId);
@@ -145,10 +160,15 @@ class SettlementDetail extends Component
         $this->run(fn () => $workflow->reviewSuggestion($id, $accept, $this->suggestionReason, (int) Auth::id()), $accept ? __('settlements.toasts.suggestion_approved') : __('settlements.toasts.suggestion_rejected'));
     }
 
-    public function render(SettlementDisplayReader $display): View
+    public function render(SettlementDisplayReader $display, SettlementFreshnessChecker $freshnessChecker, SettlementOrderLinkReader $orders): View
     {
         $settlement = Settlement::query()->findOrFail($this->settlementId);
         $items = DB::table('settlement_items')->where('settlement_id', $settlement->id)->orderBy('id')->get();
+        $snapshotOrderIds = $items->map(function (object $item): int {
+            $snapshot = is_string($item->rule_snapshot) ? json_decode($item->rule_snapshot, true) : $item->rule_snapshot;
+
+            return (int) data_get($snapshot, 'order.id');
+        })->filter(static fn (int $id): bool => $id > 0)->unique()->values()->all();
         $previousSettlement = null;
         $nextSettlement = null;
         if ($settlement->settlement_run_id !== null) {
@@ -186,6 +206,10 @@ class SettlementDetail extends Component
             'suggestion' => SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->first(),
             'previousSettlement' => $previousSettlement,
             'nextSettlement' => $nextSettlement,
+            'freshness' => $settlement->generation_status === 'generated' ? $freshnessChecker->check($settlement) : null,
+            'existingOrderIds' => $orders->existingOrderIds($snapshotOrderIds),
+            'isHistoricalArchive' => $settlement->settlement_run_id === null
+                && ! SettlementRunMember::query()->where('settlement_id', $settlement->id)->exists(),
         ])->title(__('settlements.titles.detail'));
     }
 

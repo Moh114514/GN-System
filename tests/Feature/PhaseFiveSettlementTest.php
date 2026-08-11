@@ -17,6 +17,7 @@ use App\Modules\Settlement\Application\Contracts\CommissionConfigurationGateway;
 use App\Modules\Settlement\Application\Data\HistoricalCommissionRuleData;
 use App\Modules\Settlement\Application\Services\ExchangeRateQuoteService;
 use App\Modules\Settlement\Application\Services\SettlementDocumentGenerator;
+use App\Modules\Settlement\Application\Services\SettlementFreshnessChecker;
 use App\Modules\Settlement\Application\Services\SettlementGenerator;
 use App\Modules\Settlement\Application\Services\SettlementNotificationDispatcher;
 use App\Modules\Settlement\Application\Services\SettlementPeriodCalculator;
@@ -33,6 +34,7 @@ use App\Modules\Settlement\Infrastructure\Models\SettlementRunMember;
 use App\Modules\Settlement\Jobs\GenerateAgentSettlement;
 use App\Modules\Settlement\Jobs\SendSettlementNotification;
 use App\Modules\Settlement\Presentation\Livewire\SettlementCenter;
+use App\Modules\Settlement\Presentation\Livewire\SettlementHistory;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use DomainException;
@@ -177,6 +179,58 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame('existing_completed', $manager->startWithResult('manual', $this->admin->id)->outcome);
         $this->assertDatabaseCount('settlement_runs', 1);
         $this->assertDatabaseCount('settlements', 1);
+    }
+
+    public function test_settlement_freshness_detects_new_order_and_refresh_updates_items_run_and_audit(): void
+    {
+        $firstOrderId = $this->createCompletedOrder(10000);
+        $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
+        $settlement = Settlement::query()->where('settlement_run_id', $run->id)->firstOrFail();
+        $commissionBefore = DB::table('order_commissions')->where('order_id', $firstOrderId)->first();
+
+        $secondOrderId = $this->createCompletedOrder(20000);
+        $freshness = app(SettlementFreshnessChecker::class)->check($settlement->fresh());
+        $this->assertSame('stale', $freshness->status);
+        $this->assertSame([$secondOrderId], $freshness->addedOrderIds);
+        $this->assertSame(2, $freshness->currentItemCount);
+
+        app(SettlementWorkflow::class)->refreshSettlement($settlement->id, '补录本周期遗漏订单', $this->admin->id, '127.0.0.1');
+
+        $settlement->refresh();
+        $this->assertSame(2, (int) $settlement->item_count);
+        $this->assertSame(30000, (int) $settlement->total_consumption_krw);
+        $this->assertSame(3000, (int) $settlement->total_commission_krw);
+        $this->assertSame(2, DB::table('settlement_items')->where('settlement_id', $settlement->id)->count());
+        $this->assertSame(30000, (int) $run->refresh()->total_consumption_krw);
+        $this->assertSame(3000, (int) $run->total_commission_krw);
+        $this->assertEquals((array) $commissionBefore, (array) DB::table('order_commissions')->where('order_id', $firstOrderId)->first());
+        $this->assertDatabaseHas('activity_log', [
+            'log_name' => 'settlement',
+            'subject_id' => $settlement->id,
+            'event' => 'refreshed',
+        ]);
+        $properties = json_decode((string) DB::table('activity_log')->where('subject_id', $settlement->id)->where('event', 'refreshed')->value('properties'), true);
+        $this->assertSame([$secondOrderId], $properties['added_order_ids']);
+        $this->assertSame('补录本周期遗漏订单', $properties['reason']);
+    }
+
+    public function test_settlement_refresh_only_allows_pending_review_or_rejected(): void
+    {
+        $this->createCompletedOrder(10000);
+        $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
+        $settlement = Settlement::query()->where('settlement_run_id', $run->id)->firstOrFail();
+        $workflow = app(SettlementWorkflow::class);
+
+        foreach (['approved', 'settled', 'paid', 'reconciled'] as $status) {
+            $settlement->update(['status' => $status]);
+            $caught = null;
+            try {
+                $workflow->refreshSettlement($settlement->id, '不应允许', $this->admin->id, null);
+            } catch (DomainException $exception) {
+                $caught = $exception;
+            }
+            $this->assertInstanceOf(DomainException::class, $caught, $status.' should not be refreshable');
+        }
     }
 
     public function test_existing_settlement_is_counted_without_dispatching_a_generation_job(): void
@@ -590,6 +644,8 @@ class PhaseFiveSettlementTest extends TestCase
             $this->actingAs($this->admin)->get(route('settlements.show', $settlement))
                 ->assertOk()
                 ->assertSee('历史月结，仅供查看')
+                ->assertSee('href="'.route('settlements.index').'"', false)
+                ->assertDontSee('href="'.route('settlements.history').'"', false)
                 ->assertDontSee('wire:click="regenerateSettlement"', false);
         }
     }
@@ -1003,7 +1059,13 @@ class PhaseFiveSettlementTest extends TestCase
 
         Livewire::actingAs($this->admin)
             ->test(SettlementCenter::class)
-            ->assertSee('未关联批次的历史月结')
+            ->assertSee(__('settlements.archive.center_heading'))
+            ->assertSee('href="'.route('settlements.history').'"', false)
+            ->assertDontSee('未关联历史代理商');
+
+        $this->actingAs($this->admin)->get(route('settlements.history'))
+            ->assertOk()
+            ->assertSee(__('settlements.archive.title'))
             ->assertSee('未关联历史代理商')
             ->assertSee('href="'.route('settlements.show', $settlement->id).'"', false);
     }
@@ -1019,8 +1081,107 @@ class PhaseFiveSettlementTest extends TestCase
             'snapshot' => ['source' => 'historical_import'],
         ]);
 
-        Livewire::actingAs($this->admin)->test(SettlementCenter::class)->assertSee($this->agent->name);
+        Livewire::actingAs($this->admin)->test(SettlementCenter::class)->assertDontSee($this->agent->name);
+        Livewire::actingAs($this->admin)->test(SettlementHistory::class)->assertSee($this->agent->name);
         $this->actingAs($this->admin)->get(route('settlements.show', $settlement))->assertOk()->assertSee($this->agent->name);
+    }
+
+    public function test_historical_archive_supports_month_status_search_and_pagination(): void
+    {
+        Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-05-01',
+            'period_end' => '2026-05-31',
+            'status' => 'paid',
+            'generation_status' => 'not_applicable',
+            'snapshot' => ['source' => 'historical_import', 'agent' => ['code' => 'HIST-A', 'name' => '归档代理商 A']],
+        ]);
+        Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-06-30',
+            'status' => 'reconciled',
+            'generation_status' => 'not_applicable',
+            'snapshot' => ['source' => 'historical_import', 'agent' => ['code' => 'HIST-B', 'name' => '归档代理商 B']],
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(SettlementHistory::class)
+            ->assertSee('归档代理商 A')
+            ->assertSee('归档代理商 B')
+            ->set('month', '2026-05')
+            ->assertSee('归档代理商 A')
+            ->assertDontSee('归档代理商 B')
+            ->set('status', 'reconciled')
+            ->assertDontSee('2026-05')
+            ->set('month', '')
+            ->set('status', '')
+            ->set('search', 'HIST-B')
+            ->assertSee('归档代理商 B')
+            ->assertDontSee('2026-05');
+    }
+
+    public function test_settlement_detail_links_snapshot_project_name_when_order_exists(): void
+    {
+        $orderId = $this->createCompletedOrder(10000);
+        $commissionId = DB::table('order_commissions')->where('order_id', $orderId)->value('id');
+        $settlement = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-06-30',
+            'status' => 'paid',
+            'generation_status' => 'not_applicable',
+            'snapshot' => ['source' => 'historical_import'],
+        ]);
+        DB::table('settlement_items')->insert([
+            'settlement_id' => $settlement->id,
+            'order_commission_id' => $commissionId,
+            'consumption_krw' => 10000,
+            'commission_krw' => 1000,
+            'rule_snapshot' => json_encode([
+                'order' => ['id' => $orderId, 'project_name' => '历史快照项目名称', 'completed_on' => '2026-06-15'],
+                'rate_bps' => 1000,
+            ], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)->get(route('settlements.show', $settlement))
+            ->assertOk()
+            ->assertSee('历史快照项目名称')
+            ->assertSee('href="'.route('orders.show', $orderId).'"', false);
+    }
+
+    public function test_historical_settlement_keeps_missing_snapshot_order_visible_without_a_link(): void
+    {
+        $orderId = $this->createCompletedOrder(10000);
+        $commissionId = DB::table('order_commissions')->where('order_id', $orderId)->value('id');
+        $settlement = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-06-30',
+            'status' => 'paid',
+            'generation_status' => 'not_applicable',
+            'snapshot' => ['source' => 'historical_import'],
+        ]);
+        DB::table('settlement_items')->insert([
+            'settlement_id' => $settlement->id,
+            'order_commission_id' => $commissionId,
+            'consumption_krw' => 10000,
+            'commission_krw' => 1000,
+            'rule_snapshot' => json_encode([
+                'order' => ['id' => 999999, 'project_name' => '订单已删除但历史项目仍保留', 'completed_on' => '2026-06-15'],
+                'rate_bps' => 1000,
+            ], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($this->admin)->get(route('settlements.show', $settlement))
+            ->assertOk()
+            ->assertSee('订单已删除但历史项目仍保留')
+            ->assertSee(__('settlements.archive.archived_order'))
+            ->assertDontSee('href="'.route('orders.show', 999999).'"', false);
     }
 
     public function test_failed_run_detail_and_xlsx_report_expose_only_current_failures(): void

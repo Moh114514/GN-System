@@ -30,4 +30,18 @@ final class DatabaseSettlementOrderReader implements SettlementOrderReader
             ))
             ->all();
     }
+
+    /** @param array<int, int> $orderIds @return array<int, int> */
+    public function existingOrderIds(array $orderIds): array
+    {
+        if ($orderIds === []) {
+            return [];
+        }
+
+        return Order::query()
+            ->whereIn('id', $orderIds)
+            ->pluck('id')
+            ->map(static fn ($id): int => (int) $id)
+            ->all();
+    }
 }

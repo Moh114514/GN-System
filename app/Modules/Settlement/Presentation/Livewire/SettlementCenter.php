@@ -125,16 +125,13 @@ class SettlementCenter extends Component
                 $legacyDisplays[$settlementId] = $agentDisplay;
             }
         }
-        $unboundSettlements = Settlement::query()
+        $historicalSettlementCount = Settlement::query()
             ->whereNull('settlement_run_id')
             ->whereNotExists(fn ($query) => $query
                 ->selectRaw('1')
                 ->from('settlement_run_members')
                 ->whereColumn('settlement_run_members.settlement_id', 'settlements.id'))
-            ->latest('period_end')
-            ->latest('id')
-            ->limit(24)
-            ->get();
+            ->count();
         $documentCounts = SettlementDocument::query()
             ->join('settlement_run_members', 'settlement_run_members.settlement_id', '=', 'settlement_documents.settlement_id')
             ->whereIn('settlement_run_members.settlement_run_id', $runs->pluck('id'))
@@ -149,8 +146,7 @@ class SettlementCenter extends Component
             'memberDisplays' => $memberDisplays,
             'legacyDisplays' => $legacyDisplays,
             'documentCounts' => $documentCounts,
-            'unboundSettlements' => $unboundSettlements,
-            'unboundDisplays' => $display->forSettlements($unboundSettlements),
+            'historicalSettlementCount' => $historicalSettlementCount,
             'historicalPeriods' => array_slice($periods, 1),
         ]);
     }

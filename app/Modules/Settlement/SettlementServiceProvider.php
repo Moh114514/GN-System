@@ -22,6 +22,7 @@ use App\Modules\Settlement\Presentation\Http\SettlementDocumentController;
 use App\Modules\Settlement\Presentation\Http\SettlementRunFailureController;
 use App\Modules\Settlement\Presentation\Livewire\SettlementCenter;
 use App\Modules\Settlement\Presentation\Livewire\SettlementDetail;
+use App\Modules\Settlement\Presentation\Livewire\SettlementHistory;
 use App\Modules\Settlement\Presentation\Livewire\SettlementRunFailureDetail;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -50,6 +51,7 @@ class SettlementServiceProvider extends ServiceProvider
     {
         Route::middleware(['web', 'auth', 'verified', 'super-admin', 'super-admin.2fa'])->group(function (): void {
             Route::get('/settlements', SettlementCenter::class)->name('settlements.index');
+            Route::get('/settlements/history', SettlementHistory::class)->name('settlements.history');
             Route::get('/settlements/{settlement}', SettlementDetail::class)->whereNumber('settlement')->name('settlements.show');
             Route::get('/settlement-documents/{document}', [SettlementDocumentController::class, 'document'])
                 ->whereNumber('document')->name('settlements.documents.download');

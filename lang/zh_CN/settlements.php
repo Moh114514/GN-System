@@ -1,10 +1,35 @@
 <?php
 
 return [
+    'archive' => [
+        'title' => '历史月结归档',
+        'back' => '返回月结中心',
+        'description' => '查看历史迁移产生的旧月结记录；这些记录不参与当前月结流程。',
+        'search' => '搜索代理商名称或编号',
+        'month' => '月份',
+        'agent' => '代理商',
+        'all_agents' => '全部代理商',
+        'status' => '状态',
+        'all_statuses' => '全部状态',
+        'clear' => '清除筛选',
+        'count' => '共 :count 条历史记录',
+        'view' => '查看',
+        'empty' => '暂无符合条件的历史月结。',
+        'center_heading' => '历史月结归档',
+        'center_description' => '历史迁移产生的旧月结记录，不参与当前月结流程。',
+        'center_count' => '共 :count 条历史记录',
+        'view_all' => '查看全部',
+        'archived_order' => '历史订单',
+        'columns' => [
+            'month' => '月份', 'agent' => '代理商', 'consumption' => '消费额',
+            'commission' => '推广费', 'status' => '状态', 'action' => '操作',
+        ],
+    ],
     'titles' => [
         'center' => '月结中心',
         'detail' => '月结详情',
         'failure_detail' => '月结失败详情',
+        'history' => '历史月结归档',
     ],
     'labels' => [
         'current' => '月结',
@@ -58,6 +83,10 @@ return [
         'expand' => '展开',
         'collapse' => '收起',
         'empty' => '尚未生成月结批次。',
+        'historical_archive' => '历史月结归档',
+        'historical_archive_description' => '历史迁移中保留的旧月结记录，不参与当前月结生成和审核流程。',
+        'historical_count' => '共 :count 条历史记录',
+        'view_historical_archive' => '查看历史月结',
     ],
     'run_statuses' => [
         'queued' => '排队中',
@@ -80,9 +109,20 @@ return [
         'settled' => '已结清',
         'paid' => '历史已结清',
         'reconciled' => '历史已对账',
+        'draft' => '历史草稿',
     ],
     'detail' => [
         'back' => '返回月结中心',
+        'back_history' => '返回历史月结归档',
+        'freshness_heading' => '月结源数据已发生变化',
+        'freshness_description' => '当前月结生成后，本周期订单数据发生了变化。请刷新月结明细后再继续审核。',
+        'freshness_locked_description' => '当前月结源数据已发生变化，但月结已经审核或结清。若确认需要更正，请先通过受控状态更正回退到待审核。',
+        'current_settlement' => '当前月结',
+        'current_orders' => '当前订单数据',
+        'orders_count' => '笔',
+        'refresh_reason' => '刷新原因',
+        'refresh_settlement' => '刷新月结明细',
+        'archived_order' => '已归档订单',
         'generation_pending_heading' => '月结明细尚未生成',
         'generation_pending_description' => '当前消费合计和推广费合计暂时显示为 ₩0。请先重新生成月结明细，核对金额和结算汇率后再提交审核。',
         'regenerate_settlement' => '重新生成月结明细',
@@ -184,6 +224,11 @@ return [
         'operation_failed' => '操作未完成，数据已回滚，请检查文档生成环境后重试。',
         'retry_all_failed' => '失败项已重新提交处理队列。',
     ],
+    'refresh' => [
+        'toast' => '月结明细已刷新，批次汇总和审计已同步更新。',
+        'audit' => '月结明细已刷新',
+        'errors' => ['reason_required' => '刷新月结必须填写原因。', 'reason_too_long' => '刷新原因不能超过 2000 个字符。', 'status_unavailable' => '只有待审核或已驳回月结可以直接刷新；已审核或已结清月结请先执行受控状态更正。', 'generation_required' => '当前月结不是可刷新的已生成明细，请先核对生成状态。'],
+    ],
     'notifications' => [
         'title' => '月结生成完成',
         'body' => "周期：:from 至 :to\n\n代理商：:agents 家\n\n推广费合计：₩ :total",
@@ -234,6 +279,13 @@ return [
         'rejected' => '月结已驳回', 'approved' => '月结已审核通过', 'settled' => '月结已确认结清',
         'status_corrected' => '月结状态已人工更正', 'generation_recovered' => '月结历史生成状态已核验为不适用',
         'recovery_batch_created' => '月结已创建恢复批次并重新生成',
+    ],
+    'history' => [
+        'back' => '返回月结中心', 'description' => '历史迁移产生的旧月结记录，不参与当前月结生成和审核流程。',
+        'search' => '搜索代理商名称或编号', 'month' => '月份', 'agent' => '代理商', 'all_agents' => '全部代理商',
+        'status' => '状态', 'all_statuses' => '全部状态', 'clear' => '清除筛选', 'count' => '共 :count 条历史记录',
+        'view' => '查看', 'empty' => '暂无符合条件的历史月结。',
+        'columns' => ['month' => '月份', 'agent' => '代理商', 'consumption' => '消费额', 'commission' => '推广费', 'status' => '状态', 'action' => '操作'],
     ],
     'documents' => [
         'title' => '代理商月结结算单', 'unknown' => '未知', 'unknown_agent' => '未知代理商',

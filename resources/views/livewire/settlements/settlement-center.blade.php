@@ -91,25 +91,13 @@
             @empty<tr><td colspan="5" class="py-8 text-center text-zinc-500">{{ __('settlements.center.empty') }}</td></tr>@endforelse
             </tbody>
         </table></div>
-        @if ($unboundSettlements->isNotEmpty())
-            <div class="mt-8 border-t border-zinc-200 pt-5 dark:border-zinc-700">
-                <h4 class="font-semibold">{{ __('settlements.center.unbound_heading') }}</h4>
-                <p class="mt-1 text-sm text-zinc-500">{{ __('settlements.center.unbound_description') }}</p>
-                <div class="crm-table-wrap mt-4"><table class="crm-table">
-                    <thead><tr><th>{{ __('settlements.center.period') }}</th><th>{{ __('settlements.center.agent') }}</th><th>{{ __('settlements.center.consumption_commission') }}</th><th>{{ __('settlements.center.status') }}</th></tr></thead>
-                    <tbody>
-                    @foreach ($unboundSettlements as $settlement)
-                        <tr wire:key="unbound-settlement-{{ $settlement->id }}">
-                            <td>{{ $settlement->period_start->format('Y-m-d') }} {{ __('settlements.labels.date_to') }} {{ $settlement->period_end->format('Y-m-d') }}</td>
-                            @php($agentDisplay = $unboundDisplays[$settlement->id] ?? ['code' => '', 'name' => __('settlements.labels.unknown_agent').' #'.$settlement->agent_id])
-                            <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $settlement->id) }}" wire:navigate>{{ $agentDisplay['code'] }} {{ $agentDisplay['name'] }}</a></td>
-                            <td>₩{{ number_format($settlement->total_consumption_krw) }}<div class="text-xs text-zinc-500">{{ __('settlements.detail.commission') }} ₩{{ number_format($settlement->total_commission_krw) }}</div></td>
-                            <td>{{ __('settlements.settlement_statuses.'.$settlement->status) }}</td>
-                        </tr>
-                    @endforeach
-                    </tbody>
-                </table></div>
+        <div class="mt-8 flex flex-col gap-4 border-t border-zinc-200 pt-5 dark:border-zinc-700 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+                <h4 class="font-semibold">{{ __('settlements.archive.center_heading') }}</h4>
+                <p class="mt-1 text-sm text-zinc-500">{{ __('settlements.archive.center_description') }}</p>
+                <p class="mt-2 text-sm text-zinc-500">{{ __('settlements.archive.center_count', ['count' => $historicalSettlementCount]) }}</p>
             </div>
-        @endif
+            <a class="shrink-0 text-sm font-semibold text-teal-700 hover:underline" href="{{ route('settlements.history') }}" wire:navigate>{{ __('settlements.archive.view_all') }}</a>
+        </div>
     </section>
 </div>
