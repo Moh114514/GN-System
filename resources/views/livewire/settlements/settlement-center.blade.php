@@ -10,8 +10,11 @@
     <section class="mb-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <h3 class="font-semibold">{{ __('settlements.center.cycle_configuration') }}</h3>
         <p class="mt-1 text-sm text-zinc-500">{{ __('settlements.center.cycle_description') }}</p>
-        <form wire:submit="saveConfiguration" class="mt-4 grid items-end gap-3 sm:grid-cols-4">
-            <flux:input wire:model="boundaryDay" type="number" min="1" max="28" :label="__('settlements.center.boundary_day')" required />
+        <form wire:submit="saveConfiguration" class="mt-4 grid items-end gap-3 sm:grid-cols-3">
+            <div class="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700">
+                <div class="text-xs text-zinc-500">{{ __('settlements.center.period_natural_month') }}</div>
+                <div class="mt-1 font-semibold">{{ __('settlements.center.generation_day') }}</div>
+            </div>
             <flux:input wire:model="triggerTime" type="time" :label="__('settlements.center.trigger_time')" required />
             <flux:checkbox wire:model="confirmConfigurationChange" :label="__('settlements.center.confirm_old_config')" />
             <flux:button type="submit">{{ __('settlements.center.save_next_config') }}</flux:button>

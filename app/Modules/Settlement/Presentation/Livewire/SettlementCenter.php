@@ -24,8 +24,6 @@ class SettlementCenter extends Component
     /** @var array<int, string> */
     public array $collapsedRunIds = [];
 
-    public string $boundaryDay = '1';
-
     public string $triggerTime = '09:00';
 
     public bool $confirmConfigurationChange = false;
@@ -46,7 +44,6 @@ class SettlementCenter extends Component
     public function mount(SettlementPeriodCalculator $periods): void
     {
         $configuration = $periods->activeConfiguration(CarbonImmutable::now());
-        $this->boundaryDay = (string) $configuration->boundary_day;
         $this->triggerTime = substr((string) $configuration->trigger_time, 0, 5);
     }
 
@@ -86,7 +83,6 @@ class SettlementCenter extends Component
     public function saveConfiguration(SettlementPeriodCalculator $periods): void
     {
         $this->validate([
-            'boundaryDay' => ['required', 'integer', 'between:1,28'],
             'triggerTime' => ['required', 'date_format:H:i'],
         ]);
         $hasUnfinished = SettlementRun::query()->whereIn('status', ['queued', 'running', 'partial_failed'])->exists();
@@ -97,7 +93,6 @@ class SettlementCenter extends Component
         }
         try {
             $configuration = $periods->saveConfiguration(
-                (int) $this->boundaryDay,
                 $this->triggerTime,
                 (int) Auth::id(),
                 CarbonImmutable::now(),
