@@ -14,6 +14,14 @@ return [
         'all_statuses' => '모든 상태',
         'all_agents' => '모든 에이전트',
         'all_institutions' => '모든 기관',
+        'created_from' => '등록 시작일',
+        'created_to' => '등록 종료일',
+        'created_range_invalid' => '등록 시작일은 종료일보다 늦을 수 없습니다.',
+        'validation' => [
+            'created_from_format' => '등록 시작일 형식이 올바르지 않습니다.',
+            'created_to_format' => '등록 종료일 형식이 올바르지 않습니다.',
+            'created_range' => '등록 시작일은 종료일보다 늦을 수 없습니다.',
+        ],
         'per_page' => ':count건/페이지',
         'clear' => '지우기',
         'columns' => [

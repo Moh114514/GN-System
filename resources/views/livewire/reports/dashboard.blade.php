@@ -88,6 +88,17 @@
             $lifecycle = $snapshot['panels']['lifecycle'];
             $repeatLifecycle = collect($lifecycle)->firstWhere('key', 'repeat');
             $settlement = $snapshot['panels']['settlement_progress'];
+            $rangeFrom = \Carbon\CarbonImmutable::parse($snapshot['range']['from'])->setTimezone('Asia/Shanghai')->toDateString();
+            $rangeTo = \Carbon\CarbonImmutable::parse($snapshot['range']['to'])->setTimezone('Asia/Shanghai')->toDateString();
+            $reportRange = ['completedFrom' => $rangeFrom, 'completedTo' => $rangeTo];
+            $customerRange = ['createdFrom' => $rangeFrom, 'createdTo' => $rangeTo];
+            $metricLinks = [
+                'revenue' => route('reports.search', $reportRange),
+                'new_customers' => route('customers.index', $customerRange),
+                'pending_reminders' => route('reminders.index'),
+                'promotion_fee' => auth()->user()->is_super_admin ? route('settlements.index') : null,
+                'repurchase_rate' => route('reports.search', $reportRange),
+            ];
         @endphp
 
         <div
@@ -111,8 +122,13 @@
                             ],
                             default => $snapshot['metrics'][$key],
                         };
+                        $metricLink = $metricLinks[$key] ?? null;
                     @endphp
-                    <article class="crm-metric">
+                    @if ($metricLink)
+                        <a class="crm-metric" href="{{ $metricLink }}" wire:navigate aria-label="{{ $label }}">
+                    @else
+                        <article class="crm-metric">
+                    @endif
                         <span class="crm-metric-icon tone-{{ $tone }}"><flux:icon :name="$icon" /></span>
                         <span class="crm-metric-label">{{ $label }} <span title="{{ __('dashboard.metrics.actual') }}">ⓘ</span></span>
                         <strong class="crm-number">
@@ -136,7 +152,11 @@
                         <svg class="crm-spark tone-{{ $tone }}" viewBox="0 0 110 32" aria-hidden="true">
                             <path d="{{ $spark }}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
                         </svg>
-                    </article>
+                    @if ($metricLink)
+                        </a>
+                    @else
+                        </article>
+                    @endif
                 @endforeach
             </section>
 
@@ -148,6 +168,7 @@
                             <button type="button" class="is-active">{{ __('dashboard.panels.monthly') }}</button>
                         </div>
                     </header>
+                    <a class="crm-card-link" href="{{ route('reports.search', $reportRange) }}" wire:navigate>{{ __('dashboard.panels.view_details') }} <span>›</span></a>
                     <div class="crm-chart-legend">
                         <span><i class="tone-teal"></i>{{ __('dashboard.panels.revenue_krw') }}</span>
                         <span><i class="tone-blue is-round"></i>{{ __('dashboard.panels.orders_count') }}</span>
@@ -167,7 +188,9 @@
                 <article class="crm-card">
                     <header class="crm-card-header">
                         <h2>{{ __('dashboard.panels.promotion_ranking') }}</h2>
-                        <a class="crm-card-link" href="{{ route('agents.index') }}" wire:navigate>{{ __('dashboard.panels.view_all') }} <span>›</span></a>
+                        @if (auth()->user()->is_super_admin)
+                            <a class="crm-card-link" href="{{ route('agents.index') }}" wire:navigate>{{ __('dashboard.panels.view_all') }} <span>›</span></a>
+                        @endif
                     </header>
                     <div class="crm-rank-list">
                         @forelse ($ranking as $index => $agent)
@@ -180,7 +203,11 @@
                                 <span class="crm-rank-number {{ $index < 3 ? 'is-top' : '' }}">{{ $index + 1 }}</span>
                                 <span class="crm-mini-logo tone-{{ $tones[$index % count($tones)] }}">{{ mb_substr($agent['key'], 0, 1) }}</span>
                                 <span class="crm-rank-name">
-                                    <strong>{{ $agent['key'] }}</strong>
+                                    @if (auth()->user()->is_super_admin && isset($agent['id']))
+                                        <a class="font-semibold text-teal-700 hover:underline" href="{{ route('agents.show', $agent['id']) }}" wire:navigate>{{ $agent['key'] }}</a>
+                                    @else
+                                        <strong>{{ $agent['key'] }}</strong>
+                                    @endif
                                     <span><i style="width: {{ number_format($width, 1, '.', '') }}%"></i></span>
                                 </span>
                                 <span class="crm-rank-value">
@@ -241,7 +268,7 @@
                 <article class="crm-card crm-customer-card">
                     <header class="crm-card-header">
                         <h2>{{ __('dashboard.panels.recent_customers') }}</h2>
-                        <a class="crm-card-link" href="{{ route('customers.index') }}" wire:navigate>{{ __('dashboard.panels.view_all') }} <span>›</span></a>
+                        <a class="crm-card-link" href="{{ route('customers.index', $customerRange) }}" wire:navigate>{{ __('dashboard.panels.view_all') }} <span>›</span></a>
                     </header>
                     <div class="crm-table-wrap">
                         <table class="crm-table">

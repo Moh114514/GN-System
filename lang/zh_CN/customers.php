@@ -14,6 +14,14 @@ return [
         'all_statuses' => '全部状态',
         'all_agents' => '全部代理商',
         'all_institutions' => '全部机构',
+        'created_from' => '建档起始日期',
+        'created_to' => '建档截止日期',
+        'created_range_invalid' => '建档起始日期不能晚于截止日期。',
+        'validation' => [
+            'created_from_format' => '建档起始日期格式无效。',
+            'created_to_format' => '建档截止日期格式无效。',
+            'created_range' => '建档起始日期不能晚于截止日期。',
+        ],
         'per_page' => ':count 条/页',
         'clear' => '清除',
         'columns' => [

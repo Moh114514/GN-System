@@ -304,13 +304,45 @@ class CustomerLifecycleTest extends TestCase
             ->set('statusId', '1')
             ->set('agentId', (string) $this->agent->id)
             ->set('institutionId', (string) $this->institution->id)
+            ->set('createdFrom', '2026-08-01')
+            ->set('createdTo', '2026-08-31')
             ->set('perPage', 50)
             ->call('clearFilters')
             ->assertSet('search', '')
             ->assertSet('statusId', '')
             ->assertSet('agentId', '')
             ->assertSet('institutionId', '')
+            ->assertSet('createdFrom', '')
+            ->assertSet('createdTo', '')
             ->assertSet('perPage', 20);
+    }
+
+    public function test_customer_list_can_filter_by_creation_date_range(): void
+    {
+        $outside = $this->createCustomer('范围外客户');
+        Customer::query()->findOrFail($outside)->update(['created_at' => CarbonImmutable::parse('2026-07-31 23:59:59', 'Asia/Shanghai')]);
+        $inside = $this->createCustomer('范围内客户');
+        Customer::query()->findOrFail($inside)->update(['created_at' => CarbonImmutable::parse('2026-08-01 00:00:00', 'Asia/Shanghai')]);
+
+        $page = app(CustomerDirectory::class)->paginate([
+            'created_from' => '2026-08-01',
+            'created_to' => '2026-08-01',
+        ], 20);
+
+        $this->assertSame([$inside], $page->getCollection()->pluck('id')->all());
+        Livewire::actingAs($this->user)
+            ->test(CustomerList::class)
+            ->set('createdFrom', '2026-08-01')
+            ->set('createdTo', '2026-08-01')
+            ->assertSee('范围内客户')
+            ->assertDontSee('范围外客户');
+
+        Livewire::actingAs($this->user)
+            ->test(CustomerList::class)
+            ->set('createdFrom', '2026-08-02')
+            ->set('createdTo', '2026-08-01')
+            ->assertSee(__('customers.list.validation.created_range'))
+            ->assertSee(__('customers.list.empty'));
     }
 
     public function test_sensitive_edit_requires_confirmation_and_is_audited(): void
@@ -431,12 +463,12 @@ class CustomerLifecycleTest extends TestCase
             ->assertDontSee('生命周期状态配置');
     }
 
-    private function createCustomer(): int
+    private function createCustomer(string $name = '测试客户'): int
     {
         $manager = app(CustomerProfileManager::class);
 
         return $manager->create(
-            $this->profile(),
+            $this->profile($name),
             $this->institution->id,
             CarbonImmutable::parse('2026-08-01'),
             null,

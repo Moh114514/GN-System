@@ -34,7 +34,7 @@ final readonly class CustomerDirectory
     ) {}
 
     /**
-     * @param  array{search?: string, status_id?: int|null, agent_id?: int|null, institution_id?: int|null}  $filters
+     * @param  array{search?: string, status_id?: int|null, agent_id?: int|null, institution_id?: int|null, created_from?: string, created_to?: string}  $filters
      * @return LengthAwarePaginator<int, array{id: int, code: string, name: string, contact_masked: string, document_masked: string, status: string, source: string, created_at: string|null}>
      */
     public function paginate(array $filters, int $perPage): LengthAwarePaginator
@@ -62,6 +62,12 @@ final readonly class CustomerDirectory
         }
         if (($filters['institution_id'] ?? null) !== null) {
             $query->whereKey($this->orders->customerIdsForInstitution((int) $filters['institution_id']));
+        }
+        if (($filters['created_from'] ?? '') !== '') {
+            $query->where('created_at', '>=', CarbonImmutable::createFromFormat('!Y-m-d', (string) $filters['created_from'], 'Asia/Shanghai')->startOfDay());
+        }
+        if (($filters['created_to'] ?? '') !== '') {
+            $query->where('created_at', '<=', CarbonImmutable::createFromFormat('!Y-m-d', (string) $filters['created_to'], 'Asia/Shanghai')->endOfDay());
         }
 
         $page = $query->latest('created_at')->paginate($perPage);

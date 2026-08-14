@@ -382,7 +382,18 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->assertDontSee('PNG')
             ->assertDontSee('$refs.dashboard', false)
             ->assertDontSee('crm-report-chart-grid', false)
-            ->assertDontSee('演示数据');
+            ->assertDontSee('演示数据')
+            ->assertSee('href="'.e(route('reports.search', ['completedFrom' => '2026-07-01', 'completedTo' => '2026-07-30'])).'"', false)
+            ->assertSee('href="'.e(route('customers.index', ['createdFrom' => '2026-07-01', 'createdTo' => '2026-07-30'])).'"', false)
+            ->assertSee('href="'.e(route('reminders.index')).'"', false)
+            ->assertDontSee('href="'.e(route('settlements.index')).'"', false)
+            ->assertDontSee('href="'.e(route('agents.index')).'"', false);
+
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $this->actingAs($admin)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('href="'.e(route('settlements.index')).'"', false)
+            ->assertSee('href="'.e(route('agents.show', $this->agentId)).'"', false);
 
         foreach (['html', 'pdf'] as $format) {
             $component = Livewire::actingAs($this->user)->test(Dashboard::class);
