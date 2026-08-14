@@ -13,10 +13,10 @@
             <div class="w-full max-w-xs"><flux:select wire:model.live="type" :label="__('reminders.center.type')"><flux:select.option value="">{{ __('reminders.center.all_types') }}</flux:select.option><flux:select.option value="appointment">{{ __('reminders.center.appointment') }}</flux:select.option><flux:select.option value="post_treatment">{{ __('reminders.center.post_treatment') }}</flux:select.option><flux:select.option value="date_offset">{{ __('reminders.center.date_offset') }}</flux:select.option><flux:select.option value="fixed_cycle">{{ __('reminders.center.fixed_cycle') }}</flux:select.option><flux:select.option value="custom">{{ __('reminders.center.custom') }}</flux:select></flux:select></div>
         </section>
 
-        <section data-test="reminder-list" class="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
+        <section data-test="reminder-list" class="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
             @forelse ($reminders as $reminder)
-                <article wire:key="reminder-{{ $reminder->id }}" data-test="reminder-card" class="flex h-[24.5rem] flex-col rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition-colors hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600">
-                    <div class="min-h-0 flex-1">
+                <article wire:key="reminder-{{ $reminder->id }}" data-test="reminder-card" class="flex h-auto self-start flex-col rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm transition-colors hover:border-zinc-300 dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-zinc-600">
+                    <div class="flex-none">
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
                                 <h3 class="text-base font-semibold leading-6">{{ $reminder->title }}</h3>
@@ -35,7 +35,7 @@
                         </div>
                     </div>
 
-                    <div class="mt-4 flex shrink-0 flex-wrap items-center gap-1.5">
+                    <div class="mt-3 flex shrink-0 flex-wrap items-center gap-1.5">
                         <flux:button wire:click="openAction({{ $reminder->id }}, 'complete')" size="sm">{{ __('reminders.center.mark_complete') }}</flux:button>
                         <flux:button wire:click="openAction({{ $reminder->id }}, 'snooze')" size="sm" variant="ghost">{{ __('reminders.center.snooze') }}</flux:button>
                         <flux:button wire:click="openAction({{ $reminder->id }}, 'transfer')" size="sm" variant="ghost">{{ __('reminders.center.transfer') }}</flux:button>
