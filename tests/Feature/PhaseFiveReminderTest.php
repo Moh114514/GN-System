@@ -23,6 +23,7 @@ use App\Modules\Reminder\Infrastructure\Models\ReminderRule;
 use App\Modules\Reminder\Infrastructure\Models\ReminderTemplate;
 use App\Modules\Reminder\Jobs\SendReminderNotification;
 use App\Modules\Reminder\Presentation\Livewire\ReminderCenter;
+use App\Modules\Reminder\Presentation\Livewire\ReminderConfiguration;
 use App\Modules\Reminder\Presentation\Livewire\ReminderCreate;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
@@ -155,7 +156,140 @@ class PhaseFiveReminderTest extends TestCase
         $this->assertSame(3, $scheduler->materialize());
         $this->assertSame(0, $scheduler->materialize());
         $this->assertDatabaseHas('reminders', ['title' => '术前 3 天确认', 'assigned_to' => $this->user->id]);
-        $this->assertDatabaseHas('reminders', ['title' => '今日到店接待确认']);
+        $this->assertDatabaseHas('reminders', ['title' => '到店前一天客服联系客户', 'due_at' => '2026-08-03 18:00:00']);
+        $this->assertDatabaseHas('reminders', ['title' => '今日客服联系客户并确认到店', 'due_at' => '2026-08-04 09:00:00']);
+        $this->assertSame(3, Reminder::query()->count());
+    }
+
+    public function test_holiday_date_rules_materialize_for_each_date_and_remain_idempotent_across_days(): void
+    {
+        $manager = app(ReminderRuleManager::class);
+        $manager->saveRule(
+            null,
+            '节日第一天',
+            'holiday_date',
+            ['date' => '2026-08-02', 'time' => '09:00'],
+            'all_customers',
+            [],
+            '节日联系客户',
+            '联系客户表达节日关怀',
+            2,
+            $this->admin->id,
+        );
+        $firstRule = ReminderRule::query()->where('name', '节日第一天')->firstOrFail();
+        $manager->saveRule(
+            null,
+            '节日第二天',
+            'holiday_date',
+            ['date' => '2026-08-03', 'time' => '10:00'],
+            'owner',
+            ['value' => (string) $this->user->id],
+            '节日第二次联系客户',
+            '继续跟进客户',
+            2,
+            $this->admin->id,
+        );
+
+        $scheduler = app(ReminderScheduler::class);
+        $this->assertSame(2, $scheduler->materialize());
+        $this->assertSame(2, Reminder::query()->where('reminder_type', 'holiday_date')->count());
+        $this->assertDatabaseHas('reminders', [
+            'reminder_type' => 'holiday_date',
+            'assigned_to' => $this->user->id,
+            'due_at' => '2026-08-02 09:00:00',
+            'dedupe_key' => hash('sha256', 'holiday-rule:'.$firstRule->id.':'.$this->customer->id.':2026-08-02'),
+        ]);
+        $this->assertDatabaseHas('reminders', ['due_at' => '2026-08-03 10:00:00', 'assigned_to' => $this->user->id]);
+
+        CarbonImmutable::setTestNow('2026-08-02 09:30:00');
+        $this->assertSame(0, $scheduler->materialize());
+        CarbonImmutable::setTestNow('2026-08-03 11:00:00');
+        $this->assertSame(0, $scheduler->materialize());
+        $this->assertSame(2, Reminder::query()->where('reminder_type', 'holiday_date')->count());
+    }
+
+    public function test_disabled_holiday_rule_does_not_materialize_and_invalid_date_is_rejected(): void
+    {
+        $manager = app(ReminderRuleManager::class);
+        $manager->saveRule(
+            null,
+            '停用节日规则',
+            'holiday_date',
+            ['date' => '2026-08-05', 'time' => '09:00'],
+            'all_customers',
+            [],
+            '不应生成',
+            null,
+            3,
+            $this->admin->id,
+        );
+        $rule = ReminderRule::query()->where('name', '停用节日规则')->firstOrFail();
+        $manager->toggleRule($rule->id, $this->admin->id);
+
+        $this->assertSame(0, app(ReminderScheduler::class)->materialize());
+        $this->assertDatabaseMissing('reminders', ['rule_id' => $rule->id]);
+
+        $this->expectException(\DomainException::class);
+        $manager->saveRule(
+            null,
+            '无效节日规则',
+            'holiday_date',
+            ['date' => '2026-02-30', 'time' => '09:00'],
+            'all_customers',
+            [],
+            '无效日期',
+            null,
+            3,
+            $this->admin->id,
+        );
+    }
+
+    public function test_editing_holiday_date_reschedules_pending_reminders_without_touching_history(): void
+    {
+        $manager = app(ReminderRuleManager::class);
+        $manager->saveRule(
+            null,
+            '可调整节日规则',
+            'holiday_date',
+            ['date' => '2026-08-05', 'time' => '09:00'],
+            'all_customers',
+            [],
+            '节日联系客户',
+            null,
+            3,
+            $this->admin->id,
+        );
+        $rule = ReminderRule::query()->where('name', '可调整节日规则')->firstOrFail();
+        $scheduler = app(ReminderScheduler::class);
+        $this->assertSame(1, $scheduler->materialize());
+        $reminder = Reminder::query()->where('rule_id', $rule->id)->firstOrFail();
+        $historical = $reminder->replicate();
+        $historical->fill([
+            'dedupe_key' => hash('sha256', 'holiday-rule:'.$rule->id.':'.$this->customer->id.':2026-08-04'),
+            'due_at' => '2026-08-04 09:00:00',
+            'status' => 'completed',
+            'completed_at' => now(),
+            'completed_by' => $this->user->id,
+        ])->save();
+
+        $manager->saveRule(
+            $rule->id,
+            '可调整节日规则',
+            'holiday_date',
+            ['date' => '2026-08-06', 'time' => '10:00'],
+            'all_customers',
+            [],
+            '节日联系客户',
+            null,
+            3,
+            $this->admin->id,
+        );
+        $this->assertSame('pending', $reminder->refresh()->status);
+        $this->assertSame('2026-08-06 10:00', $reminder->due_at->format('Y-m-d H:i'));
+        $this->assertSame('completed', $historical->refresh()->status);
+        $this->assertSame('2026-08-04 09:00', $historical->due_at->format('Y-m-d H:i'));
+        $this->assertSame(0, $scheduler->materialize());
+        $this->assertDatabaseHas('reminder_events', ['reminder_id' => $reminder->id, 'event' => 'rescheduled']);
     }
 
     public function test_custom_reminder_visibility_lifecycle_and_recurrence(): void
@@ -226,7 +360,11 @@ class PhaseFiveReminderTest extends TestCase
             ->assertOk()->assertSee('返回主动提醒')->assertSee('href="'.route('reminders.index').'"', false);
         $this->actingAs($this->user)->get(route('reminder-configuration.index'))->assertForbidden();
         $this->actingAs($this->admin)->get(route('reminder-configuration.index'))
-            ->assertOk()->assertSee('返回配置中心')->assertSee('href="'.route('configuration.index').'"', false);
+            ->assertOk()->assertSee('返回配置中心')->assertSee('href="'.route('configuration.index').'"', false)
+            ->assertSee('指定节假日');
+        Livewire::actingAs($this->admin)->test(ReminderConfiguration::class)
+            ->set('triggerType', 'holiday_date')
+            ->assertSee('节假日期');
     }
 
     public function test_reminder_center_keeps_action_forms_collapsed_and_only_opens_one_at_a_time(): void

@@ -68,7 +68,9 @@ final readonly class ReminderScheduler
                     title: (string) $rule->title,
                     suggestion: $rule->suggestion,
                     priority: (int) $rule->priority,
-                    dedupeSource: "rule:{$rule->id}:customer:{$customer->id}:{$dueAt->toIso8601String()}",
+                    dedupeSource: $rule->trigger_type === 'holiday_date'
+                        ? "holiday-rule:{$rule->id}:{$customer->id}:{$rule->trigger_config['date']}"
+                        : "rule:{$rule->id}:customer:{$customer->id}:{$dueAt->toIso8601String()}",
                     ruleId: (int) $rule->id,
                 );
             }
@@ -177,6 +179,11 @@ final readonly class ReminderScheduler
 
             return $customer->createdAt->startOfDay()->addDays($cycles * $days)->setTimeFromTimeString($time);
         }
+        if ($rule->trigger_type === 'holiday_date') {
+            $date = $this->parseHolidayDate($config['date'] ?? null);
+
+            return $date?->setTimeFromTimeString($time);
+        }
         if ($rule->trigger_type !== 'date_offset') {
             return null;
         }
@@ -197,6 +204,21 @@ final readonly class ReminderScheduler
         }
 
         return $dueAt;
+    }
+
+    private function parseHolidayDate(mixed $date): ?CarbonImmutable
+    {
+        if (! is_string($date) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
+            return null;
+        }
+
+        try {
+            $parsed = CarbonImmutable::createFromFormat('!Y-m-d', $date, (string) config('app.timezone'));
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $parsed instanceof CarbonImmutable && $parsed->format('Y-m-d') === $date ? $parsed : null;
     }
 
     /** @param array<string, array{key: string, parameters: array<string, scalar>}>|null $localizedContent */

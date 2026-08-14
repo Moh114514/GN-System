@@ -26,6 +26,8 @@ class ReminderConfiguration extends Component
 
     public string $offsetDays = '0';
 
+    public string $holidayDate = '';
+
     public string $intervalDays = '90';
 
     public string $triggerTime = '09:00';
@@ -57,7 +59,7 @@ class ReminderConfiguration extends Component
     {
         $this->validate([
             'ruleName' => ['required', 'string', 'max:255'],
-            'triggerType' => ['required', 'in:status_change,date_offset,fixed_cycle,manual'],
+            'triggerType' => ['required', 'in:status_change,date_offset,fixed_cycle,holiday_date,manual'],
             'ruleTitle' => ['required', 'string', 'max:255'],
             'priority' => ['required', 'integer', 'between:1,5'],
         ]);
@@ -66,6 +68,9 @@ class ReminderConfiguration extends Component
             $config += ['field' => $this->dateField, 'offset_days' => (int) $this->offsetDays];
         } elseif ($this->triggerType === 'fixed_cycle') {
             $config += ['interval_days' => (int) $this->intervalDays];
+        } elseif ($this->triggerType === 'holiday_date') {
+            $this->validate(['holidayDate' => ['required', 'date_format:Y-m-d']]);
+            $config += ['date' => $this->holidayDate];
         }
         try {
             $manager->saveRule(
@@ -74,7 +79,7 @@ class ReminderConfiguration extends Component
                 $this->ruleTitle, $this->suggestion, (int) $this->priority, (int) Auth::id(),
             );
             Flux::toast(variant: 'success', text: __('reminders.toasts.rule_saved'));
-            $this->reset('editingRuleId', 'ruleName', 'ruleTitle', 'suggestion', 'scopeValue');
+            $this->reset('editingRuleId', 'ruleName', 'ruleTitle', 'suggestion', 'scopeValue', 'holidayDate');
         } catch (DomainException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());
         }
@@ -93,6 +98,7 @@ class ReminderConfiguration extends Component
         $this->triggerType = (string) $rule->trigger_type;
         $this->dateField = (string) ($rule->trigger_config['field'] ?? 'created_at');
         $this->offsetDays = (string) ($rule->trigger_config['offset_days'] ?? 0);
+        $this->holidayDate = (string) ($rule->trigger_config['date'] ?? '');
         $this->intervalDays = (string) ($rule->trigger_config['interval_days'] ?? 90);
         $this->triggerTime = (string) ($rule->trigger_config['time'] ?? '09:00');
         $this->scopeType = (string) $rule->scope_type;

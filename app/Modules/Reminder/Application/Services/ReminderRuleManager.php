@@ -3,14 +3,17 @@
 namespace App\Modules\Reminder\Application\Services;
 
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Reminder\Infrastructure\Models\Reminder;
+use App\Modules\Reminder\Infrastructure\Models\ReminderEvent;
 use App\Modules\Reminder\Infrastructure\Models\ReminderRule;
 use App\Modules\Reminder\Infrastructure\Models\ReminderTemplate;
+use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Support\Facades\Lang;
 
 final readonly class ReminderRuleManager
 {
-    public const TRIGGER_TYPES = ['status_change', 'date_offset', 'fixed_cycle', 'manual'];
+    public const TRIGGER_TYPES = ['status_change', 'date_offset', 'fixed_cycle', 'holiday_date', 'manual'];
 
     public const DATE_FIELDS = ['created_at', 'appointment_at', 'completed_on', 'birth_date', 'wechat_added_on'];
 
@@ -48,6 +51,7 @@ final readonly class ReminderRuleManager
             'priority' => $priority,
             'created_by' => $rule->created_by ?? $actorId,
         ])->save();
+        $this->rescheduleHolidayReminders($rule, $before);
         $this->audit->record(
             description: '主动提醒规则已保存',
             properties: ['before' => $before, 'after' => $rule->getAttributes()],
@@ -153,9 +157,115 @@ final readonly class ReminderRuleManager
         if ($triggerType === 'fixed_cycle' && (int) ($config['interval_days'] ?? 0) < 1) {
             throw new DomainException(__('reminders.errors.invalid_cycle_days'));
         }
+        if ($triggerType === 'holiday_date' && ! $this->isValidHolidayDate($config['date'] ?? null)) {
+            throw new DomainException(__('reminders.errors.invalid_holiday_date'));
+        }
         if (isset($config['time']) && preg_match('/^(?:[01]\d|2[0-3]):[0-5]\d$/', (string) $config['time']) !== 1) {
             throw new DomainException(__('reminders.errors.invalid_trigger_time'));
         }
+    }
+
+    private function isValidHolidayDate(mixed $date): bool
+    {
+        if (! is_string($date) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
+            return false;
+        }
+
+        try {
+            $parsed = CarbonImmutable::createFromFormat('!Y-m-d', $date, (string) config('app.timezone'));
+        } catch (\Throwable) {
+            return false;
+        }
+
+        return $parsed instanceof CarbonImmutable && $parsed->format('Y-m-d') === $date;
+    }
+
+    /** @param array<string, mixed>|null $before */
+    private function rescheduleHolidayReminders(ReminderRule $rule, ?array $before): void
+    {
+        if ($before === null || ($before['trigger_type'] ?? null) !== 'holiday_date' || $rule->trigger_type !== 'holiday_date') {
+            return;
+        }
+
+        $oldConfig = $this->configArray($before['trigger_config'] ?? null);
+        $newConfig = $this->configArray($rule->trigger_config);
+        if (($oldConfig['date'] ?? null) === ($newConfig['date'] ?? null)
+            && ($oldConfig['time'] ?? null) === ($newConfig['time'] ?? null)) {
+            return;
+        }
+
+        $date = $this->holidayDate($newConfig['date'] ?? null);
+        if ($date === null) {
+            return;
+        }
+        $dueAt = $date->setTimeFromTimeString((string) ($newConfig['time'] ?? '09:00'));
+
+        Reminder::query()
+            ->where('rule_id', $rule->id)
+            ->whereIn('status', ['pending', 'snoozed', 'transferred'])
+            ->get()
+            ->each(function (Reminder $reminder) use ($rule, $dueAt, $newConfig): void {
+                $dedupeKey = hash('sha256', "holiday-rule:{$rule->id}:{$reminder->customer_id}:{$newConfig['date']}");
+                $existing = Reminder::query()
+                    ->where('dedupe_key', $dedupeKey)
+                    ->where('id', '!=', $reminder->id)
+                    ->first();
+                if ($existing !== null) {
+                    $reminder->update(['status' => 'cancelled']);
+                    ReminderEvent::query()->create([
+                        'reminder_id' => $reminder->id,
+                        'event' => 'cancelled',
+                        'properties' => ['reason' => 'holiday_rule_rescheduled_duplicate', 'replacement_id' => $existing->id],
+                        'occurred_at' => now(),
+                    ]);
+
+                    return;
+                }
+
+                $beforeDueAt = $reminder->due_at->toIso8601String();
+                $reminder->update([
+                    'dedupe_key' => $dedupeKey,
+                    'due_at' => $dueAt,
+                    'status' => 'pending',
+                    'notification_status' => 'pending',
+                ]);
+                ReminderEvent::query()->create([
+                    'reminder_id' => $reminder->id,
+                    'event' => 'rescheduled',
+                    'properties' => ['before' => $beforeDueAt, 'after' => $dueAt->toIso8601String()],
+                    'occurred_at' => now(),
+                ]);
+            });
+    }
+
+    private function holidayDate(mixed $date): ?CarbonImmutable
+    {
+        if (! is_string($date) || preg_match('/^\d{4}-\d{2}-\d{2}$/', $date) !== 1) {
+            return null;
+        }
+
+        try {
+            $parsed = CarbonImmutable::createFromFormat('!Y-m-d', $date, (string) config('app.timezone'));
+        } catch (\Throwable) {
+            return null;
+        }
+
+        return $parsed instanceof CarbonImmutable && $parsed->format('Y-m-d') === $date ? $parsed : null;
+    }
+
+    /** @return array<string, mixed> */
+    private function configArray(mixed $config): array
+    {
+        if (is_array($config)) {
+            return $config;
+        }
+        if (! is_string($config) || trim($config) === '') {
+            return [];
+        }
+
+        $decoded = json_decode($config, true);
+
+        return is_array($decoded) ? $decoded : [];
     }
 
     /** @return array<string, array{name: string, title: string, suggestion: string, type: string, config: array<string, mixed>}> */

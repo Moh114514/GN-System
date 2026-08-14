@@ -2,13 +2,13 @@
 
 return [
     'titles' => ['center' => '능동 알림', 'create' => '알림 만들기', 'history' => '알림 기록', 'configuration' => '능동 알림 설정'],
-    'center' => ['description' => '시술 전·방문·시술 후 및 사용자 지정 후속 업무를 한곳에서 처리합니다. 알림은 내부 직원에게만 발송됩니다.', 'history' => '알림 기록', 'create' => '알림 만들기', 'pending' => '처리 대기', 'overdue' => '기한 초과', 'completed' => '누적 완료', 'type' => '알림 유형', 'all_types' => '모든 유형', 'appointment' => '시술 전/방문', 'post_treatment' => '시술 후', 'date_offset' => '날짜 규칙', 'fixed_cycle' => '주기 규칙', 'custom' => '상담사 사용자 지정', 'unknown_customer' => '알 수 없는 고객', 'no_script' => '고정 문구가 없습니다. 직원이 직접 작성하세요.', 'due' => '기한 도래', 'complete_notes' => '완료/종료 메모', 'snooze_until' => '연기 시각', 'snooze_reason' => '연기 사유', 'transfer_to' => '담당자 변경', 'select' => '선택하세요', 'mark_complete' => '완료로 표시', 'snooze' => '연기', 'transfer' => '전달', 'cancel' => '종료', 'cancel_action' => '작업 취소', 'retry_notification' => '딩톡 재시도', 'dingtalk' => '딩톡: :status', 'empty' => '처리할 알림이 없습니다.'],
+    'center' => ['description' => '시술 전·방문·시술 후·지정 공휴일 및 사용자 지정 후속 업무를 한곳에서 처리합니다. 알림은 내부 직원에게만 발송됩니다.', 'history' => '알림 기록', 'create' => '알림 만들기', 'pending' => '처리 대기', 'overdue' => '기한 초과', 'completed' => '누적 완료', 'type' => '알림 유형', 'all_types' => '모든 유형', 'appointment' => '시술 전/방문', 'post_treatment' => '시술 후', 'date_offset' => '날짜 규칙', 'fixed_cycle' => '주기 규칙', 'holiday_date' => '지정 공휴일', 'custom' => '상담사 사용자 지정', 'unknown_customer' => '알 수 없는 고객', 'no_script' => '고정 문구가 없습니다. 직원이 직접 작성하세요.', 'due' => '기한 도래', 'complete_notes' => '완료/종료 메모', 'snooze_until' => '연기 시각', 'snooze_reason' => '연기 사유', 'transfer_to' => '담당자 변경', 'select' => '선택하세요', 'mark_complete' => '완료로 표시', 'snooze' => '연기', 'transfer' => '전달', 'cancel' => '종료', 'cancel_action' => '작업 취소', 'retry_notification' => '딩톡 재시도', 'dingtalk' => '딩톡: :status', 'empty' => '처리할 알림이 없습니다.'],
     'statuses' => ['pending' => '처리 대기', 'completed' => '완료', 'cancelled' => '종료됨', 'overdue' => '기한 도래'],
     'notification_statuses' => ['pending' => '발송 대기', 'queued' => '대기열', 'sent' => '발송됨', 'failed' => '발송 실패', 'disabled' => '사용 안 함'],
     'create' => ['back' => '능동 알림으로 돌아가기', 'eyebrow' => '고객 후속 관리', 'description' => '일회성 또는 반복 알림을 만들고 템플릿으로 빠르게 시작할 수 있습니다.', 'template' => '알림 템플릿', 'without_template' => '템플릿 사용 안 함', 'customer' => '연결 고객', 'select_customer' => '선택하세요', 'title' => '알림 제목', 'assignee' => '담당자', 'due_at' => '알림 시각', 'suggestion' => '제안 방향（고정 문구 아님）', 'notes' => '자유 문구/업무 메모', 'recurrence' => '반복 주기', 'once' => '한 번만', 'day' => 'N일마다', 'week' => 'N주마다', 'month' => 'N개월마다', 'interval' => '주기 수 N', 'save_template' => '내 개인 템플릿으로 저장', 'template_name' => '개인 템플릿 이름', 'submit' => '알림 만들기'],
     'history' => ['back' => '능동 알림으로 돌아가기', 'eyebrow' => '고객 후속 관리', 'description' => '완료되거나 종료된 알림 기록을 확인합니다.', 'reminder' => '알림', 'customer' => '고객', 'due_at' => '예정 시각', 'status' => '상태', 'completed_at' => '완료 시각', 'unknown_customer' => '알 수 없는 고객', 'empty' => '과거 알림이 없습니다.'],
-    'configuration' => ['back' => '설정 센터로 돌아가기', 'eyebrow' => '설정 센터 · 능동 알림', 'heading' => '능동 알림 규칙 및 템플릿', 'description' => '고정된 트리거 유형과 적용 범위에서 선택하여 알림 규칙을 설정합니다. 사용자 지정 스크립트나 복잡한 조건은 지원하지 않습니다.', 'dingtalk' => '딩톡 알림: :status', 'enabled' => '사용', 'disabled_hint' => '사용 안 함; 사이트 내 알림은 계속 작동합니다', 'new_rule' => '규칙 추가', 'rule_name' => '규칙 이름', 'title' => '알림 제목', 'trigger_type' => '트리거 유형', 'date_offset' => '날짜 필드 오프셋', 'status_change' => '고객 상태 변경', 'fixed_cycle' => '고정 주기', 'manual' => '수동만', 'trigger_time' => '트리거 시각', 'date_field' => '날짜 필드', 'created_at' => '등록일', 'appointment_at' => '방문일', 'completed_on' => '시술일', 'birth_date' => '생년월일', 'wechat_added_on' => '위챗 추가일', 'offset_days' => '오프셋 일수（음수 가능）', 'interval_days' => 'N일마다', 'scope' => '적용 범위', 'all_customers' => '전체 고객', 'agent' => '특정 에이전시 ID', 'project' => '특정 프로젝트', 'owner' => '특정 담당자 ID', 'cooperation_status' => '에이전시 협력 상태', 'scope_value' => '범위 값（전체 고객은 비워도 됨）', 'suggestion' => '제안 방향', 'priority' => '우선순위（1이 가장 높음）', 'save_rule_edit' => '규칙 수정 저장', 'save_rule' => '규칙 저장', 'global_templates' => '전역 템플릿', 'template_name' => '템플릿 이름', 'template_suggestion' => '제안 방향', 'add_template' => '템플릿 추가', 'template' => '템플릿', 'type' => '유형', 'status' => '상태', 'system' => '시스템', 'global' => '전역', 'enabled_status' => '사용', 'disabled_status' => '중지', 'edit' => '편집', 'copy' => '복사', 'enable' => '사용', 'disable' => '중지', 'configured_rules' => '설정된 규칙', 'trigger_scope' => '트리거/범위', 'empty' => '설정된 규칙이 없습니다.'],
-    'trigger_types' => ['date_offset' => '날짜 필드 오프셋', 'status_change' => '고객 상태 변경', 'fixed_cycle' => '고정 주기', 'manual' => '수동만'],
+    'configuration' => ['back' => '설정 센터로 돌아가기', 'eyebrow' => '설정 센터 · 능동 알림', 'heading' => '능동 알림 규칙 및 템플릿', 'description' => '고정된 트리거 유형과 적용 범위에서 선택하여 알림 규칙을 설정합니다. 사용자 지정 스크립트나 복잡한 조건은 지원하지 않습니다.', 'dingtalk' => '딩톡 알림: :status', 'enabled' => '사용', 'disabled_hint' => '사용 안 함; 사이트 내 알림은 계속 작동합니다', 'new_rule' => '규칙 추가', 'rule_name' => '규칙 이름', 'title' => '알림 제목', 'trigger_type' => '트리거 유형', 'date_offset' => '날짜 필드 오프셋', 'status_change' => '고객 상태 변경', 'fixed_cycle' => '고정 주기', 'holiday_date' => '지정 공휴일', 'holiday_date_value' => '공휴일（YYYY-MM-DD）', 'manual' => '수동만', 'trigger_time' => '트리거 시각', 'date_field' => '날짜 필드', 'created_at' => '등록일', 'appointment_at' => '방문일', 'completed_on' => '시술일', 'birth_date' => '생년월일', 'wechat_added_on' => '위챗 추가일', 'offset_days' => '오프셋 일수（음수 가능）', 'interval_days' => 'N일마다', 'scope' => '적용 범위', 'all_customers' => '전체 고객', 'agent' => '특정 에이전시 ID', 'project' => '특정 프로젝트', 'owner' => '특정 담당자 ID', 'cooperation_status' => '에이전시 협력 상태', 'scope_value' => '범위 값（전체 고객은 비워도 됨）', 'suggestion' => '제안 방향', 'priority' => '우선순위（1이 가장 높음）', 'save_rule_edit' => '규칙 수정 저장', 'save_rule' => '규칙 저장', 'global_templates' => '전역 템플릿', 'template_name' => '템플릿 이름', 'template_suggestion' => '제안 방향', 'add_template' => '템플릿 추가', 'template' => '템플릿', 'type' => '유형', 'status' => '상태', 'system' => '시스템', 'global' => '전역', 'enabled_status' => '사용', 'disabled_status' => '중지', 'edit' => '편집', 'copy' => '복사', 'enable' => '사용', 'disable' => '중지', 'configured_rules' => '설정된 규칙', 'trigger_scope' => '트리거/범위', 'empty' => '설정된 규칙이 없습니다.'],
+    'trigger_types' => ['date_offset' => '날짜 필드 오프셋', 'status_change' => '고객 상태 변경', 'fixed_cycle' => '고정 주기', 'holiday_date' => '지정 공휴일', 'manual' => '수동만'],
     'scope_types' => ['all_customers' => '전체 고객', 'agent' => '특정 에이전시 ID', 'project' => '특정 프로젝트', 'owner' => '특정 담당자 ID', 'cooperation_status' => '에이전시 협력 상태'],
     'copy_suffix' => ':name 사본',
     'errors' => [
@@ -26,6 +26,7 @@ return [
         'invalid_priority' => '알림 우선순위는 1에서 5 사이여야 합니다.',
         'invalid_date_field' => '날짜 오프셋 규칙 필드가 올바르지 않습니다.',
         'invalid_cycle_days' => '반복 알림 일수는 0보다 커야 합니다.',
+        'invalid_holiday_date' => '공휴일은 유효한 YYYY-MM-DD 날짜여야 합니다.',
         'invalid_trigger_time' => '알림 트리거 시간 형식이 올바르지 않습니다.',
         'dingtalk_not_configured' => '딩톡 알림이 비활성화되어 있거나 Webhook이 설정되지 않았습니다.',
         'dingtalk_rejected' => '딩톡 봇이 메시지를 거부했습니다: :reason',
@@ -47,8 +48,8 @@ return [
     ],
     'system_reminders' => [
         'pre_visit_3_days' => ['title' => '시술 3일 전 확인', 'suggestion' => '방문 준비와 시술 전 주의사항을 확인합니다'],
-        'arrival_previous_day' => ['title' => '방문 하루 전 확인', 'suggestion' => '방문 시간, 교통 및 숙박 일정을 확인합니다'],
-        'arrival_today' => ['title' => '오늘 방문 응대 확인', 'suggestion' => '고객 방문 후 응대 절차를 확인합니다'],
+        'arrival_previous_day' => ['title' => '방문 하루 전 고객 연락', 'suggestion' => '고객에게 연락하여 방문 시간, 교통 및 숙박 일정을 확인합니다'],
+        'arrival_today' => ['title' => '오늘 고객 연락 및 방문 확인', 'suggestion' => '고객에게 연락하여 방문 후 응대 절차를 확인합니다'],
         'post_treatment' => [
             'title' => '시술 후 :days일차 후속 관리',
             'project' => '연결 프로젝트: :project',
@@ -58,7 +59,7 @@ return [
     ],
     'events' => ['appointment_cancelled' => '연결된 예약이 취소되었습니다'],
     'timeline' => ['customer_followup' => '고객 후속 관리'],
-    'report_types' => ['appointment' => '방문 알림', 'pre_visit' => '방문 알림', 'post_treatment' => '시술 후 후속 관리', 'birthday' => '생일 알림', 'repurchase' => '재구매 시점', 'manual' => '수동 알림', 'custom' => '사용자 지정 알림', 'default' => '할 일 알림'],
+    'report_types' => ['appointment' => '방문 알림', 'pre_visit' => '방문 알림', 'post_treatment' => '시술 후 후속 관리', 'birthday' => '생일 알림', 'holiday_date' => '공휴일 알림', 'repurchase' => '재구매 시점', 'manual' => '수동 알림', 'custom' => '사용자 지정 알림', 'default' => '할 일 알림'],
     'toasts' => ['completed' => '알림을 완료했습니다.', 'snoozed' => '알림을 연기했습니다.', 'transferred' => '알림을 전달했습니다.', 'cancelled' => '알림을 종료했습니다.', 'retry_notification' => '딩톡 알림을 대기열에 다시 넣었습니다.', 'created' => '알림을 만들었습니다.', 'rule_saved' => '능동 알림 규칙을 저장했습니다.', 'template_saved' => '전역 알림 템플릿을 저장했습니다.'],
     'notifications' => [
         'unassigned' => '미지정',
