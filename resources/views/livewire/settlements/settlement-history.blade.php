@@ -11,7 +11,8 @@
     <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <div class="flex flex-wrap items-center gap-2">
             <flux:input class="w-full sm:w-72" wire:model.live.debounce.350ms="search" icon="magnifying-glass" :placeholder="__('settlements.archive.search')" size="sm" />
-            <flux:input wire:model.live="month" type="month" :label="__('settlements.archive.month')" size="sm" />
+            <x-localized-date-picker class="w-full sm:w-44" wire:model.live="businessFrom" :value="$businessFrom" :label="__('settlements.archive.business_from')" size="sm" />
+            <x-localized-date-picker class="w-full sm:w-44" wire:model.live="businessTo" :value="$businessTo" :label="__('settlements.archive.business_to')" size="sm" />
             <flux:select wire:model.live="agentId" class="w-52" :label="__('settlements.archive.agent')" size="sm">
                 <flux:select.option value="">{{ __('settlements.archive.all_agents') }}</flux:select.option>
                 @foreach ($agentOptions as $agent)
@@ -24,10 +25,16 @@
                     <flux:select.option value="paid">{{ __('settlements.settlement_statuses.paid') }}</flux:select.option>
                 <flux:select.option value="reconciled">{{ __('settlements.settlement_statuses.reconciled') }}</flux:select.option>
             </flux:select>
-            @if ($month !== '' || $agentId !== '' || $status !== '' || $search !== '')
+            @if ($businessFrom !== '' || $businessTo !== '' || $agentId !== '' || $status !== '' || $search !== '')
                 <flux:button wire:click="clearFilters" variant="ghost" size="sm" icon="x-mark">{{ __('settlements.archive.clear') }}</flux:button>
             @endif
         </div>
+        @if ($errors->has('businessFrom') || $errors->has('businessTo'))
+            <div class="mt-3 space-y-1 text-sm text-red-700 dark:text-red-300">
+                @error('businessFrom')<p>{{ $message }}</p>@enderror
+                @error('businessTo')<p>{{ $message }}</p>@enderror
+            </div>
+        @endif
 
         <div class="mt-4 text-sm text-zinc-500">{{ __('settlements.archive.count', ['count' => $settlements->total()]) }}</div>
 

@@ -37,7 +37,16 @@
     </section>
 
     <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900" wire:poll.10s>
-        <div class="flex items-center justify-between"><h3 class="font-semibold">{{ __('settlements.center.runs') }}</h3></div>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <h3 class="font-semibold">{{ __('settlements.center.runs') }}</h3>
+            @if ($availablePeriods->isNotEmpty())
+                <flux:select class="sm:min-w-80" wire:model.live="selectedPeriodEnd" :label="__('settlements.center.selected_period')" size="sm">
+                    @foreach ($availablePeriods as $period)
+                        <flux:select.option value="{{ $period->period_end->toDateString() }}">{{ $period->period_start->format('Y-m-d') }} {{ __('settlements.labels.date_to') }} {{ $period->period_end->format('Y-m-d') }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            @endif
+        </div>
         <div class="crm-table-wrap mt-4"><table class="crm-table">
             <thead><tr><th>{{ __('settlements.center.period') }}</th><th>{{ __('settlements.center.progress') }}</th><th>{{ __('settlements.center.consumption_commission') }}</th><th>{{ __('settlements.center.status') }}</th><th></th></tr></thead>
             <tbody>

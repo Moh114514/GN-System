@@ -28,6 +28,8 @@ class SettlementCenter extends Component
 
     public bool $confirmConfigurationChange = false;
 
+    public string $selectedPeriodEnd = '';
+
     public string $historicalPeriodEnd = '';
 
     public function toggleRun(string $runId): void
@@ -45,6 +47,13 @@ class SettlementCenter extends Component
     {
         $configuration = $periods->activeConfiguration(CarbonImmutable::now());
         $this->triggerTime = substr((string) $configuration->trigger_time, 0, 5);
+        $latestRun = SettlementRun::query()->latest('period_end')->first();
+        $this->selectedPeriodEnd = $latestRun?->period_end?->toDateString() ?? '';
+    }
+
+    public function updatedSelectedPeriodEnd(): void
+    {
+        $this->collapsedRunIds = [];
     }
 
     public function generate(SettlementRunManager $manager): void
@@ -107,8 +116,19 @@ class SettlementCenter extends Component
     public function render(SettlementDisplayReader $display): View
     {
         $periods = app(SettlementPeriodCalculator::class)->recentClosedPeriods(CarbonImmutable::now(), 13);
+        $availablePeriods = SettlementRun::query()
+            ->select(['period_start', 'period_end'])
+            ->orderByDesc('period_end')
+            ->get()
+            ->unique(static fn (SettlementRun $run): string => $run->period_end->toDateString())
+            ->values();
+        $availablePeriodEnds = $availablePeriods->map(static fn (SettlementRun $run): string => $run->period_end->toDateString());
+        if (! $availablePeriodEnds->contains($this->selectedPeriodEnd)) {
+            $this->selectedPeriodEnd = $availablePeriodEnds->first() ?? '';
+        }
         $runs = SettlementRun::query()
             ->with(['settlements', 'members.settlement'])
+            ->when($this->selectedPeriodEnd !== '', fn ($query) => $query->whereDate('period_end', $this->selectedPeriodEnd))
             ->latest('period_end')
             ->limit(24)
             ->get();
@@ -143,6 +163,7 @@ class SettlementCenter extends Component
             'documentCounts' => $documentCounts,
             'historicalSettlementCount' => $historicalSettlementCount,
             'historicalPeriods' => array_slice($periods, 1),
+            'availablePeriods' => $availablePeriods,
         ]);
     }
 

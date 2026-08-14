@@ -7,6 +7,8 @@ return [
         'description' => '查看历史迁移产生的旧月结记录；这些记录不参与当前月结流程。',
         'search' => '搜索代理商名称或编号',
         'month' => '月份',
+        'business_from' => '业务日期起始',
+        'business_to' => '业务日期结束',
         'agent' => '代理商',
         'all_agents' => '全部代理商',
         'status' => '状态',
@@ -23,6 +25,11 @@ return [
         'columns' => [
             'month' => '月份', 'agent' => '代理商', 'consumption' => '消费额',
             'commission' => '推广费', 'status' => '状态', 'action' => '操作',
+        ],
+        'validation' => [
+            'business_from_format' => '业务起始日期格式无效。',
+            'business_to_format' => '业务结束日期格式无效。',
+            'business_range' => '业务结束日期必须不早于起始日期。',
         ],
     ],
     'titles' => [
@@ -53,6 +60,7 @@ return [
         'cycle_description' => '结算周期固定为自然月；每月 10 日在指定时间生成上一个自然月。修改从下一次生成边界开始生效。',
         'period_natural_month' => '结算周期：自然月',
         'generation_day' => '生成日：每月 10 日',
+        'selected_period' => '当前展示周期',
         'trigger_time' => '触发时间',
         'confirm_old_config' => '确认未完成周期继续使用旧配置',
         'save_next_config' => '保存下一次生成配置',
