@@ -441,7 +441,9 @@ class PhaseFourAgentCommissionTest extends TestCase
             ->assertSee('当前等级')
             ->assertSee('返回代理商管理')
             ->assertSee('href="'.route('agents.index').'"', false)
-            ->assertSee(__('agents.detail.grade_history'));
+            ->assertSee(__('agents.detail.grade_history'))
+            ->assertSee('关联客户')
+            ->assertDontSee('来源客户');
         $this->actingAs($this->admin)->get(route('agent-configuration.index'))
             ->assertOk()
             ->assertSee('代理商与推广费配置')
@@ -471,6 +473,10 @@ class PhaseFourAgentCommissionTest extends TestCase
             ->assertSee('설정 센터로 돌아가기')
             ->assertSee('에이전시 및 수수료 설정')
             ->assertDontSee('代理商与推广费配置');
+        $this->actingAs($this->admin)->get(route('agents.show', $this->agent->id))
+            ->assertOk()
+            ->assertSee('관련 고객')
+            ->assertDontSee('유입 고객');
     }
 
     public function test_agent_list_filters_by_type_current_policy_system_and_current_grade(): void

@@ -124,6 +124,20 @@ return [
             'reason' => '변경 사유',
             'submit' => '변경 확인',
         ],
+        'status_tracking' => [
+            'heading' => '고객 상태 추적',
+            'description' => '고객이 거친 상태, 현재 상태 및 계속 진행할 수 있는 상태를 읽기 전용으로 보여줍니다. 상태 변경은 오른쪽 양식을 사용하세요.',
+            'current' => '현재 상태',
+            'empty' => '고객 상태가 아직 설정되지 않았습니다.',
+            'states' => [
+                'current' => '현재',
+                'current_inactive' => '현재(비활성화됨)',
+                'completed' => '지난 상태',
+                'available' => '계속 진행 가능',
+                'unavailable' => '아직 도달할 수 없음',
+                'inactive' => '비활성화됨',
+            ],
+        ],
         'followup' => [
             'heading' => '후속 조치 등록',
             'type' => '후속 조치 유형',

@@ -62,6 +62,7 @@ GN-System 当前有两套服务器环境，不能混用：
 | `884f874`、`4aa35d4` | 增加既有月结回填、`unverified` 审计恢复和 `not_applicable` 只读保护 | 部署前必须备份，并确认 `000100` 和 `000200` 两个 migration |
 | `main` `2fe5d13` | 已把上述变更合入主分支，但不是已经验收的 RC | 需要创建下一个递增 RC（预计 `v0.5.0-rc.11`）后才能部署 UAT |
 | `develop`（2026-08-14 工作区） | 国际化基础设施、PR-B 日常界面、PR-C 页面、PR-D 深层输出及 PR1 客户/订单代理商归属收敛已加入 | 尚未发布；PR1 包含不可逆 `2026_08_14_000100_remove_direct_sales_business` migration。发布前必须备份数据库并只读确认直销记录、客户缺少代理商记录和订单缺少代理商记录均为 0；迁移异常会自动中止，不能只回退镜像 |
+| `feature/customer-status-tree`（2026-08-14 工作区） | PR2 客户状态追踪树及 Agent 详情“关联客户”中韩文案已加入 | 尚未合入 `develop`，不新增 migration；发布前执行完整门禁，并人工检查客户详情状态节点的当前/已过/可继续/不可达显示及中韩文案 |
 
 服务器实际版本以 `/srv/gn-system/releases/current` 和
 `/srv/gn-system/releases/history.tsv` 为准。GitHub 上看到提交，不代表服务器已经运行该提交。

@@ -26,6 +26,50 @@
                 </dl>
             </section>
 
+            <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900" data-test="customer-status-tracking">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h3 class="text-lg font-semibold">{{ __('customers.detail.status_tracking.heading') }}</h3>
+                        <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{{ __('customers.detail.status_tracking.description') }}</p>
+                    </div>
+                    <span class="crm-pill tone-blue">{{ __('customers.detail.status_tracking.current') }}：{{ $customer['current_status'] ?: __('customers.fallback.unset') }}</span>
+                </div>
+                <div class="mt-6 space-y-5">
+                    @forelse ($statusGraph['stages'] as $stage)
+                        <div class="relative pl-5 {{ $stage['is_active'] ? '' : 'opacity-60' }}" data-stage-key="{{ $stage['key'] }}" data-stage-state="{{ $stage['state'] }}">
+                            <span class="absolute left-0 top-2 h-2.5 w-2.5 rounded-full bg-teal-500" aria-hidden="true"></span>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h4 class="font-semibold">{{ $stage['name'] }}</h4>
+                                @if (! $stage['is_active'])
+                                    <span class="text-xs text-zinc-500">{{ __('customers.detail.status_tracking.states.inactive') }}</span>
+                                @endif
+                            </div>
+                            <div class="mt-3 grid gap-2 sm:grid-cols-2">
+                                @foreach ($stage['statuses'] as $status)
+                                    @php
+                                        $statusClasses = match ($status['state']) {
+                                            'current' => 'border-teal-400 bg-teal-50 text-teal-950 dark:border-teal-500 dark:bg-teal-950/40 dark:text-teal-100',
+                                            'current_inactive' => 'border-amber-400 bg-amber-50 text-amber-950 dark:border-amber-500 dark:bg-amber-950/40 dark:text-amber-100',
+                                            'available' => 'border-blue-300 bg-blue-50 text-blue-950 dark:border-blue-500 dark:bg-blue-950/30 dark:text-blue-100',
+                                            'completed' => 'border-zinc-200 bg-zinc-50 text-zinc-500 opacity-75 dark:border-zinc-700 dark:bg-zinc-800/70 dark:text-zinc-400',
+                                            default => 'border-zinc-200 bg-zinc-50 text-zinc-400 opacity-55 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-500',
+                                        };
+                                    @endphp
+                                    <div class="rounded-xl border px-4 py-3 {{ $statusClasses }}" data-status-key="{{ $status['key'] }}" data-status-state="{{ $status['state'] }}">
+                                        <div class="flex flex-wrap items-center justify-between gap-2">
+                                            <span class="font-semibold">{{ $status['name'] }}</span>
+                                            <span class="text-xs">{{ __('customers.detail.status_tracking.states.'.$status['state']) }}</span>
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        </div>
+                    @empty
+                        <p class="py-8 text-center text-zinc-500">{{ __('customers.detail.status_tracking.empty') }}</p>
+                    @endforelse
+                </div>
+            </section>
+
             <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h3 class="text-lg font-semibold">{{ __('customers.detail.timeline.heading') }}</h3>

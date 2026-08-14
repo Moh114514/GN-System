@@ -124,6 +124,20 @@ return [
             'reason' => '变更原因',
             'submit' => '确认变更',
         ],
+        'status_tracking' => [
+            'heading' => '客户状态追踪',
+            'description' => '只读展示客户已经过、当前和可继续流转的状态；状态修改请使用右侧表单。',
+            'current' => '当前状态',
+            'empty' => '尚未配置客户状态。',
+            'states' => [
+                'current' => '当前',
+                'current_inactive' => '当前（已停用）',
+                'completed' => '已经过',
+                'available' => '可继续',
+                'unavailable' => '暂不可达',
+                'inactive' => '已停用',
+            ],
+        ],
         'followup' => [
             'heading' => '登记跟进',
             'type' => '跟进类型',

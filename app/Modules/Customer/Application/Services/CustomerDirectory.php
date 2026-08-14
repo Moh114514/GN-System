@@ -14,6 +14,7 @@ use App\Modules\Customer\Infrastructure\Models\CustomerContact;
 use App\Modules\Customer\Infrastructure\Models\CustomerLifecycleStage;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
+use App\Modules\Customer\Infrastructure\Models\CustomerStatusTransition;
 use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
 use App\Modules\Reminder\Application\Contracts\CustomerFollowupGateway;
 use Carbon\CarbonImmutable;
@@ -143,6 +144,97 @@ final readonly class CustomerDirectory
         ];
     }
 
+    /** @return array<string, mixed> */
+    public function statusGraph(int $customerId): array
+    {
+        $customer = Customer::query()->findOrFail($customerId);
+        $currentStatusId = $customer->current_status_id === null ? null : (int) $customer->current_status_id;
+        $stages = CustomerLifecycleStage::query()
+            ->orderBy('sort_order')
+            ->orderBy('key')
+            ->get(['id', 'key', 'name', 'sort_order', 'is_active']);
+        $statuses = CustomerStatus::query()
+            ->orderBy('sort_order')
+            ->orderBy('key')
+            ->get(['id', 'key', 'name', 'stage_id', 'sort_order', 'is_active']);
+        $transitions = CustomerStatusTransition::query()
+            ->orderBy('from_status_id')
+            ->orderBy('to_status_id')
+            ->get(['id', 'from_status_id', 'to_status_id', 'is_active']);
+        $visitedStatusIds = CustomerStatusHistory::query()
+            ->where('customer_id', $customerId)
+            ->get(['from_status_id', 'to_status_id'])
+            ->flatMap(fn (CustomerStatusHistory $history): array => [$history->from_status_id, $history->to_status_id])
+            ->filter()
+            ->map(fn ($id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+        $activeStatusIds = $statuses
+            ->filter(fn (CustomerStatus $status): bool => (bool) $status->is_active)
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+        $availableStatusIds = $transitions
+            ->filter(fn (CustomerStatusTransition $transition): bool => $currentStatusId !== null
+                && $transition->is_active
+                && (int) $transition->from_status_id === $currentStatusId
+                && in_array((int) $transition->to_status_id, $activeStatusIds, true))
+            ->pluck('to_status_id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+
+        $statusData = $statuses->map(function (CustomerStatus $status) use ($currentStatusId, $visitedStatusIds, $availableStatusIds): array {
+            $statusId = (int) $status->id;
+            $isCurrent = $statusId === $currentStatusId;
+            $isVisited = in_array($statusId, $visitedStatusIds, true);
+            $isAvailable = in_array($statusId, $availableStatusIds, true);
+
+            return [
+                'id' => $statusId,
+                'key' => (string) $status->key,
+                'name' => $this->labels->status((string) $status->key, $status->name),
+                'stage_id' => (int) $status->stage_id,
+                'sort_order' => (int) $status->sort_order,
+                'is_active' => (bool) $status->is_active,
+                'is_visited' => $isVisited,
+                'is_current' => $isCurrent,
+                'is_available' => $isAvailable,
+                'state' => $this->statusGraphState((bool) $status->is_active, $isCurrent, $isVisited, $isAvailable),
+            ];
+        })->values();
+        $statusesByStage = $statusData->groupBy('stage_id');
+
+        return [
+            'current_status_id' => $currentStatusId,
+            'stages' => $stages->map(function (CustomerLifecycleStage $stage) use ($statusesByStage): array {
+                $stageStatuses = $statusesByStage->get((int) $stage->id, collect())->values();
+                $hasCurrentStatus = $stageStatuses->contains(fn (array $status): bool => (bool) $status['is_current']);
+
+                return [
+                    'id' => (int) $stage->id,
+                    'key' => (string) $stage->key,
+                    'name' => $this->labels->stage((string) $stage->key, $stage->name),
+                    'sort_order' => (int) $stage->sort_order,
+                    'is_active' => (bool) $stage->is_active,
+                    'state' => ! $stage->is_active ? 'inactive' : ($hasCurrentStatus ? 'current' : 'active'),
+                    'statuses' => $stageStatuses->all(),
+                ];
+            })->values()->all(),
+            'statuses' => $statusData->all(),
+            'transitions' => $transitions->map(fn (CustomerStatusTransition $transition): array => [
+                'id' => (int) $transition->id,
+                'from_status_id' => (int) $transition->from_status_id,
+                'to_status_id' => (int) $transition->to_status_id,
+                'is_active' => (bool) $transition->is_active,
+                'is_available' => $currentStatusId !== null
+                    && (bool) $transition->is_active
+                    && (int) $transition->from_status_id === $currentStatusId
+                    && in_array((int) $transition->to_status_id, $activeStatusIds, true),
+            ])->values()->all(),
+        ];
+    }
+
     /** @return array<int, array<string, mixed>> */
     public function timeline(int $customerId, ?string $type = null): array
     {
@@ -239,5 +331,22 @@ final readonly class CustomerDirectory
         );
 
         return $result;
+    }
+
+    private function statusGraphState(bool $isActive, bool $isCurrent, bool $isVisited, bool $isAvailable): string
+    {
+        if ($isCurrent) {
+            return $isActive ? 'current' : 'current_inactive';
+        }
+
+        if (! $isActive) {
+            return 'inactive';
+        }
+
+        if ($isVisited) {
+            return 'completed';
+        }
+
+        return $isAvailable ? 'available' : 'unavailable';
     }
 }
