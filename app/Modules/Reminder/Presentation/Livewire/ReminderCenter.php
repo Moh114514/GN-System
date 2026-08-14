@@ -16,6 +16,9 @@ use Livewire\Component;
 #[Layout('layouts.app')]
 class ReminderCenter extends Component
 {
+    /** @var list<string> */
+    private const ACTION_MODES = ['complete', 'snooze', 'transfer', 'cancel'];
+
     public string $type = '';
 
     public string $actionNotes = '';
@@ -25,6 +28,32 @@ class ReminderCenter extends Component
     public string $snoozeReason = '';
 
     public string $assigneeId = '';
+
+    public ?int $activeReminderId = null;
+
+    public string $actionMode = '';
+
+    public function openAction(int $id, string $mode): void
+    {
+        if (! in_array($mode, self::ACTION_MODES, true)) {
+            throw new \InvalidArgumentException('Unsupported reminder action mode.');
+        }
+
+        if ($this->activeReminderId === $id && $this->actionMode === $mode) {
+            $this->resetAction();
+
+            return;
+        }
+
+        $this->reset('actionNotes', 'snoozeUntil', 'snoozeReason', 'assigneeId');
+        $this->activeReminderId = $id;
+        $this->actionMode = $mode;
+    }
+
+    public function closeAction(): void
+    {
+        $this->resetAction();
+    }
 
     public function complete(int $id, ReminderWorkspace $workspace): void
     {
@@ -68,10 +97,15 @@ class ReminderCenter extends Component
     {
         try {
             $operation();
-            $this->reset('actionNotes', 'snoozeUntil', 'snoozeReason', 'assigneeId');
+            $this->resetAction();
             Flux::toast(variant: 'success', text: $message);
         } catch (DomainException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());
         }
+    }
+
+    private function resetAction(): void
+    {
+        $this->reset('actionNotes', 'snoozeUntil', 'snoozeReason', 'assigneeId', 'activeReminderId', 'actionMode');
     }
 }

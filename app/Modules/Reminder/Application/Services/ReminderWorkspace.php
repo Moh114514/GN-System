@@ -41,8 +41,9 @@ final readonly class ReminderWorkspace
             ->when($history, fn (Builder $query) => $query->whereIn('status', ['completed', 'cancelled']))
             ->when(! $history, fn (Builder $query) => $query->whereIn('status', ['pending', 'snoozed', 'transferred']))
             ->when($type !== null && $type !== '', fn (Builder $query) => $query->where('reminder_type', $type))
-            ->orderBy('priority')
             ->orderBy('due_at')
+            ->orderBy('priority')
+            ->orderBy('id')
             ->paginate(30);
         $page->setCollection($page->getCollection()->map(
             fn (Reminder $reminder): Reminder => $this->content->applyToReminder($reminder),
