@@ -22,6 +22,7 @@ use App\Modules\Reminder\Infrastructure\Models\Reminder;
 use App\Modules\Reminder\Infrastructure\Models\ReminderRule;
 use App\Modules\Reminder\Infrastructure\Models\ReminderTemplate;
 use App\Modules\Reminder\Jobs\SendReminderNotification;
+use App\Modules\Reminder\Presentation\Livewire\ReminderCenter;
 use App\Modules\Reminder\Presentation\Livewire\ReminderCreate;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
@@ -226,6 +227,113 @@ class PhaseFiveReminderTest extends TestCase
         $this->actingAs($this->user)->get(route('reminder-configuration.index'))->assertForbidden();
         $this->actingAs($this->admin)->get(route('reminder-configuration.index'))
             ->assertOk()->assertSee('返回配置中心')->assertSee('href="'.route('configuration.index').'"', false);
+    }
+
+    public function test_reminder_center_keeps_action_forms_collapsed_and_only_opens_one_at_a_time(): void
+    {
+        $first = Reminder::query()->create([
+            'customer_id' => $this->customer->id,
+            'assigned_to' => $this->user->id,
+            'created_by' => $this->user->id,
+            'source_type' => 'custom',
+            'reminder_type' => 'custom',
+            'title' => '第一个提醒',
+            'suggestion' => '先联系客户',
+            'due_at' => now()->addHour(),
+            'status' => 'pending',
+            'notification_status' => 'pending',
+            'dedupe_key' => hash('sha256', 'compact-ui-first'),
+        ]);
+        $second = Reminder::query()->create([
+            'customer_id' => $this->customer->id,
+            'assigned_to' => $this->user->id,
+            'created_by' => $this->user->id,
+            'source_type' => 'custom',
+            'reminder_type' => 'custom',
+            'title' => '第二个提醒',
+            'suggestion' => '再联系客户',
+            'due_at' => now()->addHours(2),
+            'status' => 'pending',
+            'notification_status' => 'pending',
+            'dedupe_key' => hash('sha256', 'compact-ui-second'),
+        ]);
+
+        $component = Livewire::actingAs($this->user)->test(ReminderCenter::class);
+
+        $component->assertSet('activeReminderId', null)
+            ->assertSet('actionMode', '')
+            ->assertSee('href="'.route('customers.show', $this->customer->id).'"', false)
+            ->assertDontSee(__('reminders.center.complete_notes'))
+            ->assertDontSee(__('reminders.center.snooze_until'))
+            ->assertDontSee(__('reminders.center.snooze_reason'))
+            ->assertDontSee(__('reminders.center.transfer_to'));
+
+        $component->call('openAction', $first->id, 'complete')
+            ->assertSet('activeReminderId', $first->id)
+            ->assertSet('actionMode', 'complete')
+            ->assertSee(__('reminders.center.complete_notes'))
+            ->assertDontSee(__('reminders.center.snooze_until'));
+
+        $component->call('openAction', $second->id, 'snooze')
+            ->assertSet('activeReminderId', $second->id)
+            ->assertSet('actionMode', 'snooze')
+            ->assertSee(__('reminders.center.snooze_until'))
+            ->assertSee(__('reminders.center.snooze_reason'))
+            ->assertDontSee(__('reminders.center.complete_notes'))
+            ->assertDontSee(__('reminders.center.transfer_to'));
+
+        $component->call('openAction', $first->id, 'transfer')
+            ->assertSet('activeReminderId', $first->id)
+            ->assertSet('actionMode', 'transfer')
+            ->assertSee(__('reminders.center.transfer_to'))
+            ->assertDontSee(__('reminders.center.snooze_until'))
+            ->assertDontSee(__('reminders.center.snooze_reason'));
+
+        $component->call('openAction', $second->id, 'cancel')
+            ->assertSet('activeReminderId', $second->id)
+            ->assertSet('actionMode', 'cancel')
+            ->assertSee(__('reminders.center.complete_notes'))
+            ->assertDontSee(__('reminders.center.snooze_until'))
+            ->assertDontSee(__('reminders.center.transfer_to'));
+
+        $component->call('closeAction')
+            ->assertSet('activeReminderId', null)
+            ->assertSet('actionMode', '')
+            ->assertDontSee('data-test="reminder-action-form"', false);
+    }
+
+    public function test_reminder_center_orders_reminders_by_due_time(): void
+    {
+        $later = Reminder::query()->create([
+            'customer_id' => $this->customer->id,
+            'assigned_to' => $this->user->id,
+            'created_by' => $this->user->id,
+            'source_type' => 'custom',
+            'reminder_type' => 'custom',
+            'title' => 'later reminder',
+            'due_at' => now()->addHours(2),
+            'priority' => 1,
+            'status' => 'pending',
+            'notification_status' => 'pending',
+            'dedupe_key' => hash('sha256', 'chronological-later'),
+        ]);
+        $earlier = Reminder::query()->create([
+            'customer_id' => $this->customer->id,
+            'assigned_to' => $this->user->id,
+            'created_by' => $this->user->id,
+            'source_type' => 'custom',
+            'reminder_type' => 'custom',
+            'title' => 'earlier reminder',
+            'due_at' => now()->addHour(),
+            'priority' => 5,
+            'status' => 'pending',
+            'notification_status' => 'pending',
+            'dedupe_key' => hash('sha256', 'chronological-earlier'),
+        ]);
+
+        $page = app(ReminderWorkspace::class)->paginate($this->user, false);
+
+        $this->assertSame([$earlier->id, $later->id], $page->getCollection()->pluck('id')->all());
     }
 
     public function test_korean_user_sees_localized_reminder_pages(): void
