@@ -21,7 +21,6 @@ final readonly class ImportTemplateGenerator
             [(string) config('data-import.structure_template_marker')],
             ['用途', '仅用于核对工作表、表头和客户编号格式，不可直接导入。'],
             ['代理客户编号', '代理商编号-四位流水，例如 SZ-JG-0001'],
-            ['直销客户编号', '2–6 位大写来源代码-六位流水，例如 WEB-000001'],
             ['CSV 分隔符', '必须使用英文逗号（,）'],
         ]);
 
@@ -47,12 +46,10 @@ final readonly class ImportTemplateGenerator
         $references = $this->readiness->inspect();
         $type = $references['agent_types'][0];
         $institution = $references['institutions'][0];
-        $directSource = $references['direct_sales_sources'][0];
         $today = CarbonImmutable::today();
         $prefix = 'T'.$today->format('ymd');
         $agentCode = "{$prefix}-{$type['code']}";
         $agentCustomerCode = "{$agentCode}-0001";
-        $directCustomerCode = "{$directSource['code']}-900001";
         $completedOn = $today->subMonthNoOverflow()->startOfMonth()->addDays(9);
         $settledOn = $completedOn->addMonthNoOverflow()->startOfMonth()->addDays(4);
 
@@ -85,8 +82,8 @@ final readonly class ImportTemplateGenerator
         $customerSheet->fromArray([[$institution['name'].' · 客户跟进表']], null, 'A1');
         $customerSheet->fromArray([$this->customerHeaders()], null, 'A2');
         $customerSheet->fromArray([[
-            $directCustomerCode,
-            '【模拟】直销客户',
+            $agentCustomerCode,
+            '【模拟】代理客户',
             $today->format('Y-m-d'),
             '意向',
             '',

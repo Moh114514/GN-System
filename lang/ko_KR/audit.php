@@ -39,8 +39,6 @@ return [
         'customer_status_changed' => '고객 상태가 변경되었습니다',
         'customer_status_config_updated' => '고객 상태 설정이 수정되었습니다',
         'customer_config_rolled_back' => '고객 상태 및 전환 설정이 롤백되었습니다',
-        'source_saved' => '직접 판매 소스가 저장되었습니다',
-        'source_status_changed' => '직접 판매 소스의 활성 상태가 변경되었습니다',
         'historical_import_completed' => '과거 데이터 가져오기가 완료되었습니다',
         'historical_import_rolled_back' => '과거 데이터 가져오기가 롤백되었습니다',
         'import_row_adjudicated' => '가져오기 행이 수동 판정되었습니다',

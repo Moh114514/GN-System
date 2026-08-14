@@ -19,11 +19,7 @@ class CustomerOrders extends Component
 
     public string $institutionId = '';
 
-    public string $channel = 'agent';
-
     public string $agentId = '';
-
-    public string $directSalesSourceId = '';
 
     public string $projectName = '';
 
@@ -49,9 +45,7 @@ class CustomerOrders extends Component
         $this->customerId = $customer;
         $this->loadContext($workspace);
         $profile = $this->context['customer'];
-        $this->channel = (string) $profile['original_channel'];
         $this->agentId = (string) ($profile['source_agent_id'] ?? '');
-        $this->directSalesSourceId = (string) ($profile['source_direct_sales_id'] ?? '');
         $this->completedOn = now('Asia/Shanghai')->format('Y-m-d\TH:i');
     }
 
@@ -59,9 +53,7 @@ class CustomerOrders extends Component
     {
         $this->validate([
             'institutionId' => ['required', 'integer'],
-            'channel' => ['required', 'in:agent,direct'],
-            'agentId' => [$this->channel === 'agent' ? 'required' : 'nullable', 'integer'],
-            'directSalesSourceId' => [$this->channel === 'direct' ? 'required' : 'nullable', 'integer'],
+            'agentId' => ['required', 'integer'],
             'projectName' => ['required_without:treatmentProjectId', 'nullable', 'string', 'max:255'],
             'treatmentProjectId' => ['nullable', 'integer'],
             'amountKrw' => ['required', 'integer', 'min:0'],
@@ -75,9 +67,7 @@ class CustomerOrders extends Component
             $workspace->create(new DailyOrderData(
                 customerId: $this->customerId,
                 institutionId: (int) $this->institutionId,
-                channel: $this->channel,
-                agentId: $this->channel === 'agent' ? (int) $this->agentId : null,
-                directSalesSourceId: $this->channel === 'direct' ? (int) $this->directSalesSourceId : null,
+                agentId: (int) $this->agentId,
                 projectName: $this->projectName,
                 amountKrw: (int) $this->amountKrw,
                 status: $this->status,

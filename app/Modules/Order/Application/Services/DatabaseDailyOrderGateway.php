@@ -28,11 +28,11 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
 
     public function create(DailyOrderData $data): int
     {
-        $this->assertChannel($data->channel, $data->agentId, $data->directSalesSourceId);
+        $this->assertAgent($data->agentId);
 
         return DB::transaction(function () use ($data): int {
             if (! in_array($data->status, ['pending', 'completed'], true)) {
-                throw new DomainException('订单状态无效。');
+                throw new DomainException(__('orders.errors.invalid_status'));
             }
             $completedAt = $data->status === 'completed' && $data->completedOn !== null
                 ? $data->completedOn->setTimezone('Asia/Shanghai')
@@ -40,9 +40,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
             $order = Order::query()->create([
                 'customer_id' => $data->customerId,
                 'institution_id' => $data->institutionId,
-                'channel' => $data->channel,
                 'agent_id' => $data->agentId,
-                'direct_sales_source_id' => $data->directSalesSourceId,
                 'project_name' => trim($data->projectName),
                 'amount_krw' => $data->amountKrw,
                 'completed_on' => $data->status === 'completed' ? $data->completedOn : null,
@@ -60,15 +58,15 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
 
             if ($data->status === 'completed') {
                 if ($data->completedOn === null) {
-                    throw new DomainException('已完成订单必须填写完成日期。');
+                    throw new DomainException(__('orders.errors.completed_date_required'));
                 }
                 $this->recordCommission($order, $data->completedOn, $data->ownerId, $data->ipAddress);
                 $this->scheduleReminders($order, $data->completedOn, $data->ownerId);
             }
 
             $this->audit->record(
-                description: '订单已创建',
-                properties: ['after' => $order->only(['customer_id', 'institution_id', 'channel', 'agent_id', 'direct_sales_source_id', 'project_name', 'amount_krw', 'status', 'completed_on', 'completed_at', 'completion_precision'])],
+                description: __('orders.audit.created'),
+                properties: ['after' => $order->only(['customer_id', 'institution_id', 'agent_id', 'project_name', 'amount_krw', 'status', 'completed_on', 'completed_at', 'completion_precision'])],
                 causerId: $data->ownerId,
                 subject: $order,
                 logName: 'order',
@@ -87,7 +85,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
             if ($order->status === 'completed') {
                 return (int) $order->id;
             }
-            $this->assertChannel((string) $order->channel, $order->agent_id, $order->direct_sales_source_id);
+            $this->assertAgent($order->agent_id === null ? 0 : (int) $order->agent_id);
             $before = $order->only(['status', 'completed_on', 'completed_at', 'completion_precision']);
             $order->update([
                 'status' => 'completed',
@@ -99,7 +97,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
             $this->recordCommission($order, $completedOn, $actorId, $ipAddress);
             $this->scheduleReminders($order, $completedOn, $actorId);
             $this->audit->record(
-                description: '订单已完成',
+                description: __('orders.audit.completed'),
                 properties: ['before' => $before, 'after' => $order->only(['status', 'completed_on', 'completed_at', 'completion_precision'])],
                 causerId: $actorId,
                 subject: $order,
@@ -122,29 +120,19 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
         return $this->summaries(Order::query()->where('agent_id', $agentId)->latest('id')->limit(100)->get());
     }
 
-    private function assertChannel(string $channel, ?int $agentId, ?int $directSalesSourceId): void
+    private function assertAgent(int $agentId): void
     {
-        if ($channel === 'agent') {
-            if ($agentId === null || $directSalesSourceId !== null) {
-                throw new DomainException('代理商订单必须且只能选择一个代理商。');
-            }
-            $agent = $this->agents->agentById($agentId);
-            if ($agent['cooperation_status'] !== 'active') {
-                throw new DomainException('代理商当前不是合作中状态，不能产生新订单或推广费。');
-            }
-
-            return;
+        if ($agentId < 1) {
+            throw new DomainException(__('orders.errors.agent_required'));
         }
-        if ($channel !== 'direct' || $directSalesSourceId === null || $agentId !== null) {
-            throw new DomainException('直销订单必须且只能选择一个直销来源。');
+        $agent = $this->agents->agentById($agentId);
+        if ($agent['cooperation_status'] !== 'active') {
+            throw new DomainException(__('orders.errors.agent_inactive_save'));
         }
     }
 
     private function recordCommission(Order $order, CarbonImmutable $completedOn, int $actorId, ?string $ipAddress): void
     {
-        if ($order->channel !== 'agent') {
-            return;
-        }
         $this->commissions->recordForCompletedOrder(new CompletedOrderCommissionData(
             orderId: (int) $order->id,
             agentId: (int) $order->agent_id,
@@ -186,8 +174,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
                 id: (int) $order->id,
                 customerId: (int) $order->customer_id,
                 institutionId: (int) $order->institution_id,
-                channel: (string) $order->channel,
-                agentId: $order->agent_id === null ? null : (int) $order->agent_id,
+                agentId: (int) $order->agent_id,
                 projectName: (string) $order->project_name,
                 amountKrw: (int) $order->amount_krw,
                 status: (string) $order->status,

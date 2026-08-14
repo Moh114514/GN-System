@@ -34,25 +34,12 @@
         <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
             <h3 class="text-lg font-semibold">{{ __('customers.form.sections.source') }}</h3>
             <div class="mt-5 grid gap-5 md:grid-cols-2">
-                <flux:select wire:model.live="channel" :label="__('customers.form.fields.customer_source')">
-                    <flux:select.option value="agent">{{ __('customers.form.fields.agent') }}</flux:select.option>
-                    <flux:select.option value="direct">{{ __('customers.form.fields.direct') }}</flux:select.option>
+                <flux:select wire:model="sourceAgentId" :label="__('customers.form.fields.source_agent')" required>
+                    <flux:select.option value="">{{ __('customers.form.select') }}</flux:select.option>
+                    @foreach ($options['agents'] as $agent)
+                        <flux:select.option value="{{ $agent['id'] }}">{{ $agent['code'] }} · {{ $agent['name'] }}</flux:select.option>
+                    @endforeach
                 </flux:select>
-                @if ($channel === 'agent')
-                    <flux:select wire:model="sourceAgentId" :label="__('customers.form.fields.source_agent')" required>
-                        <flux:select.option value="">{{ __('customers.form.select') }}</flux:select.option>
-                        @foreach ($options['agents'] as $agent)
-                            <flux:select.option value="{{ $agent['id'] }}">{{ $agent['code'] }} · {{ $agent['name'] }}</flux:select.option>
-                        @endforeach
-                    </flux:select>
-                @else
-                    <flux:select wire:model="sourceDirectSalesId" :label="__('customers.form.fields.direct_source')" required>
-                        <flux:select.option value="">{{ __('customers.form.select') }}</flux:select.option>
-                        @foreach ($options['direct_sources'] as $source)
-                            <flux:select.option value="{{ $source['id'] }}">{{ $source['code'] }} · {{ $source['name'] }}</flux:select.option>
-                        @endforeach
-                    </flux:select>
-                @endif
 
                 @if ($customerId)
                     <flux:input wire:model="confirmedCode" :label="__('customers.form.fields.customer_code_immutable')" disabled />

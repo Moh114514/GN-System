@@ -12,10 +12,6 @@ interface CustomerImportGateway
 
     public function resolveCustomerId(string $code): ?int;
 
-    public function resolveDirectSalesSourceId(string $code): ?int;
-
-    public function upsertDirectSalesSource(string $code, string $name): int;
-
     public function upsertCustomer(CustomerImportData $data): int;
 
     /** @return array<int, string> */

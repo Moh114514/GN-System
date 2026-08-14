@@ -56,13 +56,6 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->seed(PhaseTwoReferenceDataSeeder::class);
         $this->user = User::factory()->create();
         $this->institutionId = (int) DB::table('institutions')->value('id');
-        $sourceId = (int) DB::table('direct_sales_sources')->insertGetId([
-            'code' => 'P6WEB',
-            'name' => 'Phase Six Web',
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
         $this->agentId = (int) DB::table('agents')->insertGetId([
             'agent_type_code_id' => DB::table('agent_type_codes')->value('id'),
             'code' => 'P6-AGENT',
@@ -73,10 +66,9 @@ class PhaseSixReportingConfigurationTest extends TestCase
         ]);
         $statusId = (int) CustomerStatus::query()->where('key', 'interested')->value('id');
         $this->customer = Customer::query()->create([
-            'code' => 'WEB-000001',
+            'code' => 'P6-AGENT-0001',
             'name' => 'Phase Six Customer',
-            'original_channel' => 'direct',
-            'source_direct_sales_id' => $sourceId,
+            'source_agent_id' => $this->agentId,
             'current_status_id' => $statusId,
             'owner_id' => $this->user->id,
         ]);
@@ -100,8 +92,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
         Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => $this->institutionId,
-            'channel' => 'direct',
-            'direct_sales_source_id' => DB::table('direct_sales_sources')->value('id'),
+            'agent_id' => $this->agentId,
             'project_name' => 'Skin Care',
             'treatment_project_snapshot' => 'Skin Care',
             'amount_krw' => 1200000,
@@ -115,8 +106,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
         Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => $this->institutionId,
-            'channel' => 'direct',
-            'direct_sales_source_id' => DB::table('direct_sales_sources')->value('id'),
+            'agent_id' => $this->agentId,
             'project_name' => 'Other',
             'amount_krw' => 1,
             'completed_on' => '2026-06-01',
@@ -158,7 +148,6 @@ class PhaseSixReportingConfigurationTest extends TestCase
             'customer_id' => $this->customer->id,
             'institution_id' => $this->institutionId,
             'agent_id' => $this->agentId,
-            'channel' => 'agent',
             'project_name' => 'Phase Six Project',
             'treatment_project_snapshot' => 'Phase Six Project',
             'amount_krw' => 660000,
@@ -284,8 +273,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
         Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => $this->institutionId,
-            'channel' => 'direct',
-            'direct_sales_source_id' => DB::table('direct_sales_sources')->value('id'),
+            'agent_id' => $this->agentId,
             'project_name' => 'Queued Export Project',
             'amount_krw' => 100,
             'completed_on' => '2026-07-30',
@@ -320,8 +308,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $order = Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => $this->institutionId,
-            'channel' => 'direct',
-            'direct_sales_source_id' => DB::table('direct_sales_sources')->value('id'),
+            'agent_id' => $this->agentId,
             'project_name' => 'Dashboard Project',
             'amount_krw' => 880000,
             'completed_on' => '2026-07-30',
@@ -538,8 +525,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $order = Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => $this->institutionId,
-            'channel' => 'direct',
-            'direct_sales_source_id' => DB::table('direct_sales_sources')->value('id'),
+            'agent_id' => $this->agentId,
             'project_name' => 'Historical Project',
             'amount_krw' => 1,
             'completed_on' => '2026-07-01',
@@ -609,7 +595,6 @@ class PhaseSixReportingConfigurationTest extends TestCase
             'configuration.catalog',
             'configuration.users',
             'configuration.history',
-            'direct-sales-sources.index',
         ] as $route) {
             $this->actingAs($admin)->get(route($route))
                 ->assertOk()

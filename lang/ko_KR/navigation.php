@@ -13,7 +13,6 @@ return [
     'configuration' => '설정 센터',
     'configuration_overview' => '설정 개요',
     'catalog' => '기관 및 사전',
-    'direct_sales_sources' => '직접 판매 경로',
     'customer_statuses' => '고객 상태',
     'agent_configuration' => '에이전시 및 수수료',
     'reminder_configuration' => '알림 규칙',

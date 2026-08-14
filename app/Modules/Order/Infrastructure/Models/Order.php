@@ -10,9 +10,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $customer_id
  * @property int $institution_id
- * @property string $channel
  * @property int|null $agent_id
- * @property int|null $direct_sales_source_id
  * @property int $amount_krw
  * @property string $status
  * @property Carbon|null $completed_on

@@ -67,7 +67,6 @@ final class DashboardSnapshotPresenter
             '__dashboard_missing_agent__' => __('dashboard.fallbacks.missing_agent'),
             '__dashboard_missing_customer__' => __('dashboard.fallbacks.missing_customer'),
             '__dashboard_missing_institution__' => __('dashboard.fallbacks.missing_institution'),
-            '__dashboard_missing_direct_source__' => __('dashboard.fallbacks.missing_direct_source'),
             '__dashboard_unassigned__' => __('dashboard.fallbacks.unassigned'),
             '__dashboard_repurchase_rate__' => __('dashboard.export.chart_labels.repurchase_rate'),
             '__dashboard_followup_completion_rate__' => __('dashboard.export.chart_labels.followup_completion_rate'),

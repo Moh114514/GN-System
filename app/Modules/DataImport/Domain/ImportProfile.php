@@ -11,7 +11,6 @@ enum ImportProfile: string
     case Codebook = 'codebook';
     case AgentType = 'reference_agent_type';
     case Institution = 'reference_institution';
-    case DirectSalesSource = 'reference_direct_sales_source';
     case PolicySystem = 'reference_policy_system';
     case PolicyGrade = 'reference_policy_grade';
     case CommissionRule = 'reference_commission_rule';
@@ -28,7 +27,6 @@ enum ImportProfile: string
             self::Codebook => '说明/代码表',
             self::AgentType => '代理商类型',
             self::Institution => '机构及机构别名',
-            self::DirectSalesSource => '直销来源',
             self::PolicySystem => '政策体系',
             self::PolicyGrade => '政策等级',
             self::CommissionRule => '机构费率规则',

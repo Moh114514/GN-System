@@ -42,9 +42,7 @@ final class DatabaseOrderImportGateway implements OrderImportGateway
             ],
             [
                 'appointment_id' => $appointmentId,
-                'channel' => $data->channel,
                 'agent_id' => $data->agentId,
-                'direct_sales_source_id' => $data->directSalesSourceId,
                 'project_name' => $data->projectName,
                 'treatment_project_snapshot' => $data->projectName,
                 'translator_name' => $data->translatorName,

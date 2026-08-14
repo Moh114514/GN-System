@@ -51,9 +51,7 @@ return [
             'identity_document' => '护照号/居留证号',
             'customer_source' => '客户来源',
             'agent' => '代理商',
-            'direct' => '直销',
             'source_agent' => '来源代理商',
-            'direct_source' => '直销来源',
             'customer_code_immutable' => '客户编号（不可修改）',
             'automatic_code' => '按来源自动生成编号',
             'customer_code' => '客户编号',
@@ -81,7 +79,6 @@ return [
             'default_status_inactive' => '默认客户状态“意向”未启用，请联系超级管理员。',
             'sensitive_confirmation_required' => '请先确认敏感信息变更差异。',
             'agent_unavailable' => '所选代理商不存在或不可用。',
-            'direct_source_unavailable' => '所选直销来源不存在或不可用。',
             'same_status' => '目标状态与当前状态相同。',
             'rollback_requires_super_admin' => '只有超级管理员可以回退客户状态。',
             'invalid_transition' => '不能越级或使用未启用的状态流转。',
@@ -105,7 +102,6 @@ return [
             'birth_date' => '出生日期',
             'source_type' => '来源类型',
             'agent' => '代理商',
-            'direct' => '直销',
             'project_intention' => '意向项目',
             'created_at' => '建档时间',
             'notes' => '备注',
@@ -162,7 +158,6 @@ return [
     'fallback' => [
         'unset' => '未设置',
         'unknown_agent' => '未知代理商',
-        'unknown_direct_source' => '未知直销来源',
         'unknown_status' => '未知状态',
     ],
     'timeline' => [

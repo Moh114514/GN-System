@@ -23,7 +23,6 @@ return [
         'title' => '配置中心',
         'description' => '集中维护系统当前已开放的业务规则与基础配置。',
         'cards' => [
-            'direct_sales' => ['title' => '直销来源配置', 'description' => '维护直销来源的名称、代码和启停状态。', 'action' => '进入配置'],
             'history' => ['title' => '配置历史与回滚', 'description' => '集中查看各项配置的保存版本、修改差异和回滚记录。', 'action' => '查看历史'],
             'users' => ['title' => '内部用户与权限', 'description' => '邀请用户、分配角色、启停账号并查看邮件发送状态。', 'action' => '进入管理'],
             'catalog' => ['title' => '机构、字典与系统参数', 'description' => '维护机构联系信息、施术项目、翻译语种和报表参数。', 'action' => '进入配置'],
@@ -136,8 +135,5 @@ return [
     ],
     'customer_status' => [
         'back' => '返回配置中心', 'eyebrow' => '配置中心 · 客户配置', 'title' => '生命周期状态配置', 'description' => '系统内部编码保持不变；可调整显示名称、顺序、启用状态和允许的前进路径。', 'stages_heading' => '生命周期阶段', 'statuses_heading' => '客户状态与转移', 'sort_order' => '排序', 'enabled' => '启用', 'stage' => '所属阶段', 'allow_forward' => '允许前进到', 'save' => '保存配置', 'stage_name_title' => '阶段显示名称可以调整；:key 是系统使用的稳定机器键，不会随名称变化。', 'status_name_title' => '状态显示名称可以调整；:key 是系统使用的稳定机器键，不会随名称变化。', 'stage_sort_title' => '排序数字越小，生命周期阶段越靠前；数字相同时按机器键稳定排序。', 'status_sort_title' => '排序数字越小，同一配置列表中的客户状态越靠前；数字相同时按机器键稳定排序。', 'stage_enabled_title' => '停用阶段后，该阶段不再用于新的业务选择；已有历史数据不会被删除。', 'status_enabled_title' => '停用状态后，该状态不再用于新的业务选择；已有客户的历史状态不会被删除。', 'status_stage_title' => '决定该客户状态归属哪个生命周期阶段，并随阶段顺序展示。', 'allow_forward_title' => '勾选后，客户可从当前状态前进到对应目标状态；未勾选的转移会被业务规则拒绝。', 'transition_title' => '允许从“:from”前进到“:to”。', 'empty_stages' => '尚未初始化生命周期阶段。请先确认当前版本的数据库迁移已执行完成。', 'empty_statuses' => '尚未初始化客户状态。请先确认当前版本的数据库迁移已执行完成。', 'toast' => ['saved' => '客户状态配置已保存。'],
-    ],
-    'direct_sales_source' => [
-        'back' => '返回配置中心', 'eyebrow' => '配置中心 · 来源字典', 'title' => '直销来源配置', 'description' => '停用来源不再出现在新建客户下拉框中，历史客户来源保持不变。', 'create_heading' => '新增来源', 'edit_heading' => '编辑来源', 'code' => '来源代码（2–6 位）', 'name' => '来源名称', 'save' => '保存', 'table' => ['code' => '代码', 'name' => '名称', 'status' => '状态', 'actions' => '操作'], 'actions' => ['edit' => '编辑', 'enable' => '启用', 'disable' => '停用'], 'toast' => ['saved' => '直销来源已保存。', 'status_updated' => '直销来源状态已更新。'],
     ],
 ];

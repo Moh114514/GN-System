@@ -4,7 +4,6 @@ namespace App\Modules\Customer\Application\Services;
 
 use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
 use App\Modules\Customer\Infrastructure\Models\Customer;
-use App\Modules\Customer\Infrastructure\Models\DirectSalesSource;
 
 final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferenceReader
 {
@@ -19,7 +18,7 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
     {
         return Customer::query()
             ->whereKey(array_values(array_unique($ids)))
-            ->get(['id', 'code', 'name', 'original_channel', 'source_agent_id', 'source_direct_sales_id'])
+            ->get(['id', 'code', 'name', 'source_agent_id'])
             ->mapWithKeys(fn (Customer $customer): array => [
                 (int) $customer->id => $this->serializeCustomer($customer),
             ])
@@ -40,7 +39,7 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
         return $query
             ->latest('updated_at')
             ->limit(max(1, min($limit, 50)))
-            ->get(['id', 'code', 'name', 'original_channel', 'source_agent_id', 'source_direct_sales_id'])
+            ->get(['id', 'code', 'name', 'source_agent_id'])
             ->map(fn (Customer $customer): array => $this->serializeCustomer($customer))
             ->all();
     }
@@ -62,45 +61,14 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
             ->all();
     }
 
-    public function activeDirectSalesSources(): array
-    {
-        return DirectSalesSource::query()
-            ->where('is_active', true)
-            ->orderBy('name')
-            ->get(['id', 'code', 'name'])
-            ->map(fn (DirectSalesSource $source): array => [
-                'id' => (int) $source->id,
-                'code' => (string) $source->code,
-                'name' => (string) $source->name,
-            ])
-            ->all();
-    }
-
-    public function directSalesSourcesByIds(array $ids): array
-    {
-        return DirectSalesSource::query()
-            ->whereKey(array_values(array_unique($ids)))
-            ->get(['id', 'code', 'name'])
-            ->mapWithKeys(fn (DirectSalesSource $source): array => [
-                (int) $source->id => [
-                    'id' => (int) $source->id,
-                    'code' => (string) $source->code,
-                    'name' => (string) $source->name,
-                ],
-            ])
-            ->all();
-    }
-
-    /** @return array{id: int, code: string, name: string, original_channel: string, source_agent_id: int|null, source_direct_sales_id: int|null} */
+    /** @return array{id: int, code: string, name: string, source_agent_id: int} */
     private function serializeCustomer(Customer $customer): array
     {
         return [
             'id' => (int) $customer->id,
             'code' => (string) $customer->code,
             'name' => (string) $customer->name,
-            'original_channel' => (string) $customer->original_channel,
-            'source_agent_id' => $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
-            'source_direct_sales_id' => $customer->source_direct_sales_id === null ? null : (int) $customer->source_direct_sales_id,
+            'source_agent_id' => (int) $customer->source_agent_id,
         ];
     }
 }

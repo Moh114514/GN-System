@@ -5,7 +5,6 @@ namespace App\Modules\Order\Application\Services;
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Config\Application\Contracts\InstitutionReferenceReader;
-use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
 use App\Modules\Order\Application\Contracts\OrderLifecycleGateway;
 use App\Modules\Order\Application\Data\OrderUpdateData;
 use App\Modules\Order\Infrastructure\Models\Order;
@@ -18,7 +17,6 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
 {
     public function __construct(
         private AgentReferenceReader $agents,
-        private CustomerOrderReferenceReader $customers,
         private InstitutionReferenceReader $institutions,
         private DailyCommissionGateway $commissions,
         private TreatmentReminderGateway $reminders,
@@ -35,7 +33,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             $this->assertEditableReferences($data);
 
             $before = $order->only([
-                'institution_id', 'channel', 'agent_id', 'direct_sales_source_id', 'project_name',
+                'institution_id', 'agent_id', 'project_name',
                 'amount_krw', 'treatment_project_id', 'treatment_project_snapshot',
                 'translator_name', 'translator_language_id', 'translator_language_snapshot', 'notes',
             ]);
@@ -53,9 +51,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             }
             $order->update([
                 'institution_id' => $data->institutionId,
-                'channel' => $data->channel,
                 'agent_id' => $data->agentId,
-                'direct_sales_source_id' => $data->directSalesSourceId,
                 'project_name' => $projectName,
                 'amount_krw' => $data->amountKrw,
                 'treatment_project_snapshot' => $projectSnapshot,
@@ -229,23 +225,12 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
         if ($this->institutions->institutionsByIds([$data->institutionId]) === []) {
             throw new DomainException(__('orders.errors.institution_unavailable'));
         }
-        if ($data->channel === 'agent') {
-            if ($data->agentId === null || $data->directSalesSourceId !== null) {
-                throw new DomainException(__('orders.errors.agent_required'));
-            }
-            $agent = $this->agents->agentById($data->agentId);
-            if ($agent['cooperation_status'] !== 'active') {
-                throw new DomainException(__('orders.errors.agent_inactive_save'));
-            }
-
-            return;
+        if ($data->agentId < 1) {
+            throw new DomainException(__('orders.errors.agent_required'));
         }
-        if ($data->channel !== 'direct' || $data->directSalesSourceId === null || $data->agentId !== null) {
-            throw new DomainException(__('orders.errors.direct_source_required'));
-        }
-        $sourceIds = array_column($this->customers->activeDirectSalesSources(), 'id');
-        if (! in_array($data->directSalesSourceId, $sourceIds, true)) {
-            throw new DomainException(__('orders.errors.source_unavailable'));
+        $agent = $this->agents->agentById($data->agentId);
+        if ($agent['cooperation_status'] !== 'active') {
+            throw new DomainException(__('orders.errors.agent_inactive_save'));
         }
     }
 }

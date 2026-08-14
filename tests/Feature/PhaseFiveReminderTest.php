@@ -3,9 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Agent\Infrastructure\Models\Agent;
+use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Infrastructure\Models\Customer;
-use App\Modules\Customer\Infrastructure\Models\DirectSalesSource;
 use App\Modules\Order\Infrastructure\Models\Appointment;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Reminder\Application\Data\CompletedTreatmentData;
@@ -44,7 +45,7 @@ class PhaseFiveReminderTest extends TestCase
 
     private Customer $customer;
 
-    private DirectSalesSource $source;
+    private Agent $agent;
 
     protected function setUp(): void
     {
@@ -54,13 +55,17 @@ class PhaseFiveReminderTest extends TestCase
         $this->user = User::factory()->create(['name' => '负责客服']);
         $this->other = User::factory()->create(['name' => '其他客服']);
         $this->admin = User::factory()->superAdmin()->withTwoFactor()->create();
-        $this->source = DirectSalesSource::query()->create(['code' => 'REM', 'name' => '提醒测试', 'is_active' => true]);
+        $this->agent = Agent::query()->create([
+            'agent_type_code_id' => AgentTypeCode::query()->where('code', 'JG')->value('id'),
+            'code' => 'REM-JG',
+            'name' => '提醒测试代理商',
+            'cooperation_status' => 'active',
+        ]);
         $this->customer = Customer::query()->create([
             'code' => 'REMIND-0001',
             'name' => '提醒测试客户',
             'birth_date' => '1990-08-02',
-            'original_channel' => 'direct',
-            'source_direct_sales_id' => $this->source->id,
+            'source_agent_id' => $this->agent->id,
             'owner_id' => $this->user->id,
             'project_intention' => '皮肤管理',
         ]);
@@ -77,8 +82,7 @@ class PhaseFiveReminderTest extends TestCase
         $order = Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => Institution::query()->firstOrFail()->id,
-            'channel' => 'direct',
-            'direct_sales_source_id' => $this->source->id,
+            'agent_id' => $this->agent->id,
             'project_name' => '皮肤管理',
             'amount_krw' => 10000,
             'completed_on' => '2026-08-01',
@@ -107,8 +111,7 @@ class PhaseFiveReminderTest extends TestCase
         $order = Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => Institution::query()->firstOrFail()->id,
-            'channel' => 'direct',
-            'direct_sales_source_id' => $this->source->id,
+            'agent_id' => $this->agent->id,
             'project_name' => '提醒复活项目',
             'amount_krw' => 10000,
             'completed_on' => '2026-08-05',
@@ -257,8 +260,7 @@ class PhaseFiveReminderTest extends TestCase
         $order = Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => Institution::query()->firstOrFail()->id,
-            'channel' => 'direct',
-            'direct_sales_source_id' => $this->source->id,
+            'agent_id' => $this->agent->id,
             'project_name' => '피부 관리',
             'amount_krw' => 10000,
             'completed_on' => '2026-08-01',

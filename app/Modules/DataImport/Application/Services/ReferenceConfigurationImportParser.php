@@ -25,7 +25,6 @@ final readonly class ReferenceConfigurationImportParser
     private const PROFILES = [
         '代理商类型' => ImportProfile::AgentType,
         '机构及机构别名' => ImportProfile::Institution,
-        '直销来源' => ImportProfile::DirectSalesSource,
         '政策体系' => ImportProfile::PolicySystem,
         '政策等级' => ImportProfile::PolicyGrade,
         '机构费率规则' => ImportProfile::CommissionRule,
@@ -69,7 +68,7 @@ final readonly class ReferenceConfigurationImportParser
                 $present = $spreadsheet->getSheetNames();
                 $missing = array_values(array_diff(array_keys(self::PROFILES), $present));
                 if ($missing !== []) {
-                    throw new InvalidArgumentException('缺少工作表：'.implode('、', $missing).'。请使用下载示例保留全部八个工作表。');
+                    throw new InvalidArgumentException('缺少工作表：'.implode('、', $missing).'。请使用下载示例保留全部七个工作表。');
                 }
 
                 $preflight = ['format' => 'XLSX', 'sheets' => []];
@@ -163,11 +162,6 @@ final readonly class ReferenceConfigurationImportParser
                     'code' => $this->code($raw['机构代码'], '机构代码', 1, 32, true),
                     'name' => $this->required($raw['正式名称'], '正式名称'),
                     'aliases' => $this->aliases($raw['别名']),
-                    'is_active' => $this->boolean($raw['启用'], '启用'),
-                ],
-                ImportProfile::DirectSalesSource => [
-                    'code' => $this->code($raw['代码'], '代码', 2, 6),
-                    'name' => $this->required($raw['名称'], '名称'),
                     'is_active' => $this->boolean($raw['启用'], '启用'),
                 ],
                 ImportProfile::PolicySystem => [
@@ -375,7 +369,7 @@ final readonly class ReferenceConfigurationImportParser
     private function uniqueKey(ImportProfile $profile, array $data): string
     {
         return match ($profile) {
-            ImportProfile::AgentType, ImportProfile::Institution, ImportProfile::DirectSalesSource, ImportProfile::Agent => (string) $data['code'],
+            ImportProfile::AgentType, ImportProfile::Institution, ImportProfile::Agent => (string) $data['code'],
             ImportProfile::PolicySystem => (string) $data['name'],
             ImportProfile::PolicyGrade => "{$data['policy_system']}|{$data['name']}",
             ImportProfile::CommissionRule => "{$data['policy_system']}|{$data['policy_grade']}|{$data['institution_code']}|{$data['effective_month']}",

@@ -9,7 +9,6 @@ use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerContact;
 use App\Modules\Customer\Infrastructure\Models\CustomerIdentityDocument;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
-use App\Modules\Customer\Infrastructure\Models\DirectSalesSource;
 use DateTimeInterface;
 use Illuminate\Support\Facades\DB;
 
@@ -45,24 +44,6 @@ final readonly class DatabaseCustomerImportGateway implements CustomerImportGate
             ->value('id');
     }
 
-    public function resolveDirectSalesSourceId(string $code): ?int
-    {
-        return DirectSalesSource::query()
-            ->where('code', strtoupper(trim($code)))
-            ->where('is_active', true)
-            ->value('id');
-    }
-
-    public function upsertDirectSalesSource(string $code, string $name): int
-    {
-        $source = DirectSalesSource::query()->updateOrCreate(
-            ['code' => strtoupper(trim($code))],
-            ['name' => trim($name), 'is_active' => true],
-        );
-
-        return $source->id;
-    }
-
     public function upsertCustomer(CustomerImportData $data): int
     {
         $statusId = $data->statusName === null
@@ -76,9 +57,7 @@ final readonly class DatabaseCustomerImportGateway implements CustomerImportGate
                 'name' => $data->name,
                 'gender' => $data->gender,
                 'birth_date' => $data->birthDate,
-                'original_channel' => $data->originalChannel,
                 'source_agent_id' => $data->sourceAgentId,
-                'source_direct_sales_id' => $data->sourceDirectSalesId,
                 'current_status_id' => $statusId,
                 'wechat_added_on' => $data->wechatAddedOn,
                 'project_intention' => $data->projectIntention,

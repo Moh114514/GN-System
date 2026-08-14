@@ -27,7 +27,6 @@ final readonly class DailyOrderWorkspace
         return [
             'customer' => $this->customers->customerForOrder($customerId),
             'agents' => array_values($this->agents->activeAgents()),
-            'direct_sources' => $this->customers->activeDirectSalesSources(),
             'institutions' => array_values($this->institutions->activeInstitutions()),
             'treatment_projects' => $this->dictionary->activeItems('treatment_project'),
             'translator_languages' => $this->dictionary->activeItems('translator_language'),
@@ -50,9 +49,7 @@ final readonly class DailyOrderWorkspace
         return $this->orders->create(new DailyOrderData(
             customerId: $data->customerId,
             institutionId: $data->institutionId,
-            channel: $data->channel,
             agentId: $data->agentId,
-            directSalesSourceId: $data->directSalesSourceId,
             projectName: $project['name'] ?? $data->projectName,
             amountKrw: $data->amountKrw,
             status: $data->status,

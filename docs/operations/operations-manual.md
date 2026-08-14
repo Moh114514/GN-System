@@ -114,6 +114,7 @@ GitHub CI 和 GHCR 是发布基础设施，不是可登录的业务环境。
 | 2026-08-04 | `884f874`、`4aa35d4` | 既有月结状态回填、`unverified` 审计恢复、`not_applicable` 只读门禁 | 必须备份数据库；检查 `000100` 与独立 `000200` migration，核对回填分布和异常记录 |
 | 2026-08-04，当前 `main` | `2fe5d13` | 将上述月结治理和恢复流程合入 `main` | 不得直接部署 `main`；应创建下一个递增 RC，完成 CI、镜像、UAT 和 migration 审计后再发布 |
 | 2026-08-07，当前 `develop` | 工作区未发布 | 国际化 PR-A 基础设施、PR-B 日常界面、PR-C 页面及 PR-D 深层输出支持 `zh_CN`/`ko_KR` | 含 `2026_08_07_000100_add_preferred_locale_to_users_table` 至 `2026_08_07_000500_add_localized_content_to_reminders` 五个 migration；查询/看板/结算文档与失败报告、导出文件名、导入问题报告固定标签、解析任务和通知任务已完成 Locale 接入；代理商、客户、配置、审计和提醒的固定文案、默认系统名称及业务异常已完成 Locale 接入；月结、汇率报价与报表导出失败使用结构化消息，提醒模板与实例支持按当前 Locale 投影，看板缓存保存语言无关标识；未知历史自由文本保留或安全降级，语言设置页已开放韩文入口；发布前备份数据库并核对既有用户均为 `zh_CN` |
+| 2026-08-14，当前 `develop` | 工作区未发布 | PR1 收敛客户与订单为代理商归属，移除直销来源、渠道分支及七工作表以外的直销配置内容 | 包含不可逆的 `2026_08_14_000100_remove_direct_sales_business` forward migration；UAT/Production 发布前必须备份，并只读核对直销记录和缺少代理商归属的记录均为 0；迁移发现异常会中止，不能用旧镜像回退替代数据恢复 |
 
 当前 `main` 高于 `v0.5.0-rc.8`。服务器上的 `releases/current` 和
 `history.tsv` 才能证明 UAT/Production 实际运行版本；本地 Git 日志不能证明目标环境已经升级。
@@ -291,6 +292,31 @@ where migration = '2026_08_04_000100_add_settlement_generation_state';
 在 UAT 或 Production 执行该版本前，必须先完成目标数据库备份并记录备份文件、数据库名、版本、执行人和时间；迁移后核对 `generation_status` 分布、`item_count` 与
 `settlement_items` 实际数量一致，并抽查待审核、已驳回、已通过、已结清、零订单和历史导入记录。
 如果存在 `unverified`，不得以“迁移成功”作为业务验收通过，必须完成逐条核验或按批准的恢复方案处理。
+
+#### 3.3.2 PR1 客户与订单归属收敛迁移
+
+`2026_08_14_000100_remove_direct_sales_business` 会从当前业务模型移除直销来源和订单渠道字段，
+删除 `direct_sales_sources` 表，并将客户 `source_agent_id` 与订单 `agent_id` 设为非空。该迁移只允许
+通过明确版本的发布脚本执行，不得在服务器直接修改表或手工删除直销数据。
+
+在 UAT 和 Production 分别执行版本升级前，必须完成数据库备份并记录数据库名、备份文件、版本、执行人
+和时间；同时只读核对以下四项均为 0：
+
+```sql
+select count(*) from customers
+where original_channel = 'direct' or source_direct_sales_id is not null;
+
+select count(*) from orders
+where channel = 'direct' or direct_sales_source_id is not null;
+
+select count(*) from customers where source_agent_id is null;
+select count(*) from orders where agent_id is null;
+```
+
+任一计数不为 0 时必须停止发布，先完成经过批准的数据核验与处理；迁移本身会再次检查并中止，不能通过
+删除测试、绕过迁移或写入默认代理商掩盖问题。迁移成功后核对 `migrations` 记录、客户/订单页面、导入
+模板和报表看板；该迁移的 `down()` 明确不可用，若新版本已执行且必须恢复，只能停止写入并按第 13.3 节
+从发布前备份恢复，不能只切回旧镜像。
 
 ### 3.4 密钥与外部服务
 

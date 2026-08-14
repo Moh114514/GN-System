@@ -33,34 +33,32 @@ final readonly class OrderManagementWorkspace
     {
         return [
             'agents' => array_values($this->agents->activeAgents()),
-            'direct_sources' => $this->customers->activeDirectSalesSources(),
             'institutions' => array_values($this->institutions->activeInstitutions()),
             'treatment_projects' => $this->dictionary->activeItems('treatment_project'),
             'translator_languages' => $this->dictionary->activeItems('translator_language'),
         ];
     }
 
-    /** @return array{id: int, code: string, name: string, original_channel: string, source_agent_id: int|null, source_direct_sales_id: int|null} */
+    /** @return array{id: int, code: string, name: string, source_agent_id: int} */
     public function customer(int $customerId): array
     {
         return $this->customers->customerForOrder($customerId);
     }
 
-    /** @return array<int, array{id: int, code: string, name: string, original_channel: string, source_agent_id: int|null, source_direct_sales_id: int|null}> */
+    /** @return array<int, array{id: int, code: string, name: string, source_agent_id: int}> */
     public function customerCandidates(string $search): array
     {
         return $this->customers->searchCustomersForOrder($search);
     }
 
     /**
-     * @param  array{search?: string, status?: string, channel?: string, institution_id?: int|null, agent_id?: int|null}  $filters
+     * @param  array{search?: string, status?: string, institution_id?: int|null, agent_id?: int|null}  $filters
      * @return LengthAwarePaginator<int, array{
      *     id: int,
      *     customer_id: int,
      *     customer_name: string,
      *     customer_code: string,
      *     institution: string,
-     *     channel: string,
      *     source: string,
      *     project_name: string,
      *     amount_krw: int,
@@ -87,9 +85,6 @@ final readonly class OrderManagementWorkspace
         if (($filters['status'] ?? '') !== '') {
             $query->where('status', $filters['status']);
         }
-        if (($filters['channel'] ?? '') !== '') {
-            $query->where('channel', $filters['channel']);
-        }
         if (($filters['institution_id'] ?? null) !== null) {
             $query->where('institution_id', $filters['institution_id']);
         }
@@ -105,14 +100,11 @@ final readonly class OrderManagementWorkspace
         $agentLabels = $this->agents->agentsByIds(
             $orders->pluck('agent_id')->filter()->map(fn ($id): int => (int) $id)->all(),
         );
-        $directLabels = $this->customers->directSalesSourcesByIds(
-            $orders->pluck('direct_sales_source_id')->filter()->map(fn ($id): int => (int) $id)->all(),
-        );
         $institutionLabels = $this->institutions->institutionsByIds(
             $orders->pluck('institution_id')->map(fn ($id): int => (int) $id)->all(),
         );
 
-        $items = $orders->map(function (Order $order) use ($customerLabels, $agentLabels, $directLabels, $institutionLabels): array {
+        $items = $orders->map(function (Order $order) use ($customerLabels, $agentLabels, $institutionLabels): array {
             $customer = $customerLabels[(int) $order->customer_id] ?? null;
 
             return [
@@ -121,10 +113,7 @@ final readonly class OrderManagementWorkspace
                 'customer_name' => (string) ($customer['name'] ?? __('orders.values.unknown_customer')),
                 'customer_code' => (string) ($customer['code'] ?? __('orders.values.empty')),
                 'institution' => (string) ($institutionLabels[(int) $order->institution_id]['name'] ?? __('orders.values.unknown_institution')),
-                'channel' => (string) $order->channel,
-                'source' => $order->channel === 'agent'
-                    ? (string) ($agentLabels[(int) $order->agent_id]['name'] ?? __('orders.values.unknown_agent'))
-                    : (string) ($directLabels[(int) $order->direct_sales_source_id]['name'] ?? __('orders.values.unknown_source')),
+                'source' => (string) ($agentLabels[(int) $order->agent_id]['name'] ?? __('orders.values.unknown_agent')),
                 'project_name' => (string) $order->project_name,
                 'amount_krw' => (int) $order->amount_krw,
                 'status' => (string) $order->status,
@@ -151,17 +140,12 @@ final readonly class OrderManagementWorkspace
         $customer = $this->customers->customerForOrder((int) $order->customer_id);
         $institution = $this->institutions->institutionsByIds([(int) $order->institution_id])[(int) $order->institution_id] ?? null;
         $agent = $order->agent_id === null ? null : ($this->agents->agentsByIds([(int) $order->agent_id])[(int) $order->agent_id] ?? null);
-        $source = $order->direct_sales_source_id === null
-            ? null
-            : ($this->customers->directSalesSourcesByIds([(int) $order->direct_sales_source_id])[(int) $order->direct_sales_source_id] ?? null);
 
         return [
             'id' => (int) $order->id,
             'customer' => $customer,
             'institution' => $institution,
             'agent' => $agent,
-            'direct_source' => $source,
-            'channel' => (string) $order->channel,
             'project_name' => (string) $order->project_name,
             'amount_krw' => (int) $order->amount_krw,
             'status' => (string) $order->status,
@@ -201,9 +185,7 @@ final readonly class OrderManagementWorkspace
         return $this->lifecycle->updatePending(new OrderUpdateData(
             orderId: $data->orderId,
             institutionId: $data->institutionId,
-            channel: $data->channel,
             agentId: $data->agentId,
-            directSalesSourceId: $data->directSalesSourceId,
             projectName: $project['name'] ?? $data->projectName,
             amountKrw: $data->amountKrw,
             translatorName: $data->translatorName,

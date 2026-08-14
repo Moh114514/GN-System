@@ -39,8 +39,6 @@ return [
         'customer_status_changed' => '变更客户状态',
         'customer_status_config_updated' => '更新客户状态配置',
         'customer_config_rolled_back' => '客户状态与流转配置已回滚',
-        'source_saved' => '直销来源已保存',
-        'source_status_changed' => '直销来源启用状态已变更',
         'historical_import_completed' => '完成历史数据导入',
         'historical_import_rolled_back' => '回滚历史数据导入',
         'import_row_adjudicated' => '人工裁决导入行',

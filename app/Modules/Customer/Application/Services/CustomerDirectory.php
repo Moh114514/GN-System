@@ -14,7 +14,6 @@ use App\Modules\Customer\Infrastructure\Models\CustomerContact;
 use App\Modules\Customer\Infrastructure\Models\CustomerLifecycleStage;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
-use App\Modules\Customer\Infrastructure\Models\DirectSalesSource;
 use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
 use App\Modules\Reminder\Application\Contracts\CustomerFollowupGateway;
 use Carbon\CarbonImmutable;
@@ -67,12 +66,8 @@ final readonly class CustomerDirectory
         $page = $query->latest('created_at')->paginate($perPage);
         $agentIds = $page->getCollection()->pluck('source_agent_id')->filter()->map(fn ($id): int => (int) $id)->all();
         $agentLabels = $this->agents->agentsByIds($agentIds);
-        $directLabels = DirectSalesSource::query()
-            ->whereKey($page->getCollection()->pluck('source_direct_sales_id')->filter()->all())
-            ->get()
-            ->keyBy('id');
 
-        $items = $page->getCollection()->map(function (Customer $customer) use ($agentLabels, $directLabels): array {
+        $items = $page->getCollection()->map(function (Customer $customer) use ($agentLabels): array {
             return [
                 'id' => $customer->id,
                 'code' => $customer->code,
@@ -82,9 +77,7 @@ final readonly class CustomerDirectory
                 'status' => $customer->currentStatus === null
                     ? __('customers.fallback.unset')
                     : $this->labels->status((string) $customer->currentStatus->key, $customer->currentStatus->name),
-                'source' => $customer->original_channel === 'agent'
-                    ? (string) ($agentLabels[(int) $customer->source_agent_id]['name'] ?? __('customers.fallback.unknown_agent'))
-                    : (string) data_get($directLabels->get($customer->source_direct_sales_id), 'name', __('customers.fallback.unknown_direct_source')),
+                'source' => (string) ($agentLabels[(int) $customer->source_agent_id]['name'] ?? __('customers.fallback.unknown_agent')),
                 'created_at' => $customer->created_at?->format('Y-m-d H:i'),
             ];
         });
@@ -105,7 +98,6 @@ final readonly class CustomerDirectory
     {
         return [
             'agents' => array_values($this->agents->activeAgents()),
-            'direct_sources' => DirectSalesSource::query()->where('is_active', true)->orderBy('name')->get(['id', 'code', 'name'])->toArray(),
             'institutions' => array_values($this->institutions->activeInstitutions()),
             'statuses' => CustomerStatus::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'key', 'name', 'stage_id', 'sort_order'])
                 ->map(fn (CustomerStatus $status): array => [
@@ -136,9 +128,8 @@ final readonly class CustomerDirectory
             'name' => $customer->name,
             'gender' => $customer->gender,
             'birth_date' => $customer->birth_date?->format('Y-m-d'),
-            'original_channel' => $customer->original_channel,
             'source_agent_id' => $customer->source_agent_id,
-            'source_direct_sales_id' => $customer->source_direct_sales_id,
+            'source_agent_name' => $this->agents->agentsByIds([(int) $customer->source_agent_id])[(int) $customer->source_agent_id]['name'] ?? null,
             'current_status_id' => $customer->current_status_id,
             'current_status' => $customer->currentStatus === null
                 ? null

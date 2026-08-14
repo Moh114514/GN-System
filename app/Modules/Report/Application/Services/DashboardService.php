@@ -121,9 +121,7 @@ final readonly class DashboardService
                 'monthly_promotion' => $current['settlement']['monthly_promotion'],
                 'grade_distribution' => $this->agents->currentGradeDistribution(),
                 'source_distribution' => array_map(fn (array $row): array => [
-                    'key' => $row['source_type'] === 'agent'
-                        ? ($agentNames[$row['source_id']] ?? '__dashboard_missing_agent__')
-                        : $row['key'],
+                    'key' => $agentNames[$row['source_id']] ?? '__dashboard_missing_agent__',
                     'value' => $row['value'],
                 ], $current['customer']['source_distribution']),
                 'monthly_consumption' => $current['order']['monthly_consumption'],
@@ -145,9 +143,7 @@ final readonly class DashboardService
                 ], $current['reminder']['today_tasks']),
                 'recent_customers' => array_map(fn (array $customer): array => [
                     ...$customer,
-                    'source_name' => $customer['source_type'] === 'agent'
-                        ? ($agentNames[$customer['source_id']] ?? '__dashboard_missing_agent__')
-                        : $customer['source_name'],
+                    'source_name' => $agentNames[$customer['source_id']] ?? '__dashboard_missing_agent__',
                     'owner_name' => $ownerNames[$customer['owner_id']] ?? '__dashboard_unassigned__',
                 ], $current['customer']['recent_customers']),
                 'settlement_progress' => $current['settlement']['progress'],

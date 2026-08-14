@@ -110,7 +110,6 @@ class PhaseFiveSettlementTest extends TestCase
         $this->customer = Customer::query()->create([
             'code' => 'SETTLE-0001',
             'name' => '月结客户',
-            'original_channel' => 'agent',
             'source_agent_id' => $this->agent->id,
             'owner_id' => $this->user->id,
         ]);
@@ -1671,7 +1670,6 @@ class PhaseFiveSettlementTest extends TestCase
                 'id' => $orderId,
                 'customer_id' => $this->customer->id,
                 'institution_id' => $this->institution->id,
-                'channel' => 'agent',
                 'agent_id' => $this->agent->id,
                 'project_name' => '性能项目',
                 'amount_krw' => 10000,
@@ -1719,9 +1717,7 @@ class PhaseFiveSettlementTest extends TestCase
         return app(DailyOrderGateway::class)->create(new DailyOrderData(
             customerId: $this->customer->id,
             institutionId: $this->institution->id,
-            channel: 'agent',
             agentId: $this->agent->id,
-            directSalesSourceId: null,
             projectName: '月结项目',
             amountKrw: $amount,
             status: 'completed',

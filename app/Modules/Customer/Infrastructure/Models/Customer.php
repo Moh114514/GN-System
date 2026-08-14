@@ -13,9 +13,7 @@ use Illuminate\Support\Carbon;
  * @property string $code
  * @property string|null $legacy_code
  * @property string $name
- * @property string $original_channel
  * @property int|null $source_agent_id
- * @property int|null $source_direct_sales_id
  * @property int|null $current_status_id
  * @property string|null $import_batch_id
  * @property Carbon|null $birth_date

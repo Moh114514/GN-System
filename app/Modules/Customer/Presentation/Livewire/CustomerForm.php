@@ -24,11 +24,7 @@ class CustomerForm extends Component
 
     public string $birthDate = '';
 
-    public string $channel = 'agent';
-
     public string $sourceAgentId = '';
-
-    public string $sourceDirectSalesId = '';
 
     public string $contact = '';
 
@@ -78,9 +74,7 @@ class CustomerForm extends Component
         $this->name = (string) $profile['name'];
         $this->gender = (string) ($profile['gender'] ?? '');
         $this->birthDate = (string) ($profile['birth_date'] ?? '');
-        $this->channel = (string) $profile['original_channel'];
         $this->sourceAgentId = (string) ($profile['source_agent_id'] ?? '');
-        $this->sourceDirectSalesId = (string) ($profile['source_direct_sales_id'] ?? '');
         $this->contact = (string) ($profile['contact'] ?? '');
         $this->identityDocument = (string) ($profile['identity_document'] ?? '');
         $this->projectIntention = (string) ($profile['project_intention'] ?? '');
@@ -92,13 +86,13 @@ class CustomerForm extends Component
 
     public function refreshCode(CustomerProfileManager $manager): void
     {
-        $sourceId = $this->channel === 'agent' ? (int) $this->sourceAgentId : (int) $this->sourceDirectSalesId;
+        $sourceId = (int) $this->sourceAgentId;
         if ($sourceId < 1) {
             $this->addError('confirmedCode', __('customers.form.validation.select_source'));
 
             return;
         }
-        $this->confirmedCode = $manager->previewCode($this->channel, $sourceId);
+        $this->confirmedCode = $manager->previewCode($sourceId);
         $this->codeConfirmed = false;
     }
 
@@ -108,9 +102,7 @@ class CustomerForm extends Component
             'name' => ['required', 'string', 'max:255'],
             'gender' => ['nullable', 'string', 'max:16'],
             'birthDate' => ['required', 'date'],
-            'channel' => ['required', 'in:agent,direct'],
-            'sourceAgentId' => [$this->channel === 'agent' ? 'required' : 'nullable', 'integer'],
-            'sourceDirectSalesId' => [$this->channel === 'direct' ? 'required' : 'nullable', 'integer'],
+            'sourceAgentId' => ['required', 'integer'],
             'contact' => ['required', 'string', 'max:255'],
             'identityDocument' => ['required', 'string', 'max:255'],
             'projectIntention' => ['required', 'string', 'max:255'],
@@ -143,9 +135,7 @@ class CustomerForm extends Component
             name: $this->name,
             gender: $this->gender === '' ? null : $this->gender,
             birthDate: CarbonImmutable::parse($this->birthDate),
-            originalChannel: $this->channel,
-            sourceAgentId: $this->channel === 'agent' ? (int) $this->sourceAgentId : null,
-            sourceDirectSalesId: $this->channel === 'direct' ? (int) $this->sourceDirectSalesId : null,
+            sourceAgentId: (int) $this->sourceAgentId,
             contactValue: $this->contact,
             identityDocument: $this->identityDocument,
             projectIntention: $this->projectIntention,
@@ -178,10 +168,7 @@ class CustomerForm extends Component
                 ipAddress: request()->ip(),
             );
         } catch (CustomerCodeChanged) {
-            $this->confirmedCode = $manager->previewCode(
-                $this->channel,
-                $this->channel === 'agent' ? (int) $this->sourceAgentId : (int) $this->sourceDirectSalesId,
-            );
+            $this->confirmedCode = $manager->previewCode((int) $this->sourceAgentId);
             $this->codeConfirmed = false;
             $this->addError('confirmedCode', __('customers.form.validation.code_changed'));
 

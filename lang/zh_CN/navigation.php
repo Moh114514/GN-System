@@ -13,7 +13,6 @@ return [
     'configuration' => '配置中心',
     'configuration_overview' => '配置总览',
     'catalog' => '机构与字典',
-    'direct_sales_sources' => '直销来源',
     'customer_statuses' => '客户状态',
     'agent_configuration' => '代理商与推广费',
     'reminder_configuration' => '提醒规则',

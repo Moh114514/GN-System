@@ -68,7 +68,7 @@
                     </p>
                     @if ($this->referenceReadiness['ready'])
                         <p class="mt-1 text-xs">
-                            {{ __('imports.historical.upload.counts', ['agent_types' => count($this->referenceReadiness['agent_types']), 'institutions' => count($this->referenceReadiness['institutions']), 'direct_sales_sources' => count($this->referenceReadiness['direct_sales_sources'])]) }}
+                            {{ __('imports.historical.upload.counts', ['agent_types' => count($this->referenceReadiness['agent_types']), 'institutions' => count($this->referenceReadiness['institutions'])]) }}
                         </p>
                     @else
                         <p class="mt-1 text-xs">{{ __('imports.historical.upload.not_ready_hint', ['issues' => implode('、', $this->referenceReadiness['issues'])]) }}</p>
@@ -330,13 +330,6 @@
                     @error('institutionName') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
                 </form>
 
-                <form wire:submit="saveDirectSource" class="mt-5 space-y-2 border-t border-zinc-200 pt-4">
-                    <input wire:model="directSourceCode" :placeholder="__('imports.historical.mapping.direct_code')" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm">
-                    <input wire:model="directSourceName" :placeholder="__('imports.historical.mapping.direct_name')" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm">
-                    <flux:button type="submit" size="sm">{{ __('imports.historical.mapping.save_direct') }}</flux:button>
-                    @error('directSourceCode') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
-                    @error('directSourceName') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
-                </form>
             </aside>
 
             <aside class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">

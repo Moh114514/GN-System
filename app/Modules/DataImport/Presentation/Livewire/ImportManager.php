@@ -41,10 +41,6 @@ class ImportManager extends Component
 
     public string $institutionAliases = '';
 
-    public string $directSourceCode = '';
-
-    public string $directSourceName = '';
-
     /** @var array<int, string> */
     public array $ignoreReasons = [];
 
@@ -152,18 +148,6 @@ class ImportManager extends Component
         Flux::toast(variant: 'success', text: __('imports.toast.institution_saved'));
     }
 
-    public function saveDirectSource(ImportReferenceManager $references): void
-    {
-        $validated = $this->validate([
-            'directSourceCode' => ['required', 'string', 'regex:/^[A-Z0-9]{2,6}$/'],
-            'directSourceName' => ['required', 'string', 'max:120'],
-        ]);
-
-        $references->upsertDirectSalesSource($validated['directSourceCode'], $validated['directSourceName']);
-        $this->reset('directSourceCode', 'directSourceName');
-        Flux::toast(variant: 'success', text: __('imports.toast.direct_saved'));
-    }
-
     public function ignoreRow(int $rowId, ImportRowAdjudicator $adjudicator): void
     {
         $batch = $this->ownedBatch();
@@ -235,7 +219,6 @@ class ImportManager extends Component
      *     issues: array<int, string>,
      *     agent_types: array<int, array{code: string, name: string}>,
      *     institutions: array<int, array{code: string, name: string}>,
-     *     direct_sales_sources: array<int, array{code: string, name: string}>
      * }
      */
     #[Computed]

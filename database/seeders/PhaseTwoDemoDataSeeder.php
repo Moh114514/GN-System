@@ -21,9 +21,7 @@ use LogicException;
 
 class PhaseTwoDemoDataSeeder extends Seeder
 {
-    private const AGENT_CUSTOMERS = 10;
-
-    private const DIRECT_CUSTOMERS = 24;
+    private const AGENT_CUSTOMERS = 12;
 
     /** @var array<int, string> */
     private const PROJECTS = [
@@ -56,32 +54,12 @@ class PhaseTwoDemoDataSeeder extends Seeder
         $this->call(PhaseTwoReferenceDataSeeder::class);
 
         DB::transaction(function (): void {
-            $directSourceIds = $this->seedDirectSources();
             $institutions = Institution::query()->orderBy('id')->get();
             $agents = $this->seedAgents();
             $this->seedPoliciesAndRates($agents, $institutions->pluck('id')->all());
-            $this->seedAgentCustomers($agents, $institutions->pluck('id')->all(), $directSourceIds);
-            $this->seedDirectCustomers($agents, $institutions->pluck('id')->all(), $directSourceIds);
+            $this->seedAgentCustomers($agents, $institutions->pluck('id')->all());
             $this->seedSettlements();
         }, 3);
-    }
-
-    /** @return array<string, int> */
-    private function seedDirectSources(): array
-    {
-        $gateway = app(CustomerImportGateway::class);
-        $sources = [
-            'WX' => '【模拟】微信公众号',
-            'ZR' => '【模拟】自然到访',
-            'HY' => '【模拟】会员转介绍',
-        ];
-
-        $ids = [];
-        foreach ($sources as $code => $name) {
-            $ids[$code] = $gateway->upsertDirectSalesSource($code, $name);
-        }
-
-        return $ids;
     }
 
     /**
@@ -183,9 +161,8 @@ class PhaseTwoDemoDataSeeder extends Seeder
     /**
      * @param  array<int, array{id: int, code: string, index: int}>  $agents
      * @param  array<int, int>  $institutionIds
-     * @param  array<string, int>  $directSourceIds
      */
-    private function seedAgentCustomers(array $agents, array $institutionIds, array $directSourceIds): void
+    private function seedAgentCustomers(array $agents, array $institutionIds): void
     {
         foreach ($agents as $agent) {
             for ($sequence = 1; $sequence <= self::AGENT_CUSTOMERS; $sequence++) {
@@ -193,63 +170,24 @@ class PhaseTwoDemoDataSeeder extends Seeder
                 $customerId = $this->upsertCustomer(
                     code: $customerCode,
                     name: sprintf('【模拟】渠道客户%02d-%02d', $agent['index'] + 1, $sequence),
-                    originalChannel: 'agent',
                     sourceAgentId: $agent['id'],
-                    sourceDirectSalesId: null,
                     index: ($agent['index'] * self::AGENT_CUSTOMERS) + $sequence,
                 );
 
-                $switchToDirect = $sequence % 5 === 0;
                 $this->seedCustomerActivity(
                     customerId: $customerId,
                     index: ($agent['index'] * self::AGENT_CUSTOMERS) + $sequence,
                     institutionIds: $institutionIds,
-                    channel: $switchToDirect ? 'direct' : 'agent',
-                    agentId: $switchToDirect ? null : $agent['id'],
-                    directSourceId: $switchToDirect ? $directSourceIds['HY'] : null,
+                    agentId: $agent['id'],
                 );
             }
-        }
-    }
-
-    /**
-     * @param  array<int, array{id: int, code: string, index: int}>  $agents
-     * @param  array<int, int>  $institutionIds
-     * @param  array<string, int>  $directSourceIds
-     */
-    private function seedDirectCustomers(array $agents, array $institutionIds, array $directSourceIds): void
-    {
-        $sourceCodes = array_keys($directSourceIds);
-        for ($sequence = 1; $sequence <= self::DIRECT_CUSTOMERS; $sequence++) {
-            $sourceCode = $sourceCodes[($sequence - 1) % count($sourceCodes)];
-            $customerId = $this->upsertCustomer(
-                code: sprintf('%s-%06d', $sourceCode, $sequence),
-                name: sprintf('【模拟】直销客户%03d', $sequence),
-                originalChannel: 'direct',
-                sourceAgentId: null,
-                sourceDirectSalesId: $directSourceIds[$sourceCode],
-                index: 200 + $sequence,
-            );
-
-            $switchToAgent = $sequence % 6 === 0;
-            $agent = $agents[($sequence - 1) % count($agents)];
-            $this->seedCustomerActivity(
-                customerId: $customerId,
-                index: 200 + $sequence,
-                institutionIds: $institutionIds,
-                channel: $switchToAgent ? 'agent' : 'direct',
-                agentId: $switchToAgent ? $agent['id'] : null,
-                directSourceId: $switchToAgent ? null : $directSourceIds[$sourceCode],
-            );
         }
     }
 
     private function upsertCustomer(
         string $code,
         string $name,
-        string $originalChannel,
-        ?int $sourceAgentId,
-        ?int $sourceDirectSalesId,
+        int $sourceAgentId,
         int $index,
     ): int {
         return app(CustomerImportGateway::class)->upsertCustomer(new CustomerImportData(
@@ -258,9 +196,7 @@ class PhaseTwoDemoDataSeeder extends Seeder
             name: $name,
             gender: $index % 3 === 0 ? '男' : '女',
             birthDate: CarbonImmutable::parse('1975-01-01')->addDays($index * 53),
-            originalChannel: $originalChannel,
             sourceAgentId: $sourceAgentId,
-            sourceDirectSalesId: $sourceDirectSalesId,
             statusName: self::STATUS_NAMES[$index % count(self::STATUS_NAMES)],
             wechatAddedOn: CarbonImmutable::now()->subDays(30 + $index),
             contactValue: sprintf('DEMO-WX-%06d', $index),
@@ -278,9 +214,7 @@ class PhaseTwoDemoDataSeeder extends Seeder
         int $customerId,
         int $index,
         array $institutionIds,
-        string $channel,
-        ?int $agentId,
-        ?int $directSourceId,
+        int $agentId,
     ): void {
         $institutionId = $institutionIds[$index % count($institutionIds)];
         $completedOn = CarbonImmutable::now()->startOfMonth()->subMonths($index % 5)->addDays(($index % 20) + 1);
@@ -291,38 +225,34 @@ class PhaseTwoDemoDataSeeder extends Seeder
         $orderId = app(OrderImportGateway::class)->upsertOrder(new OrderImportData(
             customerId: $customerId,
             institutionId: $institutionId,
-            channel: $channel,
             agentId: $agentId,
-            directSalesSourceId: $directSourceId,
             projectName: self::PROJECTS[$index % count(self::PROJECTS)],
             amountKrw: $amountKrw,
             scheduledAt: $completedOn->subDays(3)->setTime(10 + ($index % 6), 0),
             completedOn: $completedOn,
             translatorName: $translator,
-            notes: $channel === 'direct' ? '【模拟】本次订单归属直销渠道' : '【模拟】本次订单归属代理商渠道',
+            notes: 'demo agent order',
             importBatchId: null,
         ));
 
-        if ($channel === 'agent' && $agentId !== null) {
-            $commissionKrw = BigDecimal::of($amountKrw)
-                ->multipliedBy($rateBps)
-                ->dividedBy(10000, 0, RoundingMode::HalfUp)
-                ->toInt();
+        $commissionKrw = BigDecimal::of($amountKrw)
+            ->multipliedBy($rateBps)
+            ->dividedBy(10000, 0, RoundingMode::HalfUp)
+            ->toInt();
 
-            app(SettlementImportGateway::class)->recordCommission(new CommissionImportData(
-                orderId: $orderId,
-                agentId: $agentId,
-                rateBps: $rateBps,
-                amountKrw: $commissionKrw,
-                ruleSnapshot: [
-                    'source' => 'demo_data',
-                    'rate_bps' => $rateBps,
-                    'effective_month' => $completedOn->startOfMonth()->format('Y-m-d'),
-                ],
-                overrideReason: $index % 11 === 0 ? '【模拟】人工特批费率' : null,
-                importBatchId: null,
-            ));
-        }
+        app(SettlementImportGateway::class)->recordCommission(new CommissionImportData(
+            orderId: $orderId,
+            agentId: $agentId,
+            rateBps: $rateBps,
+            amountKrw: $commissionKrw,
+            ruleSnapshot: [
+                'source' => 'demo_data',
+                'rate_bps' => $rateBps,
+                'effective_month' => $completedOn->startOfMonth()->format('Y-m-d'),
+            ],
+            overrideReason: $index % 11 === 0 ? '【模拟】人工特批费率' : null,
+            importBatchId: null,
+        ));
 
         DB::table('customer_status_histories')->updateOrInsert(
             [

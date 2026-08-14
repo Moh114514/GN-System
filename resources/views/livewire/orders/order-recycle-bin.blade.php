@@ -12,18 +12,13 @@
         @php
             $selectedInstitution = collect($options['institutions'])->firstWhere('id', (int) $institutionFilter);
             $selectedAgent = collect($options['agents'])->firstWhere('id', (int) $agentFilter);
-            $hasFilters = $search !== '' || $statusFilter !== '' || $channelFilter !== '' || $institutionFilter !== '' || $agentFilter !== '' || $perPage !== 20;
+            $hasFilters = $search !== '' || $statusFilter !== '' || $institutionFilter !== '' || $agentFilter !== '' || $perPage !== 20;
         @endphp
         <div class="flex flex-wrap items-center gap-2">
             <flux:input class="mr-1 w-full sm:w-72" wire:model.live.debounce.350ms="search" icon="magnifying-glass" :placeholder="__('orders.center.search')" size="sm" />
             <flux:select class="w-32" wire:model.live="statusFilter" size="sm" :aria-label="__('orders.fields.status_filter')">
                 <flux:select.option value="">{{ __('orders.fields.all_statuses') }}</flux:select.option>
                 <flux:select.option value="cancelled">{{ __('orders.statuses.cancelled') }}</flux:select.option>
-            </flux:select>
-            <flux:select class="w-32" wire:model.live="channelFilter" size="sm" :aria-label="__('orders.fields.channel_filter')">
-                <flux:select.option value="">{{ __('orders.fields.all_channels') }}</flux:select.option>
-                <flux:select.option value="agent">{{ __('orders.channels.agent') }}</flux:select.option>
-                <flux:select.option value="direct">{{ __('orders.channels.direct') }}</flux:select.option>
             </flux:select>
             <flux:dropdown>
                 <flux:button class="rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">{{ $selectedInstitution['name'] ?? __('orders.center.all_institutions') }}</flux:button>
@@ -58,13 +53,13 @@
 
         <div class="crm-table-wrap mt-5">
             <table class="crm-table">
-                <thead><tr><th>{{ __('orders.fields.order') }}</th><th>{{ __('orders.fields.customer') }}</th><th>{{ __('orders.fields.institution_channel') }}</th><th>{{ __('orders.fields.transaction_amount') }}</th><th>{{ __('orders.fields.status_label') }}</th><th>{{ __('orders.fields.time') }}</th><th></th></tr></thead>
+                <thead><tr><th>{{ __('orders.fields.order') }}</th><th>{{ __('orders.fields.customer') }}</th><th>{{ __('orders.fields.institution') }}</th><th>{{ __('orders.fields.transaction_amount') }}</th><th>{{ __('orders.fields.status_label') }}</th><th>{{ __('orders.fields.time') }}</th><th></th></tr></thead>
                 <tbody>
                     @forelse ($orders as $order)
                         <tr wire:key="recycle-order-{{ $order['id'] }}">
                             <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('orders.show', $order['id']) }}" wire:navigate>{{ $order['project_name'] }}</a><div class="text-xs text-zinc-500">#{{ $order['id'] }}</div></td>
                             <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('customers.show', $order['customer_id']) }}" wire:navigate>{{ $order['customer_name'] }}</a><div class="text-xs text-zinc-500">{{ $order['customer_code'] }}</div></td>
-                            <td>{{ $order['institution'] }}<div class="text-xs text-zinc-500">{{ $order['channel'] === 'agent' ? __('orders.channels.agent') : __('orders.channels.direct') }} · {{ $order['source'] }}</div></td>
+                            <td>{{ $order['institution'] }}<div class="text-xs text-zinc-500">{{ __('orders.sources.agent') }} · {{ $order['source'] }}</div></td>
                             <td>₩ {{ number_format($order['amount_krw']) }}</td>
                             <td><span class="crm-pill tone-red">{{ __('orders.statuses.cancelled') }}</span></td>
                             <td>{{ $order['completed_at'] ?? $order['created_at'] }}<div class="text-xs text-zinc-500">{{ $order['completed_at'] ? __('orders.fields.completed_time') : __('orders.fields.created_at') }}</div></td>

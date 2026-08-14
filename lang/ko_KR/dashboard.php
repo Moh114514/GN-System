@@ -121,7 +121,6 @@ return [
         'missing_agent' => '알 수 없는 에이전시',
         'missing_customer' => '알 수 없는 고객',
         'missing_institution' => '알 수 없는 기관',
-        'missing_direct_source' => '알 수 없는 직접 판매 출처',
         'unassigned' => '미배정',
     ],
 ];

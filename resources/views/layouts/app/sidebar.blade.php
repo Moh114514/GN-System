@@ -57,7 +57,6 @@
                             'configuration.*',
                             'agent-configuration.*',
                             'customer-statuses.*',
-                            'direct-sales-sources.*',
                             'reminder-configuration.*',
                             'reference-configuration-imports.*',
                             'data-imports.*',
@@ -124,15 +123,6 @@
                                         wire:navigate
                                     >
                                         {{ __('navigation.catalog') }}
-                                    </a>
-
-                                    <a
-                                        href="{{ route('direct-sales-sources.index') }}"
-                                        class="crm-subnav-item {{ request()->routeIs('direct-sales-sources.*') ? 'is-active' : '' }}"
-                                        data-test="configuration-subnav-direct-sales-sources"
-                                        wire:navigate
-                                    >
-                                        {{ __('navigation.direct_sales_sources') }}
                                     </a>
 
                                     <a

@@ -23,8 +23,6 @@ class OrderCenter extends Component
 
     public string $statusFilter = '';
 
-    public string $channelFilter = '';
-
     public string $institutionFilter = '';
 
     public string $agentFilter = '';
@@ -45,11 +43,7 @@ class OrderCenter extends Component
 
     public string $institutionId = '';
 
-    public string $channel = 'agent';
-
     public string $agentId = '';
-
-    public string $directSalesSourceId = '';
 
     public string $projectName = '';
 
@@ -74,7 +68,6 @@ class OrderCenter extends Component
     protected array $queryString = [
         'search' => ['except' => ''],
         'statusFilter' => ['except' => ''],
-        'channelFilter' => ['except' => ''],
         'institutionFilter' => ['except' => ''],
         'agentFilter' => ['except' => ''],
         'perPage' => ['except' => 20],
@@ -88,7 +81,7 @@ class OrderCenter extends Component
 
     public function updated(string $property): void
     {
-        if (in_array($property, ['search', 'statusFilter', 'channelFilter', 'institutionFilter', 'agentFilter', 'perPage'], true)) {
+        if (in_array($property, ['search', 'statusFilter', 'institutionFilter', 'agentFilter', 'perPage'], true)) {
             $this->resetPage();
         }
         if ($property === 'customerSearch') {
@@ -116,9 +109,7 @@ class OrderCenter extends Component
         $this->customerId = (string) $customerId;
         $this->customerSearch = '';
         $this->customerCandidates = [];
-        $this->channel = (string) $customer['original_channel'];
-        $this->agentId = (string) ($customer['source_agent_id'] ?? '');
-        $this->directSalesSourceId = (string) ($customer['source_direct_sales_id'] ?? '');
+        $this->agentId = (string) $customer['source_agent_id'];
         $this->resetValidation('customerId');
     }
 
@@ -134,9 +125,7 @@ class OrderCenter extends Component
         $this->validate([
             'customerId' => ['required', 'integer'],
             'institutionId' => ['required', 'integer'],
-            'channel' => ['required', 'in:agent,direct'],
-            'agentId' => [$this->channel === 'agent' ? 'required' : 'nullable', 'integer'],
-            'directSalesSourceId' => [$this->channel === 'direct' ? 'required' : 'nullable', 'integer'],
+            'agentId' => ['required', 'integer'],
             'projectName' => ['required_without:treatmentProjectId', 'nullable', 'string', 'max:255'],
             'treatmentProjectId' => ['nullable', 'integer'],
             'amountKrw' => ['required', 'integer', 'min:0'],
@@ -151,9 +140,7 @@ class OrderCenter extends Component
             $workspace->create(new DailyOrderData(
                 customerId: (int) $this->customerId,
                 institutionId: (int) $this->institutionId,
-                channel: $this->channel,
-                agentId: $this->channel === 'agent' ? (int) $this->agentId : null,
-                directSalesSourceId: $this->channel === 'direct' ? (int) $this->directSalesSourceId : null,
+                agentId: (int) $this->agentId,
                 projectName: $this->projectName,
                 amountKrw: (int) $this->amountKrw,
                 status: $this->orderStatus,
@@ -193,7 +180,7 @@ class OrderCenter extends Component
 
     public function clearFilters(): void
     {
-        $this->reset('search', 'statusFilter', 'channelFilter', 'institutionFilter', 'agentFilter');
+        $this->reset('search', 'statusFilter', 'institutionFilter', 'agentFilter');
         $this->perPage = 20;
         $this->resetPage();
     }
@@ -203,7 +190,6 @@ class OrderCenter extends Component
         $orders = $workspace->paginate([
             'search' => $this->search,
             'status' => $this->statusFilter,
-            'channel' => $this->channelFilter,
             'institution_id' => $this->institutionFilter === '' ? null : (int) $this->institutionFilter,
             'agent_id' => $this->agentFilter === '' ? null : (int) $this->agentFilter,
         ], in_array($this->perPage, [20, 50, 100], true) ? $this->perPage : 20);
@@ -220,7 +206,6 @@ class OrderCenter extends Component
             'customerCandidates',
             'institutionId',
             'agentId',
-            'directSalesSourceId',
             'projectName',
             'treatmentProjectId',
             'amountKrw',
@@ -228,7 +213,6 @@ class OrderCenter extends Component
             'translatorLanguageId',
             'notes',
         );
-        $this->channel = 'agent';
         $this->orderStatus = 'pending';
         $this->completedOn = now('Asia/Shanghai')->format('Y-m-d\TH:i');
     }

@@ -5,7 +5,6 @@ namespace App\Modules\DataImport\Application\Services;
 use App\Modules\Agent\Application\Contracts\ReferenceConfigurationImportGateway as AgentReferences;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Config\Application\Contracts\ReferenceConfigurationImportGateway as ConfigReferences;
-use App\Modules\Customer\Application\Contracts\ReferenceConfigurationImportGateway as CustomerReferences;
 use App\Modules\DataImport\Application\Exceptions\DryRunRollback;
 use App\Modules\DataImport\Domain\ImportBatchStatus;
 use App\Modules\DataImport\Domain\ImportOperationMode;
@@ -25,7 +24,6 @@ final readonly class ReferenceConfigurationImportCommitter
 {
     public function __construct(
         private ConfigReferences $config,
-        private CustomerReferences $customers,
         private AgentReferences $agents,
         private CommissionConfigurationGateway $commissions,
         private AuditRecorder $audit,
@@ -109,10 +107,6 @@ final readonly class ReferenceConfigurationImportCommitter
     {
         $institutions = $this->config->upsertInstitutions(
             $this->rows($batch, ImportProfile::Institution),
-            $batch->id,
-        );
-        $this->customers->upsertDirectSalesSources(
-            $this->rows($batch, ImportProfile::DirectSalesSource),
             $batch->id,
         );
         $this->agents->upsertAgentTypes(

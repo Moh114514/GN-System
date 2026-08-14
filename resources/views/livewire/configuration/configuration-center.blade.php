@@ -8,16 +8,6 @@
 
     <section class="grid gap-5 lg:grid-cols-2">
         <a
-            href="{{ route('direct-sales-sources.index') }}"
-            class="group rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:border-teal-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-teal-700"
-            wire:navigate
-        >
-            <span class="flex size-11 items-center justify-center rounded-xl bg-teal-50 text-teal-700 dark:bg-teal-950 dark:text-teal-300"><flux:icon.arrow-trending-up aria-hidden="true" /></span>
-            <h3 class="mt-5 text-lg font-semibold">{{ __('config.center.cards.direct_sales.title') }}</h3>
-            <p class="mt-2 text-sm text-zinc-600 dark:text-zinc-400">{{ __('config.center.cards.direct_sales.description') }}</p>
-            <span class="mt-5 inline-flex items-center gap-1 text-sm font-semibold text-teal-700 dark:text-teal-300">{{ __('config.center.cards.direct_sales.action') }}<flux:icon.arrow-right class="size-4" aria-hidden="true" /></span>
-        </a>
-        <a
             href="{{ route('configuration.history') }}"
             class="group rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:border-teal-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-teal-700"
             wire:navigate

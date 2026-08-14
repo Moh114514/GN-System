@@ -3,14 +3,19 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Agent\Infrastructure\Models\Agent;
+use App\Modules\Agent\Infrastructure\Models\AgentGradeAssignment;
+use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
+use App\Modules\Agent\Infrastructure\Models\PolicyGrade;
+use App\Modules\Agent\Infrastructure\Models\PolicySystem;
 use App\Modules\Config\Infrastructure\Models\DictionaryItem;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Infrastructure\Models\Customer;
-use App\Modules\Customer\Infrastructure\Models\DirectSalesSource;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Order\Presentation\Livewire\OrderCenter;
 use App\Modules\Order\Presentation\Livewire\OrderDetail;
 use App\Modules\Order\Presentation\Livewire\OrderEdit;
+use App\Modules\Settlement\Infrastructure\Models\CommissionRule;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -38,20 +43,13 @@ class OrderManagementTest extends TestCase
         $this->seed(PhaseTwoReferenceDataSeeder::class);
         $user = User::factory()->create();
         $institution = Institution::query()->firstOrFail();
-        $source = DirectSalesSource::query()->create(['code' => 'LONG', 'name' => '长名称测试', 'is_active' => true]);
-        $customer = Customer::query()->create([
-            'code' => 'LONG-000001',
-            'name' => '长名称测试客户',
-            'original_channel' => 'direct',
-            'source_direct_sales_id' => $source->id,
-            'owner_id' => $user->id,
-        ]);
+        $agent = $this->agent();
+        $customer = $this->customer($agent, $user->id);
         $projectName = '超声刀400 240万韩元，皮秒祛斑（Pico toning）20万韩元，Lituo 1V，面部提升及长期护理组合项目';
         $order = Order::query()->create([
             'customer_id' => $customer->id,
             'institution_id' => $institution->id,
-            'channel' => 'direct',
-            'direct_sales_source_id' => $source->id,
+            'agent_id' => $agent->id,
             'project_name' => $projectName,
             'amount_krw' => 2400000,
             'status' => 'pending',
@@ -77,21 +75,16 @@ class OrderManagementTest extends TestCase
             ->assertSee('주문 번호, 고객 또는 프로젝트 검색');
     }
 
-    public function test_order_center_creates_filters_and_completes_direct_order_with_audit_trail(): void
+    public function test_order_center_creates_filters_and_completes_agent_order_with_audit_trail(): void
     {
         $this->seed(PhaseTwoReferenceDataSeeder::class);
         $user = User::factory()->create();
         $institution = Institution::query()->firstOrFail();
-        $source = DirectSalesSource::query()->create([
-            'code' => 'WEB',
-            'name' => '官网直销',
-            'is_active' => true,
-        ]);
+        $agent = $this->agent();
         $customer = Customer::query()->create([
-            'code' => 'WEB-000001',
+            'code' => 'TEST-JG-0002',
             'name' => '订单中心客户',
-            'original_channel' => 'direct',
-            'source_direct_sales_id' => $source->id,
+            'source_agent_id' => $agent->id,
             'owner_id' => $user->id,
         ]);
 
@@ -101,8 +94,6 @@ class OrderManagementTest extends TestCase
             ->set('customerSearch', '订单中心')
             ->assertSee('订单中心客户')
             ->call('selectCustomer', $customer->id)
-            ->assertSet('channel', 'direct')
-            ->assertSet('directSalesSourceId', (string) $source->id)
             ->set('institutionId', (string) $institution->id)
             ->set('projectName', '皮肤管理')
             ->set('amountKrw', '880000')
@@ -142,7 +133,6 @@ class OrderManagementTest extends TestCase
             'subject_id' => $order->id,
             'event' => 'completed',
         ]);
-        $this->assertDatabaseMissing('order_commissions', ['order_id' => $order->id]);
     }
 
     public function test_pending_order_can_be_edited_and_detail_page_has_parent_navigation(): void
@@ -150,16 +140,11 @@ class OrderManagementTest extends TestCase
         $this->seed(PhaseTwoReferenceDataSeeder::class);
         $user = User::factory()->create();
         $institution = Institution::query()->firstOrFail();
-        $source = DirectSalesSource::query()->create([
-            'code' => 'WEB',
-            'name' => '官网直销',
-            'is_active' => true,
-        ]);
+        $agent = $this->agent();
         $customer = Customer::query()->create([
-            'code' => 'WEB-000002',
+            'code' => 'TEST-JG-0003',
             'name' => '订单详情客户',
-            'original_channel' => 'direct',
-            'source_direct_sales_id' => $source->id,
+            'source_agent_id' => $agent->id,
             'owner_id' => $user->id,
         ]);
 
@@ -246,23 +231,17 @@ class OrderManagementTest extends TestCase
         $user = User::factory()->create();
         $admin = User::factory()->create(['is_super_admin' => true, 'two_factor_confirmed_at' => now()]);
         $institution = Institution::query()->firstOrFail();
-        $source = DirectSalesSource::query()->create([
-            'code' => 'WEB',
-            'name' => '官网直销',
-            'is_active' => true,
-        ]);
+        $agent = $this->agent();
         $customer = Customer::query()->create([
-            'code' => 'WEB-000003',
+            'code' => 'TEST-JG-0004',
             'name' => '订单生命周期客户',
-            'original_channel' => 'direct',
-            'source_direct_sales_id' => $source->id,
+            'source_agent_id' => $agent->id,
             'owner_id' => $user->id,
         ]);
         $order = Order::query()->create([
             'customer_id' => $customer->id,
             'institution_id' => $institution->id,
-            'channel' => 'direct',
-            'direct_sales_source_id' => $source->id,
+            'agent_id' => $agent->id,
             'project_name' => '生命周期项目',
             'amount_krw' => 200000,
             'status' => 'pending',
@@ -320,19 +299,12 @@ class OrderManagementTest extends TestCase
         $user = User::factory()->create();
         $admin = User::factory()->create(['is_super_admin' => true, 'two_factor_confirmed_at' => now()]);
         $institution = Institution::query()->firstOrFail();
-        $source = DirectSalesSource::query()->create(['code' => 'RBK', 'name' => '回退测试来源', 'is_active' => true]);
-        $customer = Customer::query()->create([
-            'code' => 'ROLLBACK-000001',
-            'name' => '订单回退测试客户',
-            'original_channel' => 'direct',
-            'source_direct_sales_id' => $source->id,
-            'owner_id' => $user->id,
-        ]);
+        $agent = $this->agent();
+        $customer = $this->customer($agent, $user->id);
         $order = Order::query()->create([
             'customer_id' => $customer->id,
             'institution_id' => $institution->id,
-            'channel' => 'direct',
-            'direct_sales_source_id' => $source->id,
+            'agent_id' => $agent->id,
             'project_name' => '回退项目',
             'amount_krw' => 100000,
             'status' => 'completed',
@@ -369,19 +341,12 @@ class OrderManagementTest extends TestCase
         $admin = User::factory()->create(['is_super_admin' => true, 'two_factor_confirmed_at' => now()]);
         $user = User::factory()->create();
         $institution = Institution::query()->firstOrFail();
-        $source = DirectSalesSource::query()->create(['code' => 'RECYC', 'name' => '回收站测试', 'is_active' => true]);
-        $customer = Customer::query()->create([
-            'code' => 'RECYCLE-000001',
-            'name' => '回收站订单客户',
-            'original_channel' => 'direct',
-            'source_direct_sales_id' => $source->id,
-            'owner_id' => $user->id,
-        ]);
+        $agent = $this->agent();
+        $customer = $this->customer($agent, $user->id);
         $order = Order::query()->create([
             'customer_id' => $customer->id,
             'institution_id' => $institution->id,
-            'channel' => 'direct',
-            'direct_sales_source_id' => $source->id,
+            'agent_id' => $agent->id,
             'project_name' => '待删除订单',
             'amount_krw' => 100000,
             'status' => 'cancelled',
@@ -414,19 +379,12 @@ class OrderManagementTest extends TestCase
         $this->seed(PhaseTwoReferenceDataSeeder::class);
         $user = User::factory()->create();
         $institution = Institution::query()->firstOrFail();
-        $source = DirectSalesSource::query()->create(['code' => 'ROLLBK', 'name' => '回滚测试', 'is_active' => true]);
-        $customer = Customer::query()->create([
-            'code' => 'ROLLBACK-0001',
-            'name' => '回滚测试客户',
-            'original_channel' => 'direct',
-            'source_direct_sales_id' => $source->id,
-            'owner_id' => $user->id,
-        ]);
+        $agent = $this->agent();
+        $customer = $this->customer($agent, $user->id);
         $order = Order::query()->create([
             'customer_id' => $customer->id,
             'institution_id' => $institution->id,
-            'channel' => 'direct',
-            'direct_sales_source_id' => $source->id,
+            'agent_id' => $agent->id,
             'project_name' => '回滚测试订单',
             'amount_krw' => 100000,
             'status' => 'pending',
@@ -440,5 +398,44 @@ class OrderManagementTest extends TestCase
         $migration = require database_path('migrations/2026_08_03_000500_add_order_lifecycle_management.php');
         $this->expectException(\RuntimeException::class);
         $migration->down();
+    }
+
+    private function agent(): Agent
+    {
+        $agent = Agent::query()->firstOrCreate(
+            ['code' => 'TEST-JG'],
+            [
+                'agent_type_code_id' => AgentTypeCode::query()->where('code', 'JG')->value('id'),
+                'name' => '测试代理商',
+                'cooperation_started_on' => '2026-01-01',
+                'cooperation_status' => 'active',
+            ],
+        );
+
+        $system = PolicySystem::query()->firstOrCreate(['name' => '测试政策'], ['is_active' => true]);
+        $grade = PolicyGrade::query()->firstOrCreate(
+            ['policy_system_id' => $system->id, 'name' => '测试等级'],
+            ['monthly_threshold_krw' => 0, 'sort_order' => 10, 'is_active' => true],
+        );
+        AgentGradeAssignment::query()->firstOrCreate(
+            ['agent_id' => $agent->id, 'policy_grade_id' => $grade->id, 'effective_month' => now()->startOfMonth()],
+            ['reason' => '订单测试'],
+        );
+        CommissionRule::query()->firstOrCreate(
+            ['policy_grade_id' => $grade->id, 'institution_id' => Institution::query()->firstOrFail()->id, 'effective_month' => now()->startOfMonth()],
+            ['rate_bps' => 1000, 'is_active' => true],
+        );
+
+        return $agent;
+    }
+
+    private function customer(Agent $agent, int $ownerId): Customer
+    {
+        return Customer::query()->create([
+            'code' => 'TEST-JG-0001',
+            'name' => '测试订单客户',
+            'source_agent_id' => $agent->id,
+            'owner_id' => $ownerId,
+        ]);
     }
 }

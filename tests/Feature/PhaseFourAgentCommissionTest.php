@@ -15,7 +15,6 @@ use App\Modules\Agent\Infrastructure\Models\PolicySystem;
 use App\Modules\Agent\Presentation\Livewire\AgentList;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Infrastructure\Models\Customer;
-use App\Modules\Customer\Infrastructure\Models\DirectSalesSource;
 use App\Modules\Order\Application\Contracts\DailyOrderGateway;
 use App\Modules\Order\Application\Data\DailyOrderData;
 use App\Modules\Order\Infrastructure\Models\Order;
@@ -82,7 +81,6 @@ class PhaseFourAgentCommissionTest extends TestCase
         $this->customer = Customer::query()->create([
             'code' => 'TEST-JG-0001',
             'name' => '订单测试客户',
-            'original_channel' => 'agent',
             'source_agent_id' => $this->agent->id,
             'owner_id' => $this->user->id,
         ]);
@@ -103,7 +101,7 @@ class PhaseFourAgentCommissionTest extends TestCase
 
     public function test_completed_agent_order_is_atomic_audited_and_snapshotted(): void
     {
-        $orderId = app(DailyOrderGateway::class)->create($this->orderData('agent', 'completed', 10005));
+        $orderId = app(DailyOrderGateway::class)->create($this->orderData('completed', 10005));
         $commission = OrderCommission::query()->where('order_id', $orderId)->firstOrFail();
 
         $this->assertSame(1251, (int) $commission->amount_krw);
@@ -145,7 +143,7 @@ class PhaseFourAgentCommissionTest extends TestCase
             'approved_by' => $this->admin->id,
         ]);
 
-        $orderId = app(DailyOrderGateway::class)->create($this->orderData('agent', 'completed', 10000));
+        $orderId = app(DailyOrderGateway::class)->create($this->orderData('completed', 10000));
         $commission = OrderCommission::query()->where('order_id', $orderId)->firstOrFail();
 
         $this->assertSame(1600, (int) $commission->amount_krw);
@@ -156,7 +154,7 @@ class PhaseFourAgentCommissionTest extends TestCase
     public function test_missing_rule_rolls_completion_back_and_duplicate_completion_is_idempotent(): void
     {
         $gateway = app(DailyOrderGateway::class);
-        $pendingId = $gateway->create($this->orderData('agent', 'pending', 10000));
+        $pendingId = $gateway->create($this->orderData('pending', 10000));
         CommissionRule::query()->delete();
 
         try {
@@ -181,35 +179,11 @@ class PhaseFourAgentCommissionTest extends TestCase
         $this->assertSame('2026-07-28', Order::query()->findOrFail($pendingId)->completed_on?->format('Y-m-d'));
     }
 
-    public function test_direct_order_has_no_commission_and_paused_agent_is_blocked(): void
+    public function test_paused_agent_is_blocked(): void
     {
-        $direct = DirectSalesSource::query()->create(['code' => 'WEB', 'name' => '官网', 'is_active' => true]);
-        $directCustomer = Customer::query()->create([
-            'code' => 'WEB-000001',
-            'name' => '直销客户',
-            'original_channel' => 'direct',
-            'source_direct_sales_id' => $direct->id,
-        ]);
-        $orderId = app(DailyOrderGateway::class)->create(new DailyOrderData(
-            customerId: $directCustomer->id,
-            institutionId: $this->institution->id,
-            channel: 'direct',
-            agentId: null,
-            directSalesSourceId: $direct->id,
-            projectName: '直销项目',
-            amountKrw: 10000,
-            status: 'completed',
-            completedOn: CarbonImmutable::parse('2026-07-28'),
-            translatorName: null,
-            notes: null,
-            ownerId: $this->user->id,
-            ipAddress: null,
-        ));
-        $this->assertDatabaseMissing('order_commissions', ['order_id' => $orderId]);
-
         $this->agent->update(['cooperation_status' => 'paused']);
         $this->expectException(DomainException::class);
-        app(DailyOrderGateway::class)->create($this->orderData('agent', 'pending', 10000));
+        app(DailyOrderGateway::class)->create($this->orderData('pending', 10000));
     }
 
     public function test_agent_number_is_immutable_and_termination_is_permanent(): void
@@ -452,6 +426,8 @@ class PhaseFourAgentCommissionTest extends TestCase
 
     public function test_phase_four_pages_enforce_roles_and_navigation(): void
     {
+        app(DailyOrderGateway::class)->create($this->orderData('pending', 10005));
+
         $this->actingAs($this->user)->get(route('agents.index'))->assertForbidden();
         $this->actingAs($this->admin)->get(route('agents.index'))
             ->assertOk()
@@ -476,7 +452,8 @@ class PhaseFourAgentCommissionTest extends TestCase
             ->assertSee('<span class="font-semibold">订单测试客户</span>', false)
             ->assertSee('返回客户详情')
             ->assertSee('href="'.route('customers.show', $this->customer->id).'"', false)
-            ->assertDontSee('completionDate');
+            ->assertDontSee('completionDate')
+            ->assertDontSee('orders.fields.channel');
     }
 
     public function test_korean_admin_sees_translated_agent_list_labels(): void
@@ -540,14 +517,12 @@ class PhaseFourAgentCommissionTest extends TestCase
             ->assertSet('policyGradeId', '');
     }
 
-    private function orderData(string $channel, string $status, int $amountKrw): DailyOrderData
+    private function orderData(string $status, int $amountKrw): DailyOrderData
     {
         return new DailyOrderData(
             customerId: $this->customer->id,
             institutionId: $this->institution->id,
-            channel: $channel,
-            agentId: $channel === 'agent' ? $this->agent->id : null,
-            directSalesSourceId: null,
+            agentId: $this->agent->id,
             projectName: '皮肤管理',
             amountKrw: $amountKrw,
             status: $status,

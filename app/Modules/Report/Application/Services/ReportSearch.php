@@ -116,7 +116,7 @@ final readonly class ReportSearch
             'id' => $order->id,
             'customer_id' => $order->customerId,
             'customer' => $customerNames[$order->customerId] ?? __('search.page.fallbacks.missing_customer'),
-            'agent' => $order->agentId === null ? __('search.page.fallbacks.direct_sales') : ($agentNames[$order->agentId] ?? __('search.page.fallbacks.missing_agent')),
+            'agent' => $agentNames[$order->agentId] ?? __('search.page.fallbacks.missing_agent'),
             'project' => $order->projectName,
             'institution' => $institutionNames[$order->institutionId] ?? __('search.page.fallbacks.missing_institution'),
             'translator' => $order->translatorName,

@@ -12,7 +12,6 @@ final class DatabaseSettlementOrderReader implements SettlementOrderReader
     public function completedForAgent(int $agentId, CarbonImmutable $periodStart, CarbonImmutable $periodEnd): array
     {
         return Order::query()
-            ->where('channel', 'agent')
             ->where('agent_id', $agentId)
             ->where('status', 'completed')
             ->whereBetween('completed_on', [$periodStart, $periodEnd])

@@ -15,7 +15,6 @@ use App\Modules\Customer\Application\Services\CustomerProfileManager;
 use App\Modules\Customer\Application\Services\CustomerStatusManager;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
-use App\Modules\Customer\Infrastructure\Models\DirectSalesSource;
 use App\Modules\Customer\Presentation\Livewire\CustomerList;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
@@ -34,8 +33,6 @@ class CustomerLifecycleTest extends TestCase
 
     private Agent $agent;
 
-    private DirectSalesSource $directSource;
-
     private Institution $institution;
 
     protected function setUp(): void
@@ -50,20 +47,15 @@ class CustomerLifecycleTest extends TestCase
             'name' => '测试代理商',
             'cooperation_status' => 'active',
         ]);
-        $this->directSource = DirectSalesSource::query()->create([
-            'code' => 'WEB',
-            'name' => '官网',
-            'is_active' => true,
-        ]);
         $this->institution = Institution::query()->firstOrFail();
     }
 
     public function test_agent_customer_creation_is_atomic_and_audited(): void
     {
         $manager = app(CustomerProfileManager::class);
-        $code = $manager->previewCode('agent', $this->agent->id);
+        $code = $manager->previewCode($this->agent->id);
         $customerId = $manager->create(
-            profile: $this->profile('agent'),
+            profile: $this->profile(),
             institutionId: $this->institution->id,
             arrivalDate: CarbonImmutable::parse('2026-08-01'),
             translatorName: '金翻译',
@@ -98,9 +90,9 @@ class CustomerLifecycleTest extends TestCase
     public function test_stale_generated_code_requires_new_confirmation(): void
     {
         $manager = app(CustomerProfileManager::class);
-        $staleCode = $manager->previewCode('direct', $this->directSource->id);
+        $staleCode = $manager->previewCode($this->agent->id);
         $manager->create(
-            $this->profile('direct'),
+            $this->profile(),
             $this->institution->id,
             CarbonImmutable::parse('2026-08-01'),
             null,
@@ -112,7 +104,7 @@ class CustomerLifecycleTest extends TestCase
 
         $this->expectException(CustomerCodeChanged::class);
         $manager->create(
-            $this->profile('direct', '第二位客户'),
+            $this->profile('第二位客户'),
             $this->institution->id,
             CarbonImmutable::parse('2026-08-02'),
             null,
@@ -259,9 +251,7 @@ class CustomerLifecycleTest extends TestCase
             name: '修改后的客户',
             gender: '女',
             birthDate: CarbonImmutable::parse('1990-01-01'),
-            originalChannel: 'agent',
             sourceAgentId: $this->agent->id,
-            sourceDirectSalesId: null,
             contactValue: '13900001234',
             identityDocument: 'P654321',
             projectIntention: '皮肤管理',
@@ -314,12 +304,12 @@ class CustomerLifecycleTest extends TestCase
 
         try {
             $manager->create(
-                $this->profile('agent'),
+                $this->profile(),
                 $this->institution->id,
                 CarbonImmutable::parse('2026-08-01'),
                 null,
                 $this->user->id,
-                $manager->previewCode('agent', $this->agent->id),
+                $manager->previewCode($this->agent->id),
                 true,
                 null,
             );
@@ -368,10 +358,6 @@ class CustomerLifecycleTest extends TestCase
             ->assertSee('라이프사이클 상태 설정')
             ->assertSee('설정 센터로 돌아가기')
             ->assertDontSee('生命周期状态配置');
-        $this->actingAs($koAdmin)->get(route('direct-sales-sources.index'))
-            ->assertOk()
-            ->assertSee('직접 판매 소스 설정')
-            ->assertDontSee('直销来源配置');
     }
 
     private function createCustomer(): int
@@ -379,26 +365,24 @@ class CustomerLifecycleTest extends TestCase
         $manager = app(CustomerProfileManager::class);
 
         return $manager->create(
-            $this->profile('agent'),
+            $this->profile(),
             $this->institution->id,
             CarbonImmutable::parse('2026-08-01'),
             null,
             $this->user->id,
-            $manager->previewCode('agent', $this->agent->id),
+            $manager->previewCode($this->agent->id),
             true,
             null,
         );
     }
 
-    private function profile(string $channel, string $name = '测试客户'): CustomerProfileData
+    private function profile(string $name = '测试客户'): CustomerProfileData
     {
         return new CustomerProfileData(
             name: $name,
             gender: '女',
             birthDate: CarbonImmutable::parse('1990-01-01'),
-            originalChannel: $channel,
-            sourceAgentId: $channel === 'agent' ? $this->agent->id : null,
-            sourceDirectSalesId: $channel === 'direct' ? $this->directSource->id : null,
+            sourceAgentId: $this->agent->id,
             contactValue: '13800005678',
             identityDocument: 'P123456',
             projectIntention: '皮肤管理',

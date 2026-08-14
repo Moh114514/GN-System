@@ -51,9 +51,7 @@ return [
             'identity_document' => '여권/체류증 번호',
             'customer_source' => '고객 유입 경로',
             'agent' => '에이전트',
-            'direct' => '직접 유입',
             'source_agent' => '유입 에이전트',
-            'direct_source' => '직접 유입 경로',
             'customer_code_immutable' => '고객 번호(수정 불가)',
             'automatic_code' => '유입 경로에 따라 번호 자동 생성',
             'customer_code' => '고객 번호',
@@ -81,7 +79,6 @@ return [
             'default_status_inactive' => '기본 고객 상태 “관심”이 활성화되어 있지 않습니다. 최고 관리자에게 문의하세요.',
             'sensitive_confirmation_required' => '먼저 민감 정보 변경 내용을 확인하세요.',
             'agent_unavailable' => '선택한 에이전트가 없거나 사용할 수 없습니다.',
-            'direct_source_unavailable' => '선택한 직접 유입 경로가 없거나 사용할 수 없습니다.',
             'same_status' => '대상 상태가 현재 상태와 같습니다.',
             'rollback_requires_super_admin' => '고객 상태를 되돌릴 수 있는 사람은 최고 관리자뿐입니다.',
             'invalid_transition' => '단계를 건너뛰거나 비활성 상태 전환을 사용할 수 없습니다.',
@@ -105,7 +102,6 @@ return [
             'birth_date' => '생년월일',
             'source_type' => '유입 경로 유형',
             'agent' => '에이전트',
-            'direct' => '직접 유입',
             'project_intention' => '관심 시술',
             'created_at' => '등록일',
             'notes' => '메모',
@@ -162,7 +158,6 @@ return [
     'fallback' => [
         'unset' => '미설정',
         'unknown_agent' => '알 수 없는 에이전트',
-        'unknown_direct_source' => '알 수 없는 직접 유입 경로',
         'unknown_status' => '알 수 없는 상태',
     ],
     'timeline' => [

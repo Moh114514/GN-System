@@ -121,35 +121,23 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
             ->count();
         $sourceDistribution = Customer::query()
             ->whereBetween('customers.created_at', [$from, $to])
-            ->leftJoin('direct_sales_sources as source', 'source.id', '=', 'customers.source_direct_sales_id')
             ->select([
-                'customers.original_channel',
                 'customers.source_agent_id',
-                'customers.source_direct_sales_id',
-                'source.name as direct_source_name',
             ])
             ->selectRaw('COUNT(*)::int as value')
-            ->groupBy([
-                'customers.original_channel',
-                'customers.source_agent_id',
-                'customers.source_direct_sales_id',
-                'source.name',
-            ])
-            ->orderBy('customers.original_channel')
+            ->groupBy(['customers.source_agent_id'])
+            ->orderBy('customers.source_agent_id')
             ->get()
             ->map(fn (Customer $row): array => [
-                'source_type' => (string) $row->original_channel,
-                'source_id' => (int) ($row->source_agent_id ?? $row->source_direct_sales_id),
-                'key' => $row->original_channel === 'direct'
-                    ? (string) ($row->getAttribute('direct_source_name') ?: '__dashboard_missing_direct_source__')
-                    : '',
+                'source_type' => 'agent',
+                'source_id' => (int) $row->source_agent_id,
+                'key' => '',
                 'value' => (int) $row->getAttribute('value'),
             ])
             ->all();
         $recentCustomers = Customer::query()
             ->where('customers.created_at', '<=', $to)
             ->leftJoin('customer_statuses as status', 'status.id', '=', 'customers.current_status_id')
-            ->leftJoin('direct_sales_sources as source', 'source.id', '=', 'customers.source_direct_sales_id')
             ->orderByDesc('customers.created_at')
             ->orderByDesc('customers.id')
             ->limit(5)
@@ -157,22 +145,19 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
                 'customers.id',
                 'customers.code',
                 'customers.name',
-                'customers.original_channel',
                 'customers.source_agent_id',
-                'customers.source_direct_sales_id',
                 'customers.owner_id',
                 'customers.created_at',
                 'status.key as status_key',
                 'status.name as status_name',
-                'source.name as source_name',
             ])
             ->map(fn (Customer $customer): array => [
                 'id' => (int) $customer->id,
                 'code' => (string) $customer->code,
                 'name' => (string) $customer->name,
-                'source_type' => (string) $customer->original_channel,
-                'source_id' => (int) ($customer->source_agent_id ?? $customer->source_direct_sales_id),
-                'source_name' => (string) ($customer->getAttribute('source_name') ?: '__dashboard_missing_direct_source__'),
+                'source_type' => 'agent',
+                'source_id' => (int) $customer->source_agent_id,
+                'source_name' => '',
                 'status_key' => (string) ($customer->getAttribute('status_key') ?: 'registered'),
                 'status_name' => (string) ($customer->getAttribute('status_name') ?? ''),
                 'status_translation_key' => $customer->getAttribute('status_name') === null

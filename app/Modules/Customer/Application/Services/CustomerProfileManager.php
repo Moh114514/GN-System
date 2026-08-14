@@ -13,7 +13,6 @@ use App\Modules\Customer\Infrastructure\Models\CustomerIdentityDocument;
 use App\Modules\Customer\Infrastructure\Models\CustomerNumberSequence;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
-use App\Modules\Customer\Infrastructure\Models\DirectSalesSource;
 use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
 use App\Modules\Order\Application\Data\CustomerAppointmentData;
 use Carbon\CarbonImmutable;
@@ -29,9 +28,9 @@ final readonly class CustomerProfileManager
         private AuditRecorder $audit,
     ) {}
 
-    public function previewCode(string $channel, int $sourceId): string
+    public function previewCode(int $sourceAgentId): string
     {
-        [$prefix, $digits] = $this->prefixAndDigits($channel, $sourceId);
+        [$prefix, $digits] = $this->prefixAndDigits($sourceAgentId);
         $lastNumber = (int) (CustomerNumberSequence::query()->where('prefix', $prefix)->value('last_number') ?? 0);
 
         return sprintf("%s-%0{$digits}d", $prefix, $lastNumber + 1);
@@ -79,10 +78,7 @@ final readonly class CustomerProfileManager
             $automaticCode,
             $ipAddress,
         ): int {
-            [$prefix, $digits] = $this->prefixAndDigits(
-                $profile->originalChannel,
-                $profile->sourceAgentId ?? $profile->sourceDirectSalesId ?? 0,
-            );
+            [$prefix, $digits] = $this->prefixAndDigits($profile->sourceAgentId);
             $sequence = CustomerNumberSequence::query()->where('prefix', $prefix)->lockForUpdate()->first();
             if ($sequence === null) {
                 CustomerNumberSequence::query()->create(['prefix' => $prefix, 'last_number' => 0]);
@@ -112,9 +108,7 @@ final readonly class CustomerProfileManager
                 'name' => trim($profile->name),
                 'gender' => $profile->gender,
                 'birth_date' => $profile->birthDate,
-                'original_channel' => $profile->originalChannel,
                 'source_agent_id' => $profile->sourceAgentId,
-                'source_direct_sales_id' => $profile->sourceDirectSalesId,
                 'current_status_id' => $status->id,
                 'project_intention' => trim($profile->projectIntention),
                 'owner_id' => $actorId,
@@ -173,16 +167,13 @@ final readonly class CustomerProfileManager
             }
 
             $before = $customer->only([
-                'name', 'gender', 'birth_date', 'original_channel', 'source_agent_id',
-                'source_direct_sales_id', 'project_intention', 'notes',
+                'name', 'gender', 'birth_date', 'source_agent_id', 'project_intention', 'notes',
             ]);
             $customer->update([
                 'name' => trim($profile->name),
                 'gender' => $profile->gender,
                 'birth_date' => $profile->birthDate,
-                'original_channel' => $profile->originalChannel,
                 'source_agent_id' => $profile->sourceAgentId,
-                'source_direct_sales_id' => $profile->sourceDirectSalesId,
                 'project_intention' => trim($profile->projectIntention),
                 'notes' => $profile->notes,
             ]);
@@ -223,22 +214,13 @@ final readonly class CustomerProfileManager
     }
 
     /** @return array{string, int} */
-    private function prefixAndDigits(string $channel, int $sourceId): array
+    private function prefixAndDigits(int $sourceId): array
     {
-        if ($channel === 'agent') {
-            $agent = $this->agents->agentsByIds([$sourceId])[$sourceId] ?? null;
-            if ($agent === null) {
-                throw ValidationException::withMessages(['sourceId' => __('customers.validation.agent_unavailable')]);
-            }
-
-            return [$agent['code'], 4];
+        $agent = $this->agents->agentsByIds([$sourceId])[$sourceId] ?? null;
+        if ($agent === null) {
+            throw ValidationException::withMessages(['sourceId' => __('customers.validation.agent_unavailable')]);
         }
 
-        $source = DirectSalesSource::query()->whereKey($sourceId)->where('is_active', true)->first();
-        if ($channel !== 'direct' || $source === null) {
-            throw ValidationException::withMessages(['sourceId' => __('customers.validation.direct_source_unavailable')]);
-        }
-
-        return [$source->code, 6];
+        return [$agent['code'], 4];
     }
 }

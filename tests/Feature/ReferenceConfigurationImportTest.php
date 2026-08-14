@@ -138,7 +138,7 @@ class ReferenceConfigurationImportTest extends TestCase
         app(ReferenceConfigurationImportParser::class)->parse($batch);
         $batch->refresh();
         $this->assertSame(ImportBatchStatus::Validated, $batch->status);
-        $this->assertSame(8, $batch->valid_rows);
+        $this->assertSame(7, $batch->valid_rows);
         $this->assertSame(0, $batch->error_rows);
 
         app(ReferenceConfigurationImportCommitter::class)->dryRun($batch);
@@ -156,7 +156,6 @@ class ReferenceConfigurationImportTest extends TestCase
         $this->assertDatabaseHas('agent_type_codes', ['code' => 'UAT', 'name' => 'UAT 代理']);
         $this->assertDatabaseHas('institutions', ['code' => 'UAT-HOSP', 'name' => 'UAT 示例机构']);
         $this->assertDatabaseHas('institution_aliases', ['alias' => '示例医院']);
-        $this->assertDatabaseHas('direct_sales_sources', ['code' => 'UAT', 'name' => 'UAT 直销']);
         $this->assertDatabaseHas('policy_systems', ['name' => 'UAT 示例政策']);
         $this->assertDatabaseHas('policy_grades', ['name' => 'UAT 银级', 'monthly_threshold_krw' => 1000000]);
         $this->assertDatabaseHas('commission_rules', ['rate_bps' => 1200, 'is_active' => true]);
@@ -428,11 +427,11 @@ class ReferenceConfigurationImportTest extends TestCase
     {
         $path = app(ReferenceConfigurationTemplateGenerator::class)->example();
         $workbook = IOFactory::load($path);
-        $commissionSheet = $workbook->getSheetByName(array_keys(ReferenceConfigurationTemplateGenerator::HEADERS)[5]);
+        $commissionSheet = $workbook->getSheetByName(array_keys(ReferenceConfigurationTemplateGenerator::HEADERS)[4]);
         $commissionSheet?->setCellValue('E2', $month);
-        $agentSheet = $workbook->getSheetByName(array_keys(ReferenceConfigurationTemplateGenerator::HEADERS)[6]);
+        $agentSheet = $workbook->getSheetByName(array_keys(ReferenceConfigurationTemplateGenerator::HEADERS)[5]);
         $agentSheet?->setCellValue('G2', '2026-01-01');
-        $gradeSheet = $workbook->getSheetByName(array_keys(ReferenceConfigurationTemplateGenerator::HEADERS)[7]);
+        $gradeSheet = $workbook->getSheetByName(array_keys(ReferenceConfigurationTemplateGenerator::HEADERS)[6]);
         $gradeSheet?->setCellValue('D2', $month);
         (new Xlsx($workbook))->save($path);
         $workbook->disconnectWorksheets();

@@ -6,21 +6,18 @@ use App\Modules\Customer\Application\Contracts\AgentCustomerPortfolioReader;
 use App\Modules\Customer\Application\Contracts\ConfigurationHistoryGateway;
 use App\Modules\Customer\Application\Contracts\CustomerImportGateway;
 use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
-use App\Modules\Customer\Application\Contracts\ReferenceConfigurationImportGateway;
 use App\Modules\Customer\Application\Contracts\ReminderCustomerReader;
 use App\Modules\Customer\Application\Contracts\ReportCustomerReader;
 use App\Modules\Customer\Application\Services\DatabaseAgentCustomerPortfolioReader;
 use App\Modules\Customer\Application\Services\DatabaseConfigurationHistoryGateway;
 use App\Modules\Customer\Application\Services\DatabaseCustomerImportGateway;
 use App\Modules\Customer\Application\Services\DatabaseCustomerOrderReferenceReader;
-use App\Modules\Customer\Application\Services\DatabaseReferenceConfigurationImportGateway;
 use App\Modules\Customer\Application\Services\DatabaseReminderCustomerReader;
 use App\Modules\Customer\Application\Services\DatabaseReportCustomerReader;
 use App\Modules\Customer\Presentation\Livewire\CustomerDetail;
 use App\Modules\Customer\Presentation\Livewire\CustomerForm;
 use App\Modules\Customer\Presentation\Livewire\CustomerList;
 use App\Modules\Customer\Presentation\Livewire\CustomerStatusConfiguration;
-use App\Modules\Customer\Presentation\Livewire\DirectSalesSourceConfiguration;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
@@ -32,7 +29,6 @@ class CustomerServiceProvider extends ServiceProvider
         $this->app->bind(CustomerOrderReferenceReader::class, DatabaseCustomerOrderReferenceReader::class);
         $this->app->bind(AgentCustomerPortfolioReader::class, DatabaseAgentCustomerPortfolioReader::class);
         $this->app->bind(ReminderCustomerReader::class, DatabaseReminderCustomerReader::class);
-        $this->app->bind(ReferenceConfigurationImportGateway::class, DatabaseReferenceConfigurationImportGateway::class);
         $this->app->bind(ReportCustomerReader::class, DatabaseReportCustomerReader::class);
         $this->app->bind(ConfigurationHistoryGateway::class, DatabaseConfigurationHistoryGateway::class);
     }
@@ -46,8 +42,6 @@ class CustomerServiceProvider extends ServiceProvider
             Route::get('/customers/{customer}/edit', CustomerForm::class)->whereNumber('customer')->name('customers.edit');
             Route::middleware('super-admin')->get('/admin/customer-statuses', CustomerStatusConfiguration::class)
                 ->name('customer-statuses.index');
-            Route::middleware('super-admin')->get('/admin/direct-sales-sources', DirectSalesSourceConfiguration::class)
-                ->name('direct-sales-sources.index');
         });
     }
 }

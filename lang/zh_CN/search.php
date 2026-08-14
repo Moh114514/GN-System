@@ -138,7 +138,6 @@ return [
             'missing_customer' => '未知客户',
             'missing_agent' => '未知代理商',
             'missing_institution' => '未知机构',
-            'direct_sales' => '直销',
         ],
     ],
 ];

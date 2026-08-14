@@ -4,7 +4,7 @@
 > 被当前实现确定为主数据库；MySQL 仅作为本文保留的历史备选。当前状态见
 > [`docs/project-status.md`](../project-status.md)。
 >
-> **文档版本**：v1.8（对齐需求文档 v1.9 + 系统架构设计 v1.2 口径）
+> **文档版本**：v2.0（对齐需求文档 v1.9、系统架构设计 v1.2，并追加当前基线后的增量路线）
 > **适用模块**：客户管理系统（CRM）
 > **业务背景**：医美/医疗行业，需将现有 4 份 Excel（客户跟进表、代理商月结表等）迁移为 Web 系统，覆盖客户全生命周期、代理商结算、多维查询、数据看板与系统配置
 > **核心目标**：以标准化、可扩展、可维护为原则，把 7 个子任务拆解到 8 个交付阶段，配套完整的基础设施与工程化体系
@@ -28,6 +28,7 @@
 6. [风险评估与应对策略](#6-风险评估与应对策略)
 7. [团队配置与协作建议](#7-团队配置与协作建议)
 8. [附录：参考资料与备选方案](#8-附录参考资料与备选方案)
+9. [基于当前 develop 的增量路线（2026-08-14）](#9-基于当前-develop-的增量路线2026-08-14)
 
 ---
 
@@ -854,7 +855,276 @@ Phase 7 (测试+部署) ←────┘
 
 ---
 
+## 9. 基于当前 develop 的增量路线（2026-08-14）
+
+> 规划基线：develop 提交 7d4c4a65f6e813b000fcc930c8bfa1280a687e58。
+> 本节是针对当前已完成 Phase 2–6、订单中心和月结工作流优化后的后续规划，属于
+> 设计输入，不表示对应能力已经实现。实际状态仍以代码、迁移、测试和
+> docs/project-status.md 为准。
+>
+> 本节与前文历史 Phase 路线发生冲突时，以本节的现行增量口径为准。例如，前文
+> Phase 5 表格中的“每月 1 日生成”是历史规划描述；本节将统计周期和生成日期拆开，
+> 规划为自然月统计、每月 10 日生成上一个自然月。
+
+### 9.1 总体拆分与实施原则
+
+本轮需求不建立一个承载全部改动的 feature/new-requirements 大分支，拆为 7 个
+独立 PR。这样可以让高风险数据模型清理、财务调度规则和低风险界面优化分别验收，
+也避免已经存在的能力被重复实现。
+
+| PR | 内容 | 建议分支 | 数据库迁移 | 改动等级 | 主要风险 |
+|---|---|---|---|---|---|
+| PR-1 | 完整移除直销业务 | feature/remove-direct-sales | 需要 forward migration | 大 | 高 |
+| PR-2 | 客户状态追踪树及“关联客户”命名 | feature/customer-status-tree | 不需要 | 中小 | 低 |
+| PR-3 | 主动提醒 UI 紧凑化 | feature/reminder-compact-ui | 不需要 | 小 | 低 |
+| PR-4 | 指定节假日客服提醒 | feature/holiday-customer-reminders | 大概率不需要 | 中 | 中 |
+| PR-5 | 总览页面数据下钻 | feature/dashboard-drilldown | 不需要 | 中 | 中低 |
+| PR-6 | 自然月统计及每月 10 日生成 | feature/settlement-generation-schedule | 建议需要 | 中大 | 高 |
+| PR-7 | 月结默认周期、日级查询和下载闭环 | feature/settlement-period-navigation | 不需要或极小 | 中 | 中 |
+
+预计为 5–8 个有效开发日，不包含 UAT 人工验收及返修。工作量主要集中在 PR-1 的
+跨模块清理和 PR-6 的月结时间语义拆分。每个 PR 都从 develop 创建，完成定向测试
+后再执行完整质量门禁，目标为合入 develop；不要等 7 个 PR 全部完成后才开始验证。
+
+实施时继续遵守以下基线：
+
+- 跨模块只通过当前已接受的 Application Contract/Data 协作，不直接引用其他模块的
+  Model、具体 Service、Infrastructure、Presentation 或数据表。
+- 数据库结构只通过新增 migration 演进，不修改已经提交的旧 migration。
+- 不新增 RBAC、权限表、领域事件、CQRS、预聚合表或新的通用架构层。
+- 完整业务页面按现有页面层级规则提供明确的父级命名路由返回按钮，并在 Feature
+  测试中同时断言按钮文字和目标路由。
+- 规划中的“已存在”能力必须先以回归测试确认，不能因为需求名称相近而再建一套。
+
+### 9.2 PR-1：完整移除直销业务
+
+这是本轮的基础清理，必须先于依赖客户、订单和报表筛选的后续工作。当前直销逻辑
+已经进入 Customer、Order、DataImport、Report、Audit、Config、导航、Seeder 和多组
+Feature 测试，因此不能只隐藏一个菜单入口。
+
+#### 目标范围
+
+- Customer 的来源模型收敛为 source_agent_id。移除 original_channel、
+  source_direct_sales_id、DirectSalesSource 及客户表单中的 agent/direct 二选一；
+  客户编号统一采用代理商编号体系。
+- Order 收敛为 agent_id，移除 channel 和 direct_sales_source_id，同步清理列表筛选、
+  创建、编辑、详情、回收站、校验和相关 Data/Contract 字段。
+- 删除 DirectSalesSourceConfiguration、DirectSalesSourceManager、对应 Blade 页面、
+  /admin/direct-sales-sources 路由、配置中心入口以及中韩文翻译。
+- 清理 DataImport 的直销来源字段、模板列、基础配置工作表、引用就绪检查和解析
+  分支。新模板不再出现“直销来源”“渠道 = direct”“直销来源编号”。
+- 检查 Report、Audit、导航、Seeder、工厂和所有测试中的直销字段与分支；删除有效
+  业务代码中的直销语义，旧 migration 和明确的历史说明可保留。
+- 删除 direct 订单分支后，所有合法订单必须经过代理商推广费计算路径；不得留下
+  agent_id = null 但仍可保存的订单。
+
+#### 数据安全门禁
+
+新增 forward migration，顺序规划如下：
+
+1. 在实际执行环境中显式检查 customers.original_channel = 'direct' 和
+   orders.channel = 'direct' 的记录。
+2. 若发现任何真实业务记录，直接阻断 migration，不做静默转换或删除。
+3. 确认无记录后删除外键和索引，再删除客户、订单直销字段，最后删除
+   direct_sales_sources 表。
+
+不得把此改造做成软下线、兼容层或历史投影表。Production/UAT 的实际数据检查仍是
+上线前置条件，不能由本机测试替代。
+
+#### 验收与回归
+
+重点回归 PhaseTwoDataModelTest、OrderManagementTest、PhaseFourAgentCommissionTest、
+PhaseFiveReminderTest、PhaseSixReportingConfigurationTest、ReferenceConfigurationImportTest、
+历史导入测试、ConfigurationNavigationTest 和 ModuleBoundaryTest。测试 fixture
+统一改为代理商数据。
+
+全仓库搜索以下标识，除旧 migration 和明确历史文档外，不应再有有效业务代码：
+
+    DirectSalesSource
+    direct_sales
+    directSales
+    source_direct_sales_id
+    direct_sales_source_id
+    channel === 'direct'
+
+### 9.3 PR-2：客户状态追踪树及“关联客户”命名
+
+Customer 当前已经有生命周期阶段、状态、sort_order、CustomerStatusTransition 和
+to_status_ids，配置中心也已支持管理员维护允许的流转关系。因此本 PR 不新建状态树表
+或第二套状态模型。
+
+计划在 Customer 模块内部增加只读的状态图查询，例如：
+
+    CustomerDirectory::statusGraph($customerId)
+
+返回 stages、statuses、transitions 和 current_status_id，直接读取现有状态及流转
+数据。CustomerDetail 展示“客户状态追踪”：已经过的节点弱强调、当前节点强强调、
+可继续流转节点正常显示、不可达或停用节点弱化；不展示经过时间，状态修改仍走现有
+表单，追踪树本身不可编辑。
+
+Agent 详情中的 agents.detail.customers 只做中韩文案同步，把“来源客户”改为“关联客户”，
+不改变 Agent 与 Customer 的数据关系。
+
+本 PR 不需要 migration。若新增完整页面或层级入口，沿用 page-back、命名父路由、
+wire:navigate 和 Feature 导航断言。
+
+### 9.4 PR-3：主动提醒 UI 紧凑化
+
+这是 Presentation 层重排，不改变 Reminder 的业务动作或 ReminderWorkspace。默认卡片
+只展示标题、状态、客户/时间、摘要和“完成/延期/转交/关闭”操作；延期、转交、完成、
+关闭的备注或表单只在点击对应动作时展开。
+
+当前卡片共享 actionNotes、snoozeUntil、snoozeReason、assigneeId。计划增加
+activeReminderId 和 actionMode，保证同一时间只有正在操作的提醒展开编辑区。
+complete、snooze、transfer、cancel、retryNotification 的业务行为、权限、校验和审计
+保持不变；不引入新的 JavaScript 框架。
+
+### 9.5 PR-4：指定节假日客服提醒
+
+到店前一天和到店当天的提醒已经由现有 ReminderScheduler 生成（当前还包含术前其他
+节点），并沿用预约 ownerId 分配。因此本 PR 不重复开发第二套到店提醒，只调整文案
+使其明确“客服联系客户”，并增加回归测试确保 -1 和 0 两条持续存在，避免同一天产生
+重复提醒。
+
+真正新增的是指定日期触发：
+
+- 复用 ReminderRule 现有的 trigger_type、trigger_config、scope_type 和 scope_config
+  JSON，不新建 holiday 表。
+- 增加 holiday_date 触发类型，配置单个日期和时间，例如
+  {"date":"2026-09-25","time":"09:00"}；多日节假日使用多条规则。
+- 配置中心提供规则名称、指定日期、时间、现有范围、标题和建议内容；继续复用
+  all_customers、agent、project、owner、cooperation_status 范围。
+- Scheduler 仍沿用 Customer.ownerId → Reminder.assigned_to，不建立第二套客服负责人
+  体系。
+- 沿用稳定 dedupe_key，建议格式为 holiday-rule:{ruleId}:{customerId}:{date}，并覆盖
+  重复扫描、跨日和停用规则。
+
+### 9.6 PR-5：总览页面数据下钻
+
+Dashboard 的下钻必须同时传递当前筛选时间范围，不能只给展示卡片套链接。建议映射
+如下：
+
+| 总览内容 | 目标 | 约束 |
+|---|---|---|
+| 营业额 | 多维查询 | 带当前 completedFrom/completedTo |
+| 新客户 | 客户列表 | 增加并传递 createdFrom/createdTo |
+| 待处理提醒、今日任务 | 主动提醒 | 复用现有权限与筛选 |
+| 推广费 | 代理商/月结明细 | 仅超级管理员可进入受限目标 |
+| 复购率、月度收入趋势 | 多维查询或订单查询 | 带对应时间范围 |
+| 代理商排行、最近客户 | 对应详情页 | 使用稳定命名路由 |
+| 月结进度 | 当前月结周期 | 仅超级管理员可进入月结中心 |
+
+CustomerList 增加 createdFrom、createdTo，ReportSearchPage 继续使用现有 query string
+筛选字段。DashboardService 继续通过 Report Contracts 聚合，不直接跨表。任何下钻
+都不得绕过普通内部用户对代理商、月结和配置中心的现有权限；目标为二级或三级完整
+页面时补齐父级返回按钮和导航 Feature 断言。
+
+### 9.7 PR-6：自然月统计及每月 10 日生成
+
+这是财务核心改造，必须独立 PR，并在实现前单独确认旧配置历史与现有批次兼容策略。
+当前 SettlementPeriodCalculator 将 boundary_day 同时用于周期边界和到期判断，
+SettlementRunManager::startIfDue() 会寻找最新已闭合周期。因此不能简单把 boundary_day
+从 1 改为 10，否则会把周期变成“当月 10 日至次月 9 日”。
+
+#### 新语义
+
+- 统计周期永远是自然月：period_start = 月初，period_end = 月末。
+- 生成日期为每月 10 日指定时间，生成上一个自然月；现有 trigger_time 可继续作为
+  生成时间。
+- 生成检查仍每分钟运行，但 startIfDue() 只有到达生成日和时间后才把上一个自然月
+  视为 due。
+- 保留 scheduler compensation：若 10 日窗口停机，后续恢复时在目标月份仍无批次的
+  情况下补生成；补偿不得生成重复 Run。
+
+配置上拟新增版本化的 settlement_configurations.generation_day，默认值为 10，保留
+boundary_day 供历史配置和旧周期重建使用。配置中心改为展示“结算周期：自然月、生成日：
+每月 10 日、生成时间：09:00”；若生成日不是业务可配置项，UI 可只读。不得通过重解释
+旧字段来改变历史配置含义。
+
+必须覆盖以下时间点与不变量：
+
+    9月9日 23:59       不生成 8 月
+    9月10日 08:59      不生成 8 月
+    9月10日 09:00      生成 8 月 1 日～8 月 31 日
+    9月10日再次执行    不重复生成
+    9月11日仍无批次    补偿生成 8 月
+    10月10日           生成 9 月 1 日～9 月 30 日
+
+同时保留同周期唯一 Run、同代理商/周期唯一 Settlement、失败可重试、已有 Run 不重复、
+历史周期重建和批次成员一致性。需要新增 migration 时必须先在 UAT/Production 核对
+配置历史与真实批次，再按可回退、可审计的 forward migration 执行；不得改写旧 migration。
+
+### 9.8 PR-7：月结页面体验与查询闭环
+
+本 PR 不再修改月结计算核心，等 PR-6 稳定后单独处理页面和回归覆盖。
+
+1. SettlementCenter 增加 selectedPeriodEnd。进入页面时读取最新已生成的 SettlementRun，
+   默认只展示该周期；顶部提供已生成周期下拉，9 月 5 日默认 7 月，9 月 10 日 8 月批次
+   生成后默认 8 月。
+2. SettlementHistory 从 input type="month" 改为现有 localized date picker 的业务日期
+   起止查询。查询采用周期重叠语义：period_start <= businessTo AND period_end >= businessFrom，
+   不按 created_at、generated_at 或 reviewed_at 查询。
+3. 增加“生成 → approved → 文档存在 → settled → 重新进入详情”的回归测试，确认 PDF、
+   Word 和其他既有格式在已结算后仍可下载。现有文档是在 approve 时生成，settle() 不应
+   删除文档，因此优先补测试，不重新设计下载系统。
+4. 若旧历史记录只有 reconciled 状态而没有明细或快照，不凭空重建正式月结文件；先把
+   缺失证据作为 UAT/历史数据验收问题处理。
+
+### 9.9 推荐实施顺序、质量门禁与 UAT 分轮
+
+推荐顺序为：
+
+    PR-1 直销清理
+      ↓
+    PR-2 客户状态追踪树
+      ↓
+    PR-3 提醒紧凑化
+      ↓
+    PR-4 指定节假日提醒
+      ↓
+    PR-5 Dashboard 下钻
+      ↓
+    PR-6 月结生成时序
+      ↓
+    PR-7 月结页面闭环
+
+每个 PR 的计划交付门禁为：从 develop 创建 feature 分支，先执行相关的
+docker compose exec app php scripts/run-tests.php <测试文件或 --filter=...>，再执行：
+
+    docker compose exec app composer ci:check
+    docker compose exec vite npm run build
+
+本节仅作规划记录，本次写入不执行上述功能开发或质量门禁。PR-1 和 PR-6 在进入
+完整门禁前应分别完成一次数据安全/财务规则的独立审查。
+
+UAT 建议拆为两轮不可变 RC：
+
+- 第一轮业务/UI RC：PR-1 至 PR-5。重点验收客户建档、订单创建、代理商客户关联、
+  状态流转、提醒生成及动作、Dashboard 跳转、中韩文和导入模板。
+- 第二轮月结 RC：PR-6 和 PR-7。重点验收 10 日生成上月、默认最新周期、业务日期
+  日级查询、已结算文档下载、补偿生成、失败重试和不重复。
+
+RC 失败时发布下一个递增标签，不删除、移动或复用失败标签。Production/UAT 的真实
+数据检查、历史导入、抽样核对和财务人工验收仍是部署前置条件，本机文档校验不能替代。
+
+### 9.10 明确不在本轮范围内
+
+- 不新增 RBAC、权限表或第二套客服负责人机制。
+- 客户状态树只展示当前结构和节点，不做历史轨迹可视化，也不从树上修改状态。
+- 不重新开发已经存在的到店前一天、到店当天提醒，不接第三方节假日 API。
+- 直销不做兼容层、软下线或历史投影表；确认目标环境无真实数据后从正式业务模型退出。
+- 不通过 boundary_day = 10 实现 10 号月结，不把周期改成 10 日至次月 9 日。
+- 不借机重构 Customer、Reminder、Settlement 模块，不引入领域事件、CQRS 或预聚合。
+
+---
+
 ## 文档结束
+
+> 下一步建议：
+> 1. 先评审本节 7 个 PR 的边界、PR-1 的真实数据门禁和 PR-6 的历史配置兼容策略。
+> 2. 在目标 UAT/Production 执行只读数据核对，确认直销记录为空，并确认月结配置、批次和文档证据。
+> 3. 按 9.9 的顺序逐个建立 feature 分支；每个 PR 完成定向测试和完整本地门禁后再进入集成。
+> 4. 功能实际落地后，再按 docs/project-status.md 的规则更新已实现/尚未实现状态；本规划不替代状态文档。
 
 > **下一步建议**：
 > 1. 评审本文档 + 《系统架构设计》，确认技术选型（PostgreSQL vs MySQL）
@@ -868,3 +1138,4 @@ Phase 7 (测试+部署) ←────┘
 - v1.7（2026-07-24）：用户修订：Q03 月结触发→可自定义周期(默认自然月)，Q10 状态流转→后台可配置(当前命名为默认值)；同步修订 1.1/1.2/2.2/3.2/3.4/3.7/Phase 3/Phase 5
 - v1.8（2026-07-24）：评审反馈落档：新增 Solo 开发者路径(7.1b, 16-20周)；新增 MySQL 替代方案(2.1.9)；补充状态机可配置实现方案(3.2)；升级架构文档到 v1.2；跨文档统一版本号 v1.8
 - v1.9（2026-07-24）：需求 v1.9 同步：编号体系统一(简称-类型代码，KR→DY-KR)；新增配置版本回滚(FR-07-08, config_snapshots 表)；新增类型代码自定义(FR-07-09, agent_type_codes 表)；架构文档新增 2 张核心表
+- v2.0（2026-08-14）：基于 develop 提交 7d4c4a65f6e813b000fcc930c8bfa1280a687e58 追加现行增量路线；拆分 7 个独立 PR，明确直销移除、客户状态追踪、提醒体验、节假日规则、Dashboard 下钻、自然月月结生成和月结查询闭环的依赖、数据门禁、测试与 UAT 分轮。

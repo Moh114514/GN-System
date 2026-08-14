@@ -31,7 +31,6 @@ class ConfigurationNavigationTest extends TestCase
             ->assertSee('机构与字典')
             ->assertSee('href="'.route('customer-statuses.index').'"', false)
             ->assertSee('href="'.route('configuration.catalog').'"', false)
-            ->assertSee('href="'.route('direct-sales-sources.index').'"', false)
             ->assertSee('href="'.route('agent-configuration.index').'"', false)
             ->assertSee('href="'.route('reminder-configuration.index').'"', false)
             ->assertSee('href="'.route('configuration.users').'"', false)

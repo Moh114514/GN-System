@@ -60,7 +60,7 @@ final class DatabaseCustomerOrderGateway implements CustomerOrderGateway
                 'content' => $order->project_name,
                 'institution_id' => (int) $order->institution_id,
                 'owner_id' => $order->owner_id === null ? null : (int) $order->owner_id,
-                'meta' => ['amount_krw' => (int) $order->amount_krw, 'channel' => $order->channel],
+                'meta' => ['amount_krw' => (int) $order->amount_krw],
             ];
         }
 

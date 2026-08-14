@@ -4,7 +4,6 @@ namespace App\Modules\DataImport\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\AgentImportGateway;
 use App\Modules\Config\Application\Contracts\CatalogImportGateway;
-use App\Modules\Customer\Application\Contracts\CustomerImportGateway;
 use App\Modules\DataImport\Domain\ImportBatchStatus;
 use App\Modules\DataImport\Domain\ImportProfile;
 use App\Modules\DataImport\Domain\ImportRowStatus;
@@ -31,7 +30,6 @@ final readonly class SpreadsheetImportParser
         private EncryptedImportStorage $storage,
         private AgentImportGateway $agents,
         private CatalogImportGateway $catalog,
-        private CustomerImportGateway $customers,
         private SpreadsheetCellValueReader $cells,
         private ImportIssueRecorder $issues,
         private ImportStageTracker $stages,
@@ -366,7 +364,6 @@ final readonly class SpreadsheetImportParser
                 ImportProfile::Codebook => [ImportRowStatus::Ignored, [], []],
                 ImportProfile::AgentType,
                 ImportProfile::Institution,
-                ImportProfile::DirectSalesSource,
                 ImportProfile::PolicySystem,
                 ImportProfile::PolicyGrade,
                 ImportProfile::CommissionRule,
@@ -422,7 +419,7 @@ final readonly class SpreadsheetImportParser
         $legacyCode = null;
 
         if ($sourceCode === null) {
-            $errors[] = '缺少客户编号。代理客户示例：SZ-JG-0001；直销客户示例：WEB-000001。';
+            $errors[] = '缺少客户编号。客户示例：SZ-JG-0001。';
         } else {
             $code = $this->normalizeCustomerCode($sourceCode);
             $legacyCode = strtoupper($sourceCode) === $code ? null : strtoupper($sourceCode);
@@ -541,11 +538,7 @@ final readonly class SpreadsheetImportParser
             $code = (string) ($data['code'] ?? '');
             $errors = $row->errors ?? [];
 
-            if (preg_match('/^([A-Z0-9]{2,6})-\d{6}$/', $code, $matches) === 1) {
-                if ($this->customers->resolveDirectSalesSourceId($matches[1]) === null) {
-                    $errors[] = "未知直销来源代码：{$matches[1]}";
-                }
-            } elseif (preg_match('/^(.+)-\d{4}$/', $code, $matches) === 1) {
+            if (preg_match('/^(.+)-\d{4}$/', $code, $matches) === 1) {
                 $agentReference = $matches[1];
                 try {
                     $resolved = $this->batchAgentCode($agentMap, $agentReference)
@@ -931,8 +924,7 @@ final readonly class SpreadsheetImportParser
             return $this->agents->normalizeCustomerCode($sourceCode);
         } catch (InvalidArgumentException) {
             throw new InvalidArgumentException(
-                "无效客户编号：{$sourceCode}。代理客户应为“代理商编号-四位流水”，"
-                .'例如 SZ-JG-0001；直销客户应为“2–6 位大写来源代码-六位流水”，例如 WEB-000001。',
+                "无效客户编号：{$sourceCode}。客户编号应为“代理商编号-四位流水”，例如 SZ-JG-0001。",
             );
         }
     }

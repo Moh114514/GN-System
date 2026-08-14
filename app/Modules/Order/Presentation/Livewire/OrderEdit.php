@@ -24,11 +24,7 @@ class OrderEdit extends Component
 
     public string $institutionId = '';
 
-    public string $channel = 'agent';
-
     public string $agentId = '';
-
-    public string $directSalesSourceId = '';
 
     public string $projectName = '';
 
@@ -49,9 +45,7 @@ class OrderEdit extends Component
         abort_unless($this->orderDetails['status'] === 'pending' && $this->orderDetails['deleted_at'] === null, 404);
         $this->options = $workspace->options();
         $this->institutionId = (string) ($this->orderDetails['institution']['id'] ?? '');
-        $this->channel = (string) $this->orderDetails['channel'];
         $this->agentId = (string) ($this->orderDetails['agent']['id'] ?? '');
-        $this->directSalesSourceId = (string) ($this->orderDetails['direct_source']['id'] ?? '');
         $this->projectName = (string) $this->orderDetails['project_name'];
         $this->treatmentProjectId = collect($this->options['treatment_projects'] ?? [])->contains(fn (array $item): bool => (int) $item['id'] === (int) ($this->orderDetails['treatment_project_id'] ?? 0))
             ? (string) $this->orderDetails['treatment_project_id']
@@ -68,9 +62,7 @@ class OrderEdit extends Component
     {
         $this->validate([
             'institutionId' => ['required', 'integer'],
-            'channel' => ['required', 'in:agent,direct'],
-            'agentId' => [$this->channel === 'agent' ? 'required' : 'nullable', 'integer'],
-            'directSalesSourceId' => [$this->channel === 'direct' ? 'required' : 'nullable', 'integer'],
+            'agentId' => ['required', 'integer'],
             'projectName' => ['required', 'string', 'max:255'],
             'amountKrw' => ['required', 'integer', 'min:0'],
             'translatorName' => ['nullable', 'string', 'max:255'],
@@ -81,9 +73,7 @@ class OrderEdit extends Component
             $workspace->updatePending(new OrderUpdateData(
                 orderId: $this->orderId,
                 institutionId: (int) $this->institutionId,
-                channel: $this->channel,
-                agentId: $this->channel === 'agent' ? (int) $this->agentId : null,
-                directSalesSourceId: $this->channel === 'direct' ? (int) $this->directSalesSourceId : null,
+                agentId: (int) $this->agentId,
                 projectName: $this->projectName,
                 amountKrw: (int) $this->amountKrw,
                 translatorName: $this->translatorName === '' ? null : $this->translatorName,

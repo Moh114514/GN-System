@@ -138,7 +138,6 @@ return [
             'missing_customer' => '알 수 없는 고객',
             'missing_agent' => '알 수 없는 에이전시',
             'missing_institution' => '알 수 없는 기관',
-            'direct_sales' => '직접 판매',
         ],
     ],
 ];

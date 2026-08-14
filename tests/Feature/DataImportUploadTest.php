@@ -3,7 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\User;
-use App\Modules\Customer\Infrastructure\Models\DirectSalesSource;
+use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\DataImport\Infrastructure\Models\ImportBatch;
 use App\Modules\DataImport\Infrastructure\Models\ImportFile;
 use App\Modules\DataImport\Jobs\ParseImportBatch;
@@ -29,11 +29,6 @@ class DataImportUploadTest extends TestCase
         Storage::fake('local');
         Queue::fake();
         $this->seed(PhaseTwoReferenceDataSeeder::class);
-        DirectSalesSource::query()->create([
-            'code' => 'WEB',
-            'name' => '官网',
-            'is_active' => true,
-        ]);
         $this->admin = User::factory()->superAdmin()->withTwoFactor()->create();
         $this->actingAs($this->admin);
     }
@@ -52,7 +47,6 @@ class DataImportUploadTest extends TestCase
             ->assertOk()
             ->assertSee('CSV 必须使用英文逗号')
             ->assertSee('SZ-JG-0001')
-            ->assertSee('WEB-000001')
             ->assertSee('基础数据状态：已就绪')
             ->assertSee('下载结构示例')
             ->assertSee('下载可导入模拟数据');
@@ -143,14 +137,13 @@ class DataImportUploadTest extends TestCase
 
     public function test_upload_is_blocked_when_required_reference_data_is_missing(): void
     {
-        DirectSalesSource::query()->delete();
-        $file = UploadedFile::fake()->createWithContent('历史数据.csv', "客户编号,客户姓名\nWEB-000001,测试\n");
+        AgentTypeCode::query()->delete();
+        $file = UploadedFile::fake()->createWithContent('历史数据.csv', "客户编号,客户姓名\nTEST-JG-0001,测试\n");
 
         Livewire::test(ImportManager::class)
             ->set('uploads', [$file])
             ->call('stageUploads')
-            ->assertHasErrors(['uploads'])
-            ->assertSee('缺少启用中的直销来源');
+            ->assertHasErrors(['uploads']);
 
         $this->assertDatabaseCount('import_batches', 0);
     }
