@@ -145,6 +145,10 @@ final readonly class SettlementRunManager
     public function startIfDue(?CarbonImmutable $at = null): ?SettlementRun
     {
         $now = $at ?? CarbonImmutable::now();
+        if (! $this->periods->isDue($now)) {
+            return null;
+        }
+
         $period = $this->periods->latestClosedPeriod($now);
         $exists = SettlementRun::query()
             ->whereDate('period_start', $period->start)

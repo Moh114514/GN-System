@@ -27,6 +27,7 @@ use App\Modules\Settlement\Application\Services\SettlementRunManager;
 use App\Modules\Settlement\Application\Services\SettlementWorkflow;
 use App\Modules\Settlement\Infrastructure\Models\CommissionRule;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
+use App\Modules\Settlement\Infrastructure\Models\SettlementConfiguration;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
 use App\Modules\Settlement\Infrastructure\Models\SettlementGradeSuggestion;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
@@ -128,34 +129,78 @@ class PhaseFiveSettlementTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_period_configuration_is_continuous_and_changes_next_cycle(): void
+    public function test_period_configuration_uses_natural_months_and_changes_next_generation(): void
     {
         $calculator = app(SettlementPeriodCalculator::class);
         $period = $calculator->latestClosedPeriod(CarbonImmutable::now());
         $this->assertSame('2026-07-01', $period->start->toDateString());
         $this->assertSame('2026-07-31', $period->end->toDateString());
+        $this->assertSame(10, $period->generationDay);
 
-        $configuration = $calculator->saveConfiguration(15, '10:30', $this->admin->id, CarbonImmutable::now());
-        $this->assertSame('2026-08-15', $configuration->effective_from->toDateString());
-        $this->assertSame(1, $calculator->activeConfiguration(CarbonImmutable::now())->boundary_day);
-        $this->assertSame(15, $calculator->activeConfiguration(CarbonImmutable::parse('2026-08-15'))->boundary_day);
+        $configuration = $calculator->saveConfiguration('10:30', $this->admin->id, CarbonImmutable::now());
+        $this->assertSame('2026-08-10', $configuration->effective_from->toDateString());
+        $this->assertSame(10, (int) $configuration->generation_day);
+        $this->assertSame('09:00', substr((string) $calculator->activeConfiguration(CarbonImmutable::now())->trigger_time, 0, 5));
+        $this->assertSame('10:30', substr((string) $calculator->activeConfiguration(CarbonImmutable::parse('2026-08-10'))->trigger_time, 0, 5));
     }
 
-    public function test_period_history_rebuilds_real_boundaries_across_configuration_changes(): void
+    public function test_period_history_keeps_legacy_boundaries_before_natural_month_transition(): void
     {
         $calculator = app(SettlementPeriodCalculator::class);
-        $calculator->saveConfiguration(15, '10:30', $this->admin->id, CarbonImmutable::now());
+        $legacy = $calculator->activeConfiguration(CarbonImmutable::now());
+        $legacy->update([
+            'boundary_day' => 15,
+            'generation_day' => null,
+            'trigger_time' => '10:30:00',
+        ]);
+        SettlementConfiguration::query()->create([
+            'boundary_day' => 15,
+            'generation_day' => 10,
+            'trigger_time' => '09:00:00',
+            'timezone' => 'Asia/Shanghai',
+            'effective_from' => '2026-09-01',
+        ]);
 
         $periods = $calculator->recentClosedPeriods(CarbonImmutable::parse('2026-09-20 12:00:00'), 4);
 
-        $this->assertSame(['2026-08-15', '2026-08-01', '2026-07-01', '2026-06-01'], array_map(
+        $this->assertSame(['2026-08-01', '2026-07-15', '2026-06-15', '2026-05-15'], array_map(
             static fn ($period): string => $period->start->toDateString(),
             $periods,
         ));
-        $this->assertSame(['2026-09-14', '2026-08-14', '2026-07-31', '2026-06-30'], array_map(
+        $this->assertSame(['2026-08-31', '2026-08-14', '2026-07-14', '2026-06-14'], array_map(
             static fn ($period): string => $period->end->toDateString(),
             $periods,
         ));
+    }
+
+    public function test_scheduler_generates_previous_natural_month_at_or_after_the_tenth(): void
+    {
+        $manager = app(SettlementRunManager::class);
+
+        $this->assertNull($manager->startIfDue(CarbonImmutable::parse('2026-09-09 23:59:00')));
+        $this->assertNull($manager->startIfDue(CarbonImmutable::parse('2026-09-10 08:59:00')));
+
+        $run = $manager->startIfDue(CarbonImmutable::parse('2026-09-10 09:00:00'));
+
+        $this->assertNotNull($run);
+        $this->assertSame('2026-08-01', $run->period_start->toDateString());
+        $this->assertSame('2026-08-31', $run->period_end->toDateString());
+        $this->assertNull($manager->startIfDue(CarbonImmutable::parse('2026-09-10 09:01:00')));
+        $this->assertDatabaseCount('settlement_runs', 1);
+    }
+
+    public function test_scheduler_compensates_after_the_generation_window_and_advances_each_month(): void
+    {
+        $manager = app(SettlementRunManager::class);
+
+        $august = $manager->startIfDue(CarbonImmutable::parse('2026-09-11 12:00:00'));
+        $september = $manager->startIfDue(CarbonImmutable::parse('2026-10-10 09:00:00'));
+
+        $this->assertNotNull($august);
+        $this->assertNotNull($september);
+        $this->assertSame('2026-08-01', $august->period_start->toDateString());
+        $this->assertSame('2026-09-01', $september->period_start->toDateString());
+        $this->assertDatabaseCount('settlement_runs', 2);
     }
 
     public function test_monthly_run_aggregates_snapshots_and_is_idempotent(): void
