@@ -124,6 +124,23 @@ return [
             'reason' => '변경 사유',
             'submit' => '변경 확인',
         ],
+        'status_flow' => [
+            'heading' => '고객 상태 흐름',
+            'description' => '고객의 실제 상태 이력을 바탕으로 진행한 흐름, 현재 상태와 다음에 진행할 수 있는 상태를 보여줍니다. 상태 변경은 오른쪽 양식을 사용하세요.',
+            'current' => '현재',
+            'legend' => '고객 상태 흐름 범례',
+            'transitions' => '기타 허용 전환',
+            'historical_transitions' => '비활성화된 과거 전환',
+            'empty' => '고객 상태가 아직 설정되지 않았습니다.',
+            'states' => [
+                'current' => '현재',
+                'current_inactive' => '현재(비활성화됨)',
+                'completed' => '지난 상태',
+                'available' => '계속 진행 가능',
+                'unavailable' => '아직 도달할 수 없음',
+                'inactive' => '비활성화됨',
+            ],
+        ],
         'followup' => [
             'heading' => '후속 조치 등록',
             'type' => '후속 조치 유형',

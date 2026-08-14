@@ -124,6 +124,23 @@ return [
             'reason' => '变更原因',
             'submit' => '确认变更',
         ],
+        'status_flow' => [
+            'heading' => '客户流转进度',
+            'description' => '根据客户实际状态历史展示已经走过的流程、当前状态和可继续流转的下一步；状态修改请使用右侧表单。',
+            'current' => '当前',
+            'legend' => '客户状态流转图例',
+            'transitions' => '其他允许流转',
+            'historical_transitions' => '已停用的历史流转',
+            'empty' => '尚未配置客户状态。',
+            'states' => [
+                'current' => '当前',
+                'current_inactive' => '当前（已停用）',
+                'completed' => '已经过',
+                'available' => '可继续',
+                'unavailable' => '暂不可达',
+                'inactive' => '已停用',
+            ],
+        ],
         'followup' => [
             'heading' => '登记跟进',
             'type' => '跟进类型',

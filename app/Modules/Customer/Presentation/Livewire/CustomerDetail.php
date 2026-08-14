@@ -81,6 +81,7 @@ class CustomerDetail extends Component
     {
         return view('livewire.customers.customer-detail', [
             'customer' => $directory->profile($this->customerId),
+            'statusFlow' => $directory->statusFlow($this->customerId),
             'timeline' => $directory->timeline($this->customerId, $this->timelineType),
         ])->title(__('customers.title.detail'));
     }
