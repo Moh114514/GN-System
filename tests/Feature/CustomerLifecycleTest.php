@@ -16,6 +16,7 @@ use App\Modules\Customer\Application\Services\CustomerStatusManager;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerLifecycleStage;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
+use App\Modules\Customer\Infrastructure\Models\CustomerStatusTransition;
 use App\Modules\Customer\Presentation\Livewire\CustomerList;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
@@ -150,52 +151,72 @@ class CustomerLifecycleTest extends TestCase
         $manager->change($customerId, $interested->id, '普通用户尝试回退', $this->user, null);
     }
 
-    public function test_status_graph_marks_current_completed_and_available_nodes_without_edit_controls(): void
+    public function test_status_flow_marks_current_completed_and_available_nodes_without_edit_controls(): void
     {
         $customerId = $this->createCustomer();
         $directory = app(CustomerDirectory::class);
-        $graph = $directory->statusGraph($customerId);
+        $flow = $directory->statusFlow($customerId);
 
-        $this->assertSame(5, count($graph['stages']));
-        $this->assertSame(7, count($graph['statuses']));
-        $this->assertSame(6, count($graph['transitions']));
+        $this->assertSame(5, count($flow['stages']));
+        $this->assertSame(7, count($flow['statuses']));
+        $this->assertSame(6, count($flow['transitions']));
         $this->assertSame(
             ['first_contact', 'booking', 'arrival', 'followup', 'operations'],
-            collect($graph['stages'])->pluck('key')->all(),
+            collect($flow['stages'])->pluck('key')->all(),
         );
-        $this->assertSame('current', collect($graph['statuses'])->firstWhere('key', 'interested')['state']);
-        $this->assertSame('available', collect($graph['statuses'])->firstWhere('key', 'quoted')['state']);
-        $this->assertSame('unavailable', collect($graph['statuses'])->firstWhere('key', 'booked')['state']);
+        $this->assertSame('current', collect($flow['statuses'])->firstWhere('key', 'interested')['state']);
+        $this->assertSame('available', collect($flow['statuses'])->firstWhere('key', 'quoted')['state']);
+        $this->assertSame('unavailable', collect($flow['statuses'])->firstWhere('key', 'booked')['state']);
+        $this->assertContains(
+            CustomerStatus::query()->where('key', 'quoted')->value('id'),
+            $flow['available_next_status_ids'],
+        );
+        $this->assertFalse(collect($flow['transitions'])->firstWhere('to_status_id', CustomerStatus::query()->where('key', 'quoted')->value('id'))['visited']);
 
         CustomerStatus::query()->where('key', 'interested')->update(['is_active' => false]);
-        $graph = $directory->statusGraph($customerId);
-        $this->assertSame('current_inactive', collect($graph['statuses'])->firstWhere('key', 'interested')['state']);
+        $flow = $directory->statusFlow($customerId);
+        $this->assertSame('current_inactive', collect($flow['statuses'])->firstWhere('key', 'interested')['state']);
         CustomerStatus::query()->where('key', 'interested')->update(['is_active' => true]);
 
         $quoted = CustomerStatus::query()->where('key', 'quoted')->firstOrFail();
         app(CustomerStatusManager::class)->change($customerId, $quoted->id, '报价完成', $this->user, null);
+        $interested = CustomerStatus::query()->where('key', 'interested')->firstOrFail();
+        $interestedToQuoted = CustomerStatusTransition::query()
+            ->where('from_status_id', $interested->id)
+            ->where('to_status_id', $quoted->id)
+            ->firstOrFail();
         CustomerLifecycleStage::query()->where('key', 'booking')->update(['is_active' => false]);
-        $graph = $directory->statusGraph($customerId);
+        $flow = $directory->statusFlow($customerId);
 
-        $this->assertSame($quoted->id, $graph['current_status_id']);
-        $this->assertSame('completed', collect($graph['statuses'])->firstWhere('key', 'interested')['state']);
-        $this->assertSame('current', collect($graph['statuses'])->firstWhere('key', 'quoted')['state']);
-        $this->assertSame('available', collect($graph['statuses'])->firstWhere('key', 'booked')['state']);
-        $this->assertSame('inactive', collect($graph['stages'])->firstWhere('key', 'booking')['state']);
+        $this->assertSame($quoted->id, $flow['current_status_id']);
+        $this->assertSame('completed', collect($flow['statuses'])->firstWhere('key', 'interested')['state']);
+        $this->assertSame('current', collect($flow['statuses'])->firstWhere('key', 'quoted')['state']);
+        $this->assertSame('available', collect($flow['statuses'])->firstWhere('key', 'booked')['state']);
+        $this->assertSame('inactive', collect($flow['stages'])->firstWhere('key', 'booking')['state']);
+        $this->assertTrue(collect($flow['transitions'])->firstWhere('to_status_id', $quoted->id)['visited']);
+
+        $interestedToQuoted->update(['is_active' => false]);
+        $flow = $directory->statusFlow($customerId);
+        $historicalTransition = collect($flow['transitions'])->firstWhere('id', $interestedToQuoted->id);
+        $this->assertFalse($historicalTransition['is_active']);
+        $this->assertTrue($historicalTransition['visited']);
 
         CustomerStatus::query()->where('key', 'quoted')->update(['is_active' => false]);
-        $graph = $directory->statusGraph($customerId);
+        $flow = $directory->statusFlow($customerId);
 
-        $this->assertSame('current_inactive', collect($graph['statuses'])->firstWhere('key', 'quoted')['state']);
-        $this->assertSame('available', collect($graph['statuses'])->firstWhere('key', 'booked')['state']);
+        $this->assertSame('current_inactive', collect($flow['statuses'])->firstWhere('key', 'quoted')['state']);
+        $this->assertSame('available', collect($flow['statuses'])->firstWhere('key', 'booked')['state']);
 
         $response = $this->actingAs($this->user)->get(route('customers.show', $customerId));
         $response->assertOk()
-            ->assertSee(__('customers.detail.status_tracking.heading'))
-            ->assertSee('data-test="customer-status-tracking"', false)
+            ->assertSee(__('customers.detail.status_flow.heading'))
+            ->assertSee('data-test="customer-status-flow"', false)
+            ->assertSee('data-flow-layout', false)
             ->assertSee('data-status-key="quoted" data-status-state="current_inactive"', false)
             ->assertSee('data-status-key="booked" data-status-state="available"', false)
-            ->assertDontSee('wire:click="changeStatus', false);
+            ->assertSee('data-transition-visited="true"', false)
+            ->assertSee('data-flow-history-transitions', false)
+            ->assertDontSee('wire:click', false);
     }
 
     public function test_super_admin_can_rollback_and_configuration_is_protected(): void
@@ -387,7 +408,7 @@ class CustomerLifecycleTest extends TestCase
             ->assertSee('<dd class="mt-1 font-semibold">测试客户</dd>', false)
             ->assertSee(__('customers.detail.profile.code'))
             ->assertSee(__('customers.detail.profile.created_at'))
-            ->assertSee(__('customers.detail.status_tracking.heading'))
+            ->assertSee(__('customers.detail.status_flow.heading'))
             ->assertSee($this->user->name)
             ->assertSee(__('customers.detail.back'))
             ->assertSee('href="'.route('customers.index').'"', false);

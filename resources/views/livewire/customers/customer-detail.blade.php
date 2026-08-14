@@ -26,48 +26,117 @@
                 </dl>
             </section>
 
-            <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900" data-test="customer-status-tracking">
+            <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900" data-test="customer-status-flow">
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                        <h3 class="text-lg font-semibold">{{ __('customers.detail.status_tracking.heading') }}</h3>
-                        <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{{ __('customers.detail.status_tracking.description') }}</p>
+                        <h3 class="text-lg font-semibold">{{ __('customers.detail.status_flow.heading') }}</h3>
+                        <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{{ __('customers.detail.status_flow.description') }}</p>
                     </div>
-                    <span class="crm-pill tone-blue">{{ __('customers.detail.status_tracking.current') }}：{{ $customer['current_status'] ?: __('customers.fallback.unset') }}</span>
+                    <span class="crm-pill tone-blue">{{ __('customers.detail.status_flow.current') }}: {{ $customer['current_status'] ?: __('customers.fallback.unset') }}</span>
                 </div>
-                <div class="mt-6 space-y-5">
-                    @forelse ($statusGraph['stages'] as $stage)
-                        <div class="relative pl-5 {{ $stage['is_active'] ? '' : 'opacity-60' }}" data-stage-key="{{ $stage['key'] }}" data-stage-state="{{ $stage['state'] }}">
-                            <span class="absolute left-0 top-2 h-2.5 w-2.5 rounded-full bg-teal-500" aria-hidden="true"></span>
-                            <div class="flex flex-wrap items-center gap-2">
-                                <h4 class="font-semibold">{{ $stage['name'] }}</h4>
-                                @if (! $stage['is_active'])
-                                    <span class="text-xs text-zinc-500">{{ __('customers.detail.status_tracking.states.inactive') }}</span>
-                                @endif
-                            </div>
-                            <div class="mt-3 grid gap-2 sm:grid-cols-2">
-                                @foreach ($stage['statuses'] as $status)
-                                    @php
-                                        $statusClasses = match ($status['state']) {
-                                            'current' => 'border-teal-400 bg-teal-50 text-teal-950 dark:border-teal-500 dark:bg-teal-950/40 dark:text-teal-100',
-                                            'current_inactive' => 'border-amber-400 bg-amber-50 text-amber-950 dark:border-amber-500 dark:bg-amber-950/40 dark:text-amber-100',
-                                            'available' => 'border-blue-300 bg-blue-50 text-blue-950 dark:border-blue-500 dark:bg-blue-950/30 dark:text-blue-100',
-                                            'completed' => 'border-zinc-200 bg-zinc-50 text-zinc-500 opacity-75 dark:border-zinc-700 dark:bg-zinc-800/70 dark:text-zinc-400',
-                                            default => 'border-zinc-200 bg-zinc-50 text-zinc-400 opacity-55 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-500',
-                                        };
-                                    @endphp
-                                    <div class="rounded-xl border px-4 py-3 {{ $statusClasses }}" data-status-key="{{ $status['key'] }}" data-status-state="{{ $status['state'] }}">
-                                        <div class="flex flex-wrap items-center justify-between gap-2">
-                                            <span class="font-semibold">{{ $status['name'] }}</span>
-                                            <span class="text-xs">{{ __('customers.detail.status_tracking.states.'.$status['state']) }}</span>
+
+                <div class="mt-4 flex flex-wrap gap-2 text-xs text-zinc-600 dark:text-zinc-300" aria-label="{{ __('customers.detail.status_flow.legend') }}">
+                    <span class="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 text-teal-800 dark:bg-teal-950/40 dark:text-teal-100"><span aria-hidden="true">●</span>{{ __('customers.detail.status_flow.states.current') }}</span>
+                    <span class="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-1 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"><span aria-hidden="true">✓</span>{{ __('customers.detail.status_flow.states.completed') }}</span>
+                    <span class="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2.5 py-1 text-blue-800 dark:bg-blue-950/40 dark:text-blue-100"><span aria-hidden="true">○</span>{{ __('customers.detail.status_flow.states.available') }}</span>
+                    <span class="inline-flex items-center gap-1 rounded-full bg-zinc-100 px-2.5 py-1 text-zinc-500 dark:bg-zinc-800 dark:text-zinc-400"><span aria-hidden="true">—</span>{{ __('customers.detail.status_flow.states.unavailable') }}</span>
+                </div>
+
+                @php
+                    $flowTransitions = collect($statusFlow['transitions']);
+                @endphp
+                <div class="mt-6 overflow-x-auto pb-2" data-flow-layout>
+                    <div class="flex min-w-max items-stretch gap-3">
+                        @forelse ($statusFlow['stages'] as $stage)
+                            <div class="w-56 min-w-56 rounded-2xl border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-700 dark:bg-zinc-800/60" data-stage-key="{{ $stage['key'] }}" data-stage-state="{{ $stage['state'] }}">
+                                <div class="flex min-h-14 items-start justify-between gap-2 border-b border-zinc-200 pb-3 dark:border-zinc-700">
+                                    <h4 class="font-semibold {{ $stage['is_active'] ? '' : 'text-zinc-500' }}">{{ $stage['name'] }}</h4>
+                                    @if (! $stage['is_active'])
+                                        <span class="text-xs text-zinc-500">{{ __('customers.detail.status_flow.states.inactive') }}</span>
+                                    @endif
+                                </div>
+                                <div class="mt-3 space-y-2">
+                                    @foreach ($stage['statuses'] as $status)
+                                        @php
+                                            $statusClasses = match ($status['state']) {
+                                                'current' => 'border-teal-400 bg-teal-50 text-teal-950 ring-2 ring-teal-200 dark:border-teal-500 dark:bg-teal-950/40 dark:text-teal-100 dark:ring-teal-800',
+                                                'current_inactive' => 'border-amber-400 bg-amber-50 text-amber-950 ring-2 ring-amber-200 dark:border-amber-500 dark:bg-amber-950/40 dark:text-amber-100 dark:ring-amber-800',
+                                                'available' => 'border-blue-300 bg-blue-50 text-blue-950 dark:border-blue-500 dark:bg-blue-950/30 dark:text-blue-100',
+                                                'completed' => 'border-zinc-200 bg-white text-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300',
+                                                default => 'border-zinc-200 bg-white text-zinc-400 opacity-60 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-500',
+                                            };
+                                            $statusMarker = match ($status['state']) {
+                                                'current', 'current_inactive' => '●',
+                                                'completed' => '✓',
+                                                'available' => '○',
+                                                default => '—',
+                                            };
+                                        @endphp
+                                        <div class="rounded-xl border px-3 py-2.5 {{ $statusClasses }}" data-status-key="{{ $status['key'] }}" data-status-state="{{ $status['state'] }}" data-status-visited="{{ $status['is_visited'] ? 'true' : 'false' }}" data-status-current="{{ $status['is_current'] ? 'true' : 'false' }}">
+                                            <div class="flex items-center gap-2">
+                                                <span class="text-sm font-semibold" aria-hidden="true">{{ $statusMarker }}</span>
+                                                <span class="font-semibold">{{ $status['name'] }}</span>
+                                            </div>
+                                            <span class="mt-1 block pl-5 text-xs opacity-80">{{ __('customers.detail.status_flow.states.'.$status['state']) }}</span>
                                         </div>
-                                    </div>
-                                @endforeach
+                                    @endforeach
+                                </div>
                             </div>
-                        </div>
-                    @empty
-                        <p class="py-8 text-center text-zinc-500">{{ __('customers.detail.status_tracking.empty') }}</p>
-                    @endforelse
+
+                            @if (! $loop->last)
+                                @php
+                                    $nextStage = $statusFlow['stages'][$loop->index + 1];
+                                    $stageTransitions = $flowTransitions->filter(fn (array $transition): bool => $transition['is_active'] && $transition['from_stage_id'] === $stage['id'] && $transition['to_stage_id'] === $nextStage['id']);
+                                @endphp
+                                <div class="flex w-40 min-w-40 flex-col justify-center gap-2" data-transition-column="{{ $stage['key'] }}-{{ $nextStage['key'] }}">
+                                    @forelse ($stageTransitions as $transition)
+                                        <div class="rounded-lg border border-dashed {{ $transition['is_available'] ? 'border-blue-300 bg-blue-50/70 text-blue-800 dark:border-blue-500 dark:bg-blue-950/30 dark:text-blue-100' : ($transition['visited'] ? 'border-zinc-300 bg-zinc-50 text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' : 'border-zinc-200 text-zinc-400 dark:border-zinc-700 dark:text-zinc-500') }} px-2 py-1.5 text-center text-xs" data-transition="{{ $transition['from_status_id'] }}-{{ $transition['to_status_id'] }}" data-transition-visited="{{ $transition['visited'] ? 'true' : 'false' }}">
+                                            <span>{{ $transition['from_status_name'] }}</span>
+                                            <span class="mx-1 text-base" aria-hidden="true">→</span>
+                                            <span>{{ $transition['to_status_name'] }}</span>
+                                        </div>
+                                    @empty
+                                        <span class="h-px w-full bg-zinc-200 dark:bg-zinc-700" aria-hidden="true"></span>
+                                    @endforelse
+                                </div>
+                            @endif
+                        @empty
+                            <p class="py-8 text-center text-zinc-500">{{ __('customers.detail.status_flow.empty') }}</p>
+                        @endforelse
+                    </div>
                 </div>
+
+                @php
+                    $adjacentTransitionKeys = collect($statusFlow['adjacent_stage_pairs']);
+                    $secondaryTransitions = $flowTransitions->filter(function (array $transition) use ($adjacentTransitionKeys): bool {
+                        return $transition['is_active'] && ! $adjacentTransitionKeys->contains(fn (array $pair): bool => $pair[0] === $transition['from_stage_id'] && $pair[1] === $transition['to_stage_id']);
+                    });
+                    $historicalTransitions = $flowTransitions->filter(fn (array $transition): bool => ! $transition['is_active'] && $transition['visited']);
+                @endphp
+                @if ($secondaryTransitions->isNotEmpty())
+                    <div class="mt-5 border-t border-zinc-200 pt-4 dark:border-zinc-700" data-flow-secondary-transitions>
+                        <h4 class="text-sm font-semibold">{{ __('customers.detail.status_flow.transitions') }}</h4>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            @foreach ($secondaryTransitions as $transition)
+                                <span class="rounded-full border px-3 py-1 text-xs {{ $transition['is_available'] ? 'border-blue-300 bg-blue-50 text-blue-800 dark:border-blue-500 dark:bg-blue-950/30 dark:text-blue-100' : ($transition['visited'] ? 'border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300' : 'border-zinc-200 text-zinc-400 dark:border-zinc-700 dark:text-zinc-500') }}" data-transition="{{ $transition['from_status_id'] }}-{{ $transition['to_status_id'] }}" data-transition-visited="{{ $transition['visited'] ? 'true' : 'false' }}">
+                                    {{ $transition['from_status_name'] }} <span aria-hidden="true">→</span> {{ $transition['to_status_name'] }}
+                                </span>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
+                @if ($historicalTransitions->isNotEmpty())
+                    <div class="mt-5 border-t border-zinc-200 pt-4 dark:border-zinc-700" data-flow-history-transitions>
+                        <h4 class="text-sm font-semibold text-zinc-500">{{ __('customers.detail.status_flow.historical_transitions') }}</h4>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            @foreach ($historicalTransitions as $transition)
+                                <span class="rounded-full border border-zinc-300 bg-zinc-50 px-3 py-1 text-xs text-zinc-500 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-400" data-transition="{{ $transition['from_status_id'] }}-{{ $transition['to_status_id'] }}" data-transition-visited="true">
+                                    {{ $transition['from_status_name'] }} <span aria-hidden="true">→</span> {{ $transition['to_status_name'] }}
+                                </span>
+                            @endforeach
+                        </div>
+                    </div>
+                @endif
             </section>
 
             <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">

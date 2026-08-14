@@ -124,10 +124,13 @@ return [
             'reason' => '변경 사유',
             'submit' => '변경 확인',
         ],
-        'status_tracking' => [
-            'heading' => '고객 상태 추적',
-            'description' => '고객이 거친 상태, 현재 상태 및 계속 진행할 수 있는 상태를 읽기 전용으로 보여줍니다. 상태 변경은 오른쪽 양식을 사용하세요.',
-            'current' => '현재 상태',
+        'status_flow' => [
+            'heading' => '고객 상태 흐름',
+            'description' => '고객의 실제 상태 이력을 바탕으로 진행한 흐름, 현재 상태와 다음에 진행할 수 있는 상태를 보여줍니다. 상태 변경은 오른쪽 양식을 사용하세요.',
+            'current' => '현재',
+            'legend' => '고객 상태 흐름 범례',
+            'transitions' => '기타 허용 전환',
+            'historical_transitions' => '비활성화된 과거 전환',
             'empty' => '고객 상태가 아직 설정되지 않았습니다.',
             'states' => [
                 'current' => '현재',

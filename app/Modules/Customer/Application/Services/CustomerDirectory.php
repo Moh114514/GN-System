@@ -145,7 +145,7 @@ final readonly class CustomerDirectory
     }
 
     /** @return array<string, mixed> */
-    public function statusGraph(int $customerId): array
+    public function statusFlow(int $customerId): array
     {
         $customer = Customer::query()->findOrFail($customerId);
         $currentStatusId = $customer->current_status_id === null ? null : (int) $customer->current_status_id;
@@ -161,15 +161,23 @@ final readonly class CustomerDirectory
             ->orderBy('from_status_id')
             ->orderBy('to_status_id')
             ->get(['id', 'from_status_id', 'to_status_id', 'is_active']);
-        $visitedStatusIds = CustomerStatusHistory::query()
+        $history = CustomerStatusHistory::query()
             ->where('customer_id', $customerId)
-            ->get(['from_status_id', 'to_status_id'])
+            ->orderBy('changed_at')
+            ->orderBy('id')
+            ->get(['from_status_id', 'to_status_id']);
+        $visitedStatusIds = $history
             ->flatMap(fn (CustomerStatusHistory $history): array => [$history->from_status_id, $history->to_status_id])
             ->filter()
             ->map(fn ($id): int => (int) $id)
             ->unique()
             ->values()
             ->all();
+        $visitedTransitionKeys = $history
+            ->filter(fn (CustomerStatusHistory $history): bool => $history->from_status_id !== null)
+            ->map(fn (CustomerStatusHistory $history): string => $this->statusTransitionKey((int) $history->from_status_id, (int) $history->to_status_id))
+            ->unique()
+            ->flip();
         $activeStatusIds = $statuses
             ->filter(fn (CustomerStatus $status): bool => (bool) $status->is_active)
             ->pluck('id')
@@ -200,13 +208,23 @@ final readonly class CustomerDirectory
                 'is_visited' => $isVisited,
                 'is_current' => $isCurrent,
                 'is_available' => $isAvailable,
-                'state' => $this->statusGraphState((bool) $status->is_active, $isCurrent, $isVisited, $isAvailable),
+                'state' => $this->statusFlowState((bool) $status->is_active, $isCurrent, $isVisited, $isAvailable),
             ];
         })->values();
         $statusesByStage = $statusData->groupBy('stage_id');
+        $statusNames = $statusData->mapWithKeys(fn (array $status): array => [$status['id'] => $status['name']])->all();
+        $statusStageIds = $statusData->mapWithKeys(fn (array $status): array => [$status['id'] => $status['stage_id']])->all();
+        $stageIds = $stages->pluck('id')->map(fn ($id): int => (int) $id)->values()->all();
+        $adjacentStagePairs = [];
+        foreach ($stageIds as $index => $fromStageId) {
+            if (isset($stageIds[$index + 1])) {
+                $adjacentStagePairs[] = [$fromStageId, $stageIds[$index + 1]];
+            }
+        }
 
         return [
             'current_status_id' => $currentStatusId,
+            'adjacent_stage_pairs' => $adjacentStagePairs,
             'stages' => $stages->map(function (CustomerLifecycleStage $stage) use ($statusesByStage): array {
                 $stageStatuses = $statusesByStage->get((int) $stage->id, collect())->values();
                 $hasCurrentStatus = $stageStatuses->contains(fn (array $status): bool => (bool) $status['is_current']);
@@ -222,16 +240,29 @@ final readonly class CustomerDirectory
                 ];
             })->values()->all(),
             'statuses' => $statusData->all(),
-            'transitions' => $transitions->map(fn (CustomerStatusTransition $transition): array => [
-                'id' => (int) $transition->id,
-                'from_status_id' => (int) $transition->from_status_id,
-                'to_status_id' => (int) $transition->to_status_id,
-                'is_active' => (bool) $transition->is_active,
-                'is_available' => $currentStatusId !== null
-                    && (bool) $transition->is_active
-                    && (int) $transition->from_status_id === $currentStatusId
-                    && in_array((int) $transition->to_status_id, $activeStatusIds, true),
-            ])->values()->all(),
+            'transitions' => $transitions->map(function (CustomerStatusTransition $transition) use ($currentStatusId, $activeStatusIds, $visitedTransitionKeys, $statusNames, $statusStageIds): array {
+                $fromStatusId = (int) $transition->from_status_id;
+                $toStatusId = (int) $transition->to_status_id;
+
+                return [
+                    'id' => (int) $transition->id,
+                    'from' => $fromStatusId,
+                    'to' => $toStatusId,
+                    'from_status_id' => $fromStatusId,
+                    'to_status_id' => $toStatusId,
+                    'from_status_name' => $statusNames[$fromStatusId] ?? __('customers.fallback.unknown_status'),
+                    'to_status_name' => $statusNames[$toStatusId] ?? __('customers.fallback.unknown_status'),
+                    'from_stage_id' => $statusStageIds[$fromStatusId] ?? null,
+                    'to_stage_id' => $statusStageIds[$toStatusId] ?? null,
+                    'is_active' => (bool) $transition->is_active,
+                    'visited' => $visitedTransitionKeys->has($this->statusTransitionKey($fromStatusId, $toStatusId)),
+                    'is_available' => $currentStatusId !== null
+                        && (bool) $transition->is_active
+                        && $fromStatusId === $currentStatusId
+                        && in_array($toStatusId, $activeStatusIds, true),
+                ];
+            })->values()->all(),
+            'available_next_status_ids' => array_values($availableStatusIds),
         ];
     }
 
@@ -333,7 +364,7 @@ final readonly class CustomerDirectory
         return $result;
     }
 
-    private function statusGraphState(bool $isActive, bool $isCurrent, bool $isVisited, bool $isAvailable): string
+    private function statusFlowState(bool $isActive, bool $isCurrent, bool $isVisited, bool $isAvailable): string
     {
         if ($isCurrent) {
             return $isActive ? 'current' : 'current_inactive';
@@ -348,5 +379,10 @@ final readonly class CustomerDirectory
         }
 
         return $isAvailable ? 'available' : 'unavailable';
+    }
+
+    private function statusTransitionKey(int $fromStatusId, int $toStatusId): string
+    {
+        return $fromStatusId.':'.$toStatusId;
     }
 }

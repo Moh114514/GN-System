@@ -115,7 +115,7 @@ GitHub CI 和 GHCR 是发布基础设施，不是可登录的业务环境。
 | 2026-08-04，当前 `main` | `2fe5d13` | 将上述月结治理和恢复流程合入 `main` | 不得直接部署 `main`；应创建下一个递增 RC，完成 CI、镜像、UAT 和 migration 审计后再发布 |
 | 2026-08-07，当前 `develop` | 工作区未发布 | 国际化 PR-A 基础设施、PR-B 日常界面、PR-C 页面及 PR-D 深层输出支持 `zh_CN`/`ko_KR` | 含 `2026_08_07_000100_add_preferred_locale_to_users_table` 至 `2026_08_07_000500_add_localized_content_to_reminders` 五个 migration；查询/看板/结算文档与失败报告、导出文件名、导入问题报告固定标签、解析任务和通知任务已完成 Locale 接入；代理商、客户、配置、审计和提醒的固定文案、默认系统名称及业务异常已完成 Locale 接入；月结、汇率报价与报表导出失败使用结构化消息，提醒模板与实例支持按当前 Locale 投影，看板缓存保存语言无关标识；未知历史自由文本保留或安全降级，语言设置页已开放韩文入口；发布前备份数据库并核对既有用户均为 `zh_CN` |
 | 2026-08-14，当前 `develop` | 工作区未发布 | PR1 收敛客户与订单为代理商归属，移除直销来源、渠道分支及七工作表以外的直销配置内容 | 包含不可逆的 `2026_08_14_000100_remove_direct_sales_business` forward migration；UAT/Production 发布前必须备份，并只读核对直销记录和缺少代理商归属的记录均为 0；迁移发现异常会中止，不能用旧镜像回退替代数据恢复 |
-| 2026-08-14，`feature/customer-status-tree` | 工作区未发布、待合入 `develop` | PR2 在客户详情增加只读状态追踪树，并将 Agent 详情“来源客户”改为中韩文“关联客户” | 不新增 migration，不改变现有状态流转或代理商客户关系；发布前按普通应用变更执行完整门禁，UAT/Production 需人工验收中韩页面和状态节点显示 |
+| 2026-08-14，`feature/customer-status-tree` | 工作区未发布、待合入 `develop` | PR2 在客户详情增加只读状态流转可视化，并将 Agent 详情“来源客户”改为中韩文“关联客户” | 不新增 migration，不改变现有状态流转或代理商客户关系；发布前按普通应用变更执行完整门禁，UAT/Production 需人工验收中韩页面、状态节点和流转箭头显示 |
 
 当前 `main` 高于 `v0.5.0-rc.8`。服务器上的 `releases/current` 和
 `history.tsv` 才能证明 UAT/Production 实际运行版本；本地 Git 日志不能证明目标环境已经升级。

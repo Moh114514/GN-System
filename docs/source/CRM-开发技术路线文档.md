@@ -875,7 +875,7 @@ Phase 7 (测试+部署) ←────┘
 | PR | 内容 | 建议分支 | 数据库迁移 | 改动等级 | 主要风险 |
 |---|---|---|---|---|---|
 | PR-1 | 完整移除直销业务 | feature/remove-direct-sales | 需要 forward migration | 大 | 高 |
-| PR-2 | 客户状态追踪树及“关联客户”命名 | feature/customer-status-tree | 不需要 | 中小 | 低 |
+| PR-2 | 客户详情状态流转可视化及“关联客户”命名 | feature/customer-status-tree | 不需要 | 中小 | 低 |
 | PR-3 | 主动提醒 UI 紧凑化 | feature/reminder-compact-ui | 不需要 | 小 | 低 |
 | PR-4 | 指定节假日客服提醒 | feature/holiday-customer-reminders | 大概率不需要 | 中 | 中 |
 | PR-5 | 总览页面数据下钻 | feature/dashboard-drilldown | 不需要 | 中 | 中低 |
@@ -947,20 +947,23 @@ PhaseFiveReminderTest、PhaseSixReportingConfigurationTest、ReferenceConfigurat
     direct_sales_source_id
     channel === 'direct'
 
-### 9.3 PR-2：客户状态追踪树及“关联客户”命名
+### 9.3 PR-2：客户详情状态流转可视化及“关联客户”命名
 
 Customer 当前已经有生命周期阶段、状态、sort_order、CustomerStatusTransition 和
-to_status_ids，配置中心也已支持管理员维护允许的流转关系。因此本 PR 不新建状态树表
-或第二套状态模型。
+to_status_ids，配置中心也已支持管理员维护允许的流转关系；客户还有
+current_status_id 和 CustomerStatusHistory。因此本 PR 不新建状态树表或第二套状态模型。
 
-计划在 Customer 模块内部增加只读的状态图查询，例如：
+计划在 Customer 模块内部增加只读的客户专属状态流转投影：
 
-    CustomerDirectory::statusGraph($customerId)
+    CustomerDirectory::statusFlow($customerId)
 
-返回 stages、statuses、transitions 和 current_status_id，直接读取现有状态及流转
-数据。CustomerDetail 展示“客户状态追踪”：已经过的节点弱强调、当前节点强强调、
-可继续流转节点正常显示、不可达或停用节点弱化；不展示经过时间，状态修改仍走现有
-表单，追踪树本身不可编辑。
+返回 stages、statuses、transitions、current_status_id 和
+available_next_status_ids。statuses.visited 必须根据该客户实际的
+CustomerStatusHistory 计算，不能使用 sort_order 推断；transitions.visited 也必须
+根据实际发生过的 from/to 记录计算。CustomerDetail 在基本资料下方、时间线上方展示
+客户专属流程图：已经过的节点使用勾选弱强调，当前节点强强调，可继续流转节点正常显示，
+当前不可直接到达或停用节点弱化，并用箭头展示现有允许的流转关系。第一版不展示状态
+变更时间、原因或操作人详情，状态修改仍走现有表单，流程图本身不可编辑。
 
 Agent 详情中的 agents.detail.customers 只做中韩文案同步，把“来源客户”改为“关联客户”，
 不改变 Agent 与 Customer 的数据关系。
@@ -1076,7 +1079,7 @@ boundary_day 供历史配置和旧周期重建使用。配置中心改为展示�
 
     PR-1 直销清理
       ↓
-    PR-2 客户状态追踪树
+    PR-2 客户详情状态流转可视化
       ↓
     PR-3 提醒紧凑化
       ↓
