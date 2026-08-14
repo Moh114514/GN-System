@@ -65,6 +65,21 @@
                 </flux:menu>
             </flux:dropdown>
 
+            <x-localized-date-picker
+                id="customers-created-from"
+                wire:model.live.debounce.400ms="createdFrom"
+                :value="$createdFrom"
+                :label="__('customers.list.created_from')"
+                size="sm"
+            />
+            <x-localized-date-picker
+                id="customers-created-to"
+                wire:model.live.debounce.400ms="createdTo"
+                :value="$createdTo"
+                :label="__('customers.list.created_to')"
+                size="sm"
+            />
+
             <flux:dropdown>
                 <flux:button class="rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
                     {{ __('customers.list.per_page', ['count' => $perPage]) }}
@@ -76,7 +91,14 @@
                 </flux:menu>
             </flux:dropdown>
 
-            @if ($hasFilters)
+            @if ($errors->has('createdFrom') || $errors->has('createdTo'))
+                <div class="basis-full text-sm text-red-600">
+                    @error('createdFrom')<p>{{ $message }}</p>@enderror
+                    @error('createdTo')<p>{{ $message }}</p>@enderror
+                </div>
+            @endif
+
+            @if ($hasFilters || $createdFrom !== '' || $createdTo !== '')
                 <flux:button wire:click="clearFilters" variant="ghost" size="sm" icon="x-mark">{{ __('customers.list.clear') }}</flux:button>
             @endif
         </div>

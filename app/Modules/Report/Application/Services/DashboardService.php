@@ -115,6 +115,7 @@ final readonly class DashboardService
             ],
             charts: [
                 'agent_promotion_ranking' => array_map(fn (array $row): array => [
+                    'id' => $row['agent_id'],
                     'key' => $agentNames[$row['agent_id']] ?? '__dashboard_missing_agent__',
                     'value' => $row['value'],
                 ], $current['settlement']['agent_ranking']),
