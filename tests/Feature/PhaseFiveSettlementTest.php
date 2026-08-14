@@ -867,6 +867,20 @@ class PhaseFiveSettlementTest extends TestCase
         $workflow->settle($settlement->id, $this->admin->id, null);
         $this->assertDatabaseHas('settlements', ['id' => $settlement->id, 'status' => 'settled']);
         $this->assertDatabaseHas('activity_log', ['log_name' => 'settlement', 'subject_id' => $settlement->id, 'event' => 'settled']);
+        $settlement->refresh();
+        $this->assertSame('settled', $settlement->status);
+        foreach ($documents as $document) {
+            Storage::disk('local')->assertExists($document->path);
+            $this->actingAs($this->admin)
+                ->get(route('settlements.documents.download', $document->id))
+                ->assertOk()
+                ->assertHeader('content-disposition');
+        }
+        $detail = $this->actingAs($this->admin)->get(route('settlements.show', $settlement->id));
+        $detail->assertOk();
+        foreach ($documents as $document) {
+            $detail->assertSee('href="'.route('settlements.documents.download', $document->id).'"', false);
+        }
     }
 
     public function test_historical_grade_and_rate_correction_does_not_change_settled_snapshot_or_items(): void
@@ -1221,6 +1235,52 @@ class PhaseFiveSettlementTest extends TestCase
             ->assertSee('可折叠代理商');
     }
 
+    public function test_settlement_center_defaults_to_latest_period_and_switches_displayed_batch(): void
+    {
+        $olderRun = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'completed',
+            'total_agents' => 1,
+            'processed_agents' => 1,
+        ]);
+        $latestRun = SettlementRun::query()->create([
+            'period_start' => '2026-08-01',
+            'period_end' => '2026-08-31',
+            'trigger_source' => 'scheduled',
+            'status' => 'completed',
+            'total_agents' => 1,
+            'processed_agents' => 1,
+        ]);
+        Settlement::query()->create([
+            'settlement_run_id' => $olderRun->id,
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'pending_review',
+            'generation_status' => 'generated',
+            'snapshot' => ['agent' => ['name' => '七月批次代理商']],
+        ]);
+        Settlement::query()->create([
+            'settlement_run_id' => $latestRun->id,
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-08-01',
+            'period_end' => '2026-08-31',
+            'status' => 'pending_review',
+            'generation_status' => 'generated',
+            'snapshot' => ['agent' => ['name' => '八月批次代理商']],
+        ]);
+
+        $component = Livewire::actingAs($this->admin)->test(SettlementCenter::class);
+        $component->assertSet('selectedPeriodEnd', '2026-08-31')
+            ->assertSee('八月批次代理商')
+            ->assertDontSee('七月批次代理商')
+            ->set('selectedPeriodEnd', '2026-07-31')
+            ->assertSee('七月批次代理商')
+            ->assertDontSee('八月批次代理商');
+    }
+
     public function test_settlement_center_shows_historical_settlements_without_a_batch(): void
     {
         $settlement = Settlement::query()->create([
@@ -1298,12 +1358,13 @@ class PhaseFiveSettlementTest extends TestCase
             ->set('search', $this->agent->name)
             ->assertSee('2026-06')
             ->assertDontSee('2026-07')
-            ->set('month', '2026-06')
+            ->set('businessFrom', '2026-06-01')
+            ->set('businessTo', '2026-06-30')
             ->assertSee('2026-06')
             ->assertDontSee('2026-07');
     }
 
-    public function test_historical_archive_supports_month_status_search_and_pagination(): void
+    public function test_historical_archive_supports_business_date_overlap_status_search_and_pagination(): void
     {
         Settlement::query()->create([
             'agent_id' => $this->agent->id,
@@ -1326,16 +1387,32 @@ class PhaseFiveSettlementTest extends TestCase
             ->test(SettlementHistory::class)
             ->assertSee('归档代理商 A')
             ->assertSee('归档代理商 B')
-            ->set('month', '2026-05')
+            ->assertSee(__('settlements.archive.business_from'))
+            ->assertSee(__('settlements.archive.business_to'))
+            ->assertDontSee('type="month"', false)
+            ->set('businessFrom', '2026-05-01')
+            ->set('businessTo', '2026-05-31')
             ->assertSee('归档代理商 A')
             ->assertDontSee('归档代理商 B')
             ->set('status', 'reconciled')
-            ->assertDontSee('2026-05')
-            ->set('month', '')
+            ->assertDontSee('归档代理商 A')
+            ->set('businessFrom', '')
+            ->set('businessTo', '')
             ->set('status', '')
             ->set('search', 'HIST-B')
             ->assertSee('归档代理商 B')
-            ->assertDontSee('2026-05');
+            ->assertDontSee('归档代理商 A');
+
+        Livewire::actingAs($this->admin)
+            ->test(SettlementHistory::class)
+            ->set('businessFrom', '2026-05-31')
+            ->set('businessTo', '2026-06-01')
+            ->assertSee('归档代理商 A')
+            ->assertSee('归档代理商 B')
+            ->set('businessFrom', '2026-07-01')
+            ->set('businessTo', '2026-07-31')
+            ->assertDontSee('归档代理商 A')
+            ->assertDontSee('归档代理商 B');
     }
 
     public function test_historical_archive_paginates_records_without_loading_all_rows_for_the_table(): void
