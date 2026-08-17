@@ -16,7 +16,9 @@ use App\Modules\Customer\Application\Services\CustomerStatusManager;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerLifecycleStage;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
+use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusTransition;
+use App\Modules\Customer\Presentation\Livewire\CustomerDetail;
 use App\Modules\Customer\Presentation\Livewire\CustomerList;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
@@ -149,6 +151,33 @@ class CustomerLifecycleTest extends TestCase
 
         $this->expectException(ValidationException::class);
         $manager->change($customerId, $interested->id, '普通用户尝试回退', $this->user, null);
+    }
+
+    public function test_status_flow_can_initialize_a_customer_without_a_current_status(): void
+    {
+        $customerId = $this->createCustomer();
+        Customer::query()->whereKey($customerId)->update(['current_status_id' => null]);
+        $target = CustomerStatus::query()->where('key', 'quoted')->firstOrFail();
+
+        $this->actingAs($this->user)->get(route('customers.show', $customerId))->assertOk();
+        Livewire::actingAs($this->user)
+            ->test(CustomerDetail::class, ['customer' => $customerId])
+            ->set('targetStatusId', (string) $target->id)
+            ->set('statusReason', '补录历史客户状态')
+            ->call('changeStatus')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('customers', [
+            'id' => $customerId,
+            'current_status_id' => $target->id,
+        ]);
+        $history = CustomerStatusHistory::query()
+            ->where('customer_id', $customerId)
+            ->where('to_status_id', $target->id)
+            ->latest('id')
+            ->firstOrFail();
+        $this->assertNull($history->from_status_id);
+        $this->assertSame('补录历史客户状态', $history->reason);
     }
 
     public function test_status_flow_marks_current_completed_and_available_nodes_without_edit_controls(): void

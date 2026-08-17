@@ -73,6 +73,44 @@ class PhaseTwoDataModelTest extends TestCase
         $this->assertSame([$customerId], $gateway->duplicateCandidateIds('01012345678', 'P1234567'));
     }
 
+    public function test_missing_import_status_keeps_existing_status_and_is_nullable_for_new_customers(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $agentId = $this->createTestAgent();
+        $gateway = app(CustomerImportGateway::class);
+        $interestedId = (int) DB::table('customer_statuses')->where('key', 'interested')->value('id');
+
+        $gateway->upsertCustomer($this->customerImportData($agentId, 'NULL-000001', null));
+        $this->assertDatabaseHas('customers', [
+            'code' => 'NULL-000001',
+            'current_status_id' => null,
+        ]);
+
+        $gateway->upsertCustomer($this->customerImportData($agentId, 'KNOWN-000001', '意向'));
+        $gateway->upsertCustomer($this->customerImportData($agentId, 'KNOWN-000001', null));
+
+        $this->assertDatabaseHas('customers', [
+            'code' => 'KNOWN-000001',
+            'current_status_id' => $interestedId,
+        ]);
+    }
+
+    public function test_unknown_import_status_is_rejected_instead_of_becoming_null(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $agentId = $this->createTestAgent();
+        $gateway = app(CustomerImportGateway::class);
+
+        try {
+            $gateway->upsertCustomer($this->customerImportData($agentId, 'UNKNOWN-000001', '不存在的状态'));
+            $this->fail('Expected an unknown customer status to abort the import.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('找不到客户状态：不存在的状态', $exception->getMessage());
+        }
+
+        $this->assertDatabaseMissing('customers', ['code' => 'UNKNOWN-000001']);
+    }
+
     public function test_direct_sales_removal_migration_refuses_legacy_direct_customer_rows(): void
     {
         $this->seed(PhaseTwoReferenceDataSeeder::class);
@@ -208,5 +246,24 @@ class PhaseTwoDataModelTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+    }
+
+    private function customerImportData(int $agentId, string $code, ?string $statusName): CustomerImportData
+    {
+        return new CustomerImportData(
+            code: $code,
+            legacyCode: null,
+            name: '导入客户',
+            gender: null,
+            birthDate: null,
+            sourceAgentId: $agentId,
+            statusName: $statusName,
+            wechatAddedOn: null,
+            contactValue: null,
+            identityDocument: null,
+            projectIntention: null,
+            notes: null,
+            importBatchId: '00000000-0000-0000-0000-000000000001',
+        );
     }
 }

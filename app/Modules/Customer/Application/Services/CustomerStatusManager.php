@@ -29,18 +29,20 @@ final readonly class CustomerStatusManager
     ): void {
         DB::transaction(function () use ($customerId, $targetStatusId, $reason, $actor, $ipAddress): void {
             $customer = Customer::query()->lockForUpdate()->findOrFail($customerId);
-            $current = CustomerStatus::query()->findOrFail($customer->current_status_id);
+            $current = $customer->current_status_id === null
+                ? null
+                : CustomerStatus::query()->findOrFail($customer->current_status_id);
             $target = CustomerStatus::query()->whereKey($targetStatusId)->where('is_active', true)->firstOrFail();
 
-            if ($current->id === $target->id) {
+            if ($current !== null && $current->id === $target->id) {
                 throw ValidationException::withMessages(['targetStatusId' => __('customers.validation.same_status')]);
             }
 
-            $isBackward = $target->sort_order < $current->sort_order;
+            $isBackward = $current !== null && $target->sort_order < $current->sort_order;
             if ($isBackward && ! $actor->is_super_admin) {
                 throw ValidationException::withMessages(['targetStatusId' => __('customers.validation.rollback_requires_super_admin')]);
             }
-            if (! $isBackward && ! CustomerStatusTransition::query()
+            if ($current !== null && ! $isBackward && ! CustomerStatusTransition::query()
                 ->where('from_status_id', $current->id)
                 ->where('to_status_id', $target->id)
                 ->where('is_active', true)
@@ -54,7 +56,7 @@ final readonly class CustomerStatusManager
             $customer->update(['current_status_id' => $target->id]);
             CustomerStatusHistory::query()->create([
                 'customer_id' => $customer->id,
-                'from_status_id' => $current->id,
+                'from_status_id' => $current?->id,
                 'to_status_id' => $target->id,
                 'changed_by' => $actor->id,
                 'changed_at' => now(),
@@ -63,7 +65,11 @@ final readonly class CustomerStatusManager
             $this->audit->record(
                 description: '变更客户状态',
                 properties: [
-                    'from' => ['id' => $current->id, 'key' => $current->key, 'name' => $current->name],
+                    'from' => $current === null ? null : [
+                        'id' => $current->id,
+                        'key' => $current->key,
+                        'name' => $current->name,
+                    ],
                     'to' => ['id' => $target->id, 'key' => $target->key, 'name' => $target->name],
                     'reason' => trim($reason),
                 ],
