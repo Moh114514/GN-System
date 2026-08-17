@@ -7,6 +7,7 @@ use App\Modules\Settlement\Application\Services\SettlementDisplayReader;
 use App\Modules\Settlement\Application\Services\SettlementNotificationDispatcher;
 use App\Modules\Settlement\Application\Services\SettlementPeriodCalculator;
 use App\Modules\Settlement\Application\Services\SettlementRunManager;
+use App\Modules\Settlement\Application\Services\SettlementWorkflow;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
@@ -17,6 +18,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
+use Throwable;
 
 #[Layout('layouts.app')]
 class SettlementCenter extends Component
@@ -31,6 +33,11 @@ class SettlementCenter extends Component
     public string $selectedPeriodEnd = '';
 
     public string $historicalPeriodEnd = '';
+
+    /** @var array<string, array<string, string>> */
+    protected array $queryString = [
+        'selectedPeriodEnd' => ['except' => ''],
+    ];
 
     public function toggleRun(string $runId): void
     {
@@ -47,8 +54,10 @@ class SettlementCenter extends Component
     {
         $configuration = $periods->activeConfiguration(CarbonImmutable::now());
         $this->triggerTime = substr((string) $configuration->trigger_time, 0, 5);
-        $latestRun = SettlementRun::query()->latest('period_end')->first();
-        $this->selectedPeriodEnd = $latestRun?->period_end?->toDateString() ?? '';
+        if ($this->selectedPeriodEnd === '') {
+            $latestRun = SettlementRun::query()->latest('period_end')->first();
+            $this->selectedPeriodEnd = $latestRun?->period_end?->toDateString() ?? '';
+        }
     }
 
     public function updatedSelectedPeriodEnd(): void
@@ -86,6 +95,19 @@ class SettlementCenter extends Component
             Flux::toast(variant: 'success', text: __('settlements.toasts.retry_notification'));
         } catch (DomainException $exception) {
             Flux::toast(variant: 'danger', text: $exception->getMessage());
+        }
+    }
+
+    public function regenerateDocuments(int $settlementId, SettlementWorkflow $workflow): void
+    {
+        try {
+            $workflow->regenerateDocuments($settlementId);
+            Flux::toast(variant: 'success', text: __('settlements.toasts.documents_regenerated'));
+        } catch (DomainException $exception) {
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
+        } catch (Throwable $exception) {
+            report($exception);
+            Flux::toast(variant: 'danger', text: __('settlements.toasts.operation_failed'));
         }
     }
 
@@ -140,6 +162,18 @@ class SettlementCenter extends Component
                 $legacyDisplays[$settlementId] = $agentDisplay;
             }
         }
+        $settlementIds = $runs->flatMap(static fn (SettlementRun $run): array => [
+            ...$run->settlements->modelKeys(),
+            ...$run->members->pluck('settlement_id')->filter()->all(),
+        ])->filter()->unique()->values();
+        $documentsBySettlement = $settlementIds->isEmpty()
+            ? []
+            : SettlementDocument::query()
+                ->whereIn('settlement_id', $settlementIds)
+                ->orderBy('format')
+                ->get()
+                ->groupBy(static fn (SettlementDocument $document): string => (string) $document->settlement_id)
+                ->all();
         $historicalSettlementCount = Settlement::query()
             ->whereNull('settlement_run_id')
             ->whereNotExists(fn ($query) => $query
@@ -161,9 +195,11 @@ class SettlementCenter extends Component
             'memberDisplays' => $memberDisplays,
             'legacyDisplays' => $legacyDisplays,
             'documentCounts' => $documentCounts,
+            'documentsBySettlement' => $documentsBySettlement,
             'historicalSettlementCount' => $historicalSettlementCount,
             'historicalPeriods' => array_slice($periods, 1),
             'availablePeriods' => $availablePeriods,
+            'selectedPeriodEnd' => $this->selectedPeriodEnd,
         ]);
     }
 

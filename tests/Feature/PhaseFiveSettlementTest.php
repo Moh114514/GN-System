@@ -408,6 +408,44 @@ class PhaseFiveSettlementTest extends TestCase
         $archive->close();
     }
 
+    public function test_settlement_center_exposes_agent_document_downloads_and_generates_missing_documents(): void
+    {
+        Storage::fake('local');
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'historical',
+            'status' => 'completed',
+            'total_agents' => 1,
+            'existing_agents' => 1,
+        ]);
+        $settlement = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'paid',
+            'generation_status' => 'not_applicable',
+            'snapshot' => ['source' => 'historical_import', 'agent' => ['code' => $this->agent->code, 'name' => $this->agent->name]],
+        ]);
+        SettlementRunMember::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $this->agent->id,
+            'settlement_id' => $settlement->id,
+            'outcome' => 'existing',
+            'processed_at' => now(),
+        ]);
+
+        $component = Livewire::actingAs($this->admin)->test(SettlementCenter::class);
+        $component->assertSee(__('settlements.detail.documents_regenerate'))
+            ->call('regenerateDocuments', $settlement->id);
+
+        $documents = SettlementDocument::query()->where('settlement_id', $settlement->id)->pluck('id', 'format');
+        $this->assertCount(2, $documents);
+        $component->assertSee(route('settlements.documents.download', $documents['pdf']), false)
+            ->assertSee(route('settlements.documents.download', $documents['docx']), false)
+            ->assertDontSee(__('settlements.detail.documents_regenerate'));
+    }
+
     public function test_old_job_payload_can_resolve_a_run_and_agent_without_member_id(): void
     {
         $this->createCompletedOrder(10005);
@@ -883,6 +921,83 @@ class PhaseFiveSettlementTest extends TestCase
         }
     }
 
+    public function test_historical_paid_and_reconciled_settlements_can_generate_and_download_documents(): void
+    {
+        Storage::fake('local');
+        $orderId = $this->createCompletedOrder(10000);
+        $commissionId = DB::table('order_commissions')->where('order_id', $orderId)->value('id');
+
+        foreach ([
+            ['paid', '2026-06-01', '2026-06-30'],
+            ['reconciled', '2026-05-01', '2026-05-31'],
+        ] as [$status, $periodStart, $periodEnd]) {
+            $settlement = Settlement::query()->create([
+                'agent_id' => $this->agent->id,
+                'period_start' => $periodStart,
+                'period_end' => $periodEnd,
+                'settled_on' => '2026-07-01',
+                'exchange_rate_krw_per_cny' => '200',
+                'total_consumption_krw' => 10000,
+                'total_commission_krw' => 1000,
+                'payout_amount_cny_fen' => 500,
+                'status' => $status,
+                'generation_status' => 'not_applicable',
+                'snapshot' => ['source' => 'historical_import', 'agent' => ['code' => $this->agent->code, 'name' => $this->agent->name]],
+            ]);
+            DB::table('settlement_items')->insert([
+                'settlement_id' => $settlement->id,
+                'order_commission_id' => $commissionId,
+                'consumption_krw' => 10000,
+                'commission_krw' => 1000,
+                'rule_snapshot' => json_encode([
+                    'order' => ['id' => $orderId, 'project_name' => 'Historical document item', 'completed_on' => '2026-06-15'],
+                    'rate_bps' => 1000,
+                ], JSON_THROW_ON_ERROR),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            $beforeGeneration = $this->actingAs($this->admin)->get(route('settlements.show', $settlement->id));
+            $beforeGeneration->assertOk()->assertSee('wire:click="regenerateDocuments"', false);
+
+            app(SettlementWorkflow::class)->regenerateDocuments($settlement->id);
+
+            $documents = SettlementDocument::query()->where('settlement_id', $settlement->id)->orderBy('format')->get();
+            $this->assertCount(2, $documents);
+            $this->assertCount(1, data_get($documents->firstWhere('format', 'pdf')->content_snapshot, 'items', []));
+            $this->assertSame($status, $settlement->refresh()->status);
+            $this->assertSame('not_applicable', $settlement->generation_status);
+            foreach ($documents as $document) {
+                Storage::disk('local')->assertExists($document->path);
+                $this->actingAs($this->admin)
+                    ->get(route('settlements.documents.download', $document->id))
+                    ->assertOk()
+                    ->assertHeader('content-disposition');
+            }
+
+            $detail = $this->actingAs($this->admin)->get(route('settlements.show', $settlement->id));
+            $detail->assertOk()->assertSee('wire:click="regenerateDocuments"', false);
+            foreach ($documents as $document) {
+                $detail->assertSee('href="'.route('settlements.documents.download', $document->id).'"', false);
+            }
+        }
+    }
+
+    public function test_historical_document_generation_requires_not_applicable_generation_state(): void
+    {
+        $settlement = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-04-01',
+            'period_end' => '2026-04-30',
+            'status' => 'paid',
+            'generation_status' => 'generated',
+            'snapshot' => ['source' => 'historical_import'],
+        ]);
+
+        $this->expectException(DomainException::class);
+        app(SettlementWorkflow::class)->regenerateDocuments($settlement->id);
+    }
+
     public function test_historical_grade_and_rate_correction_does_not_change_settled_snapshot_or_items(): void
     {
         $orderId = $this->createCompletedOrder(10000);
@@ -1279,6 +1394,53 @@ class PhaseFiveSettlementTest extends TestCase
             ->set('selectedPeriodEnd', '2026-07-31')
             ->assertSee('七月批次代理商')
             ->assertDontSee('八月批次代理商');
+    }
+
+    public function test_settlement_center_preserves_selected_period_in_detail_back_link(): void
+    {
+        $olderRun = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'completed',
+            'total_agents' => 1,
+            'processed_agents' => 1,
+        ]);
+        $latestRun = SettlementRun::query()->create([
+            'period_start' => '2026-08-01',
+            'period_end' => '2026-08-31',
+            'trigger_source' => 'scheduled',
+            'status' => 'completed',
+            'total_agents' => 1,
+            'processed_agents' => 1,
+        ]);
+        $olderSettlement = Settlement::query()->create([
+            'settlement_run_id' => $olderRun->id,
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'pending_review',
+            'generation_status' => 'generated',
+            'snapshot' => ['agent' => ['name' => 'older settlement']],
+        ]);
+        Settlement::query()->create([
+            'settlement_run_id' => $latestRun->id,
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-08-01',
+            'period_end' => '2026-08-31',
+            'status' => 'pending_review',
+            'generation_status' => 'generated',
+            'snapshot' => ['agent' => ['name' => 'latest settlement']],
+        ]);
+
+        $selectedPeriod = ['selectedPeriodEnd' => '2026-07-31'];
+        $this->actingAs($this->admin)->get(route('settlements.index', $selectedPeriod))
+            ->assertOk()
+            ->assertSee('href="'.route('settlements.show', ['settlement' => $olderSettlement->id] + $selectedPeriod).'"', false)
+            ->assertDontSee('latest settlement');
+        $this->actingAs($this->admin)->get(route('settlements.show', ['settlement' => $olderSettlement->id] + $selectedPeriod))
+            ->assertOk()
+            ->assertSee('href="'.route('settlements.index', $selectedPeriod).'"', false);
     }
 
     public function test_settlement_center_shows_historical_settlements_without_a_batch(): void

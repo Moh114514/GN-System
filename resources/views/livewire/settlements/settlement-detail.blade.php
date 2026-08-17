@@ -1,5 +1,6 @@
 <div>
-    <x-page-back :href="$isHistoricalArchive ? route('settlements.history') : route('settlements.index')" :label="$isHistoricalArchive ? __('settlements.detail.back_history') : __('settlements.detail.back')" class="mb-4" />
+    @php($settlementCenterQuery = request()->filled('selectedPeriodEnd') ? ['selectedPeriodEnd' => request()->query('selectedPeriodEnd')] : [])
+    <x-page-back :href="$isHistoricalArchive ? route('settlements.history') : route('settlements.index', $settlementCenterQuery)" :label="$isHistoricalArchive ? __('settlements.detail.back_history') : __('settlements.detail.back')" class="mb-4" />
 
     @php($canRegenerateGeneration = in_array($settlement->generation_status, ['pending', 'unverified'], true))
     @php($needsRegeneration = in_array($settlement->status, ['pending_review', 'rejected']) && $canRegenerateGeneration && $settlement->settlement_run_id !== null)
@@ -63,12 +64,12 @@
             <div class="flex flex-wrap items-center justify-end gap-3">
                 <div class="flex items-center gap-2" :aria-label="__('settlements.detail.batch_navigation')">
                     @if ($previousSettlement)
-                        <a class="text-sm font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $previousSettlement->id) }}" wire:navigate>{{ __('settlements.detail.previous') }}</a>
+                        <a class="text-sm font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', ['settlement' => $previousSettlement->id] + $settlementCenterQuery) }}" wire:navigate>{{ __('settlements.detail.previous') }}</a>
                     @else
                         <span class="text-sm text-zinc-400">{{ __('settlements.detail.previous') }}</span>
                     @endif
                     @if ($nextSettlement)
-                        <a class="text-sm font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $nextSettlement->id) }}" wire:navigate>{{ __('settlements.detail.next') }}</a>
+                        <a class="text-sm font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', ['settlement' => $nextSettlement->id] + $settlementCenterQuery) }}" wire:navigate>{{ __('settlements.detail.next') }}</a>
                     @else
                         <span class="text-sm text-zinc-400">{{ __('settlements.detail.next') }}</span>
                     @endif
@@ -110,7 +111,7 @@
     @endif
 
     <section class="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-        <div class="flex items-center justify-between"><h3 class="font-semibold">{{ __('settlements.detail.settlement_items') }}</h3><div class="flex gap-2">@if ($needsRegeneration)<flux:button wire:click="regenerateSettlement" size="sm" variant="primary">{{ __('settlements.detail.regenerate_settlement') }}</flux:button>@elseif (in_array($settlement->status, ['approved', 'settled']))<flux:button wire:click="regenerateDocuments" size="sm" variant="ghost">{{ __('settlements.detail.documents_regenerate') }}</flux:button>@endif @foreach ($documents as $document)<a class="text-sm font-semibold text-teal-700" href="{{ route('settlements.documents.download', $document->id) }}">{{ __('settlements.detail.download_document', ['format' => strtoupper($document->format)]) }}</a>@endforeach</div></div>
+        <div class="flex items-center justify-between"><h3 class="font-semibold">{{ __('settlements.detail.settlement_items') }}</h3><div class="flex gap-2">@if ($needsRegeneration)<flux:button wire:click="regenerateSettlement" size="sm" variant="primary">{{ __('settlements.detail.regenerate_settlement') }}</flux:button>@elseif (in_array($settlement->status, ['approved', 'settled']) || (in_array($settlement->status, ['paid', 'reconciled']) && $settlement->generation_status === 'not_applicable'))<flux:button wire:click="regenerateDocuments" size="sm" variant="ghost">{{ __('settlements.detail.documents_regenerate') }}</flux:button>@endif @foreach ($documents as $document)<a class="text-sm font-semibold text-teal-700" href="{{ route('settlements.documents.download', $document->id) }}">{{ __('settlements.detail.download_document', ['format' => strtoupper($document->format)]) }}</a>@endforeach</div></div>
         @if ($settlement->generation_status === 'generated' && $items->isEmpty())
             <p class="mt-3 text-sm text-zinc-500">{{ __('settlements.detail.zero_order_hint') }}</p>
         @endif

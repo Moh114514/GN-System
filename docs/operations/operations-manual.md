@@ -116,7 +116,7 @@ GitHub CI 和 GHCR 是发布基础设施，不是可登录的业务环境。
 | 2026-08-07，当前 `develop` | 工作区未发布 | 国际化 PR-A 基础设施、PR-B 日常界面、PR-C 页面及 PR-D 深层输出支持 `zh_CN`/`ko_KR` | 含 `2026_08_07_000100_add_preferred_locale_to_users_table` 至 `2026_08_07_000500_add_localized_content_to_reminders` 五个 migration；查询/看板/结算文档与失败报告、导出文件名、导入问题报告固定标签、解析任务和通知任务已完成 Locale 接入；代理商、客户、配置、审计和提醒的固定文案、默认系统名称及业务异常已完成 Locale 接入；月结、汇率报价与报表导出失败使用结构化消息，提醒模板与实例支持按当前 Locale 投影，看板缓存保存语言无关标识；未知历史自由文本保留或安全降级，语言设置页已开放韩文入口；发布前备份数据库并核对既有用户均为 `zh_CN` |
 | 2026-08-14，当前 `develop` | 工作区未发布 | PR1 收敛客户与订单为代理商归属，移除直销来源、渠道分支及七工作表以外的直销配置内容 | 包含不可逆的 `2026_08_14_000100_remove_direct_sales_business` forward migration；UAT/Production 发布前必须备份，并只读核对直销记录和缺少代理商归属的记录均为 0；迁移发现异常会中止，不能用旧镜像回退替代数据恢复 |
 | 2026-08-14，当前 `develop` | 工作区未发布 | PR1–PR6 已加入：客户/订单归属收敛、客户状态树、提醒 UI 紧凑化、指定节假日客服提醒、Dashboard 数据下钻及自然月月结生成 | PR1 含不可逆 migration，PR6 新增 `2026_08_14_000200_add_generation_day_to_settlement_configurations`；发布前按完整门禁执行，备份并核对 PR1/PR6 数据前置条件；UAT/Production 需人工验收状态树、提醒页面、指定日期规则、Dashboard 日期范围跳转和月结生成时间 |
-| 2026-08-14，当前 `feature/settlement-period-navigation` | 工作区未发布 | PR7 让月结中心默认展示最新已生成周期并支持周期切换，历史归档改用业务日期重叠查询，补齐结清后文档下载回归 | 不新增 migration；UAT 需核对周期下拉、业务日期边界和已结清详情中的 Word/PDF 下载；本机结果不能替代目标环境验证 |
+| 2026-08-17，当前 `develop` | 工作区未发布 | PR7 让月结中心默认展示最新已生成周期并支持周期切换，历史归档改用业务日期重叠查询；已结清详情保留文档下载，历史 `paid`/`reconciled` 月结可在只读详情按需生成并下载 Word/PDF | 不新增 migration；UAT 需核对周期下拉、业务日期边界、已结清详情文档下载及历史文档生成后状态不变；本机结果不能替代目标环境验证 |
 
 当前 `main` 高于 `v0.5.0-rc.8`。服务器上的 `releases/current` 和
 `history.tsv` 才能证明 UAT/Production 实际运行版本；本地 Git 日志不能证明目标环境已经升级。
@@ -273,7 +273,7 @@ PR6 的新配置使用 `settlement_configurations.generation_day=10`，统计周
 
 PR7 的月结中心默认展示最新已生成周期，顶部下拉可切换其他已生成周期，避免首页同时堆叠所有批次。
 历史月结归档使用业务日期起止，并按 `period_start <= businessTo AND period_end >= businessFrom` 判断周期重叠，
-不读取 `created_at`、`generated_at` 或 `reviewed_at` 作为查询依据。已结清详情必须继续显示并允许下载审核时生成的 Word/PDF 文档。
+不读取 `created_at`、`generated_at` 或 `reviewed_at` 作为查询依据。已结清详情必须继续显示并允许下载审核时生成的 Word/PDF 文档；历史 `paid`/`reconciled` 月结在 `generation_status=not_applicable` 时可从只读详情按需生成并下载相同格式文档，生成不改变历史状态。
 
 失败批次详情只读取代理商基础身份信息，即使当月资格或政策等级异常，也必须能够打开详情并生成报告；代理商已删除时保留原始 ID 并显示“未知/代理商不存在或已删除”。每次 XLSX 报告使用独立临时文件，下载完成后由响应清理，避免并发下载互相覆盖。一次操作产生的业务规则错误使用红色 Toast，持续阻断状态仍使用页面顶部横幅。
 
@@ -287,7 +287,7 @@ PR7 的月结中心默认展示最新已生成周期，顶部下拉可切换其�
 - 能从系统生成快照、明细、结算文档或有效已完成批次确认的记录标记为 `generated`；零订单但有系统生成快照的记录保留 `item_count=0`，仍可审核；
 - `historical_import`/`demo_data` 或带导入批次的历史记录标记为 `not_applicable`，不把导入数据误当成新月结生成；
 - 无法可靠确认来源的记录标记为 `unverified`，详情页禁止直接审核。超级管理员必须填写核验依据后选择“核验为历史导入”或“创建恢复批次并重新生成”；两种操作都会记录操作人、修改前后状态和 IP。普通用户和直接调用生成器都不能把 `unverified` 静默改成 `generated`；
-- 只有 `pending`/`unverified` 且有有效批次的待审核/已驳回记录可以按生成流程重新生成；已生成且状态为 `pending_review`/`rejected` 的月结如果检测到订单源数据变化，可由管理员填写原因后刷新明细，刷新会同步原批次汇总并记录新增/移除订单审计；`approved`/`settled` 必须先受控回退，`paid`/`reconciled`/`not_applicable` 永远只读。
+- 只有 `pending`/`unverified` 且有有效批次的待审核/已驳回记录可以按生成流程重新生成；已生成且状态为 `pending_review`/`rejected` 的月结如果检测到订单源数据变化，可由管理员填写原因后刷新明细，刷新会同步原批次汇总并记录新增/移除订单审计；`approved`/`settled` 必须先受控回退，`paid`/`reconciled`/`not_applicable` 不允许更正、刷新或重新生成月结明细，但历史 `paid`/`reconciled` 且 `generation_status=not_applicable` 的记录允许单独生成 Word/PDF 文档。
 
 月结中心不再直接展示未关联批次的历史月结；历史归档入口支持周期、代理商、状态、关键词筛选和分页。历史明细只保留快照展示，存在的订单可跳转详情，已删除订单显示为已归档订单。月结明细中的消费、项目名、日期、费率和推广费仍以 `settlement_items.rule_snapshot` 为准。
 

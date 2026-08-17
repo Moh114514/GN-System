@@ -22,6 +22,12 @@ use Illuminate\Support\Str;
 
 final readonly class SettlementWorkflow
 {
+    /** @var list<string> */
+    private const DOCUMENTABLE_STATUSES = ['approved', 'settled'];
+
+    /** @var list<string> */
+    private const HISTORICAL_DOCUMENTABLE_STATUSES = ['paid', 'reconciled'];
+
     public function __construct(
         private SettlementDocumentGenerator $documents,
         private SettlementAgentGateway $agents,
@@ -206,7 +212,9 @@ final readonly class SettlementWorkflow
     public function regenerateDocuments(int $settlementId): void
     {
         $settlement = Settlement::query()->findOrFail($settlementId);
-        if (! in_array($settlement->status, ['approved', 'settled'], true)) {
+        $historicalDocumentStatus = in_array($settlement->status, self::HISTORICAL_DOCUMENTABLE_STATUSES, true)
+            && $settlement->generation_status === 'not_applicable';
+        if (! in_array($settlement->status, self::DOCUMENTABLE_STATUSES, true) && ! $historicalDocumentStatus) {
             throw new DomainException(__('settlements.errors.only_approved_documents'));
         }
         $this->documents->generate($settlement);

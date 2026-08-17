@@ -253,7 +253,7 @@ return [
         'correction_not_allowed' => '历史已结清或已对账月结不可更正。',
         'same_correction_status' => '目标状态与当前月结状态相同。',
         'accepted_grade_blocks_correction' => '该月结等级建议已经生效，需先人工处理等级安排后才能回退。',
-        'only_approved_documents' => '只有已审核月结可以生成结算单。',
+        'only_approved_documents' => '只有已审核、已结清或已对账月结可以生成结算单。',
         'only_unverified_recovery' => '只有无法确认生成来源的月结可以执行历史核验。',
         'invalid_recovery_status' => '只有待审核或已驳回的无法确认月结可以创建恢复批次。',
         'recovery_batch_exists' => '该月结已有批次，请使用现有批次重试，不要重复创建恢复批次。',

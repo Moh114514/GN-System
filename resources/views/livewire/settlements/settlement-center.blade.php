@@ -1,4 +1,5 @@
 <div>
+    @php($centerPeriodQuery = $selectedPeriodEnd !== '' ? ['selectedPeriodEnd' => $selectedPeriodEnd] : [])
     <section class="crm-section-header">
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ __('settlements.titles.center') }}</h2>
@@ -78,24 +79,48 @@
                             <tr class="bg-zinc-50/70 dark:bg-zinc-800/40">
                                 <td colspan="2">
                                     @if ($settlement)
-                                        <a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $settlement->id) }}" wire:navigate>{{ $agentDisplay['code'] ?? '' }} {{ $agentDisplay['name'] ?? __('settlements.labels.unknown_agent').' #'.$member->agent_id }}</a>
+                                        <a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', ['settlement' => $settlement->id] + $centerPeriodQuery) }}" wire:navigate>{{ $agentDisplay['code'] ?? '' }} {{ $agentDisplay['name'] ?? __('settlements.labels.unknown_agent').' #'.$member->agent_id }}</a>
                                     @else
                                         <span class="font-semibold">{{ $agentDisplay['code'] ?? '' }} {{ $agentDisplay['name'] ?? __('settlements.labels.unknown_agent').' #'.$member->agent_id }}</span>
                                     @endif
                                 </td>
                                 <td>{{ __('settlements.center.outcome_'.$member->outcome) }}</td>
                                 <td>{{ $settlement ? __('settlements.detail.commission').' ₩'.number_format($settlement->total_commission_krw) : ($member->error_message_key ? __($member->error_message_key, $member->error_parameters ?? []) : '—') }}</td>
-                                <td>{{ __('settlements.center.member_status_'.$member->outcome) }}</td>
+                                <td>
+                                    {{ __('settlements.center.member_status_'.$member->outcome) }}
+                                    @if ($settlement)
+                                        @php($documents = $documentsBySettlement[(string) $settlement->id] ?? [])
+                                        <div class="mt-1 flex flex-wrap gap-2">
+                                            @foreach ($documents as $document)
+                                                <a class="text-xs font-semibold text-teal-700 hover:underline" href="{{ route('settlements.documents.download', $document->id) }}" x-on:click.stop>{{ __('settlements.detail.download_document', ['format' => strtoupper($document->format)]) }}</a>
+                                            @endforeach
+                                            @if (count($documents) < 2 && (in_array($settlement->status, ['approved', 'settled'], true) || (in_array($settlement->status, ['paid', 'reconciled'], true) && $settlement->generation_status === 'not_applicable')))
+                                                <flux:button wire:click.stop="regenerateDocuments({{ $settlement->id }})" size="sm" variant="ghost">{{ __('settlements.detail.documents_regenerate') }}</flux:button>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </td>
                             </tr>
                         @endforeach
                     @else
                         @foreach ($run->settlements as $settlement)
                             <tr class="bg-zinc-50/70 dark:bg-zinc-800/40">
                                 @php($agentDisplay = $legacyDisplays[$settlement->id] ?? ['code' => '', 'name' => __('settlements.labels.unknown_agent').' #'.$settlement->agent_id])
-                                <td colspan="2"><a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $settlement->id) }}" wire:navigate>{{ $agentDisplay['code'] }} {{ $agentDisplay['name'] }}</a></td>
+                                <td colspan="2"><a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', ['settlement' => $settlement->id] + $centerPeriodQuery) }}" wire:navigate>{{ $agentDisplay['code'] }} {{ $agentDisplay['name'] }}</a></td>
                                 <td>{{ __('settlements.center.outcome_generated') }}</td>
                                 <td>{{ __('settlements.detail.commission') }} ₩{{ number_format($settlement->total_commission_krw) }}</td>
-                                <td>{{ __('settlements.center.member_status_generated') }}</td>
+                                <td>
+                                    {{ __('settlements.center.member_status_generated') }}
+                                    @php($documents = $documentsBySettlement[(string) $settlement->id] ?? [])
+                                    <div class="mt-1 flex flex-wrap gap-2">
+                                        @foreach ($documents as $document)
+                                            <a class="text-xs font-semibold text-teal-700 hover:underline" href="{{ route('settlements.documents.download', $document->id) }}" x-on:click.stop>{{ __('settlements.detail.download_document', ['format' => strtoupper($document->format)]) }}</a>
+                                        @endforeach
+                                        @if (count($documents) < 2 && (in_array($settlement->status, ['approved', 'settled'], true) || (in_array($settlement->status, ['paid', 'reconciled'], true) && $settlement->generation_status === 'not_applicable')))
+                                            <flux:button wire:click.stop="regenerateDocuments({{ $settlement->id }})" size="sm" variant="ghost">{{ __('settlements.detail.documents_regenerate') }}</flux:button>
+                                        @endif
+                                    </div>
+                                </td>
                             </tr>
                         @endforeach
                     @endif
