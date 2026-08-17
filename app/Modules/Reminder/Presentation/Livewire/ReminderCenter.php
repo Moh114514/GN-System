@@ -21,6 +21,11 @@ class ReminderCenter extends Component
 
     public string $type = '';
 
+    /** @var array<string, array<string, string>> */
+    protected array $queryString = [
+        'type' => ['except' => ''],
+    ];
+
     public string $actionNotes = '';
 
     public string $snoozeUntil = '';

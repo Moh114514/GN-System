@@ -3,7 +3,12 @@
     <head>
         @include('partials.head')
     </head>
-    <body class="crm-body" x-data="{ sidebarOpen: false }" @keydown.escape.window="sidebarOpen = false">
+    <body
+        class="crm-body"
+        data-page-navigation-scope="{{ auth()->check() ? hash('sha256', 'gn-page-navigation:'.auth()->id()) : 'guest' }}"
+        x-data="{ sidebarOpen: false }"
+        @keydown.escape.window="sidebarOpen = false"
+    >
         <aside
             class="crm-sidebar"
             :class="{ 'is-open': sidebarOpen }"

@@ -285,7 +285,11 @@ class CustomerLifecycleTest extends TestCase
             ->assertSee(__('customers.list.create'))
             ->assertSee('138****5678')
             ->assertDontSee('13800005678')
-            ->assertDontSee('P123456');
+            ->assertDontSee('P123456')
+            ->assertSee('aria-label="建档起始日期"', false)
+            ->assertSee('aria-label="建档截止日期"', false)
+            ->assertSee('rounded-full border-transparent bg-zinc-100', false)
+            ->assertDontSee('<label for="customers-created-from"', false);
         $this->assertSame(2, substr_count($response->getContent(), __('customers.list.all_statuses')));
         $this->assertSame(2, substr_count($response->getContent(), __('customers.list.all_agents')));
         $this->assertSame(2, substr_count($response->getContent(), __('customers.list.all_institutions')));
@@ -472,7 +476,9 @@ class CustomerLifecycleTest extends TestCase
             ->assertSee(__('customers.detail.status_flow.heading'))
             ->assertSee($this->user->name)
             ->assertSee(__('customers.detail.back'))
-            ->assertSee('href="'.route('customers.index').'"', false);
+            ->assertSee('href="'.route('customers.index').'"', false)
+            ->assertSee('data-page-back', false)
+            ->assertSee('data-page-back-path="/customers"', false);
         $this->actingAs($this->user)->get(route('customers.edit', $customerId))
             ->assertOk()
             ->assertSee(__('customers.form.edit_heading'))

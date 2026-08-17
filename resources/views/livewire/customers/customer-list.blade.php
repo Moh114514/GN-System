@@ -22,7 +22,7 @@
 
         <div class="flex flex-wrap items-center gap-2">
             <flux:input
-                class="mr-1 w-full sm:w-72"
+                class="w-full sm:w-72"
                 wire:model.live.debounce.350ms="search"
                 icon="magnifying-glass"
                 :placeholder="__('customers.list.search_placeholder')"
@@ -30,7 +30,7 @@
             />
 
             <flux:dropdown>
-                <flux:button class="rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
+                <flux:button class="w-32 rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
                     {{ $selectedStatus['name'] ?? __('customers.list.all_statuses') }}
                 </flux:button>
                 <flux:menu class="max-h-72 overflow-y-auto">
@@ -42,7 +42,7 @@
             </flux:dropdown>
 
             <flux:dropdown>
-                <flux:button class="rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
+                <flux:button class="w-36 rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
                     {{ $selectedAgent['name'] ?? __('customers.list.all_agents') }}
                 </flux:button>
                 <flux:menu class="max-h-72 overflow-y-auto">
@@ -54,7 +54,7 @@
             </flux:dropdown>
 
             <flux:dropdown>
-                <flux:button class="rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
+                <flux:button class="w-36 rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
                     {{ $selectedInstitution['name'] ?? __('customers.list.all_institutions') }}
                 </flux:button>
                 <flux:menu class="max-h-72 overflow-y-auto">
@@ -69,19 +69,23 @@
                 id="customers-created-from"
                 wire:model.live.debounce.400ms="createdFrom"
                 :value="$createdFrom"
-                :label="__('customers.list.created_from')"
+                :placeholder="__('customers.list.created_from')"
+                :aria-label="__('customers.list.created_from')"
+                class="w-full rounded-full border-transparent bg-zinc-100 dark:bg-zinc-800 sm:w-40"
                 size="sm"
             />
             <x-localized-date-picker
                 id="customers-created-to"
                 wire:model.live.debounce.400ms="createdTo"
                 :value="$createdTo"
-                :label="__('customers.list.created_to')"
+                :placeholder="__('customers.list.created_to')"
+                :aria-label="__('customers.list.created_to')"
+                class="w-full rounded-full border-transparent bg-zinc-100 dark:bg-zinc-800 sm:w-40"
                 size="sm"
             />
 
             <flux:dropdown>
-                <flux:button class="rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
+                <flux:button class="w-28 rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
                     {{ __('customers.list.per_page', ['count' => $perPage]) }}
                 </flux:button>
                 <flux:menu>

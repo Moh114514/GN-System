@@ -22,6 +22,7 @@
   账户设置返回总览。
 - 统一使用 `resources/views/components/page-back.blade.php`，按钮采用蓝色实心样式、
   左箭头、`wire:navigate`，标签写明具体目标，例如“返回客户管理”。
+- 共享返回组件保留明确命名父路由作为兜底；`resources/js/app.js` 会在同一父路径的 `wire:navigate` 返回中恢复来源页面的查询参数、分页状态和滚动位置，不能依赖浏览器历史代替父路由。
 - 新增完整页面时，Feature 测试必须验证返回按钮文字和父级路由。
 
 ## 关键姓名展示

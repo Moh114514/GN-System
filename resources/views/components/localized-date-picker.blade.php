@@ -1,13 +1,14 @@
 @props([
     'value' => '',
     'label' => null,
+    'placeholder' => null,
     'locale' => app()->getLocale(),
 ])
 
 @php
     $modelAttributes = $attributes->filter(fn ($attribute, $name) => str_starts_with($name, 'wire:model'));
     $visibleAttributes = $attributes
-        ->except(['class', 'id', 'name', 'value', 'type', 'required', 'size', 'onchange', 'oninput', 'wire:key'])
+        ->except(['class', 'id', 'name', 'value', 'type', 'required', 'size', 'placeholder', 'onchange', 'oninput', 'wire:key'])
         ->filter(fn ($attribute, $name) => ! str_starts_with($name, 'wire:model'));
     $inputId = $attributes->get('id') ?? 'localized-date-picker-'.substr(md5((string) ($label ?? '').$attributes->get('name', '').$attributes->get('wire:model', '')), 0, 10);
     $valueId = $inputId.'-value';
@@ -22,7 +23,7 @@
 @endphp
 
 <div
-    x-data="window.localizedDatePicker({ value: @js($value), locale: @js($locale) })"
+    x-data="window.localizedDatePicker({ value: @js($value), locale: @js($locale), placeholder: @js($placeholder) })"
     @keydown.escape.stop="close()"
     class="relative {{ $label ? 'grid gap-2' : '' }}"
 >
@@ -67,7 +68,7 @@
         class="absolute left-0 top-full z-50 mt-2 w-72 rounded-xl border border-zinc-200 bg-white p-3 shadow-xl dark:border-zinc-700 dark:bg-zinc-900"
         role="dialog"
         aria-modal="false"
-        aria-label="{{ $label ?? __('navigation.date_label') }}"
+        aria-label="{{ $attributes->get('aria-label', $label ?? __('navigation.date_label')) }}"
     >
         <div class="mb-3 flex items-center justify-between gap-2">
             <button type="button" class="rounded-md p-1.5 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" @click="goMonth(-1)" :aria-label="labels.previousMonth">‹</button>

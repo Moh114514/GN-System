@@ -1,19 +1,19 @@
 import * as echarts from 'echarts';
 
-const localizedDatePicker = ({ value = '', locale = 'zh_CN' } = {}) => ({
+const localizedDatePicker = ({ value = '', locale = 'zh_CN', placeholder = '' } = {}) => ({
     open: false,
     iso: '',
     viewDate: new Date(),
     locale,
     labels: {
         ...(locale === 'ko_KR' ? {
-            placeholder: '날짜 선택',
+            placeholder: placeholder || '날짜 선택',
             clear: '지우기',
             today: '오늘',
             previousMonth: '이전 달',
             nextMonth: '다음 달',
         } : {
-            placeholder: '选择日期',
+            placeholder: placeholder || '选择日期',
             clear: '清除',
             today: '今天',
             previousMonth: '上个月',
@@ -123,6 +123,163 @@ registerLocalizedDatePicker();
 document.addEventListener('alpine:init', registerLocalizedDatePicker);
 document.addEventListener('livewire:init', registerLocalizedDatePicker);
 document.addEventListener('livewire:navigated', registerLocalizedDatePicker);
+
+const pageNavigationStorageScope = document.body?.dataset.pageNavigationScope || 'guest';
+const pageNavigationStoragePrefix = `gn-page-navigation:${pageNavigationStorageScope}:`;
+
+if ('scrollRestoration' in window.history) {
+    window.history.scrollRestoration = 'manual';
+}
+
+function pageNavigationStorageKey(type, url) {
+    return `${pageNavigationStoragePrefix}${type}:${encodeURIComponent(url)}`;
+}
+
+function resolvePageNavigationUrl(value) {
+    if (! value) {
+        return null;
+    }
+
+    try {
+        return new URL(value instanceof URL ? value.href : value, window.location.href);
+    } catch {
+        return null;
+    }
+}
+
+function savePageScrollPosition(url = window.location.href) {
+    try {
+        sessionStorage.setItem(
+            pageNavigationStorageKey('scroll', url),
+            JSON.stringify({ top: window.scrollY }),
+        );
+    } catch {
+        // Storage can be unavailable in private browsing; navigation still works normally.
+    }
+}
+
+function readPageScrollPosition(url = window.location.href) {
+    try {
+        const value = JSON.parse(sessionStorage.getItem(pageNavigationStorageKey('scroll', url)) || 'null');
+
+        return Number.isFinite(value?.top) ? value.top : null;
+    } catch {
+        return null;
+    }
+}
+
+function savePageReturnContext(targetUrl) {
+    try {
+        const storageKey = pageNavigationStorageKey('return', targetUrl);
+        const existing = JSON.parse(sessionStorage.getItem(storageKey) || '[]');
+        const contexts = Array.isArray(existing) ? existing : (existing ? [existing] : []);
+        const next = [window.location.href, ...contexts.filter((url) => url !== window.location.href)].slice(0, 8);
+
+        sessionStorage.setItem(
+            storageKey,
+            JSON.stringify(next),
+        );
+    } catch {
+        // Storage can be unavailable in private browsing; the explicit route remains available.
+    }
+}
+
+function applyPageReturnContext() {
+    const pageBack = document.querySelector('[data-page-back]');
+    const fallbackPath = pageBack?.dataset.pageBackPath;
+
+    if (! pageBack || ! fallbackPath) {
+        return;
+    }
+
+    try {
+        const storageKey = pageNavigationStorageKey('return', window.location.href);
+        const stored = JSON.parse(sessionStorage.getItem(storageKey) || '[]');
+        const contexts = Array.isArray(stored) ? stored : (stored ? [stored] : []);
+        const sourceIndex = contexts.findIndex((url) => {
+            const source = resolvePageNavigationUrl(url);
+
+            return source?.origin === window.location.origin && source.pathname === fallbackPath;
+        });
+        const source = resolvePageNavigationUrl(contexts[sourceIndex]);
+
+        if (! source || sourceIndex < 0) {
+            return;
+        }
+
+        pageBack.setAttribute('href', source.href);
+        // Keep the source stack so an intermediate edit page can return to this
+        // detail page without losing the original list filters and scroll state.
+    } catch {
+        // Storage can be unavailable in private browsing; the explicit route remains available.
+    }
+}
+
+let pageNavigationVersion = 0;
+
+function restorePageScrollPosition(navigationVersion) {
+    const top = readPageScrollPosition();
+
+    if (top === null) {
+        return;
+    }
+
+    let attempts = 0;
+    const restore = () => {
+        if (navigationVersion !== pageNavigationVersion) {
+            return;
+        }
+
+        const documentHeight = Math.max(
+            document.documentElement?.scrollHeight || 0,
+            document.body?.scrollHeight || 0,
+        );
+        const maxScrollTop = Math.max(0, documentHeight - window.innerHeight);
+
+        // Livewire can finish replacing the page after `livewire:navigated`.
+        // Wait until the new layout is tall enough, otherwise scrollTo clamps
+        // the requested position to zero and the list stays at the top.
+        if (maxScrollTop < top && attempts < 40) {
+            attempts += 1;
+            window.setTimeout(restore, 100);
+            return;
+        }
+
+        window.scrollTo({ top, left: 0, behavior: 'auto' });
+    };
+
+    window.requestAnimationFrame(() => window.requestAnimationFrame(restore));
+}
+
+let pageScrollSaveTimer = null;
+
+window.addEventListener('scroll', () => {
+    if (pageScrollSaveTimer !== null) {
+        return;
+    }
+
+    pageScrollSaveTimer = window.setTimeout(() => {
+        pageScrollSaveTimer = null;
+        savePageScrollPosition();
+    }, 100);
+}, { passive: true });
+
+window.addEventListener('pagehide', () => savePageScrollPosition());
+
+document.addEventListener('livewire:navigate', (event) => {
+    const target = resolvePageNavigationUrl(event.detail?.url);
+
+    savePageScrollPosition();
+    if (target && target.origin === window.location.origin) {
+        savePageReturnContext(target.href);
+    }
+});
+
+document.addEventListener('livewire:navigated', () => {
+    pageNavigationVersion += 1;
+    applyPageReturnContext();
+    restorePageScrollPosition(pageNavigationVersion);
+});
 
 if (typeof window.__gnStartAlpine === 'function') {
     const startAlpine = window.__gnStartAlpine;
