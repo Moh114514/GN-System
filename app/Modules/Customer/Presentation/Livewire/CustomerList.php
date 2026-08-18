@@ -3,6 +3,8 @@
 namespace App\Modules\Customer\Presentation\Livewire;
 
 use App\Modules\Customer\Application\Services\CustomerDirectory;
+use App\Support\DateRange;
+use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Validation\ValidationException;
@@ -26,6 +28,8 @@ class CustomerList extends Component
     public string $createdFrom = '';
 
     public string $createdTo = '';
+
+    public string $dateGranularity = 'day';
 
     public int $perPage = 20;
 
@@ -59,6 +63,14 @@ class CustomerList extends Component
     {
         $this->reset('search', 'statusId', 'agentId', 'institutionId', 'createdFrom', 'createdTo');
         $this->perPage = 20;
+        $this->resetPage();
+    }
+
+    public function applyDatePreset(string $preset): void
+    {
+        $range = DateRange::preset($preset, CarbonImmutable::now('Asia/Shanghai'));
+        $this->createdFrom = $range->startAt?->toDateString() ?? '';
+        $this->createdTo = $range->endExclusive?->subDay()->toDateString() ?? '';
         $this->resetPage();
     }
 

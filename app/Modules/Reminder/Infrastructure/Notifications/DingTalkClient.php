@@ -15,7 +15,8 @@ final class DingTalkClient implements StaffNotificationSender
             && config('dingtalk.webhook_url') !== '';
     }
 
-    public function send(string $title, string $text, ?string $link = null): void
+    /** @param list<string> $recipients */
+    public function send(string $title, string $text, ?string $link = null, array $recipients = []): void
     {
         if (! $this->enabled()) {
             throw new DomainException(__('reminders.errors.dingtalk_not_configured'));
@@ -34,6 +35,7 @@ final class DingTalkClient implements StaffNotificationSender
         $response = Http::timeout(10)->post($url, [
             'msgtype' => 'markdown',
             'markdown' => ['title' => $title, 'text' => $content],
+            'at' => ['atUserIds' => $recipients, 'isAtAll' => false],
         ]);
         $response->throw();
         if ((int) $response->json('errcode', 0) !== 0) {

@@ -64,7 +64,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        $statusId = (int) CustomerStatus::query()->where('key', 'interested')->value('id');
+        $statusId = (int) CustomerStatus::query()->where('key', 'booked')->value('id');
         $this->customer = Customer::query()->create([
             'code' => 'P6-AGENT-0001',
             'name' => 'Phase Six Customer',
@@ -467,8 +467,8 @@ class PhaseSixReportingConfigurationTest extends TestCase
             $this->assertNotSame($zhExport->id, $koExport->id);
             $this->assertSame('zh_CN', $zhExport->data_snapshot['locale']);
             $this->assertSame('ko_KR', $koExport->data_snapshot['locale']);
-            $this->assertSame('意向', $zhExport->data_snapshot['panels']['recent_customers'][0]['status_name']);
-            $this->assertSame('관심', $koExport->data_snapshot['panels']['recent_customers'][0]['status_name']);
+            $this->assertSame('已预约', $zhExport->data_snapshot['panels']['recent_customers'][0]['status_name']);
+            $this->assertSame('예약 완료', $koExport->data_snapshot['panels']['recent_customers'][0]['status_name']);
             $this->assertSame(2, ReportExport::query()->where('kind', 'dashboard')->count());
             $this->assertStringContainsString('<html lang="zh-CN">', Storage::disk('local')->get($zhExport->path));
             $this->assertStringContainsString('GN-System 数据看板', Storage::disk('local')->get($zhExport->path));
@@ -500,7 +500,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->assertFalse($invitedUser->fresh()->is_active);
         $this->assertSame(2, $invitedUser->fresh()->session_version);
 
-        $status = CustomerStatus::query()->where('key', 'interested')->firstOrFail();
+        $status = CustomerStatus::query()->where('key', 'booked')->firstOrFail();
         $history = app(CustomerConfigurationHistory::class);
         $snapshotId = $history->capture($admin->id);
         $status->update(['name' => 'Changed']);

@@ -36,13 +36,9 @@ class PhaseTwoDemoDataSeeder extends Seeder
 
     /** @var array<int, string> */
     private const STATUS_NAMES = [
-        '意向',
-        '已报价',
         '已预约',
         '已到院',
-        '已回国',
-        '沉默待唤醒',
-        '已流失',
+        '施术结束',
     ];
 
     public function run(): void

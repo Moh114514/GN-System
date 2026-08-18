@@ -161,11 +161,9 @@ final readonly class DashboardService
     {
         $total = (int) $current['customer']['total_customers'];
         $rows = [
-            'registered' => $total,
-            'appointed' => (int) $current['order']['lifecycle']['appointed_customers'],
-            'arrived' => (int) $current['customer']['arrived_customers'],
-            'followed_up' => (int) $current['reminder']['followup_customers'],
-            'repeat' => (int) $current['order']['lifecycle']['repeat_customers'],
+            'booked' => (int) ($current['customer']['status_counts']['booked'] ?? 0),
+            'arrived' => (int) ($current['customer']['status_counts']['arrived'] ?? 0),
+            'treatment_completed' => (int) ($current['customer']['status_counts']['treatment_completed'] ?? 0),
         ];
 
         return array_map(fn (string $key, int $value): array => [

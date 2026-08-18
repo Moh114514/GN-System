@@ -39,4 +39,9 @@ final readonly class ConfigurationUserCoordinator
     {
         $this->users->setActive($userId, $active, $actorId, $ipAddress);
     }
+
+    public function setDingTalkUserId(int $userId, ?string $dingtalkUserId, int $actorId, ?string $ipAddress): void
+    {
+        $this->users->setDingTalkUserId($userId, $dingtalkUserId, $actorId, $ipAddress);
+    }
 }

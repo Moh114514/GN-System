@@ -4,11 +4,13 @@ namespace App\Modules\Config;
 
 use App\Modules\Config\Application\Contracts\CatalogImportGateway;
 use App\Modules\Config\Application\Contracts\InstitutionReferenceReader;
+use App\Modules\Config\Application\Contracts\NotificationRecipientGateway;
 use App\Modules\Config\Application\Contracts\OrderDictionaryReader;
 use App\Modules\Config\Application\Contracts\ReferenceConfigurationImportGateway;
 use App\Modules\Config\Application\Contracts\ReportConfigReader;
 use App\Modules\Config\Application\Services\DatabaseCatalogImportGateway;
 use App\Modules\Config\Application\Services\DatabaseInstitutionReferenceReader;
+use App\Modules\Config\Application\Services\DatabaseNotificationRecipientGateway;
 use App\Modules\Config\Application\Services\DatabaseOrderDictionaryReader;
 use App\Modules\Config\Application\Services\DatabaseReferenceConfigurationImportGateway;
 use App\Modules\Config\Application\Services\DatabaseReportConfigReader;
@@ -16,6 +18,7 @@ use App\Modules\Config\Presentation\Livewire\CatalogConfiguration;
 use App\Modules\Config\Presentation\Livewire\ConfigurationCenter;
 use App\Modules\Config\Presentation\Livewire\ConfigurationHistory;
 use App\Modules\Config\Presentation\Livewire\DataMaintenanceCenter;
+use App\Modules\Config\Presentation\Livewire\NotificationRecipientConfiguration;
 use App\Modules\Config\Presentation\Livewire\UserManagement;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
@@ -29,6 +32,7 @@ class ConfigServiceProvider extends ServiceProvider
         $this->app->bind(ReferenceConfigurationImportGateway::class, DatabaseReferenceConfigurationImportGateway::class);
         $this->app->bind(ReportConfigReader::class, DatabaseReportConfigReader::class);
         $this->app->bind(OrderDictionaryReader::class, DatabaseOrderDictionaryReader::class);
+        $this->app->bind(NotificationRecipientGateway::class, DatabaseNotificationRecipientGateway::class);
     }
 
     public function boot(): void
@@ -41,6 +45,8 @@ class ConfigServiceProvider extends ServiceProvider
                 ->name('configuration.catalog');
             Route::get('/admin/configuration/users', UserManagement::class)
                 ->name('configuration.users');
+            Route::get('/admin/configuration/notifications', NotificationRecipientConfiguration::class)
+                ->name('configuration.notifications');
             Route::get('/admin/configuration/history', ConfigurationHistory::class)
                 ->name('configuration.history');
         });

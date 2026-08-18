@@ -10,6 +10,9 @@ use App\Modules\Customer\Infrastructure\Models\CustomerLifecycleStage;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusTransition;
+use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
+use App\Modules\Reminder\Application\Data\CustomerTreatmentCompletedData;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -18,6 +21,7 @@ final readonly class CustomerStatusManager
     public function __construct(
         private AuditRecorder $audit,
         private ConfigurationHistoryGateway $configurationHistory,
+        private TreatmentReminderGateway $reminders,
     ) {}
 
     public function change(
@@ -53,7 +57,13 @@ final readonly class CustomerStatusManager
                 throw ValidationException::withMessages(['statusReason' => __('customers.validation.status_reason_required')]);
             }
 
-            $customer->update(['current_status_id' => $target->id]);
+            $completedAt = $target->key === 'treatment_completed'
+                ? ($customer->treatment_completed_at?->toImmutable() ?? CarbonImmutable::now())
+                : $customer->treatment_completed_at;
+            $customer->update([
+                'current_status_id' => $target->id,
+                'treatment_completed_at' => $completedAt,
+            ]);
             CustomerStatusHistory::query()->create([
                 'customer_id' => $customer->id,
                 'from_status_id' => $current?->id,
@@ -79,6 +89,15 @@ final readonly class CustomerStatusManager
                 event: 'status_changed',
                 ipAddress: $ipAddress,
             );
+            if ($target->key === 'treatment_completed') {
+                $this->reminders->scheduleForCustomer(new CustomerTreatmentCompletedData(
+                    customerId: (int) $customer->id,
+                    projectName: (string) ($customer->project_intention ?: '术后恢复'),
+                    completedAt: $completedAt,
+                    ownerId: $customer->owner_id === null ? null : (int) $customer->owner_id,
+                    actorId: (int) $actor->id,
+                ));
+            }
         }, 3);
     }
 
@@ -138,7 +157,7 @@ final readonly class CustomerStatusManager
                 ]);
             }
 
-            $defaultStatus = CustomerStatus::query()->where('key', 'interested')->firstOrFail();
+            $defaultStatus = CustomerStatus::query()->where('key', 'booked')->firstOrFail();
             foreach ($statuses as $input) {
                 if ($input['id'] === $defaultStatus->id && ! $input['is_active']) {
                     throw ValidationException::withMessages(['configuration' => __('customers.validation.default_status_cannot_be_disabled')]);

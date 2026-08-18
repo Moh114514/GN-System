@@ -74,6 +74,10 @@
                 class="w-full rounded-full border-transparent bg-zinc-100 dark:bg-zinc-800 sm:w-40"
                 size="sm"
             />
+              <flux:dropdown>
+                <flux:button class="w-24 rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">{{ __('customers.list.date_quick') }}</flux:button>
+                <flux:menu><flux:menu.item wire:click="applyDatePreset('today')">{{ __('customers.list.today') }}</flux:menu.item><flux:menu.item wire:click="applyDatePreset('month')">{{ __('customers.list.this_month') }}</flux:menu.item><flux:menu.item wire:click="applyDatePreset('year')">{{ __('customers.list.this_year') }}</flux:menu.item></flux:menu>
+            </flux:dropdown>
             <x-localized-date-picker
                 id="customers-created-to"
                 wire:model.live.debounce.400ms="createdTo"

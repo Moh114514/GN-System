@@ -8,6 +8,7 @@ use App\Modules\Agent\Infrastructure\Models\PolicyGrade;
 use App\Modules\Agent\Infrastructure\Models\PolicySystem;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Settlement\Infrastructure\Models\CommissionRule;
+use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -43,40 +44,28 @@ class ConfigurationUserExperienceTest extends TestCase
         $this->actingAs($admin)
             ->get(route('customer-statuses.index'))
             ->assertOk()
-            ->assertSee('首次接触')
-            ->assertSee('意向')
-            ->assertSee('已报价')
+            ->assertSee('客户生命周期')
+            ->assertSee('已预约')
+            ->assertSee('施术结束')
             ->assertSee('排序数字越小，生命周期阶段越靠前')
-            ->assertSee('已有历史数据不会被删除')
             ->assertDontSee('尚未初始化生命周期阶段')
             ->assertDontSee('尚未初始化客户状态');
 
-        $this->assertDatabaseHas('customer_lifecycle_stages', ['key' => 'first_contact']);
-        $this->assertDatabaseHas('customer_statuses', ['key' => 'interested']);
+        $this->assertDatabaseHas('customer_lifecycle_stages', ['key' => 'customer_lifecycle']);
+        $this->assertDatabaseHas('customer_statuses', ['key' => 'booked']);
         $this->assertDatabaseHas('customer_status_transitions', [
-            'from_status_id' => DB::table('customer_statuses')->where('key', 'interested')->value('id'),
-            'to_status_id' => DB::table('customer_statuses')->where('key', 'quoted')->value('id'),
+            'from_status_id' => DB::table('customer_statuses')->where('key', 'arrived')->value('id'),
+            'to_status_id' => DB::table('customer_statuses')->where('key', 'treatment_completed')->value('id'),
         ]);
     }
 
-    public function test_lifecycle_baseline_migration_is_idempotent_and_preserves_configuration(): void
+    public function test_lifecycle_reference_seeder_is_idempotent_and_keeps_the_three_state_baseline(): void
     {
-        DB::table('customer_lifecycle_stages')
-            ->where('key', 'first_contact')
-            ->update(['name' => '自定义首次接触', 'sort_order' => 99, 'is_active' => false]);
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
 
-        $migration = require database_path('migrations/2026_07_30_010000_backfill_customer_lifecycle_configuration.php');
-        $migration->up();
-
-        $this->assertDatabaseHas('customer_lifecycle_stages', [
-            'key' => 'first_contact',
-            'name' => '自定义首次接触',
-            'sort_order' => 99,
-            'is_active' => false,
-        ]);
-        $this->assertSame(5, DB::table('customer_lifecycle_stages')->count());
-        $this->assertSame(7, DB::table('customer_statuses')->count());
-        $this->assertSame(6, DB::table('customer_status_transitions')->count());
+        $this->assertSame(1, DB::table('customer_lifecycle_stages')->count());
+        $this->assertSame(3, DB::table('customer_statuses')->count());
+        $this->assertSame(2, DB::table('customer_status_transitions')->count());
     }
 
     public function test_agent_configuration_explains_fields_and_supports_view_sorting(): void

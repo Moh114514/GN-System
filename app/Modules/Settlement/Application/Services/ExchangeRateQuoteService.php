@@ -40,8 +40,11 @@ final readonly class ExchangeRateQuoteService
             if ($quote->available) {
                 $locked->update([
                     'exchange_rate_krw_per_cny' => $quote->rate,
+                    'exchange_rate' => $quote->rate,
                     'exchange_rate_quote_source' => $quote->source,
+                    'exchange_rate_source' => $quote->source,
                     'exchange_rate_quoted_at' => $quote->quotedAt,
+                    'exchange_rate_date' => $quote->quotedAt->toDateString(),
                     'exchange_rate_quote_attempted_at' => $attemptedAt,
                     'exchange_rate_quote_status' => 'available',
                     'exchange_rate_quote_error' => null,

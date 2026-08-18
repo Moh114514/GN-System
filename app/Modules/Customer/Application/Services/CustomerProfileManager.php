@@ -98,7 +98,7 @@ final readonly class CustomerProfileManager
                 throw ValidationException::withMessages(['confirmedCode' => __('customers.validation.code_exists')]);
             }
 
-            $status = CustomerStatus::query()->where('key', 'interested')->where('is_active', true)->first();
+            $status = CustomerStatus::query()->where('key', 'booked')->where('is_active', true)->first();
             if ($status === null) {
                 throw ValidationException::withMessages(['status' => __('customers.validation.default_status_inactive')]);
             }

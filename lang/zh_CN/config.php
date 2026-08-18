@@ -33,6 +33,7 @@ return [
         ],
     ],
     'user_management' => [
+        'dingtalk_user_id' => '钉钉 UserId',
         'eyebrow' => '配置中心 · 账号权限',
         'title' => '内部用户管理',
         'description' => '新用户通过一次性密码设置链接激活；停用账号后，该用户将无法登录，已登录的也会立即退出。',
@@ -59,6 +60,17 @@ return [
             'account_activated' => '账号已启用。',
             'account_deactivated' => '账号已停用，现有会话已清理。',
         ],
+    ],
+    'notification_recipients' => [
+        'eyebrow' => '配置中心 · 通知设置',
+        'title' => '通知负责人',
+        'description' => '配置代理商等级调整的站内通知和钉钉群提醒接收人。',
+        'internal_heading' => '系统通知负责人',
+        'dingtalk_heading' => '钉钉 @负责人',
+        'dingtalk_bound' => '已绑定 UserId',
+        'dingtalk_missing' => '未绑定 UserId',
+        'save' => '保存通知设置',
+        'toast' => ['saved' => '通知负责人配置已保存。'],
     ],
     'configuration_history' => [
         'eyebrow' => '配置中心 · 版本记录',
@@ -134,6 +146,6 @@ return [
         'toast' => ['type_saved' => '类型代码已保存。', 'type_status_updated' => '类型代码状态已更新。', 'policy_saved' => '政策体系已保存。', 'policy_status_updated' => '政策体系状态已更新。', 'grade_saved' => '政策等级已保存。', 'grade_status_updated' => '政策等级状态已更新。', 'rate_saved' => '机构费率已保存。', 'override_saved' => '代理商特批已保存。'],
     ],
     'customer_status' => [
-        'back' => '返回配置中心', 'eyebrow' => '配置中心 · 客户配置', 'title' => '生命周期状态配置', 'description' => '系统内部编码保持不变；可调整显示名称、顺序、启用状态和允许的前进路径。', 'stages_heading' => '生命周期阶段', 'statuses_heading' => '客户状态与转移', 'sort_order' => '排序', 'enabled' => '启用', 'stage' => '所属阶段', 'allow_forward' => '允许前进到', 'save' => '保存配置', 'stage_name_title' => '阶段显示名称可以调整；:key 是系统使用的稳定机器键，不会随名称变化。', 'status_name_title' => '状态显示名称可以调整；:key 是系统使用的稳定机器键，不会随名称变化。', 'stage_sort_title' => '排序数字越小，生命周期阶段越靠前；数字相同时按机器键稳定排序。', 'status_sort_title' => '排序数字越小，同一配置列表中的客户状态越靠前；数字相同时按机器键稳定排序。', 'stage_enabled_title' => '停用阶段后，该阶段不再用于新的业务选择；已有历史数据不会被删除。', 'status_enabled_title' => '停用状态后，该状态不再用于新的业务选择；已有客户的历史状态不会被删除。', 'status_stage_title' => '决定该客户状态归属哪个生命周期阶段，并随阶段顺序展示。', 'allow_forward_title' => '勾选后，客户可从当前状态前进到对应目标状态；未勾选的转移会被业务规则拒绝。', 'transition_title' => '允许从“:from”前进到“:to”。', 'empty_stages' => '尚未初始化生命周期阶段。请先确认当前版本的数据库迁移已执行完成。', 'empty_statuses' => '尚未初始化客户状态。请先确认当前版本的数据库迁移已执行完成。', 'toast' => ['saved' => '客户状态配置已保存。'],
+        'back' => '返回配置中心', 'eyebrow' => '配置中心 · 客户配置', 'title' => '客户状态配置', 'description' => '客户生命周期固定为已预约、已到院、施术结束；可调整显示名称、顺序和允许的前进路径。', 'stages_heading' => '生命周期阶段', 'statuses_heading' => '客户状态与转移', 'sort_order' => '排序', 'enabled' => '启用', 'stage' => '所属阶段', 'allow_forward' => '允许前进到', 'save' => '保存配置', 'stage_name_title' => '阶段显示名称可以调整；:key 是系统使用的稳定机器键，不会随名称变化。', 'status_name_title' => '状态显示名称可以调整；:key 是系统使用的稳定机器键，不会随名称变化。', 'stage_sort_title' => '排序数字越小，生命周期阶段越靠前；数字相同时按机器键稳定排序。', 'status_sort_title' => '排序数字越小，同一配置列表中的客户状态越靠前；数字相同时按机器键稳定排序。', 'stage_enabled_title' => '停用阶段后，该阶段不再用于新的业务选择。', 'status_enabled_title' => '停用状态后，该状态不再用于新的业务选择。', 'status_stage_title' => '决定该客户状态归属哪个生命周期阶段，并随阶段顺序展示。', 'allow_forward_title' => '勾选后，客户可从当前状态前进到对应目标状态；未勾选的转移会被业务规则拒绝。', 'transition_title' => '允许从“:from”到“:to”。', 'empty_stages' => '尚未初始化生命周期阶段。请先确认当前版本的数据库迁移已执行完成。', 'empty_statuses' => '尚未初始化客户状态。请先确认当前版本的数据库迁移已执行完成。', 'toast' => ['saved' => '客户状态配置已保存。'],
     ],
 ];

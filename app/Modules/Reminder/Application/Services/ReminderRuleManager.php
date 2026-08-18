@@ -274,16 +274,10 @@ final readonly class ReminderRuleManager
         $schedules = [
             'pre_visit_confirmation' => ['date_offset', ['field' => 'appointment_at', 'offset_days' => -3, 'time' => '09:00']],
             'arrival_reception' => ['date_offset', ['field' => 'appointment_at', 'offset_days' => -1, 'time' => '18:00']],
-            'post_treatment_1' => ['date_offset', ['field' => 'completed_on', 'offset_days' => 1, 'time' => '09:00']],
             'post_treatment_7' => ['date_offset', ['field' => 'completed_on', 'offset_days' => 7, 'time' => '09:00']],
             'post_treatment_30' => ['date_offset', ['field' => 'completed_on', 'offset_days' => 30, 'time' => '09:00']],
-            'post_treatment_90' => ['date_offset', ['field' => 'completed_on', 'offset_days' => 90, 'time' => '09:00']],
-            'post_treatment_180' => ['date_offset', ['field' => 'completed_on', 'offset_days' => 180, 'time' => '09:00']],
             'birthday' => ['date_offset', ['field' => 'birth_date', 'offset_days' => 0, 'time' => '09:00']],
             'holiday' => ['manual', []],
-            'existing_customer' => ['fixed_cycle', ['interval_days' => 90, 'time' => '09:00']],
-            'dormant_customer' => ['fixed_cycle', ['interval_days' => 180, 'time' => '09:00']],
-            'repurchase' => ['fixed_cycle', ['interval_days' => 180, 'time' => '09:00']],
         ];
         $definitions = [];
         foreach ($schedules as $key => [$type, $config]) {

@@ -101,24 +101,20 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
             ->join('customer_statuses as status', 'status.id', '=', 'customers.current_status_id')
             ->join('customer_lifecycle_stages as stage', 'stage.id', '=', 'status.stage_id')
             ->where('customers.created_at', '<=', $to)
-            ->where('stage.sort_order', '>=', 30)
+            ->whereIn('status.key', ['arrived', 'treatment_completed'])
             ->distinct('customers.id')
             ->count('customers.id');
-        $lostStatusId = DB::table('customer_statuses')->where('key', 'lost')->value('id');
         $activeCustomers = Customer::query()
             ->where('created_at', '<=', $to)
-            ->when($lostStatusId !== null, fn ($query) => $query->whereRaw(
-                'COALESCE((
-                    SELECT history.to_status_id
-                    FROM customer_status_histories history
-                    WHERE history.customer_id = customers.id
-                      AND history.changed_at <= ?
-                    ORDER BY history.changed_at DESC, history.id DESC
-                    LIMIT 1
-                ), customers.current_status_id) <> ?',
-                [$to, $lostStatusId],
-            ))
             ->count();
+        $statusCounts = DB::table('customers')
+            ->leftJoin('customer_statuses as status', 'status.id', '=', 'customers.current_status_id')
+            ->where('customers.created_at', '<=', $to)
+            ->selectRaw("COALESCE(status.key, 'booked') as status_key, COUNT(*)::int as value")
+            ->groupByRaw("COALESCE(status.key, 'booked')")
+            ->pluck('value', 'status_key')
+            ->map(fn ($value): int => (int) $value)
+            ->all();
         $sourceDistribution = Customer::query()
             ->whereBetween('customers.created_at', [$from, $to])
             ->select([
@@ -158,10 +154,10 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
                 'source_type' => 'agent',
                 'source_id' => (int) $customer->source_agent_id,
                 'source_name' => '',
-                'status_key' => (string) ($customer->getAttribute('status_key') ?: 'registered'),
+                'status_key' => (string) ($customer->getAttribute('status_key') ?: 'booked'),
                 'status_name' => (string) ($customer->getAttribute('status_name') ?? ''),
                 'status_translation_key' => $customer->getAttribute('status_name') === null
-                    ? 'customers.timeline.registered'
+                    ? 'customers.timeline.booked'
                     : $this->labels->statusTranslationKey(
                         (string) $customer->getAttribute('status_key'),
                         (string) $customer->getAttribute('status_name'),
@@ -176,6 +172,7 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
             'active_customers' => $activeCustomers,
             'total_customers' => $totalCustomers,
             'arrived_customers' => $arrivedCustomers,
+            'status_counts' => $statusCounts,
             'source_distribution' => $sourceDistribution,
             'recent_customers' => $recentCustomers,
         ];

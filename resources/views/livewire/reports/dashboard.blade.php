@@ -59,34 +59,20 @@
                 ['repurchase_rate', __('dashboard.metrics.repurchase_rate'), false, 'arrow-path', 'purple', 'M0,18 Q15,14 30,12 T60,16 T90,10 T110,6'],
             ];
             $lifecycleDefinitions = [
-                'registered' => [__('dashboard.lifecycle.registered'), 'clipboard-document', 'teal'],
-                'appointed' => [__('dashboard.lifecycle.appointed'), 'calendar-days', 'blue'],
+                'booked' => [__('dashboard.statuses.appointed'), 'calendar-days', 'blue'],
                 'arrived' => [__('dashboard.lifecycle.arrived'), 'building-office-2', 'purple'],
-                'followed_up' => [__('dashboard.lifecycle.followed_up'), 'phone', 'amber'],
-                'repeat' => [__('dashboard.lifecycle.repeat'), 'arrow-path', 'green'],
+                'treatment_completed' => [__('dashboard.statuses.treated'), 'check-badge', 'teal'],
             ];
             $statusTones = [
-                'registered' => 'gray',
-                'potential' => 'gray',
-                'interested' => 'blue',
-                'quoted' => 'blue',
-                'appointment' => 'blue',
-                'appointed' => 'blue',
                 'booked' => 'blue',
                 'arrived' => 'purple',
-                'treatment' => 'teal',
-                'treated' => 'teal',
-                'followup' => 'amber',
-                'returned_home' => 'amber',
-                'repeat' => 'green',
-                'dormant' => 'gray',
-                'lost' => 'red',
+                'treatment_completed' => 'teal',
             ];
             $ranking = array_slice($snapshot['charts']['agent_promotion_ranking'], 0, 5);
             $rankingTotal = array_sum(array_column($ranking, 'value'));
             $rankingMax = max(1, ...array_column($ranking ?: [['value' => 0]], 'value'));
             $lifecycle = $snapshot['panels']['lifecycle'];
-            $repeatLifecycle = collect($lifecycle)->firstWhere('key', 'repeat');
+            $repeatLifecycle = collect($lifecycle)->firstWhere('key', 'treatment_completed');
             $settlement = $snapshot['panels']['settlement_progress'];
             $rangeFrom = \Carbon\CarbonImmutable::parse($snapshot['range']['from'])->setTimezone('Asia/Shanghai')->toDateString();
             $rangeTo = \Carbon\CarbonImmutable::parse($snapshot['range']['to'])->setTimezone('Asia/Shanghai')->toDateString();
@@ -340,13 +326,9 @@
             <footer class="crm-dashboard-footer">
                 <div>
                     <span>{{ __('dashboard.panels.status_legend') }}</span>
-                    <span><i class="tone-green"></i>{{ __('dashboard.statuses.repeat') }}</span>
                     <span><i class="tone-blue"></i>{{ __('dashboard.statuses.appointed') }}</span>
                     <span><i class="tone-purple"></i>{{ __('dashboard.statuses.arrived') }}</span>
                     <span><i class="tone-teal"></i>{{ __('dashboard.statuses.treated') }}</span>
-                    <span><i class="tone-amber"></i>{{ __('dashboard.statuses.followup') }}</span>
-                    <span><i class="tone-red"></i>{{ __('dashboard.statuses.lost') }}</span>
-                    <span><i class="tone-gray"></i>{{ __('dashboard.statuses.registered') }}</span>
                 </div>
                 <span>
                     {{ __('dashboard.panels.updated_at') }}

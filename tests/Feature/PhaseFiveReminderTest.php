@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Modules\Agent\Infrastructure\Models\Agent;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Config\Infrastructure\Models\Institution;
+use App\Modules\Config\Infrastructure\Models\NotificationRecipientConfig;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Order\Infrastructure\Models\Appointment;
 use App\Modules\Order\Infrastructure\Models\Order;
@@ -79,7 +80,7 @@ class PhaseFiveReminderTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_completed_treatment_creates_five_idempotent_future_reminders(): void
+    public function test_completed_treatment_creates_two_idempotent_future_reminders(): void
     {
         $order = Order::query()->create([
             'customer_id' => $this->customer->id,
@@ -103,9 +104,9 @@ class PhaseFiveReminderTest extends TestCase
         $gateway->schedule($data);
         $gateway->schedule($data);
 
-        $this->assertDatabaseCount('reminders', 5);
+        $this->assertDatabaseCount('reminders', 2);
         $this->assertDatabaseHas('reminders', ['customer_id' => $this->customer->id, 'reminder_type' => 'post_treatment', 'status' => 'pending']);
-        $this->assertDatabaseCount('reminder_events', 5);
+        $this->assertDatabaseCount('reminder_events', 2);
     }
 
     public function test_cancelled_post_treatment_reminders_reactivate_on_order_recompletion(): void
@@ -136,9 +137,9 @@ class PhaseFiveReminderTest extends TestCase
 
         $gateway->schedule($data);
 
-        $this->assertSame(5, Reminder::query()->where('order_id', $order->id)->count());
+        $this->assertSame(2, Reminder::query()->where('order_id', $order->id)->count());
         $this->assertSame('completed', $completed->refresh()->status);
-        $this->assertSame(4, Reminder::query()->where('order_id', $order->id)->where('status', 'pending')->count());
+        $this->assertSame(1, Reminder::query()->where('order_id', $order->id)->where('status', 'pending')->count());
         $this->assertDatabaseHas('reminder_events', ['event' => 'reactivated']);
     }
 
@@ -326,6 +327,12 @@ class PhaseFiveReminderTest extends TestCase
             'dingtalk.secret' => 'secret',
         ]);
         $this->user->update(['preferred_locale' => 'ko_KR']);
+        NotificationRecipientConfig::query()->create([
+            'event_type' => 'reminder',
+            'user_id' => $this->user->id,
+            'channel' => 'internal',
+            'enabled' => true,
+        ]);
 
         Http::fake(['oapi.dingtalk.com/*' => Http::response(['errcode' => 0, 'errmsg' => 'ok'])]);
         $reminder = Reminder::query()->create([
@@ -349,6 +356,11 @@ class PhaseFiveReminderTest extends TestCase
         (new SendReminderNotification($reminder->id, 'ko_KR'))->handle(app(ReminderNotifier::class));
 
         $this->assertDatabaseHas('reminders', ['id' => $reminder->id, 'notification_status' => 'sent']);
+        $this->assertDatabaseHas('internal_notifications', [
+            'user_id' => $this->user->id,
+            'event_type' => 'reminder',
+            'event_key' => 'reminder:'.$reminder->id,
+        ]);
         Http::assertSent(fn ($request): bool => str_contains($request->url(), 'timestamp=') && str_contains($request->url(), 'sign='));
         Http::assertSent(fn ($request): bool => str_contains((string) $request->data()['markdown']['text'], '고객:'));
     }
@@ -539,8 +551,7 @@ class PhaseFiveReminderTest extends TestCase
 
         $this->actingAs($this->user)->get(route('reminders.index'))
             ->assertOk()
-            ->assertSee('시술 후 1일차 후속 관리')
-            ->assertSee('회복 상태를 확인합니다')
+            ->assertSee('시술 후 7일차 후속 관리')
             ->assertDontSee('术后第 1 天跟进');
     }
 

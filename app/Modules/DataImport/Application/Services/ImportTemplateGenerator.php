@@ -85,7 +85,7 @@ final readonly class ImportTemplateGenerator
             $agentCustomerCode,
             '【模拟】代理客户',
             $today->format('Y-m-d'),
-            '意向',
+            '已预约',
             '',
             '',
             '',

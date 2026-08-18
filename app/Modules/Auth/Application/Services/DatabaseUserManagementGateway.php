@@ -25,6 +25,7 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
                 'id' => (int) $user->id,
                 'name' => (string) $user->name,
                 'email' => (string) $user->email,
+                'dingtalk_user_id' => $user->dingtalk_user_id,
                 'is_super_admin' => (bool) $user->is_super_admin,
                 'is_active' => (bool) $user->is_active,
                 'invitation_status' => (string) $user->invitation_status,
@@ -166,6 +167,26 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
                 ipAddress: $ipAddress,
             );
         });
+    }
+
+    public function setDingTalkUserId(int $userId, ?string $dingtalkUserId, int $actorId, ?string $ipAddress): void
+    {
+        $dingtalkUserId = trim((string) $dingtalkUserId);
+        if ($dingtalkUserId !== '' && mb_strlen($dingtalkUserId) > 255) {
+            throw new DomainException(__('auth.errors.dingtalk_user_id_too_long'));
+        }
+        $user = User::query()->findOrFail($userId);
+        $before = $user->dingtalk_user_id;
+        $user->update(['dingtalk_user_id' => $dingtalkUserId === '' ? null : $dingtalkUserId]);
+        $this->audit->record(
+            description: __('auth.audit.dingtalk_user_id_updated'),
+            properties: ['user_id' => $userId, 'before' => $before, 'after' => $user->dingtalk_user_id],
+            causerId: $actorId,
+            subject: $user,
+            logName: 'auth-user-management',
+            event: 'dingtalk_user_id_updated',
+            ipAddress: $ipAddress,
+        );
     }
 
     private function sendInvitation(User $user): string

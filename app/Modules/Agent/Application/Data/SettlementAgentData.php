@@ -11,5 +11,6 @@ final readonly class SettlementAgentData
         public int $policySystemId,
         public int $currentGradeId,
         public string $currentGradeName,
+        public int $currentGradeThresholdKrw = 0,
     ) {}
 }

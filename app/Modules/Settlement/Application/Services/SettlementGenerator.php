@@ -3,11 +3,11 @@
 namespace App\Modules\Settlement\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
+use App\Modules\Config\Application\Contracts\NotificationRecipientGateway;
 use App\Modules\Order\Application\Contracts\SettlementOrderReader;
 use App\Modules\Settlement\Application\Exceptions\StructuredSettlementFailure;
 use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
-use App\Modules\Settlement\Infrastructure\Models\SettlementGradeSuggestion;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRunMember;
 use Carbon\CarbonImmutable;
 use DomainException;
@@ -22,6 +22,8 @@ final readonly class SettlementGenerator
         private SettlementOrderReader $orders,
         private SettlementAgentGateway $agents,
         private SettlementRunSummaryUpdater $summary,
+        private SettlementGradeEvaluator $gradeEvaluator,
+        private NotificationRecipientGateway $notifications,
     ) {}
 
     /** Generate the settlement represented by one run member. */
@@ -33,7 +35,8 @@ final readonly class SettlementGenerator
         }
         $member->increment('attempt_count');
 
-        DB::transaction(function () use ($memberId, $legacyAgentId): void {
+        $notification = null;
+        DB::transaction(function () use ($memberId, $legacyAgentId, &$notification): void {
             $member = $this->resolveMember($memberId, $legacyAgentId, true);
             if (in_array($member->outcome, ['generated', 'existing'], true)) {
                 return;
@@ -118,16 +121,17 @@ final readonly class SettlementGenerator
             }
 
             $recommended = $this->agents->recommendation((int) $member->agent_id, $periodEnd, $totalCommission);
-            SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->delete();
-            if ($recommended->currentGradeId !== $agent->currentGradeId) {
-                SettlementGradeSuggestion::query()->create([
+            $evaluation = $this->gradeEvaluator->evaluate($settlement, $agent, $recommended, $totalCommission);
+            if ($evaluation->result === 'upgrade' || $evaluation->consecutive_failure_count >= 2) {
+                $notification = [
                     'settlement_id' => $settlement->id,
-                    'agent_id' => $member->agent_id,
-                    'current_grade_id' => $agent->currentGradeId,
-                    'recommended_grade_id' => $recommended->currentGradeId,
-                    'monthly_commission_krw' => $totalCommission,
-                    'status' => 'pending',
-                ]);
+                    'agent' => $agent->name,
+                    'period' => $periodEnd->format('Y-m'),
+                    'current_grade' => $agent->currentGradeName,
+                    'recommended_grade' => $recommended->currentGradeName,
+                    'commission' => $totalCommission,
+                    'failure_count' => $evaluation->consecutive_failure_count,
+                ];
             }
 
             $member->update([
@@ -139,6 +143,16 @@ final readonly class SettlementGenerator
             ]);
             $this->summary->update($run);
         }, 3);
+
+        if (is_array($notification)) {
+            $this->notifications->notify(
+                'agent_grade_adjustment',
+                'settlement:'.$notification['settlement_id'],
+                '代理商等级调整建议',
+                "代理商：{$notification['agent']}\n结算周期：{$notification['period']}\n当前等级：{$notification['current_grade']}\n建议等级：{$notification['recommended_grade']}\n本期佣金：₩ ".number_format($notification['commission'])."\n连续未达标：{$notification['failure_count']} 次",
+                route('settlements.show', ['settlement' => $notification['settlement_id']]),
+            );
+        }
     }
 
     /** Supports the pre-member API during the compatibility window. */

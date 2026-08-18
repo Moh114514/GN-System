@@ -10,6 +10,8 @@ Route::get('/', fn () => auth()->check()
     : redirect()->route('login'))->name('home');
 
 Route::middleware(['throttle:10,1'])->group(function (): void {
+    Route::get('account/invitation/accepted', [AccountInvitationController::class, 'accepted'])
+        ->name('account.invitation.accepted');
     Route::get('account/invitation/{token}', [AccountInvitationController::class, 'create'])
         ->name('account.invitation');
     Route::post('account/invitation/{token}', [AccountInvitationController::class, 'store'])

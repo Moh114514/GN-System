@@ -24,8 +24,9 @@ class PhaseTwoDataModelTest extends TestCase
 
         $this->assertDatabaseHas('agent_type_codes', ['code' => 'KR', 'is_system' => true]);
         $this->assertDatabaseHas('institutions', ['code' => 'BLANCHE']);
-        $this->assertDatabaseHas('customer_statuses', ['name' => '沉默待唤醒']);
-        $this->assertDatabaseCount('customer_status_transitions', 6);
+        $this->assertDatabaseHas('customer_statuses', ['key' => 'treatment_completed', 'name' => '施术结束']);
+        $this->assertDatabaseCount('customer_statuses', 3);
+        $this->assertDatabaseCount('customer_status_transitions', 2);
 
         $this->expectException(QueryException::class);
         DB::table('customers')->insert([
@@ -57,7 +58,7 @@ class PhaseTwoDataModelTest extends TestCase
             gender: null,
             birthDate: CarbonImmutable::parse('2000-01-01'),
             sourceAgentId: $agentId,
-            statusName: '意向',
+            statusName: '已预约',
             wechatAddedOn: null,
             contactValue: '010-1234-5678',
             identityDocument: 'P1234567',
@@ -78,7 +79,7 @@ class PhaseTwoDataModelTest extends TestCase
         $this->seed(PhaseTwoReferenceDataSeeder::class);
         $agentId = $this->createTestAgent();
         $gateway = app(CustomerImportGateway::class);
-        $interestedId = (int) DB::table('customer_statuses')->where('key', 'interested')->value('id');
+        $bookedId = (int) DB::table('customer_statuses')->where('key', 'booked')->value('id');
 
         $gateway->upsertCustomer($this->customerImportData($agentId, 'NULL-000001', null));
         $this->assertDatabaseHas('customers', [
@@ -86,12 +87,12 @@ class PhaseTwoDataModelTest extends TestCase
             'current_status_id' => null,
         ]);
 
-        $gateway->upsertCustomer($this->customerImportData($agentId, 'KNOWN-000001', '意向'));
+        $gateway->upsertCustomer($this->customerImportData($agentId, 'KNOWN-000001', '已预约'));
         $gateway->upsertCustomer($this->customerImportData($agentId, 'KNOWN-000001', null));
 
         $this->assertDatabaseHas('customers', [
             'code' => 'KNOWN-000001',
-            'current_status_id' => $interestedId,
+            'current_status_id' => $bookedId,
         ]);
     }
 

@@ -17,4 +17,6 @@ interface UserManagementGateway
     public function changeRole(int $userId, bool $isSuperAdmin, int $actorId, ?string $ipAddress): void;
 
     public function setActive(int $userId, bool $active, int $actorId, ?string $ipAddress): void;
+
+    public function setDingTalkUserId(int $userId, ?string $dingtalkUserId, int $actorId, ?string $ipAddress): void;
 }

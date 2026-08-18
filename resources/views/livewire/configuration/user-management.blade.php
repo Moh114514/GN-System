@@ -28,11 +28,17 @@
         <h3 class="font-semibold">{{ __('config.user_management.list_heading') }}</h3>
         <div class="crm-table-wrap mt-4">
             <table class="crm-table">
-                <thead><tr><th>{{ __('config.user_management.table.user') }}</th><th>{{ __('config.user_management.table.role') }}</th><th>{{ __('config.user_management.table.account') }}</th><th>{{ __('config.user_management.table.invitation') }}</th><th>{{ __('config.user_management.table.actions') }}</th></tr></thead>
+                <thead><tr><th>{{ __('config.user_management.table.user') }}</th><th>{{ __('config.user_management.dingtalk_user_id') }}</th><th>{{ __('config.user_management.table.role') }}</th><th>{{ __('config.user_management.table.account') }}</th><th>{{ __('config.user_management.table.invitation') }}</th><th>{{ __('config.user_management.table.actions') }}</th></tr></thead>
                 <tbody>
                     @foreach ($users as $user)
                         <tr>
                             <td><strong>{{ $user['name'] }}</strong><br><span class="text-xs text-zinc-500">{{ $user['email'] }}</span></td>
+                            <td>
+                                <div class="flex items-end gap-2">
+                                    <flux:input wire:model="dingtalkUserIds.{{ $user['id'] }}" :label="__('config.user_management.dingtalk_user_id')" size="sm" />
+                                    <flux:button wire:click="saveDingTalkUserId({{ $user['id'] }})" variant="ghost" size="sm">{{ __('config.user_management.actions.save_dingtalk') }}</flux:button>
+                                </div>
+                            </td>
                             <td>{{ $user['is_super_admin'] ? __('config.user_management.super_admin') : __('config.user_management.internal_user') }}</td>
                             <td>{{ $user['is_active'] ? __('config.status.enabled') : __('config.status.disabled') }}</td>
                             <td>

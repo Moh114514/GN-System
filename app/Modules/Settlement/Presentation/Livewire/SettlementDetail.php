@@ -29,6 +29,8 @@ class SettlementDetail extends Component
 
     public string $exchangeRate = '';
 
+    public string $settlementCurrency = 'KRW';
+
     public string $rejectionReason = '';
 
     public string $suggestionReason = '';
@@ -45,7 +47,8 @@ class SettlementDetail extends Component
     {
         $record = Settlement::query()->findOrFail($settlement);
         $this->settlementId = $settlement;
-        if ($record->exchange_rate_krw_per_cny === null) {
+        $this->settlementCurrency = (string) ($record->settlement_currency ?: 'KRW');
+        if ($this->settlementCurrency === 'CNY' && $record->exchange_rate_krw_per_cny === null) {
             $record = $quotes->refreshFor($record);
         }
         $this->exchangeRate = (string) ($record->exchange_rate_krw_per_cny ?? '');
@@ -63,8 +66,11 @@ class SettlementDetail extends Component
 
     public function approve(SettlementWorkflow $workflow): void
     {
-        $this->validate(['exchangeRate' => ['required', 'numeric', 'gt:0']]);
-        $this->run(fn () => $workflow->approve($this->settlementId, $this->exchangeRate, (int) Auth::id(), request()->ip()), __('settlements.toasts.approved'));
+        $this->validate([
+            'settlementCurrency' => ['required', Rule::in(['KRW', 'CNY'])],
+            'exchangeRate' => [$this->settlementCurrency === 'CNY' ? 'required' : 'nullable', 'numeric', 'gt:0'],
+        ]);
+        $this->run(fn () => $workflow->approve($this->settlementId, $this->exchangeRate, (int) Auth::id(), request()->ip(), $this->settlementCurrency), __('settlements.toasts.approved'));
     }
 
     public function refreshExchangeRateQuote(ExchangeRateQuoteService $quotes): void
@@ -233,6 +239,9 @@ class SettlementDetail extends Component
         $this->exchangeRate = $record === null
             ? ''
             : (string) ($record->exchange_rate_krw_per_cny ?? '');
+        if ($record !== null) {
+            $this->settlementCurrency = (string) ($record->settlement_currency ?: 'KRW');
+        }
     }
 
     private function validateRecoveryBasis(): void

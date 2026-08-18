@@ -17,6 +17,7 @@ use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusTransition;
 use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
 use App\Modules\Reminder\Application\Contracts\CustomerFollowupGateway;
+use App\Support\DateRange;
 use Carbon\CarbonImmutable;
 use Illuminate\Pagination\LengthAwarePaginator;
 
@@ -63,11 +64,12 @@ final readonly class CustomerDirectory
         if (($filters['institution_id'] ?? null) !== null) {
             $query->whereKey($this->orders->customerIdsForInstitution((int) $filters['institution_id']));
         }
-        if (($filters['created_from'] ?? '') !== '') {
-            $query->where('created_at', '>=', CarbonImmutable::createFromFormat('!Y-m-d', (string) $filters['created_from'], 'Asia/Shanghai')->startOfDay());
+        $createdRange = DateRange::fromDates($filters['created_from'] ?? null, $filters['created_to'] ?? null);
+        if ($createdRange->startAt !== null) {
+            $query->where('created_at', '>=', $createdRange->startAt);
         }
-        if (($filters['created_to'] ?? '') !== '') {
-            $query->where('created_at', '<=', CarbonImmutable::createFromFormat('!Y-m-d', (string) $filters['created_to'], 'Asia/Shanghai')->endOfDay());
+        if ($createdRange->endExclusive !== null) {
+            $query->where('created_at', '<', $createdRange->endExclusive);
         }
 
         $page = $query->latest('created_at')->paginate($perPage);

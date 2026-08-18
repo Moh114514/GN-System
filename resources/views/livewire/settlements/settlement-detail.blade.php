@@ -84,6 +84,11 @@
         <section class="mt-6 grid gap-5 lg:grid-cols-2">
             <form wire:submit="approve" class="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
                 <h3 class="font-semibold">{{ __('settlements.detail.approve_heading') }}</h3>
+                <flux:select wire:model="settlementCurrency" class="mt-3" :label="__('settlements.detail.currency')" required><flux:select.option value="KRW">KRW</flux:select.option><flux:select.option value="CNY">CNY</flux:select.option></flux:select>
+                @if ($settlementCurrency === 'KRW')
+                    <p class="mt-2 text-sm text-zinc-500">{{ __('settlements.detail.krw_no_conversion_hint') }}</p>
+                @endif
+                @if ($settlementCurrency === 'CNY')
                 @if ($settlement->exchange_rate_quote_error)
                     <p class="mt-2 text-sm text-amber-700 dark:text-amber-300">{{ __('settlements.detail.quote_unavailable_hint') }}{{ __($settlement->exchange_rate_quote_error_key ?: 'settlements.quote_failures.unavailable', $settlement->exchange_rate_quote_error_parameters ?? []) }}</p>
                 @elseif ($settlement->exchange_rate_quote_status === 'available')
@@ -96,6 +101,7 @@
                     <flux:button type="button" wire:click="refreshExchangeRateQuote" wire:loading.attr="disabled" wire:target="refreshExchangeRateQuote" variant="ghost">{{ __('settlements.detail.refresh_quote') }}</flux:button>
                 </div>
                 <flux:button class="mt-3" type="submit" variant="primary" :disabled="$needsRegeneration || $generationUnverified || $generationNotApplicable">{{ __('settlements.detail.approve_generate') }}</flux:button>
+                @endif
             </form>
             <form wire:submit="reject" class="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900"><h3 class="font-semibold">{{ __('settlements.detail.reject_heading') }}</h3><flux:textarea wire:model="rejectionReason" class="mt-3" :label="__('settlements.detail.rejection_reason')" rows="2" required /><flux:button class="mt-3" type="submit" variant="danger">{{ __('settlements.detail.reject_settlement') }}</flux:button></form>
         </section>

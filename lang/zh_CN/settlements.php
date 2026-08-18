@@ -121,6 +121,8 @@ return [
         'draft' => '历史草稿',
     ],
     'detail' => [
+        'currency' => '结算币种',
+        'krw_no_conversion_hint' => 'KRW 结算不需要汇率换算。',
         'back' => '返回月结中心',
         'back_history' => '返回历史月结归档',
         'freshness_heading' => '月结源数据已发生变化',

@@ -49,6 +49,7 @@ final readonly class DatabaseSettlementAgentGateway implements SettlementAgentGa
             policySystemId: $current->policySystemId,
             currentGradeId: (int) $grade->id,
             currentGradeName: (string) $grade->name,
+            currentGradeThresholdKrw: (int) $grade->monthly_threshold_krw,
         );
     }
 
@@ -85,6 +86,7 @@ final readonly class DatabaseSettlementAgentGateway implements SettlementAgentGa
             policySystemId: $context->policySystemId,
             currentGradeId: $context->policyGradeId,
             currentGradeName: $context->policyGradeName,
+            currentGradeThresholdKrw: (int) PolicyGrade::query()->findOrFail($context->policyGradeId)->monthly_threshold_krw,
         );
     }
 }

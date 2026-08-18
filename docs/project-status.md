@@ -154,6 +154,10 @@ Report 与 Config 的 Phase 6 范围已实现，但不等同于通用数据字�
 
 ## 更新规则
 
+### 2026-08-18 本轮业务规则收敛
+
+本轮已在 `develop` 落地客户三状态与旧生命周期一次性清理迁移、施术结束 7/30 天幂等提醒、邀请成功页 POST-Redirect-GET、Settlement 级 KRW/CNY 与汇率快照、代理商等级评估记录及连续两期降级门槛、通知负责人配置/钉钉 @、以及客户列表统一日期范围边界。相关本地 Feature/Unit 测试已验证；UAT/Production 迁移、真实钉钉凭据和人工业务验收仍未完成。
+
 功能首次落地、能力移除或阶段变化时，必须在同一变更中更新本页。描述必须能由
 代码、配置、迁移或测试验证；纯计划不得进入“已实现”。
 2026-08-06: PR-B added the unified import issue table, persisted stage statuses, unified issue reports, and non-ignorable issue guards. Real historical-file migration and sampling remain pre-release acceptance work.

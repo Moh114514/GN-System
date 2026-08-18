@@ -19,6 +19,9 @@ class UserManagement extends Component
 
     public bool $isSuperAdmin = false;
 
+    /** @var array<int, string> */
+    public array $dingtalkUserIds = [];
+
     public function invite(ConfigurationUserCoordinator $users): void
     {
         $this->validate([
@@ -75,9 +78,22 @@ class UserManagement extends Component
         );
     }
 
+    public function saveDingTalkUserId(int $id, ConfigurationUserCoordinator $users): void
+    {
+        $this->run(
+            fn () => $users->setDingTalkUserId($id, $this->dingtalkUserIds[$id] ?? null, (int) Auth::id(), request()->ip()),
+            __('config.user_management.toast.dingtalk_updated'),
+        );
+    }
+
     public function render(ConfigurationUserCoordinator $users): View
     {
-        return view('livewire.configuration.user-management', ['users' => $users->users()])
+        $records = $users->users();
+        foreach ($records as $record) {
+            $this->dingtalkUserIds[(int) $record['id']] = (string) ($record['dingtalk_user_id'] ?? '');
+        }
+
+        return view('livewire.configuration.user-management', ['users' => $records])
             ->title(__('config.user_management.title'));
     }
 

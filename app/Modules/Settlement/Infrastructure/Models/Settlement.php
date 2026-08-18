@@ -8,6 +8,7 @@ use Illuminate\Support\Carbon;
 /**
  * @property int $id
  * @property int $agent_id
+ * @property string $settlement_currency
  * @property int $total_consumption_krw
  * @property int $total_commission_krw
  * @property int $payout_amount_cny_fen
@@ -21,6 +22,8 @@ use Illuminate\Support\Carbon;
  * @property Carbon|null $reviewed_at
  * @property Carbon|null $confirmed_at
  * @property Carbon|null $exchange_rate_quoted_at
+ * @property Carbon|null $exchange_rate_date
+ * @property string|null $exchange_rate_source
  * @property int|null $settled_by
  * @property string|null $exchange_rate_quote_source
  * @property string|null $exchange_rate_quote_error_key
@@ -42,6 +45,8 @@ class Settlement extends Model
             'confirmed_at' => 'datetime',
             'generated_at' => 'datetime',
             'exchange_rate_krw_per_cny' => 'decimal:6',
+            'exchange_rate' => 'decimal:6',
+            'exchange_rate_date' => 'date',
             'exchange_rate_quoted_at' => 'datetime',
             'exchange_rate_quote_attempted_at' => 'datetime',
             'exchange_rate_manual_override' => 'boolean',

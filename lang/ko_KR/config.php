@@ -25,6 +25,7 @@ return [
         ],
     ],
     'user_management' => [
+        'dingtalk_user_id' => 'DingTalk UserId',
         'eyebrow' => '설정 센터 · 계정 권한',
         'title' => '내부 사용자 관리',
         'description' => '새 사용자는 일회용 비밀번호 설정 링크로 활성화됩니다. 계정을 비활성화하면 로그인할 수 없고 기존 세션도 즉시 종료됩니다.',
@@ -51,6 +52,17 @@ return [
             'account_activated' => '계정이 활성화되었습니다.',
             'account_deactivated' => '계정이 비활성화되었고 기존 세션이 정리되었습니다.',
         ],
+    ],
+    'notification_recipients' => [
+        'eyebrow' => '설정 센터 · 알림 설정',
+        'title' => '알림 담당자',
+        'description' => '에이전시 등급 조정의 내부 알림 및 DingTalk 그룹 알림 수신자를 설정합니다.',
+        'internal_heading' => '시스템 알림 담당자',
+        'dingtalk_heading' => 'DingTalk @ 담당자',
+        'dingtalk_bound' => 'UserId 연결됨',
+        'dingtalk_missing' => 'UserId 미연결',
+        'save' => '알림 설정 저장',
+        'toast' => ['saved' => '알림 담당자 설정이 저장되었습니다.'],
     ],
     'configuration_history' => [
         'eyebrow' => '설정 센터 · 버전 기록',
@@ -98,6 +110,6 @@ return [
         'toast' => ['type_saved' => '유형 코드가 저장되었습니다.', 'type_status_updated' => '유형 코드 상태가 업데이트되었습니다.', 'policy_saved' => '정책 체계가 저장되었습니다.', 'policy_status_updated' => '정책 체계 상태가 업데이트되었습니다.', 'grade_saved' => '정책 등급이 저장되었습니다.', 'grade_status_updated' => '정책 등급 상태가 업데이트되었습니다.', 'rate_saved' => '기관 수수료율이 저장되었습니다.', 'override_saved' => '에이전시 특별 승인이 저장되었습니다.'],
     ],
     'customer_status' => [
-        'back' => '설정 센터로 돌아가기', 'eyebrow' => '설정 센터 · 고객 설정', 'title' => '라이프사이클 상태 설정', 'description' => '시스템 내부 코드는 유지되며 표시 이름, 순서, 활성 상태 및 허용된 진행 경로를 조정할 수 있습니다.', 'stages_heading' => '라이프사이클 단계', 'statuses_heading' => '고객 상태 및 전환', 'sort_order' => '정렬', 'enabled' => '활성화', 'stage' => '소속 단계', 'allow_forward' => '진행 허용 대상', 'save' => '설정 저장', 'stage_name_title' => '단계 표시 이름은 조정할 수 있습니다. :key는 시스템에서 사용하는 안정적인 기계 키이며 이름 변경에 영향을 받지 않습니다.', 'status_name_title' => '상태 표시 이름은 조정할 수 있습니다. :key는 시스템에서 사용하는 안정적인 기계 키이며 이름 변경에 영향을 받지 않습니다.', 'stage_sort_title' => '숫자가 작을수록 라이프사이클 단계가 앞에 옵니다. 같으면 기계 키로 안정 정렬합니다.', 'status_sort_title' => '숫자가 작을수록 같은 설정 목록의 고객 상태가 앞에 옵니다. 같으면 기계 키로 안정 정렬합니다.', 'stage_enabled_title' => '단계를 비활성화하면 새 업무 선택에 사용되지 않지만 기존 이력 데이터는 삭제되지 않습니다.', 'status_enabled_title' => '상태를 비활성화하면 새 업무 선택에 사용되지 않지만 기존 고객의 이력 상태는 삭제되지 않습니다.', 'status_stage_title' => '고객 상태가 속한 라이프사이클 단계를 정하고 단계 순서에 따라 표시합니다.', 'allow_forward_title' => '선택하면 고객이 현재 상태에서 대상 상태로 진행할 수 있습니다. 선택하지 않은 전환은 업무 규칙에서 거부됩니다.', 'transition_title' => '“:from”에서 “:to”(으)로의 진행을 허용합니다.', 'empty_stages' => '라이프사이클 단계가 아직 초기화되지 않았습니다. 현재 버전의 데이터베이스 마이그레이션이 완료되었는지 확인하세요.', 'empty_statuses' => '고객 상태가 아직 초기화되지 않았습니다. 현재 버전의 데이터베이스 마이그레이션이 완료되었는지 확인하세요.', 'toast' => ['saved' => '고객 상태 설정이 저장되었습니다.'],
+        'back' => '설정 센터로 돌아가기', 'eyebrow' => '설정 센터 · 고객 설정', 'title' => '고객 상태 설정', 'description' => '고객 라이프사이클은 예약 완료, 내원 완료, 시술 종료로 고정되며 표시 이름, 순서 및 진행 경로를 조정할 수 있습니다.', 'stages_heading' => '라이프사이클 단계', 'statuses_heading' => '고객 상태 및 전환', 'sort_order' => '정렬', 'enabled' => '활성화', 'stage' => '소속 단계', 'allow_forward' => '진행 허용 대상', 'save' => '설정 저장', 'stage_name_title' => '단계 표시 이름은 조정할 수 있습니다. :key는 시스템에서 사용하는 안정적인 기계 키이며 이름 변경에 영향을 받지 않습니다.', 'status_name_title' => '상태 표시 이름은 조정할 수 있습니다. :key는 시스템에서 사용하는 안정적인 기계 키이며 이름 변경에 영향을 받지 않습니다.', 'stage_sort_title' => '숫자가 작을수록 라이프사이클 단계가 앞에 옵니다. 같으면 기계 키로 안정 정렬합니다.', 'status_sort_title' => '숫자가 작을수록 같은 설정 목록의 고객 상태가 앞에 옵니다. 같으면 기계 키로 안정 정렬합니다.', 'stage_enabled_title' => '단계를 비활성화하면 새 업무 선택에서 제외됩니다.', 'status_enabled_title' => '상태를 비활성화하면 새 업무 선택에서 제외됩니다.', 'status_stage_title' => '고객 상태가 속한 라이프사이클 단계를 정하고 단계 순서에 따라 표시합니다.', 'allow_forward_title' => '선택하면 고객이 현재 상태에서 대상 상태로 진행할 수 있습니다. 선택하지 않은 전환은 업무 규칙에서 거부됩니다.', 'transition_title' => '“:from”에서 “:to”(으)로의 진행을 허용합니다.', 'empty_stages' => '라이프사이클 단계가 아직 초기화되지 않았습니다. 현재 버전의 데이터베이스 마이그레이션이 완료되었는지 확인하세요.', 'empty_statuses' => '고객 상태가 아직 초기화되지 않았습니다. 현재 버전의 데이터베이스 마이그레이션이 완료되었는지 확인하세요.', 'toast' => ['saved' => '고객 상태 설정이 저장되었습니다.'],
     ],
 ];
