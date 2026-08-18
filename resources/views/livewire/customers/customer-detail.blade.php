@@ -77,8 +77,9 @@
                                 </li>
                                     @if ($nextStatus !== null)
                                     <li class="flex min-w-0 flex-1 items-center px-1 pt-3 sm:px-3" data-transition="{{ $transition['from_status_id'] ?? $status['id'] }}-{{ $transition['to_status_id'] ?? $nextStatus['id'] }}" data-transition-visited="{{ $transition && $transition['visited'] ? 'true' : 'false' }}">
-                                        <span class="h-px flex-1 {{ $transition && $transition['visited'] ? 'bg-teal-400 dark:bg-teal-500' : 'bg-zinc-200 dark:bg-zinc-700' }}"></span>
-                                        <span class="ml-1 text-sm leading-none {{ $transition && $transition['visited'] ? 'text-teal-500 dark:text-teal-400' : 'text-zinc-300 dark:text-zinc-600' }}" aria-hidden="true">→</span>
+                                        <svg class="h-2 flex-1" viewBox="0 0 100 10" preserveAspectRatio="none" fill="none" stroke="{{ $transition && $transition['visited'] ? 'var(--color-teal-400)' : 'var(--color-zinc-200)' }}" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" aria-hidden="true">
+                                            <path d="M 0 5 H 96 M 96 5 L 91 1 M 96 5 L 91 9" vector-effect="non-scaling-stroke"></path>
+                                        </svg>
                                     </li>
                                     @endif
                             @endforeach
