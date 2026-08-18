@@ -38,6 +38,7 @@ use App\Modules\Settlement\Infrastructure\Models\SettlementRunMember;
 use App\Modules\Settlement\Jobs\GenerateAgentSettlement;
 use App\Modules\Settlement\Jobs\SendSettlementNotification;
 use App\Modules\Settlement\Presentation\Livewire\SettlementCenter;
+use App\Modules\Settlement\Presentation\Livewire\SettlementDetail;
 use App\Modules\Settlement\Presentation\Livewire\SettlementHistory;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
@@ -1188,6 +1189,64 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame('200.000000', (string) $settlement->exchange_rate_krw_per_cny);
         $this->assertNotNull($settlement->exchange_rate_quote_attempted_at);
         $this->assertNotNull($settlement->exchange_rate_quote_error);
+    }
+
+    public function test_livewire_currency_switch_from_krw_to_cny_refreshes_quote_and_shows_snapshot(): void
+    {
+        config([
+            'services.settlement_exchange_rate.enabled' => true,
+            'services.settlement_exchange_rate.provider' => 'api_hz',
+            'services.settlement_exchange_rate.url' => 'https://quotes-livewire.test/api/jinrong/huilv.php',
+            'services.settlement_exchange_rate.id' => 'test-id',
+            'services.settlement_exchange_rate.key' => 'test-key',
+        ]);
+        Http::fake(['https://quotes-livewire.test/*' => Http::response([
+            'code' => 200,
+            'rate' => '200.1234567',
+            'uptime' => '2026-08-03 09:00:00',
+        ])]);
+        $settlement = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'pending_review',
+            'generation_status' => 'pending',
+            'settlement_currency' => 'KRW',
+            'total_commission_krw' => 1000,
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(SettlementDetail::class, ['settlement' => $settlement->id])
+            ->set('settlementCurrency', 'CNY')
+            ->assertSet('exchangeRate', '200.123457')
+            ->assertSee('wire:model.live="settlementCurrency"', false)
+            ->assertSee('1 CNY = 200.123457 KRW')
+            ->assertSee('api_hz');
+        Http::assertSentCount(1);
+    }
+
+    public function test_livewire_currency_switch_from_cny_to_krw_clears_rate_and_keeps_approval_action_visible(): void
+    {
+        $settlement = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'pending_review',
+            'generation_status' => 'pending',
+            'settlement_currency' => 'CNY',
+            'exchange_rate_krw_per_cny' => '200.000000',
+            'exchange_rate_quote_status' => 'available',
+            'exchange_rate_quote_source' => 'api_hz',
+            'exchange_rate_quoted_at' => '2026-07-31 09:00:00',
+            'total_commission_krw' => 1000,
+        ]);
+
+        Livewire::actingAs($this->admin)
+            ->test(SettlementDetail::class, ['settlement' => $settlement->id])
+            ->set('settlementCurrency', 'KRW')
+            ->assertSet('exchangeRate', '')
+            ->assertSee('wire:submit="approve"', false)
+            ->assertSee(__('settlements.detail.approve_generate'));
     }
 
     public function test_settlement_pages_enforce_admin_and_parent_navigation(): void

@@ -15,34 +15,56 @@ return new class extends Migration
 
         DB::transaction(function (): void {
             DB::table('customers')->update(['current_status_id' => null, 'treatment_completed_at' => null]);
-            if (Schema::hasTable('reminder_events') && Schema::hasTable('reminders')) {
-                $systemReminderIds = DB::table('reminders')->where('source_type', 'system')->pluck('id');
-                if ($systemReminderIds->isNotEmpty()) {
-                    DB::table('reminder_events')->whereIn('reminder_id', $systemReminderIds)->delete();
-                    DB::table('reminders')->whereIn('id', $systemReminderIds)->delete();
-                }
-            }
-            if (Schema::hasTable('reminder_templates')) {
-                DB::table('reminder_templates')
-                    ->whereIn('system_key', ['post_treatment_1', 'post_treatment_90', 'post_treatment_180', 'existing_customer', 'dormant_customer', 'repurchase'])
-                    ->delete();
-            }
+            $legacyTemplateKeys = ['post_treatment_1', 'post_treatment_90', 'post_treatment_180', 'existing_customer', 'dormant_customer', 'repurchase'];
+            $legacyTemplateIds = Schema::hasTable('reminder_templates')
+                ? DB::table('reminder_templates')->whereIn('system_key', $legacyTemplateKeys)->pluck('id')
+                : collect();
+            $legacyRuleIds = collect();
             if (Schema::hasTable('reminder_rules')) {
+                $legacyStatusIds = DB::table('customer_statuses')
+                    ->whereNotIn('key', ['booked', 'arrived', 'treatment_completed'])
+                    ->pluck('id');
                 $legacyRuleIds = DB::table('reminder_rules')
                     ->where('is_system', true)
                     ->get(['id', 'trigger_type', 'trigger_config'])
-                    ->filter(function (object $rule): bool {
+                    ->filter(function (object $rule) use ($legacyStatusIds): bool {
                         $config = is_array($rule->trigger_config)
                             ? $rule->trigger_config
                             : (json_decode((string) $rule->trigger_config, true) ?: []);
 
-                        return $rule->trigger_type === 'fixed_cycle'
-                            && in_array((int) ($config['interval_days'] ?? 0), [90, 180], true);
+                        return ($rule->trigger_type === 'fixed_cycle'
+                                && in_array((int) ($config['interval_days'] ?? 0), [90, 180], true))
+                            || ($rule->trigger_type === 'date_offset'
+                                && ($config['field'] ?? null) === 'completed_on'
+                                && in_array((int) ($config['offset_days'] ?? 0), [1, 90, 180], true))
+                            || ($rule->trigger_type === 'status_change'
+                                && in_array((int) ($config['status_id'] ?? 0), $legacyStatusIds->all(), true));
                     })
                     ->pluck('id');
-                if ($legacyRuleIds->isNotEmpty()) {
-                    DB::table('reminder_rules')->whereIn('id', $legacyRuleIds)->delete();
+            }
+            if (Schema::hasTable('reminders')) {
+                $legacyReminderIds = DB::table('reminders')
+                    ->where(function ($query) use ($legacyRuleIds, $legacyTemplateIds): void {
+                        $query
+                            ->where(function ($query): void {
+                                $query->where('source_type', 'system')->where('reminder_type', 'post_treatment');
+                            })
+                            ->orWhereIn('rule_id', $legacyRuleIds->all())
+                            ->orWhereIn('template_id', $legacyTemplateIds->all());
+                    })
+                    ->pluck('id');
+                if ($legacyReminderIds->isNotEmpty()) {
+                    if (Schema::hasTable('reminder_events')) {
+                        DB::table('reminder_events')->whereIn('reminder_id', $legacyReminderIds)->delete();
+                    }
+                    DB::table('reminders')->whereIn('id', $legacyReminderIds)->delete();
                 }
+            }
+            if (Schema::hasTable('reminder_rules') && $legacyRuleIds->isNotEmpty()) {
+                DB::table('reminder_rules')->whereIn('id', $legacyRuleIds)->delete();
+            }
+            if (Schema::hasTable('reminder_templates')) {
+                DB::table('reminder_templates')->whereIn('id', $legacyTemplateIds->all())->delete();
             }
             DB::table('customer_status_histories')->delete();
             DB::table('customer_status_transitions')->delete();

@@ -16,6 +16,7 @@ return [
         'all_institutions' => '全部机构',
         'created_from' => '建档起始日期',
         'created_to' => '建档截止日期',
+        'created_date' => '建档日期',
         'date_quick' => '日期快捷',
         'today' => '今天',
         'this_month' => '本月',
@@ -96,6 +97,7 @@ return [
             'invalid_transition' => '不能越级或使用未启用的状态流转。',
             'status_reason_required' => '请填写状态变更原因。',
             'default_status_cannot_be_disabled' => '默认状态“已预约”不能停用。',
+            'lifecycle_structure_locked' => '客户生命周期结构已固定，只能修改阶段和状态的显示名称。',
         ],
     ],
     'detail' => [
@@ -138,12 +140,15 @@ return [
         ],
         'status_flow' => [
             'heading' => '客户流转进度',
-            'description' => '根据客户实际状态历史展示已经走过的流程、当前状态和可继续流转的下一步；状态修改请使用右侧表单。',
+            'description' => '用紧凑的三步进度条展示客户当前生命周期和下一步；状态修改请使用右侧表单。',
             'current' => '当前',
             'legend' => '客户状态流转图例',
             'transitions' => '其他允许流转',
             'historical_transitions' => '已停用的历史流转',
             'empty' => '尚未配置客户状态。',
+            'post_treatment_reminders' => '术后提醒已自动安排',
+            'post_treatment_7' => '术后 7 天',
+            'post_treatment_30' => '术后 30 天',
             'states' => [
                 'current' => '当前',
                 'current_inactive' => '当前（已停用）',

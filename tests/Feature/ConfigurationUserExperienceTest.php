@@ -47,7 +47,9 @@ class ConfigurationUserExperienceTest extends TestCase
             ->assertSee('客户生命周期')
             ->assertSee('已预约')
             ->assertSee('施术结束')
-            ->assertSee('排序数字越小，生命周期阶段越靠前')
+            ->assertSee('系统固定结构：顺序、启用状态、所属阶段和流转路径不可修改')
+            ->assertDontSee('wire:model="statuses.0.sort_order"', false)
+            ->assertDontSee('wire:model="statuses.0.to_status_ids"', false)
             ->assertDontSee('尚未初始化生命周期阶段')
             ->assertDontSee('尚未初始化客户状态');
 

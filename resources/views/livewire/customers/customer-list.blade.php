@@ -17,10 +17,11 @@
             $selectedStatus = collect($options['statuses'])->firstWhere('id', (int) $statusId);
             $selectedAgent = collect($options['agents'])->firstWhere('id', (int) $agentId);
             $selectedInstitution = collect($options['institutions'])->firstWhere('id', (int) $institutionId);
-            $hasFilters = $search !== '' || $statusId !== '' || $agentId !== '' || $institutionId !== '' || $perPage !== 20;
+            $hasFilters = $search !== '' || $statusId !== '' || $agentId !== '' || $institutionId !== '' || $createdFrom !== '' || $createdTo !== '' || $perPage !== 20;
         @endphp
 
-        <div class="flex flex-wrap items-center gap-2">
+        <div class="space-y-4">
+            <div class="flex flex-wrap items-center gap-2">
             <flux:input
                 class="w-full sm:w-72"
                 wire:model.live.debounce.350ms="search"
@@ -65,49 +66,54 @@
                 </flux:menu>
             </flux:dropdown>
 
-            <x-localized-date-picker
-                id="customers-created-from"
-                wire:model.live.debounce.400ms="createdFrom"
-                :value="$createdFrom"
-                :placeholder="__('customers.list.created_from')"
-                :aria-label="__('customers.list.created_from')"
-                class="w-full rounded-full border-transparent bg-zinc-100 dark:bg-zinc-800 sm:w-40"
-                size="sm"
-            />
-              <flux:dropdown>
-                <flux:button class="w-24 rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">{{ __('customers.list.date_quick') }}</flux:button>
-                <flux:menu><flux:menu.item wire:click="applyDatePreset('today')">{{ __('customers.list.today') }}</flux:menu.item><flux:menu.item wire:click="applyDatePreset('month')">{{ __('customers.list.this_month') }}</flux:menu.item><flux:menu.item wire:click="applyDatePreset('year')">{{ __('customers.list.this_year') }}</flux:menu.item></flux:menu>
-            </flux:dropdown>
-            <x-localized-date-picker
-                id="customers-created-to"
-                wire:model.live.debounce.400ms="createdTo"
-                :value="$createdTo"
-                :placeholder="__('customers.list.created_to')"
-                :aria-label="__('customers.list.created_to')"
-                class="w-full rounded-full border-transparent bg-zinc-100 dark:bg-zinc-800 sm:w-40"
-                size="sm"
-            />
+            @if ($hasFilters)
+                <flux:button wire:click="clearFilters" variant="ghost" size="sm" icon="x-mark">{{ __('customers.list.clear') }}</flux:button>
+            @endif
+            </div>
 
-            <flux:dropdown>
-                <flux:button class="w-28 rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
-                    {{ __('customers.list.per_page', ['count' => $perPage]) }}
-                </flux:button>
-                <flux:menu>
-                    @foreach ([20, 50, 100] as $size)
-                        <flux:menu.item wire:click="$set('perPage', {{ $size }})">{{ __('customers.list.per_page', ['count' => $size]) }}</flux:menu.item>
-                    @endforeach
-                </flux:menu>
-            </flux:dropdown>
+            <div class="flex flex-wrap items-center gap-2 border-t border-zinc-100 pt-4 dark:border-zinc-800">
+                <span class="mr-1 text-sm font-medium text-zinc-500">{{ __('customers.list.created_date') }}</span>
+                <flux:button wire:click="applyDatePreset('today')" variant="ghost" size="sm">{{ __('customers.list.today') }}</flux:button>
+                <flux:button wire:click="applyDatePreset('month')" variant="ghost" size="sm">{{ __('customers.list.this_month') }}</flux:button>
+                <flux:button wire:click="applyDatePreset('year')" variant="ghost" size="sm">{{ __('customers.list.this_year') }}</flux:button>
+                <x-localized-date-picker
+                    id="customers-created-from"
+                    wire:model.live.debounce.400ms="createdFrom"
+                    :value="$createdFrom"
+                    :placeholder="__('customers.list.created_from')"
+                    :aria-label="__('customers.list.created_from')"
+                    class="w-full rounded-full border-transparent bg-zinc-100 dark:bg-zinc-800 sm:w-40"
+                    size="sm"
+                />
+                <span class="text-zinc-400" aria-hidden="true">—</span>
+                <x-localized-date-picker
+                    id="customers-created-to"
+                    wire:model.live.debounce.400ms="createdTo"
+                    :value="$createdTo"
+                    :placeholder="__('customers.list.created_to')"
+                    :aria-label="__('customers.list.created_to')"
+                    class="w-full rounded-full border-transparent bg-zinc-100 dark:bg-zinc-800 sm:w-40"
+                    size="sm"
+                />
+                <div class="sm:ml-auto">
+                    <flux:dropdown>
+                        <flux:button class="w-28 rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
+                            {{ __('customers.list.per_page', ['count' => $perPage]) }}
+                        </flux:button>
+                        <flux:menu>
+                            @foreach ([20, 50, 100] as $size)
+                                <flux:menu.item wire:click="$set('perPage', {{ $size }})">{{ __('customers.list.per_page', ['count' => $size]) }}</flux:menu.item>
+                            @endforeach
+                        </flux:menu>
+                    </flux:dropdown>
+                </div>
+            </div>
 
             @if ($errors->has('createdFrom') || $errors->has('createdTo'))
-                <div class="basis-full text-sm text-red-600">
+                <div class="text-sm text-red-600">
                     @error('createdFrom')<p>{{ $message }}</p>@enderror
                     @error('createdTo')<p>{{ $message }}</p>@enderror
                 </div>
-            @endif
-
-            @if ($hasFilters || $createdFrom !== '' || $createdTo !== '')
-                <flux:button wire:click="clearFilters" variant="ghost" size="sm" icon="x-mark">{{ __('customers.list.clear') }}</flux:button>
             @endif
         </div>
 

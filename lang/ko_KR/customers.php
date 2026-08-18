@@ -16,6 +16,7 @@ return [
         'all_institutions' => '모든 기관',
         'created_from' => '등록 시작일',
         'created_to' => '등록 종료일',
+        'created_date' => '등록일',
         'date_quick' => '날짜 빠른 선택',
         'today' => '오늘',
         'this_month' => '이번 달',
@@ -96,6 +97,7 @@ return [
             'invalid_transition' => '단계를 건너뛰거나 비활성 상태 전환을 사용할 수 없습니다.',
             'status_reason_required' => '상태 변경 사유를 입력하세요.',
             'default_status_cannot_be_disabled' => '기본 상태 “예약 완료”는 비활성화할 수 없습니다.',
+            'lifecycle_structure_locked' => '고객 라이프사이클 구조는 고정되어 단계와 상태의 표시 이름만 수정할 수 있습니다.',
         ],
     ],
     'detail' => [
@@ -138,12 +140,15 @@ return [
         ],
         'status_flow' => [
             'heading' => '고객 상태 흐름',
-            'description' => '고객의 실제 상태 이력을 바탕으로 진행한 흐름, 현재 상태와 다음에 진행할 수 있는 상태를 보여줍니다. 상태 변경은 오른쪽 양식을 사용하세요.',
+            'description' => '간결한 3단계 진행 표시줄로 고객의 현재 라이프사이클과 다음 단계를 보여줍니다. 상태 변경은 오른쪽 양식을 사용하세요.',
             'current' => '현재',
             'legend' => '고객 상태 흐름 범례',
             'transitions' => '기타 허용 전환',
             'historical_transitions' => '비활성화된 과거 전환',
             'empty' => '고객 상태가 아직 설정되지 않았습니다.',
+            'post_treatment_reminders' => '시술 후 알림이 자동으로 예약되었습니다',
+            'post_treatment_7' => '시술 후 7일',
+            'post_treatment_30' => '시술 후 30일',
             'states' => [
                 'current' => '현재',
                 'current_inactive' => '현재(비활성화됨)',

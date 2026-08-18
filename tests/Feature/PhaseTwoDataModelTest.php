@@ -38,6 +38,136 @@ class PhaseTwoDataModelTest extends TestCase
         ]);
     }
 
+    public function test_customer_lifecycle_migration_only_removes_legacy_lifecycle_reminders(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $agentId = $this->createTestAgent();
+        $customerId = (int) DB::table('customers')->insertGetId([
+            'code' => 'LIFECYCLE-000001',
+            'name' => '生命周期迁移测试客户',
+            'source_agent_id' => $agentId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $migration = require database_path('migrations/2026_08_18_000100_simplify_customer_lifecycle.php');
+        $migration->down();
+
+        $legacyStageId = (int) DB::table('customer_lifecycle_stages')->insertGetId([
+            'key' => 'legacy_lifecycle',
+            'name' => '旧生命周期',
+            'sort_order' => 90,
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $legacyStatusId = (int) DB::table('customer_statuses')->insertGetId([
+            'stage_id' => $legacyStageId,
+            'key' => 'legacy_status',
+            'name' => '旧状态',
+            'sort_order' => 10,
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $legacyRuleId = (int) DB::table('reminder_rules')->insertGetId([
+            'name' => '旧生命周期规则',
+            'trigger_type' => 'status_change',
+            'trigger_config' => json_encode(['status_id' => $legacyStatusId], JSON_THROW_ON_ERROR),
+            'scope_type' => 'all_customers',
+            'scope_config' => '{}',
+            'title' => '旧生命周期提醒',
+            'priority' => 3,
+            'is_active' => true,
+            'is_system' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $legacyTemplateId = (int) DB::table('reminder_templates')->insertGetId([
+            'name' => '术后 1 天',
+            'title' => '旧术后提醒模板',
+            'default_trigger_type' => 'date_offset',
+            'default_trigger_config' => json_encode(['field' => 'completed_on', 'offset_days' => 1], JSON_THROW_ON_ERROR),
+            'is_system' => true,
+            'is_active' => true,
+            'system_key' => 'post_treatment_1',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $appointmentReminderId = (int) DB::table('reminders')->insertGetId([
+            'customer_id' => $customerId,
+            'source_type' => 'system',
+            'reminder_type' => 'appointment',
+            'title' => '预约提醒',
+            'due_at' => now()->addDay(),
+            'dedupe_key' => str_repeat('a', 64),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $postTreatmentReminderId = (int) DB::table('reminders')->insertGetId([
+            'customer_id' => $customerId,
+            'template_id' => $legacyTemplateId,
+            'source_type' => 'system',
+            'reminder_type' => 'post_treatment',
+            'title' => '旧术后提醒',
+            'due_at' => now()->addDay(),
+            'dedupe_key' => str_repeat('b', 64),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $ruleReminderId = (int) DB::table('reminders')->insertGetId([
+            'customer_id' => $customerId,
+            'rule_id' => $legacyRuleId,
+            'source_type' => 'rule',
+            'reminder_type' => 'status_change',
+            'title' => '旧规则提醒',
+            'due_at' => now()->addDay(),
+            'dedupe_key' => str_repeat('c', 64),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $appointmentEventId = (int) DB::table('reminder_events')->insertGetId([
+            'reminder_id' => $appointmentReminderId,
+            'event' => 'created',
+            'properties' => '{}',
+            'occurred_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('reminder_events')->insert([
+            [
+                'reminder_id' => $postTreatmentReminderId,
+                'event' => 'created',
+                'properties' => '{}',
+                'occurred_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'reminder_id' => $ruleReminderId,
+                'event' => 'created',
+                'properties' => '{}',
+                'occurred_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $migration->up();
+
+        $this->assertDatabaseHas('reminders', ['id' => $appointmentReminderId, 'reminder_type' => 'appointment']);
+        $this->assertDatabaseHas('reminder_events', ['id' => $appointmentEventId, 'reminder_id' => $appointmentReminderId]);
+        $this->assertDatabaseMissing('reminders', ['id' => $postTreatmentReminderId]);
+        $this->assertDatabaseMissing('reminders', ['id' => $ruleReminderId]);
+        $this->assertDatabaseMissing('reminder_rules', ['id' => $legacyRuleId]);
+        $this->assertDatabaseMissing('reminder_templates', ['id' => $legacyTemplateId]);
+        $this->assertDatabaseMissing('reminder_events', ['reminder_id' => $postTreatmentReminderId]);
+        $this->assertDatabaseMissing('reminder_events', ['reminder_id' => $ruleReminderId]);
+        $this->assertDatabaseCount('customer_statuses', 3);
+        $this->assertDatabaseMissing('customer_statuses', ['id' => $legacyStatusId]);
+    }
+
     public function test_sensitive_contact_is_encrypted_and_can_be_matched_by_blind_index(): void
     {
         $this->seed(PhaseTwoReferenceDataSeeder::class);

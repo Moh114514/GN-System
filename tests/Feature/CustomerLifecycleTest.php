@@ -266,11 +266,11 @@ class CustomerLifecycleTest extends TestCase
         $response->assertOk()
             ->assertSee(__('customers.detail.status_flow.heading'))
             ->assertSee('data-test="customer-status-flow"', false)
-            ->assertSee('data-flow-layout', false)
+            ->assertSee('data-status-stepper', false)
             ->assertSee('data-status-key="arrived" data-status-state="current_inactive"', false)
             ->assertSee('data-status-key="treatment_completed" data-status-state="available"', false)
             ->assertSee('data-transition-visited="true"', false)
-            ->assertSee('data-flow-history-transitions', false)
+            ->assertDontSee('data-flow-history-transitions', false)
             ->assertDontSee('wire:click', false);
     }
 
@@ -297,6 +297,49 @@ class CustomerLifecycleTest extends TestCase
             ->assertSee('客户状态配置')
             ->assertSee('返回配置中心')
             ->assertSee('href="'.route('configuration.index').'"', false);
+    }
+
+    public function test_lifecycle_configuration_only_updates_display_names_and_keeps_structure_locked(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $manager = app(CustomerStatusManager::class);
+        $configuration = $manager->configuration();
+        $configuration[0]['name'] = '客户生命周期（自定义）';
+        $configuration[0]['sort_order'] = 999;
+        $configuration[0]['is_active'] = false;
+        foreach ($configuration[0]['statuses'] as $index => &$status) {
+            $status['name'] .= '（自定义）';
+            $status['sort_order'] = 999 - $index;
+            $status['is_active'] = false;
+            $status['to_status_ids'] = [];
+            $status['stage_id'] = $configuration[0]['id'];
+        }
+        unset($status);
+
+        $manager->saveConfiguration(
+            stages: [[
+                'id' => $configuration[0]['id'],
+                'key' => $configuration[0]['key'],
+                'name' => $configuration[0]['name'],
+                'sort_order' => $configuration[0]['sort_order'],
+                'is_active' => $configuration[0]['is_active'],
+            ]],
+            statuses: $configuration[0]['statuses'],
+            actor: $admin,
+            ipAddress: null,
+        );
+
+        $this->assertDatabaseHas('customer_lifecycle_stages', [
+            'key' => 'customer_lifecycle',
+            'name' => '客户生命周期（自定义）',
+            'sort_order' => 10,
+            'is_active' => true,
+        ]);
+        $this->assertDatabaseHas('customer_statuses', ['key' => 'booked', 'name' => '已预约（自定义）', 'sort_order' => 10, 'is_active' => true]);
+        $this->assertDatabaseHas('customer_statuses', ['key' => 'arrived', 'name' => '已到院（自定义）', 'sort_order' => 20, 'is_active' => true]);
+        $this->assertDatabaseHas('customer_statuses', ['key' => 'treatment_completed', 'name' => '施术结束（自定义）', 'sort_order' => 30, 'is_active' => true]);
+        $this->assertDatabaseCount('customer_status_transitions', 2);
+        $this->assertDatabaseHas('activity_log', ['log_name' => 'customer-configuration', 'event' => 'updated']);
     }
 
     public function test_customer_list_masks_sensitive_values_and_supports_exact_contact_search(): void

@@ -1,13 +1,19 @@
 <div>
-    @php($settlementCenterQuery = request()->filled('selectedPeriodEnd') ? ['selectedPeriodEnd' => request()->query('selectedPeriodEnd')] : [])
+    @php
+        $settlementCenterQuery = request()->filled('selectedPeriodEnd')
+            ? ['selectedPeriodEnd' => request()->query('selectedPeriodEnd')]
+            : [];
+    @endphp
     <x-page-back :href="$isHistoricalArchive ? route('settlements.history') : route('settlements.index', $settlementCenterQuery)" :label="$isHistoricalArchive ? __('settlements.detail.back_history') : __('settlements.detail.back')" class="mb-4" />
 
-    @php($canRegenerateGeneration = in_array($settlement->generation_status, ['pending', 'unverified'], true))
-    @php($needsRegeneration = in_array($settlement->status, ['pending_review', 'rejected']) && $canRegenerateGeneration && $settlement->settlement_run_id !== null)
-    @php($generationUnverified = $settlement->generation_status === 'unverified')
-    @php($generationNotApplicable = $settlement->generation_status === 'not_applicable')
-    @php($generationRecoveryRequired = $generationUnverified && $settlement->settlement_run_id === null)
-    @php($canRefresh = in_array($settlement->status, ['pending_review', 'rejected'], true) && $settlement->generation_status === 'generated' && $freshness?->isStale())
+    @php
+        $canRegenerateGeneration = in_array($settlement->generation_status, ['pending', 'unverified'], true);
+        $needsRegeneration = in_array($settlement->status, ['pending_review', 'rejected']) && $canRegenerateGeneration && $settlement->settlement_run_id !== null;
+        $generationUnverified = $settlement->generation_status === 'unverified';
+        $generationNotApplicable = $settlement->generation_status === 'not_applicable';
+        $generationRecoveryRequired = $generationUnverified && $settlement->settlement_run_id === null;
+        $canRefresh = in_array($settlement->status, ['pending_review', 'rejected'], true) && $settlement->generation_status === 'generated' && $freshness?->isStale();
+    @endphp
     @if ($canRefresh)
         <section id="settlement-freshness-alert" data-business-alert tabindex="-1" class="scroll-mt-20 mb-5 rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
             <h3 class="font-semibold">{{ __('settlements.detail.freshness_heading') }}</h3>
@@ -77,14 +83,14 @@
                 <span class="crm-pill tone-blue">{{ __('settlements.settlement_statuses.'.$settlement->status) }}</span>
             </div>
         </div>
-        <dl class="mt-5 grid gap-4 sm:grid-cols-3"><div><dt class="text-xs text-zinc-500">{{ __('settlements.detail.consumption_total') }}</dt><dd class="font-semibold">₩ {{ number_format($settlement->total_consumption_krw) }}</dd></div><div><dt class="text-xs text-zinc-500">{{ __('settlements.detail.commission_total') }}</dt><dd class="font-semibold">₩ {{ number_format($settlement->total_commission_krw) }}</dd></div><div><dt class="text-xs text-zinc-500">{{ __('settlements.detail.payable_cny') }}</dt><dd class="font-semibold">{{ $settlement->exchange_rate_krw_per_cny ? '¥ '.number_format($settlement->payout_amount_cny_fen / 100, 2) : __('settlements.labels.pending') }}</dd></div></dl>
+        <dl class="mt-5 grid gap-4 sm:grid-cols-3"><div><dt class="text-xs text-zinc-500">{{ __('settlements.detail.consumption_total') }}</dt><dd class="font-semibold">₩ {{ number_format($settlement->total_consumption_krw) }}</dd></div><div><dt class="text-xs text-zinc-500">{{ __('settlements.detail.commission_total') }}</dt><dd class="font-semibold">₩ {{ number_format($settlement->total_commission_krw) }}</dd></div><div><dt class="text-xs text-zinc-500">{{ $settlementCurrency === 'KRW' ? __('settlements.detail.payable_krw') : __('settlements.detail.payable_cny') }}</dt><dd class="font-semibold">@if ($settlementCurrency === 'KRW')₩ {{ number_format($settlement->total_commission_krw) }}@elseif ($settlement->exchange_rate_krw_per_cny)¥ {{ number_format($settlement->total_commission_krw / (float) $settlement->exchange_rate_krw_per_cny, 2) }}@else{{ __('settlements.labels.pending') }}@endif</dd></div></dl>
     </section>
 
     @if (in_array($settlement->status, ['pending_review', 'rejected']) && ! $generationNotApplicable && ! $generationRecoveryRequired)
         <section class="mt-6 grid gap-5 lg:grid-cols-2">
             <form wire:submit="approve" class="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
                 <h3 class="font-semibold">{{ __('settlements.detail.approve_heading') }}</h3>
-                <flux:select wire:model="settlementCurrency" class="mt-3" :label="__('settlements.detail.currency')" required><flux:select.option value="KRW">KRW</flux:select.option><flux:select.option value="CNY">CNY</flux:select.option></flux:select>
+                <flux:select wire:model.live="settlementCurrency" class="mt-3" :label="__('settlements.detail.currency')" required><flux:select.option value="KRW">KRW</flux:select.option><flux:select.option value="CNY">CNY</flux:select.option></flux:select>
                 @if ($settlementCurrency === 'KRW')
                     <p class="mt-2 text-sm text-zinc-500">{{ __('settlements.detail.krw_no_conversion_hint') }}</p>
                 @endif
@@ -97,11 +103,22 @@
                     <p class="mt-2 text-sm text-amber-700 dark:text-amber-300">{{ __('settlements.detail.quote_empty_hint') }}</p>
                 @endif
                 <div class="mt-3 flex items-end gap-3">
-                    <flux:input wire:model="exchangeRate" class="flex-1" type="number" step="0.000001" min="0.000001" :label="__('settlements.detail.exchange_rate')" required />
+                    <flux:input wire:model.live="exchangeRate" class="flex-1" type="number" step="0.000001" min="0.000001" :label="__('settlements.detail.exchange_rate')" required />
                     <flux:button type="button" wire:click="refreshExchangeRateQuote" wire:loading.attr="disabled" wire:target="refreshExchangeRateQuote" variant="ghost">{{ __('settlements.detail.refresh_quote') }}</flux:button>
                 </div>
-                <flux:button class="mt-3" type="submit" variant="primary" :disabled="$needsRegeneration || $generationUnverified || $generationNotApplicable">{{ __('settlements.detail.approve_generate') }}</flux:button>
+                @if ($settlement->exchange_rate_krw_per_cny)
+                    @php
+                        $quoteSource = $settlement->exchange_rate_quote_source ?: ($settlement->exchange_rate_source ?: __('settlements.detail.manual_source'));
+                        $quoteTime = $settlement->exchange_rate_quoted_at?->format('Y-m-d H:i') ?: __('settlements.labels.pending');
+                        $estimatedPayout = (float) $settlement->total_commission_krw / (float) $settlement->exchange_rate_krw_per_cny;
+                    @endphp
+                    <div class="mt-3 rounded-lg bg-zinc-50 px-3 py-2 text-sm text-zinc-600 dark:bg-zinc-800/70 dark:text-zinc-300">
+                        <p>{{ __('settlements.detail.quote_snapshot', ['rate' => number_format((float) $settlement->exchange_rate_krw_per_cny, 6), 'source' => $quoteSource, 'time' => $quoteTime]) }}</p>
+                        <p class="mt-1 font-semibold">{{ __('settlements.detail.estimated_payable') }}: ¥ {{ number_format($estimatedPayout, 2) }}</p>
+                    </div>
                 @endif
+                @endif
+                <flux:button class="mt-3" type="submit" variant="primary" :disabled="$needsRegeneration || $generationUnverified || $generationNotApplicable">{{ __('settlements.detail.approve_generate') }}</flux:button>
             </form>
             <form wire:submit="reject" class="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900"><h3 class="font-semibold">{{ __('settlements.detail.reject_heading') }}</h3><flux:textarea wire:model="rejectionReason" class="mt-3" :label="__('settlements.detail.rejection_reason')" rows="2" required /><flux:button class="mt-3" type="submit" variant="danger">{{ __('settlements.detail.reject_settlement') }}</flux:button></form>
         </section>
@@ -122,7 +139,11 @@
             <p class="mt-3 text-sm text-zinc-500">{{ __('settlements.detail.zero_order_hint') }}</p>
         @endif
         <div class="crm-table-wrap mt-4"><table class="crm-table"><thead><tr><th>{{ __('settlements.detail.order') }}</th><th>{{ __('settlements.detail.project_date') }}</th><th>{{ __('settlements.detail.consumption') }}</th><th>{{ __('settlements.detail.rate') }}</th><th>{{ __('settlements.detail.commission') }}</th></tr></thead><tbody>
-            @forelse ($items as $item) @php($snapshot = is_string($item->rule_snapshot) ? json_decode($item->rule_snapshot, true) : (array) $item->rule_snapshot) @php($orderId = (int) data_get($snapshot, 'order.id'))
+            @forelse ($items as $item)
+                @php
+                    $snapshot = is_string($item->rule_snapshot) ? json_decode($item->rule_snapshot, true) : (array) $item->rule_snapshot;
+                    $orderId = (int) data_get($snapshot, 'order.id');
+                @endphp
                 <tr>
                     <td>
                         @if (in_array($orderId, $existingOrderIds, true))

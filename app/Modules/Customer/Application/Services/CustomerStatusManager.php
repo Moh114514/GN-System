@@ -142,53 +142,51 @@ final readonly class CustomerStatusManager
     }
 
     /**
-     * @param  array<int, array{id: int, name: string, sort_order: int, is_active: bool}>  $stages
-     * @param  array<int, array{id: int, name: string, stage_id: int, sort_order: int, is_active: bool, to_status_ids: array<int, int>}>  $statuses
+     * @param  array<int, array<string, mixed>>  $stages
+     * @param  array<int, array<string, mixed>>  $statuses
      */
     public function saveConfiguration(array $stages, array $statuses, User $actor, ?string $ipAddress): void
     {
         DB::transaction(function () use ($stages, $statuses, $actor, $ipAddress): void {
+            $expectedStatusKeys = ['booked', 'arrived', 'treatment_completed'];
+            $stage = CustomerLifecycleStage::query()->where('key', 'customer_lifecycle')->first();
+            $canonicalStatuses = CustomerStatus::query()
+                ->whereIn('key', $expectedStatusKeys)
+                ->get()
+                ->keyBy('key');
+            $inputStage = $stages[0] ?? null;
+            $inputStatuses = collect($statuses)->keyBy(static fn (array $input): string => (string) ($input['key'] ?? ''));
+
+            if ($stage === null || $canonicalStatuses->count() !== count($expectedStatusKeys) || count($stages) !== 1 || count($statuses) !== count($expectedStatusKeys)) {
+                throw ValidationException::withMessages(['configuration' => __('customers.validation.lifecycle_structure_locked')]);
+            }
+            if ((int) ($inputStage['id'] ?? 0) !== $stage->id
+                || ($inputStage['key'] ?? null) !== $stage->key
+                || trim((string) ($inputStage['name'] ?? '')) === '') {
+                throw ValidationException::withMessages(['configuration' => __('customers.validation.lifecycle_structure_locked')]);
+            }
+            foreach ($expectedStatusKeys as $key) {
+                $canonicalStatus = $canonicalStatuses->get($key);
+                $input = $inputStatuses->get($key);
+                if ($canonicalStatus === null
+                    || ! is_array($input)
+                    || (int) ($input['id'] ?? 0) !== $canonicalStatus->id
+                    || (int) ($input['stage_id'] ?? 0) !== $stage->id
+                    || trim((string) ($input['name'] ?? '')) === '') {
+                    throw ValidationException::withMessages(['configuration' => __('customers.validation.lifecycle_structure_locked')]);
+                }
+            }
+
             $this->configurationHistory->capture((int) $actor->id);
-            foreach ($stages as $input) {
-                CustomerLifecycleStage::query()->whereKey($input['id'])->update([
-                    'name' => trim($input['name']),
-                    'sort_order' => $input['sort_order'],
-                    'is_active' => $input['is_active'],
-                ]);
-            }
-
-            $defaultStatus = CustomerStatus::query()->where('key', 'booked')->firstOrFail();
-            foreach ($statuses as $input) {
-                if ($input['id'] === $defaultStatus->id && ! $input['is_active']) {
-                    throw ValidationException::withMessages(['configuration' => __('customers.validation.default_status_cannot_be_disabled')]);
-                }
-                CustomerStatus::query()->whereKey($input['id'])->update([
-                    'name' => trim($input['name']),
-                    'stage_id' => $input['stage_id'],
-                    'sort_order' => $input['sort_order'],
-                    'is_active' => $input['is_active'],
-                ]);
-            }
-
-            CustomerStatusTransition::query()->update(['is_active' => false]);
-            $activeStatusIds = CustomerStatus::query()->where('is_active', true)->pluck('id')->map(fn ($id): int => (int) $id)->all();
-            foreach ($statuses as $input) {
-                foreach (array_unique($input['to_status_ids']) as $toStatusId) {
-                    if ($input['id'] === $toStatusId
-                        || ! in_array($input['id'], $activeStatusIds, true)
-                        || ! in_array($toStatusId, $activeStatusIds, true)) {
-                        continue;
-                    }
-                    CustomerStatusTransition::query()->updateOrCreate(
-                        ['from_status_id' => $input['id'], 'to_status_id' => $toStatusId],
-                        ['is_active' => true],
-                    );
-                }
+            $stage->update(['name' => trim((string) $inputStage['name'])]);
+            foreach ($expectedStatusKeys as $key) {
+                $input = $inputStatuses->get($key);
+                CustomerStatus::query()->whereKey((int) $input['id'])->update(['name' => trim((string) $input['name'])]);
             }
 
             $this->audit->record(
                 description: '更新客户状态配置',
-                properties: ['stage_count' => count($stages), 'status_count' => count($statuses)],
+                properties: ['stage_count' => count($stages), 'status_count' => count($statuses), 'structure_locked' => true],
                 causerId: $actor->id,
                 logName: 'customer-configuration',
                 event: 'updated',

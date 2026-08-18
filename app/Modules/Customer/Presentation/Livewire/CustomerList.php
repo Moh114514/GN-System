@@ -29,8 +29,6 @@ class CustomerList extends Component
 
     public string $createdTo = '';
 
-    public string $dateGranularity = 'day';
-
     public int $perPage = 20;
 
     /** @var array<string, array<int, array<string, mixed>>> */

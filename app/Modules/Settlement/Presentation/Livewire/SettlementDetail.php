@@ -73,6 +73,29 @@ class SettlementDetail extends Component
         $this->run(fn () => $workflow->approve($this->settlementId, $this->exchangeRate, (int) Auth::id(), request()->ip(), $this->settlementCurrency), __('settlements.toasts.approved'));
     }
 
+    public function updatedSettlementCurrency(ExchangeRateQuoteService $quotes): void
+    {
+        $this->resetValidation('exchangeRate');
+        if ($this->settlementCurrency === 'KRW') {
+            $this->exchangeRate = '';
+
+            return;
+        }
+
+        try {
+            $record = Settlement::query()->findOrFail($this->settlementId);
+            if ($record->exchange_rate_krw_per_cny === null || $record->exchange_rate_quote_status !== 'available') {
+                $record = $quotes->refreshFor($record);
+            }
+            $this->exchangeRate = (string) ($record->exchange_rate_krw_per_cny ?? '');
+        } catch (DomainException $exception) {
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
+        } catch (Throwable $exception) {
+            report($exception);
+            Flux::toast(variant: 'danger', text: __('settlements.toasts.quote_error'));
+        }
+    }
+
     public function refreshExchangeRateQuote(ExchangeRateQuoteService $quotes): void
     {
         try {
@@ -233,13 +256,13 @@ class SettlementDetail extends Component
         }
     }
 
-    private function refreshExchangeRate(): void
+    private function refreshExchangeRate(bool $syncCurrency = true): void
     {
         $record = Settlement::query()->find($this->settlementId);
         $this->exchangeRate = $record === null
             ? ''
             : (string) ($record->exchange_rate_krw_per_cny ?? '');
-        if ($record !== null) {
+        if ($record !== null && $syncCurrency) {
             $this->settlementCurrency = (string) ($record->settlement_currency ?: 'KRW');
         }
     }
