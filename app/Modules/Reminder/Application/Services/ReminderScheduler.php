@@ -2,6 +2,7 @@
 
 namespace App\Modules\Reminder\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Customer\Application\Contracts\ReminderCustomerReader;
 use App\Modules\Customer\Application\Data\ReminderCustomerData;
 use App\Modules\Order\Application\Contracts\ReminderSourceReader;
@@ -18,11 +19,12 @@ final readonly class ReminderScheduler
         private ReminderCustomerReader $customers,
         private ReminderSourceReader $sources,
         private TreatmentReminderGateway $treatments,
+        private BusinessClock $clock,
     ) {}
 
     public function materialize(?CarbonImmutable $at = null): int
     {
-        $now = $at ?? CarbonImmutable::now();
+        $now = $at ?? $this->clock->now();
         $created = $this->appointments($now);
         foreach ($this->sources->completedOrders() as $order) {
             $before = Reminder::query()->count();

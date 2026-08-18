@@ -2,6 +2,7 @@
 
 namespace App\Modules\Customer\Presentation\Livewire;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Customer\Application\Services\CustomerDirectory;
 use App\Modules\Customer\Application\Services\CustomerFollowupManager;
 use App\Modules\Customer\Application\Services\CustomerStatusManager;
@@ -32,12 +33,12 @@ class CustomerDetail extends Component
     /** @var array<string, mixed> */
     public array $options = [];
 
-    public function mount(int $customer, CustomerDirectory $directory): void
+    public function mount(int $customer, CustomerDirectory $directory, BusinessClock $clock): void
     {
         $directory->profile($customer);
         $this->customerId = $customer;
         $this->options = $directory->options();
-        $this->followedUpOn = now()->toDateString();
+        $this->followedUpOn = $clock->now()->toDateString();
         $this->followupType = __('customers.detail.followup.default_type');
     }
 

@@ -3,15 +3,19 @@
 namespace App\Modules\Reminder\Application\Services;
 
 use App\Infrastructure\Localization\SupportedLocale;
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Reminder\Infrastructure\Models\Reminder;
 use App\Modules\Reminder\Infrastructure\Models\ReminderEvent;
 use App\Modules\Reminder\Jobs\SendReminderNotification;
+use Carbon\CarbonImmutable;
 use DomainException;
 
 final class ReminderNotificationDispatcher
 {
-    public function dispatchDue(): int
+    public function __construct(private readonly BusinessClock $clock) {}
+
+    public function dispatchDue(?CarbonImmutable $at = null): int
     {
         $statuses = ['pending'];
         if ((bool) config('dingtalk.enabled')) {
@@ -20,7 +24,7 @@ final class ReminderNotificationDispatcher
         $reminders = Reminder::query()
             ->whereIn('status', ['pending', 'snoozed', 'transferred'])
             ->whereIn('notification_status', $statuses)
-            ->where('due_at', '<=', now())
+            ->where('due_at', '<=', $at ?? $this->clock->now())
             ->get(['id', 'assigned_to', 'created_by']);
         foreach ($reminders as $reminder) {
             Reminder::query()->whereKey($reminder->id)->update(['notification_status' => 'queued']);

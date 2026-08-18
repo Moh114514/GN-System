@@ -2,6 +2,7 @@
 
 namespace App\Modules\Settlement\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
 use App\Modules\Settlement\Application\Data\SettlementPeriodData;
 use App\Modules\Settlement\Application\Data\SettlementRunStartResult;
@@ -21,6 +22,7 @@ final readonly class SettlementRunManager
         private SettlementPeriodCalculator $periods,
         private SettlementAgentGateway $agents,
         private SettlementRunSummaryUpdater $summary,
+        private BusinessClock $clock,
     ) {}
 
     public function start(string $source, ?int $actorId, ?CarbonImmutable $at = null): SettlementRun
@@ -30,7 +32,7 @@ final readonly class SettlementRunManager
 
     public function startWithResult(string $source, ?int $actorId, ?CarbonImmutable $at = null): SettlementRunStartResult
     {
-        return $this->startPeriod($this->periods->latestClosedPeriod($at ?? CarbonImmutable::now()), $source, $actorId);
+        return $this->startPeriod($this->periods->latestClosedPeriod($at ?? $this->clock->now()), $source, $actorId);
     }
 
     public function startHistorical(string $periodEnd, ?int $actorId, ?CarbonImmutable $at = null): SettlementRun
@@ -40,7 +42,7 @@ final readonly class SettlementRunManager
 
     public function startHistoricalWithResult(string $periodEnd, ?int $actorId, ?CarbonImmutable $at = null): SettlementRunStartResult
     {
-        $periods = $this->periods->recentClosedPeriods($at ?? CarbonImmutable::now(), 25);
+        $periods = $this->periods->recentClosedPeriods($at ?? $this->clock->now(), 25);
         $selected = collect($periods)->first(fn (SettlementPeriodData $period): bool => $period->end->toDateString() === trim($periodEnd));
         $latest = $periods[0] ?? null;
         if (! $selected instanceof SettlementPeriodData || $latest === null || ! $selected->end->isBefore($latest->end)) {
@@ -144,7 +146,7 @@ final readonly class SettlementRunManager
     /** Scheduler compensation: create the latest closed period whenever it is missing. */
     public function startIfDue(?CarbonImmutable $at = null): ?SettlementRun
     {
-        $now = $at ?? CarbonImmutable::now();
+        $now = $at ?? $this->clock->now();
         if (! $this->periods->isDue($now)) {
             return null;
         }

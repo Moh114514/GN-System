@@ -2,6 +2,7 @@
 
 namespace App\Modules\Order\Presentation\Livewire;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Order\Application\Data\DailyOrderData;
 use App\Modules\Order\Application\Services\DailyOrderWorkspace;
 use App\Modules\Order\Application\Services\OrderManagementWorkspace;
@@ -73,10 +74,10 @@ class OrderCenter extends Component
         'perPage' => ['except' => 20],
     ];
 
-    public function mount(OrderManagementWorkspace $workspace): void
+    public function mount(OrderManagementWorkspace $workspace, BusinessClock $clock): void
     {
         $this->options = $workspace->options();
-        $this->completedOn = now('Asia/Shanghai')->format('Y-m-d\TH:i');
+        $this->completedOn = $clock->now()->format('Y-m-d\TH:i');
     }
 
     public function updated(string $property): void
@@ -95,10 +96,10 @@ class OrderCenter extends Component
         $this->customerCandidates = $workspace->customerCandidates($this->customerSearch);
     }
 
-    public function closeCreate(): void
+    public function closeCreate(BusinessClock $clock): void
     {
         $this->showCreate = false;
-        $this->resetOrderForm();
+        $this->resetOrderForm($clock);
         $this->resetValidation();
     }
 
@@ -120,7 +121,7 @@ class OrderCenter extends Component
         $this->customerCandidates = app(OrderManagementWorkspace::class)->customerCandidates('');
     }
 
-    public function save(DailyOrderWorkspace $workspace): void
+    public function save(DailyOrderWorkspace $workspace, BusinessClock $clock): void
     {
         $this->validate([
             'customerId' => ['required', 'integer'],
@@ -161,15 +162,15 @@ class OrderCenter extends Component
         }
 
         $this->showCreate = false;
-        $this->resetOrderForm();
+        $this->resetOrderForm($clock);
         $this->resetPage();
         Flux::toast(variant: 'success', text: __('orders.messages.saved'));
     }
 
-    public function complete(int $orderId, DailyOrderWorkspace $workspace): void
+    public function complete(int $orderId, DailyOrderWorkspace $workspace, BusinessClock $clock): void
     {
         try {
-            $workspace->complete($orderId, CarbonImmutable::now('Asia/Shanghai'), (int) Auth::id(), request()->ip());
+            $workspace->complete($orderId, $clock->now(), (int) Auth::id(), request()->ip());
         } catch (DomainException $exception) {
             Flux::toast(variant: 'danger', text: __('orders.errors.unexpected', ['message' => $exception->getMessage()]));
 
@@ -197,7 +198,7 @@ class OrderCenter extends Component
         return view('livewire.orders.order-center', compact('orders'))->title(__('orders.title'));
     }
 
-    private function resetOrderForm(): void
+    private function resetOrderForm(BusinessClock $clock): void
     {
         $this->reset(
             'customerSearch',
@@ -214,6 +215,6 @@ class OrderCenter extends Component
             'notes',
         );
         $this->orderStatus = 'pending';
-        $this->completedOn = now('Asia/Shanghai')->format('Y-m-d\TH:i');
+        $this->completedOn = $clock->now()->format('Y-m-d\TH:i');
     }
 }

@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -123,6 +125,39 @@ class ConfigurationNavigationTest extends TestCase
             ->assertSee('class="crm-nav-group-head is-active"', false)
             ->assertSee('data-test="configuration-subnav-data-maintenance"', false)
             ->assertSee('class="crm-subnav-item is-active"', false);
+    }
+
+    public function test_time_travel_page_is_admin_only_and_returns_to_configuration_center(): void
+    {
+        $user = User::factory()->create();
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+
+        $this->actingAs($user)->get(route('configuration.time-travel'))->assertForbidden();
+
+        $this->actingAs($admin)->get(route('configuration.time-travel'))
+            ->assertOk()
+            ->assertSee(__('config.time_travel.title'))
+            ->assertSee(__('config.time_travel.set_and_execute'))
+            ->assertSee(__('config.back_to_configuration'))
+            ->assertSee('href="'.route('configuration.index').'"', false)
+            ->assertSee('data-test="configuration-subnav-time-travel"', false);
+    }
+
+    public function test_active_time_travel_is_visible_on_every_authenticated_page_with_restore_action(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $clock = app(BusinessClock::class);
+        $clock->set(CarbonImmutable::parse('2026-09-10 10:00:00', 'Asia/Shanghai'));
+
+        $this->actingAs($admin)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('data-test="business-clock-warning"', false)
+            ->assertSee(__('navigation.restore_real_time'))
+            ->assertSee('action="'.route('configuration.time-travel.disable').'"', false);
+
+        $this->actingAs($admin)->post(route('configuration.time-travel.disable'))
+            ->assertRedirect(route('configuration.time-travel'));
+        $this->assertFalse($clock->isActive());
     }
 
     public function test_data_import_pages_keep_configuration_navigation_open_and_highlight_data_maintenance(): void

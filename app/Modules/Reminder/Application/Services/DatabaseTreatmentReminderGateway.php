@@ -2,6 +2,7 @@
 
 namespace App\Modules\Reminder\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
 use App\Modules\Reminder\Application\Data\CompletedTreatmentData;
 use App\Modules\Reminder\Application\Data\CustomerTreatmentCompletedData;
@@ -12,6 +13,8 @@ use Carbon\CarbonImmutable;
 final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
 {
     private const SCHEDULE = [7, 30];
+
+    public function __construct(private readonly BusinessClock $clock) {}
 
     public function schedule(CompletedTreatmentData $data): void
     {
@@ -50,7 +53,7 @@ final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
     ): void {
         foreach (self::SCHEDULE as $days) {
             $dueAt = $completedAt->addDays($days)->setTime(9, 0);
-            if ($dueAt->isBefore(CarbonImmutable::now()->startOfDay())) {
+            if ($dueAt->isBefore($this->clock->now()->startOfDay())) {
                 continue;
             }
 

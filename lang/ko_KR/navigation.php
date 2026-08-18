@@ -39,4 +39,7 @@ return [
     'appearance' => '화면 설정',
     'language' => '언어',
     'logout' => '로그아웃',
+    'time_travel' => '시스템 테스트: 시간 시뮬레이션',
+    'time_travel_warning' => '⚠ 현재 시뮬레이션 시간: :time',
+    'restore_real_time' => '실제 시간으로 복원',
 ];

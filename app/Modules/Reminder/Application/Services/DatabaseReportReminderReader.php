@@ -2,6 +2,7 @@
 
 namespace App\Modules\Reminder\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Reminder\Application\Contracts\ReportReminderReader;
 use App\Modules\Reminder\Infrastructure\Models\FollowupRecord;
 use App\Modules\Reminder\Infrastructure\Models\Reminder;
@@ -9,12 +10,14 @@ use Carbon\CarbonImmutable;
 
 final class DatabaseReportReminderReader implements ReportReminderReader
 {
+    public function __construct(private readonly BusinessClock $clock) {}
+
     public function dashboard(CarbonImmutable $from, CarbonImmutable $to): array
     {
         $due = Reminder::query()->whereBetween('due_at', [$from, $to]);
         $dueCount = (clone $due)->count();
         $completedCount = (clone $due)->where('status', 'completed')->count();
-        $today = CarbonImmutable::now('Asia/Shanghai');
+        $today = $this->clock->now();
         $pending = Reminder::query()
             ->whereIn('status', ['pending', 'snoozed'])
             ->where('due_at', '<=', $to);

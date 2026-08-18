@@ -2,6 +2,7 @@
 
 namespace App\Modules\Customer\Presentation\Livewire;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Customer\Application\Data\CustomerProfileData;
 use App\Modules\Customer\Application\Exceptions\CustomerCodeChanged;
 use App\Modules\Customer\Application\Services\CustomerDirectory;
@@ -60,12 +61,12 @@ class CustomerForm extends Component
 
     public string $originalIdentityDocument = '';
 
-    public function mount(CustomerDirectory $directory, ?int $customer = null): void
+    public function mount(CustomerDirectory $directory, BusinessClock $clock, ?int $customer = null): void
     {
         $this->options = $directory->options();
         $this->customerId = $customer;
         if ($customer === null) {
-            $this->arrivalDate = now()->toDateString();
+            $this->arrivalDate = $clock->now()->toDateString();
 
             return;
         }

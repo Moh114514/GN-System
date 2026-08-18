@@ -2,6 +2,7 @@
 
 namespace App\Modules\Customer\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Customer\Application\Data\CustomerProfileData;
@@ -26,6 +27,7 @@ final readonly class CustomerProfileManager
         private AgentReferenceReader $agents,
         private CustomerOrderGateway $orders,
         private AuditRecorder $audit,
+        private BusinessClock $clock,
     ) {}
 
     public function previewCode(int $sourceAgentId): string
@@ -120,7 +122,7 @@ final readonly class CustomerProfileManager
                 'customer_id' => $customer->id,
                 'to_status_id' => $status->id,
                 'changed_by' => $actorId,
-                'changed_at' => now(),
+                'changed_at' => $this->clock->now(),
                 'reason' => '客户建档',
             ]);
             $this->orders->createInitialAppointment(new CustomerAppointmentData(

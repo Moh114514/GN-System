@@ -2,6 +2,7 @@
 
 namespace App\Modules\Order\Presentation\Livewire;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Order\Application\Data\DailyOrderData;
 use App\Modules\Order\Application\Services\DailyOrderWorkspace;
 use Carbon\CarbonImmutable;
@@ -40,13 +41,13 @@ class CustomerOrders extends Component
     /** @var array<string, mixed> */
     public array $context = [];
 
-    public function mount(int $customer, DailyOrderWorkspace $workspace): void
+    public function mount(int $customer, DailyOrderWorkspace $workspace, BusinessClock $clock): void
     {
         $this->customerId = $customer;
         $this->loadContext($workspace);
         $profile = $this->context['customer'];
         $this->agentId = (string) ($profile['source_agent_id'] ?? '');
-        $this->completedOn = now('Asia/Shanghai')->format('Y-m-d\TH:i');
+        $this->completedOn = $clock->now()->format('Y-m-d\TH:i');
     }
 
     public function save(DailyOrderWorkspace $workspace): void
@@ -92,10 +93,10 @@ class CustomerOrders extends Component
         $this->loadContext($workspace);
     }
 
-    public function complete(int $orderId, DailyOrderWorkspace $workspace): void
+    public function complete(int $orderId, DailyOrderWorkspace $workspace, BusinessClock $clock): void
     {
         try {
-            $workspace->complete($orderId, CarbonImmutable::now('Asia/Shanghai'), (int) Auth::id(), request()->ip());
+            $workspace->complete($orderId, $clock->now(), (int) Auth::id(), request()->ip());
         } catch (DomainException $exception) {
             Flux::toast(variant: 'danger', text: __('orders.errors.unexpected', ['message' => $exception->getMessage()]));
 

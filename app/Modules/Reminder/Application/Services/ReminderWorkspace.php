@@ -2,6 +2,7 @@
 
 namespace App\Modules\Reminder\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Customer\Application\Contracts\ReminderCustomerReader;
 use App\Modules\Customer\Application\Data\ReminderCustomerData;
@@ -19,6 +20,7 @@ final readonly class ReminderWorkspace
     public function __construct(
         private ReminderCustomerReader $customers,
         private ReminderContentPresenter $content,
+        private BusinessClock $clock,
     ) {}
 
     /** @return array<int, ReminderCustomerData> */
@@ -66,7 +68,7 @@ final readonly class ReminderWorkspace
     ): int {
         $this->customers->byId($customerId);
         User::query()->findOrFail($assignedTo);
-        if ($dueAt->isBefore(CarbonImmutable::now())) {
+        if ($dueAt->isBefore($this->clock->now())) {
             throw new DomainException(__('reminders.errors.custom_due_past'));
         }
         if ($recurrence !== null && ! in_array($recurrence['unit'] ?? null, ['day', 'week', 'month'], true)) {
@@ -105,7 +107,7 @@ final readonly class ReminderWorkspace
             }
             $reminder->update([
                 'status' => 'completed',
-                'completed_at' => now(),
+                'completed_at' => $this->clock->now(),
                 'completed_by' => $actor->id,
                 'notes' => $this->nullable($notes) ?? $reminder->notes,
             ]);
@@ -116,7 +118,7 @@ final readonly class ReminderWorkspace
 
     public function snooze(int $id, CarbonImmutable $until, string $reason, User $actor): void
     {
-        if (trim($reason) === '' || $until->isBefore(CarbonImmutable::now())) {
+        if (trim($reason) === '' || $until->isBefore($this->clock->now())) {
             throw new DomainException(__('reminders.errors.snooze_reason_and_future'));
         }
         $reminder = $this->findVisible($id, $actor);
@@ -150,7 +152,7 @@ final readonly class ReminderWorkspace
         return [
             'completed' => Reminder::query()->where('status', 'completed')->count(),
             'pending' => Reminder::query()->whereIn('status', ['pending', 'snoozed', 'transferred'])->count(),
-            'overdue' => Reminder::query()->whereIn('status', ['pending', 'snoozed', 'transferred'])->where('due_at', '<', now())->count(),
+            'overdue' => Reminder::query()->whereIn('status', ['pending', 'snoozed', 'transferred'])->where('due_at', '<', $this->clock->now())->count(),
         ];
     }
 
