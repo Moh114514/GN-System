@@ -67,6 +67,7 @@ fi
 
 "${compose[@]}" pull
 "${compose[@]}" run --rm app php artisan migrate --force --isolated --no-interaction
+"${compose[@]}" run --rm app php artisan optimize:clear --no-interaction
 "${compose[@]}" up -d --remove-orphans
 "${compose[@]}" exec -T app php artisan optimize --no-interaction
 "${compose[@]}" exec -T app php artisan up --no-interaction

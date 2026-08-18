@@ -63,6 +63,7 @@ return [
         'dingtalk_bound' => 'UserId 연결됨',
         'dingtalk_missing' => 'UserId 미연결',
         'save' => '알림 설정 저장',
+        'errors' => ['dingtalk_unbound' => 'DingTalk 담당자는 먼저 DingTalk UserId를 연결해야 합니다.'],
         'toast' => ['saved' => '알림 담당자 설정이 저장되었습니다.'],
     ],
     'configuration_history' => [

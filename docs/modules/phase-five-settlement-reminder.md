@@ -16,11 +16,11 @@ KRW 月结不做汇率换算；CNY 月结按本次汇率计算并保存快照，
 
 ## 等级评估
 
-`agent_grade_evaluations` 以代理商和结算周期唯一记录本期结果：`upgrade`、`maintained` 或 `downgrade_failure`，同时记录连续未达标次数。升级当期即可生成 `SettlementGradeSuggestion`；降级只有连续两个结算周期未达标才生成建议。重跑同一周期会更新评估记录，不会重复累加。系统只生成建议，等级仍由管理员人工确认后从下月生效。
+`agent_grade_evaluations` 以代理商和结算周期唯一记录本期结果：`upgrade`、`maintained` 或 `downgrade_failure`，同时记录连续未达标次数。升级当期即可生成 `SettlementGradeSuggestion`；降级只有连续且相邻的两个结算周期未达标才生成建议。重跑同一周期会更新评估记录，不会重复累加；如果中间缺少结算周期，失败次数会从 1 重新计算。系统只生成建议，等级仍由管理员人工确认后从下月生效。
 
 ## 通知
 
-配置中心的通知负责人页面维护 `notification_recipient_configs`。等级调整建议会生成站内通知，并按 `internal` / `dingtalk` 通道发送；钉钉负责人通过 `users.dingtalk_user_id` 绑定，Webhook 请求使用 `atUserIds` 定向 @。提醒实例已有负责人时复用同一 UserId 规则；没有负责人时只发送群通知。
+配置中心的通知负责人页面维护 `notification_recipient_configs`。等级调整建议会生成站内通知，并按 `internal` / `dingtalk` 通道发送；钉钉负责人通过 `users.dingtalk_user_id` 绑定，未绑定用户不能被选择，Webhook 请求使用 `atUserIds` 定向 @。钉钉投递写入 `notification_deliveries`，由队列执行并自动重试，状态记录为 `queued`、`sending`、`sent` 或 `failed`。提醒实例已有负责人时复用同一 UserId 规则；没有负责人时只发送群通知。
 
 ## 主动提醒
 

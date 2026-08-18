@@ -71,6 +71,7 @@ return [
         'dingtalk_bound' => '已绑定 UserId',
         'dingtalk_missing' => '未绑定 UserId',
         'save' => '保存通知设置',
+        'errors' => ['dingtalk_unbound' => '钉钉负责人必须先绑定 DingTalk UserId。'],
         'toast' => ['saved' => '通知负责人配置已保存。'],
     ],
     'configuration_history' => [

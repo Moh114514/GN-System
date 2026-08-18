@@ -2069,6 +2069,50 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame(1, AgentGradeEvaluation::query()->where('settlement_id', $second->id)->count());
     }
 
+    public function test_downgrade_failure_does_not_cross_a_missing_settlement_period(): void
+    {
+        $higher = PolicyGrade::query()->create([
+            'policy_system_id' => $this->grade->policy_system_id,
+            'name' => '高等级断档测试',
+            'monthly_threshold_krw' => 500,
+            'sort_order' => 20,
+            'is_active' => true,
+        ]);
+        AgentGradeAssignment::query()->create([
+            'agent_id' => $this->agent->id,
+            'policy_grade_id' => $higher->id,
+            'effective_month' => '2026-06-01',
+            'approved_by' => $this->admin->id,
+            'reason' => '测试缺失周期不连续',
+        ]);
+        $gateway = app(SettlementAgentGateway::class);
+        $current = $gateway->forMonth($this->agent->id, CarbonImmutable::parse('2026-06-30'));
+        $recommended = $gateway->recommendation($this->agent->id, CarbonImmutable::parse('2026-06-30'), 0);
+        $first = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-06-30',
+            'settlement_currency' => 'KRW',
+            'status' => 'pending_review',
+            'generation_status' => 'generated',
+        ]);
+        $gap = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-08-01',
+            'period_end' => '2026-08-31',
+            'settlement_currency' => 'KRW',
+            'status' => 'pending_review',
+            'generation_status' => 'generated',
+        ]);
+
+        $evaluator = app(SettlementGradeEvaluator::class);
+        $evaluator->evaluate($first, $current, $recommended, 0);
+        $evaluation = $evaluator->evaluate($gap, $current, $recommended, 0);
+
+        $this->assertSame(1, $evaluation->consecutive_failure_count);
+        $this->assertDatabaseMissing('settlement_grade_suggestions', ['settlement_id' => $gap->id]);
+    }
+
     public function test_one_thousand_items_complete_within_five_minutes(): void
     {
         $now = now();
