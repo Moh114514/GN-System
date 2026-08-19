@@ -48,8 +48,10 @@ class GenerateAgentSettlement implements ShouldQueue
         throw new \UnexpectedValueException('结算任务缺少成员或运行批次定位信息。');
     }
 
-    public function failed(Throwable $exception, SettlementFailureRecorder $recorder): void
+    public function failed(Throwable $exception): void
     {
+        $recorder = app(SettlementFailureRecorder::class);
+
         if ($this->memberId !== null) {
             $recorder->record((string) $this->memberId, $exception);
 

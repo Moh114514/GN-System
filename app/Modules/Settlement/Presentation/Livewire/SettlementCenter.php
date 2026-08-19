@@ -2,6 +2,7 @@
 
 namespace App\Modules\Settlement\Presentation\Livewire;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Settlement\Application\Data\SettlementRunStartResult;
 use App\Modules\Settlement\Application\Services\SettlementDisplayReader;
 use App\Modules\Settlement\Application\Services\SettlementNotificationDispatcher;
@@ -12,7 +13,6 @@ use App\Modules\Settlement\Application\Services\SettlementWorkflow;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
-use Carbon\CarbonImmutable;
 use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
@@ -51,9 +51,9 @@ class SettlementCenter extends Component
         $this->collapsedRunIds[] = $runId;
     }
 
-    public function mount(SettlementPeriodCalculator $periods): void
+    public function mount(SettlementPeriodCalculator $periods, BusinessClock $clock): void
     {
-        $configuration = $periods->activeConfiguration(CarbonImmutable::now());
+        $configuration = $periods->activeConfiguration($clock->now());
         $this->triggerTime = substr((string) $configuration->trigger_time, 0, 5);
         if ($this->selectedPeriodEnd === '') {
             $latestRun = SettlementRun::query()->latest('period_end')->first();
@@ -125,7 +125,7 @@ class SettlementCenter extends Component
         }
     }
 
-    public function saveConfiguration(SettlementPeriodCalculator $periods): void
+    public function saveConfiguration(SettlementPeriodCalculator $periods, BusinessClock $clock): void
     {
         $this->validate([
             'triggerTime' => ['required', 'date_format:H:i'],
@@ -140,7 +140,7 @@ class SettlementCenter extends Component
             $configuration = $periods->saveConfiguration(
                 $this->triggerTime,
                 (int) Auth::id(),
-                CarbonImmutable::now(),
+                $clock->now(),
             );
             Flux::toast(variant: 'success', text: __('settlements.toasts.configuration_saved', ['date' => $configuration->effective_from->format('Y-m-d')]));
             $this->confirmConfigurationChange = false;
@@ -149,9 +149,12 @@ class SettlementCenter extends Component
         }
     }
 
-    public function render(SettlementDisplayReader $display, SettlementRunReconciler $reconciler): View
-    {
-        $periods = app(SettlementPeriodCalculator::class)->recentClosedPeriods(CarbonImmutable::now(), 13);
+    public function render(
+        SettlementDisplayReader $display,
+        SettlementRunReconciler $reconciler,
+        BusinessClock $clock,
+    ): View {
+        $periods = app(SettlementPeriodCalculator::class)->recentClosedPeriods($clock->now(), 13);
         $availablePeriods = SettlementRun::query()
             ->select(['period_start', 'period_end'])
             ->orderByDesc('period_end')

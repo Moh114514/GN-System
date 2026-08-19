@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
 use App\Modules\Agent\Application\Services\DatabaseReferenceConfigurationImportGateway;
@@ -18,7 +19,6 @@ use App\Modules\Settlement\Application\Contracts\CommissionConfigurationGateway;
 use App\Modules\Settlement\Application\Data\HistoricalCommissionRuleData;
 use App\Modules\Settlement\Application\Services\ExchangeRateQuoteService;
 use App\Modules\Settlement\Application\Services\SettlementDocumentGenerator;
-use App\Modules\Settlement\Application\Services\SettlementFailureRecorder;
 use App\Modules\Settlement\Application\Services\SettlementFreshnessChecker;
 use App\Modules\Settlement\Application\Services\SettlementGenerator;
 use App\Modules\Settlement\Application\Services\SettlementGradeEvaluator;
@@ -148,6 +148,31 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame(10, (int) $configuration->generation_day);
         $this->assertSame('09:00', substr((string) $calculator->activeConfiguration(CarbonImmutable::now())->trigger_time, 0, 5));
         $this->assertSame('10:30', substr((string) $calculator->activeConfiguration(CarbonImmutable::parse('2026-08-10'))->trigger_time, 0, 5));
+    }
+
+    public function test_settlement_center_uses_business_clock_for_configuration_dates(): void
+    {
+        $clock = app(BusinessClock::class);
+        $clock->set(CarbonImmutable::parse('2026-09-10 09:00:00'));
+        SettlementConfiguration::query()->create([
+            'boundary_day' => 15,
+            'generation_day' => 10,
+            'trigger_time' => '10:30:00',
+            'timezone' => 'Asia/Shanghai',
+            'effective_from' => '2026-09-01',
+            'created_by' => $this->admin->id,
+        ]);
+
+        $component = Livewire::actingAs($this->admin)->test(SettlementCenter::class);
+
+        $component->assertSet('triggerTime', '10:30')
+            ->set('triggerTime', '11:00')
+            ->call('saveConfiguration');
+
+        $this->assertDatabaseHas('settlement_configurations', [
+            'effective_from' => '2026-09-10',
+            'trigger_time' => '11:00:00',
+        ]);
     }
 
     public function test_period_history_keeps_legacy_boundaries_before_natural_month_transition(): void
@@ -696,7 +721,35 @@ class PhaseFiveSettlementTest extends TestCase
         });
 
         $job = new GenerateAgentSettlement(memberId: $member->id, agentId: $this->agent->id);
-        $job->failed(new RuntimeException('queue dependency failure'), app(SettlementFailureRecorder::class));
+        $job->failed(new RuntimeException('queue dependency failure'));
+
+        $this->assertSame('failed', $member->fresh()->outcome);
+        $this->assertSame('settlements.failure_reasons.unexpected', $member->fresh()->error_message_key);
+    }
+
+    public function test_queue_failure_lifecycle_calls_failed_with_only_the_exception(): void
+    {
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'running',
+        ]);
+        $member = SettlementRunMember::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $this->agent->id,
+            'outcome' => 'pending',
+        ]);
+        app()->bind(SettlementGenerator::class, static function (): never {
+            throw new RuntimeException('normal settlement dependencies are unavailable');
+        });
+
+        try {
+            Queue::push(new GenerateAgentSettlement(memberId: $member->id, agentId: $this->agent->id));
+            $this->fail('The queue job should have failed during handle().');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('normal settlement dependencies are unavailable', $exception->getMessage());
+        }
 
         $this->assertSame('failed', $member->fresh()->outcome);
         $this->assertSame('settlements.failure_reasons.unexpected', $member->fresh()->error_message_key);
