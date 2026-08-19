@@ -452,8 +452,11 @@ docker compose exec vite npm run build
 
 每次拉取新的代码或镜像都必须先完成 migration 和 `optimize:clear`，再打开业务页面或进行
 验收。不能只执行 `docker compose up` 就假设数据库已经同步；如果 migration 失败，必须停止
-验收并先处理数据库问题。UAT/Production 的 `deploy/deploy.sh` 也按“拉取镜像 → migration →
-`optimize:clear` → 启动应用 → 健康检查”执行，禁止直接替换正在运行的代码。
+验收并先处理数据库问题。开发环境的 Queue 使用 `queue:listen`，让修改后的 Provider 和依赖
+在下一次任务执行时重新加载；UAT/Production 的 Queue 使用 `queue:work`，因此
+`deploy/deploy.sh` 在 migration、`optimize:clear` 和启动服务后还会执行 `queue:restart`。
+完整顺序是“更新 Git/镜像 → migration → optimize:clear → 启动应用 → 重启 Worker → 健康检查”，
+禁止直接替换正在运行的代码。
 
 只修改文档时至少运行：
 

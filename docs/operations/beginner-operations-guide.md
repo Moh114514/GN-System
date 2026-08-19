@@ -69,9 +69,12 @@ GN-System 当前有两套服务器环境，不能混用：
 `/srv/gn-system/releases/history.tsv` 为准。GitHub 上看到提交，不代表服务器已经运行该提交。
 
 每次更新代码或镜像后，必须按以下顺序处理：更新 Git/镜像 → 执行
-`php artisan migrate --force` → 执行 `php artisan optimize:clear` → 启动应用 → 检查健康接口。
+`php artisan migrate --force` → 执行 `php artisan optimize:clear` → 启动应用 → 重启 Queue Worker → 检查健康接口。
 在 migration 和缓存清理完成前不要打开业务页面；否则代码可能已经是新版本，数据库仍是旧结构，
 会出现页面访问数据库列不存在的错误。
+
+开发环境的 Queue 是 `queue:listen`，修改 Provider 后下一次任务会重新加载代码；UAT 使用
+`queue:work`，部署脚本会执行 `queue:restart`，也可以在确认目标是 UAT 后手动重启 Queue 容器。
 
 月结详情页会通过接口盒子自动获取每日更新的 KRW/CNY 汇率并预填，审核人可以修改后再提交。刷新失败时页面会明确提示；如果已有旧汇率，系统会标记为“保留旧汇率”，不会把失败显示成成功。
 UAT 和 Production 必须分别在环境文件中配置接口 ID/Key；如果服务不可用，页面会提示人工输入，

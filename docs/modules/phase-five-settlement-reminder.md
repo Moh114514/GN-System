@@ -28,4 +28,13 @@ KRW 月结不做汇率换算；CNY 月结按本次汇率计算并保存快照，
 
 ## 运行和验收
 
+月结 Queue 任务的失败回调使用独立的 `SettlementFailureRecorder`，不会再次解析完整的
+`SettlementGenerator` 依赖链。`SettlementRunReconciler` 每分钟比较 `SettlementRun`、Laravel
+Batch 和 `SettlementRunMember`；发现 Batch 失败、批次结束但 member 仍 pending、缺少批次或
+运行过久时，批次标记为队列异常，月结中心提供重新派发等待任务的操作。
+
+开发 Compose 使用 `queue:listen`；UAT/Production 使用 `queue:work`，发布后必须完成
+`migrate --force`、`optimize:clear` 和 `queue:restart`。时间模拟页面的“设置并立即执行”表示
+业务检查已提交到队列，不代表月结已经成功；最终结果以 Batch 和 member 状态为准。
+
 月结仍通过现有批次、队列、重试、审核、结清、文档生成和历史归档流程运行。相关本地测试覆盖 KRW/CNY 审核、汇率快照、升级建议、连续降级门槛、提醒幂等、通知接口和日期边界；真实钉钉凭据、UAT/Production 迁移和人工业务验收仍需在目标环境执行。

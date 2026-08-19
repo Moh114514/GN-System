@@ -5,6 +5,7 @@ use App\Modules\Reminder\Application\Services\ReminderNotificationDispatcher;
 use App\Modules\Reminder\Application\Services\ReminderScheduler;
 use App\Modules\Settlement\Application\Services\SettlementNotificationDispatcher;
 use App\Modules\Settlement\Application\Services\SettlementRunManager;
+use App\Modules\Settlement\Application\Services\SettlementRunReconciler;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
@@ -63,6 +64,16 @@ Artisan::command('app:dispatch-reminder-notifications', function (ReminderNotifi
 Artisan::command('app:dispatch-settlement-notifications', function (SettlementNotificationDispatcher $dispatcher): void {
     $this->info('已派发 '.$dispatcher->dispatchCompleted().' 条月结完成通知。');
 })->purpose('Dispatch completed settlement notifications');
+
+Artisan::command('app:reconcile-settlement-runs', function (SettlementRunReconciler $reconciler): void {
+    $result = $reconciler->reconcile();
+    $this->info(sprintf(
+        'Checked %d settlement runs; stalled %d; repaired %d.',
+        $result['checked'],
+        $result['stalled'],
+        $result['repaired'],
+    ));
+})->purpose('Reconcile settlement member state with Laravel queue batches');
 
 Schedule::command('app:scheduler-heartbeat')
     ->everyMinute()
@@ -126,6 +137,11 @@ Schedule::command('app:dispatch-reminder-notifications')
     ->onOneServer();
 
 Schedule::command('app:dispatch-settlement-notifications')
+    ->everyMinute()
+    ->withoutOverlapping()
+    ->onOneServer();
+
+Schedule::command('app:reconcile-settlement-runs')
     ->everyMinute()
     ->withoutOverlapping()
     ->onOneServer();

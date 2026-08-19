@@ -112,7 +112,7 @@ class TimeTravel extends Component
 
         $this->fillFrom($at);
         $this->lastExecution = implode(', ', $commands);
-        Flux::toast(variant: 'success', text: __('config.time_travel.toast.executed'));
+        Flux::toast(variant: 'success', text: __('config.time_travel.submission_notice'));
     }
 
     public function render(BusinessClock $clock): View

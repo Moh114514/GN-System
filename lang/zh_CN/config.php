@@ -173,6 +173,7 @@ return [
         'run_notifications' => '到期提醒派发',
         'set_and_execute' => '设置时间并执行',
         'last_execution' => '最近执行：:actions',
+        'submission_notice' => '模拟时间已设置，选中的业务检查已提交到队列；请以批次和成员状态确认结果。',
         'errors' => ['no_actions' => '至少选择一项要执行的业务检查。', 'invalid_time' => '模拟时间无效。'],
         'toast' => ['enabled' => '模拟业务时间已更新。', 'disabled' => '已恢复真实时间。', 'executed' => '模拟时间已设置，选中的业务检查已触发。', 'execution_failed' => '业务检查执行失败，请查看日志和队列状态。'],
     ],

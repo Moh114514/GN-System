@@ -18,6 +18,7 @@ use App\Modules\Settlement\Application\Contracts\CommissionConfigurationGateway;
 use App\Modules\Settlement\Application\Data\HistoricalCommissionRuleData;
 use App\Modules\Settlement\Application\Services\ExchangeRateQuoteService;
 use App\Modules\Settlement\Application\Services\SettlementDocumentGenerator;
+use App\Modules\Settlement\Application\Services\SettlementFailureRecorder;
 use App\Modules\Settlement\Application\Services\SettlementFreshnessChecker;
 use App\Modules\Settlement\Application\Services\SettlementGenerator;
 use App\Modules\Settlement\Application\Services\SettlementGradeEvaluator;
@@ -26,6 +27,7 @@ use App\Modules\Settlement\Application\Services\SettlementPeriodCalculator;
 use App\Modules\Settlement\Application\Services\SettlementRunFailureReader;
 use App\Modules\Settlement\Application\Services\SettlementRunFailureReportGenerator;
 use App\Modules\Settlement\Application\Services\SettlementRunManager;
+use App\Modules\Settlement\Application\Services\SettlementRunReconciler;
 use App\Modules\Settlement\Application\Services\SettlementWorkflow;
 use App\Modules\Settlement\Infrastructure\Models\AgentGradeEvaluation;
 use App\Modules\Settlement\Infrastructure\Models\CommissionRule;
@@ -629,6 +631,75 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame(0, $run->failed_agents);
         Bus::assertBatched(static fn ($batch): bool => $batch->jobs->count() === 1
             && $batch->jobs->first()->agentId === $pendingAgent->id);
+    }
+
+    public function test_reconciler_marks_pending_run_without_batch_as_stalled(): void
+    {
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'running',
+            'started_at' => now(),
+        ]);
+        SettlementRunMember::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $this->agent->id,
+            'outcome' => 'pending',
+        ]);
+
+        $result = app(SettlementRunReconciler::class)->reconcile();
+
+        $this->assertSame(1, $result['stalled']);
+        $this->assertSame('stalled', $run->fresh()->status);
+    }
+
+    public function test_reconciler_recovery_submits_only_pending_members(): void
+    {
+        Bus::fake();
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'stalled',
+            'started_at' => now(),
+        ]);
+        SettlementRunMember::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $this->agent->id,
+            'outcome' => 'pending',
+        ]);
+
+        $recovered = app(SettlementRunManager::class)->redispatchPending($run->id);
+
+        $this->assertSame('running', $recovered->status);
+        $this->assertNotNull($recovered->queue_batch_id);
+        Bus::assertBatched(static fn ($batch): bool => $batch->jobs->count() === 1
+            && $batch->jobs->first() instanceof GenerateAgentSettlement);
+    }
+
+    public function test_failed_queue_job_records_failure_without_resolving_generator(): void
+    {
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'running',
+        ]);
+        $member = SettlementRunMember::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $this->agent->id,
+            'outcome' => 'pending',
+        ]);
+        app()->bind(SettlementGenerator::class, static function (): never {
+            throw new RuntimeException('normal settlement dependencies are unavailable');
+        });
+
+        $job = new GenerateAgentSettlement(memberId: $member->id, agentId: $this->agent->id);
+        $job->failed(new RuntimeException('queue dependency failure'), app(SettlementFailureRecorder::class));
+
+        $this->assertSame('failed', $member->fresh()->outcome);
+        $this->assertSame('settlements.failure_reasons.unexpected', $member->fresh()->error_message_key);
     }
 
     public function test_historical_run_uses_period_eligibility_instead_of_current_status(): void

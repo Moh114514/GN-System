@@ -7,6 +7,7 @@ use App\Modules\Settlement\Application\Services\SettlementDisplayReader;
 use App\Modules\Settlement\Application\Services\SettlementNotificationDispatcher;
 use App\Modules\Settlement\Application\Services\SettlementPeriodCalculator;
 use App\Modules\Settlement\Application\Services\SettlementRunManager;
+use App\Modules\Settlement\Application\Services\SettlementRunReconciler;
 use App\Modules\Settlement\Application\Services\SettlementWorkflow;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
@@ -88,6 +89,19 @@ class SettlementCenter extends Component
         Flux::toast(variant: 'success', text: __('settlements.toasts.retry_failed'));
     }
 
+    public function redispatchPending(string $runId, SettlementRunManager $manager, SettlementRunReconciler $reconciler): void
+    {
+        $run = SettlementRun::query()->findOrFail($runId);
+        if (! $reconciler->isAnomalous($run)) {
+            Flux::toast(variant: 'warning', text: __('settlements.queue_recovery.not_needed'));
+
+            return;
+        }
+
+        $manager->redispatchPending($runId);
+        Flux::toast(variant: 'success', text: __('settlements.queue_recovery.submitted'));
+    }
+
     public function retryNotification(string $runId, SettlementNotificationDispatcher $dispatcher): void
     {
         try {
@@ -116,7 +130,7 @@ class SettlementCenter extends Component
         $this->validate([
             'triggerTime' => ['required', 'date_format:H:i'],
         ]);
-        $hasUnfinished = SettlementRun::query()->whereIn('status', ['queued', 'running', 'partial_failed'])->exists();
+        $hasUnfinished = SettlementRun::query()->whereIn('status', ['queued', 'running', 'stalled', 'partial_failed'])->exists();
         if ($hasUnfinished && ! $this->confirmConfigurationChange) {
             Flux::toast(variant: 'danger', text: __('settlements.toasts.configuration_confirmation_required'));
 
@@ -135,7 +149,7 @@ class SettlementCenter extends Component
         }
     }
 
-    public function render(SettlementDisplayReader $display): View
+    public function render(SettlementDisplayReader $display, SettlementRunReconciler $reconciler): View
     {
         $periods = app(SettlementPeriodCalculator::class)->recentClosedPeriods(CarbonImmutable::now(), 13);
         $availablePeriods = SettlementRun::query()
@@ -156,8 +170,10 @@ class SettlementCenter extends Component
             ->get();
         $memberDisplays = [];
         $legacyDisplays = [];
+        $queueStates = [];
         foreach ($runs as $run) {
             $memberDisplays[(string) $run->id] = $display->forMembers($run->members);
+            $queueStates[(string) $run->id] = $reconciler->state($run);
             foreach ($display->forSettlements($run->settlements) as $settlementId => $agentDisplay) {
                 $legacyDisplays[$settlementId] = $agentDisplay;
             }
@@ -200,6 +216,7 @@ class SettlementCenter extends Component
             'historicalPeriods' => array_slice($periods, 1),
             'availablePeriods' => $availablePeriods,
             'selectedPeriodEnd' => $this->selectedPeriodEnd,
+            'queueStates' => $queueStates,
         ]);
     }
 

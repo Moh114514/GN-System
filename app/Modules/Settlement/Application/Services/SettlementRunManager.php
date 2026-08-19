@@ -143,6 +143,31 @@ final readonly class SettlementRunManager
         return $this->summary->update($run);
     }
 
+    public function redispatchPending(string $runId): SettlementRun
+    {
+        $run = SettlementRun::query()->findOrFail($runId);
+        $pendingMembers = $run->members()->where('outcome', 'pending')->get();
+        if ($pendingMembers->isEmpty()) {
+            return $this->summary->update($run);
+        }
+
+        $jobs = $pendingMembers->map(fn (SettlementRunMember $member): GenerateAgentSettlement => new GenerateAgentSettlement(
+            memberId: $member->id,
+            agentId: (int) $member->agent_id,
+        ))->all();
+        $batch = Bus::batch($jobs)
+            ->name("Settlement {$run->period_start->toDateString()} to {$run->period_end->toDateString()} recovery")
+            ->allowFailures()
+            ->dispatch();
+        $run->update([
+            'queue_batch_id' => $batch->id,
+            'status' => 'queued',
+            'completed_at' => null,
+        ]);
+
+        return $this->summary->update($run);
+    }
+
     /** Scheduler compensation: create the latest closed period whenever it is missing. */
     public function startIfDue(?CarbonImmutable $at = null): ?SettlementRun
     {

@@ -137,6 +137,7 @@ return [
         'run_notifications' => '기한 알림 발송',
         'set_and_execute' => '시간 설정 후 실행',
         'last_execution' => '최근 실행: :actions',
+        'submission_notice' => '시뮬레이션 시간이 설정되었고 선택한 업무 검사가 대기열에 제출되었습니다. 배치와 구성원 상태에서 결과를 확인하세요.',
         'errors' => ['no_actions' => '실행할 업무 검사를 하나 이상 선택하세요.', 'invalid_time' => '시뮬레이션 시간이 올바르지 않습니다.'],
         'toast' => ['enabled' => '업무 시뮬레이션 시간이 업데이트되었습니다.', 'disabled' => '실제 시간으로 복원되었습니다.', 'executed' => '시뮬레이션 시간을 설정하고 선택한 검사를 시작했습니다.', 'execution_failed' => '업무 검사 실행에 실패했습니다. 로그와 큐 상태를 확인하세요.'],
     ],

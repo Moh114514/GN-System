@@ -70,6 +70,7 @@ fi
 "${compose[@]}" run --rm app php artisan optimize:clear --no-interaction
 "${compose[@]}" up -d --remove-orphans
 "${compose[@]}" exec -T app php artisan optimize --no-interaction
+"${compose[@]}" exec -T app php artisan queue:restart --no-interaction
 "${compose[@]}" exec -T app php artisan up --no-interaction
 
 health_deadline=$((SECONDS + 210))
