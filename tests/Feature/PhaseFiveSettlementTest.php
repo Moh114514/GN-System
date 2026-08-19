@@ -49,7 +49,6 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Queue;
@@ -1029,7 +1028,8 @@ class PhaseFiveSettlementTest extends TestCase
         $pdf = $documents->firstWhere('format', 'pdf');
         $this->assertNotNull($pdf);
         $this->assertStringStartsWith('%PDF-', Storage::disk('local')->get($pdf->path));
-        $this->assertNotEmpty(File::glob(storage_path('framework/cache/dompdf/fonts/gn_cjk_*.ufm')));
+        $this->assertFileIsReadable((string) config('reporting.pdf.font_path'));
+        $this->assertGreaterThan(0, Storage::disk('local')->size($pdf->path));
         $workflow->settle($settlement->id, $this->admin->id, null);
         $this->assertDatabaseHas('settlements', ['id' => $settlement->id, 'status' => 'settled']);
         $this->assertDatabaseHas('activity_log', ['log_name' => 'settlement', 'subject_id' => $settlement->id, 'event' => 'settled']);

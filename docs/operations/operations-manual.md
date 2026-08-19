@@ -493,6 +493,7 @@ GitHub Actions 完整通过；CI 失败必须在分支修复，不能跳过检�
 
 ### 6.1 创建 RC
 
+以下演示的版本仅作示例，请以实际版本为准
 ```bash
 git fetch --tags --prune origin
 git switch main

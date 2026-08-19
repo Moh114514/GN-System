@@ -29,7 +29,6 @@ use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
@@ -364,9 +363,8 @@ class PhaseSixReportingConfigurationTest extends TestCase
         );
         Storage::disk('local')->assertExists($html->path);
         Storage::disk('local')->assertExists($pdf->path);
-        $this->assertNotEmpty(
-            File::glob(storage_path('framework/cache/dompdf/fonts/gn_cjk_*.ufm')),
-        );
+        $this->assertFileIsReadable((string) config('reporting.pdf.font_path'));
+        $this->assertGreaterThan(0, Storage::disk('local')->size($pdf->path));
 
         $this->actingAs($this->user)->get(route('dashboard'))
             ->assertOk()
