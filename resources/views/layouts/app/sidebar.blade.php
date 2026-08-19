@@ -183,6 +183,17 @@
                                     >
                                         {{ __('navigation.data_maintenance') }}
                                     </a>
+
+                                    @if (app(\App\Infrastructure\Time\BusinessClock::class)->isAvailable())
+                                        <a
+                                            href="{{ route('configuration.time-travel') }}"
+                                            class="crm-subnav-item {{ request()->routeIs('configuration.time-travel') ? 'is-active' : '' }}"
+                                            data-test="configuration-subnav-time-travel"
+                                            wire:navigate
+                                        >
+                                            {{ __('navigation.time_travel') }}
+                                        </a>
+                                    @endif
                                 </div>
                             </div>
                         </div>
@@ -212,6 +223,10 @@
         ></button>
 
         <div class="crm-shell">
+            @php
+                $businessClock = app(\App\Infrastructure\Time\BusinessClock::class);
+                $businessClockActive = $businessClock->isActive();
+            @endphp
             <header class="crm-topbar">
                 <button
                     type="button"
@@ -288,7 +303,7 @@
                     <label class="crm-date-range">
                         <span class="sr-only">{{ __('navigation.date_label') }}</span>
                         <x-localized-date-picker
-                            :value="request()->routeIs('dashboard') ? (string) request('date', now('Asia/Shanghai')->format('Y-m-d')) : now('Asia/Shanghai')->format('Y-m-d')"
+                            :value="request()->routeIs('dashboard') ? (string) request('date', $businessClock->now()->format('Y-m-d')) : $businessClock->now()->format('Y-m-d')"
                             name="date"
                             data-test="topbar-date-control"
                             :aria-label="__('navigation.date_label')"
@@ -380,6 +395,16 @@
                     </flux:menu>
                 </flux:dropdown>
             </header>
+
+            @if ($businessClockActive)
+                <div class="mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100" data-test="business-clock-warning">
+                    <span class="font-semibold">{{ __('navigation.time_travel_warning', ['time' => $businessClock->now()->format('Y-m-d H:i')]) }}</span>
+                    <form method="POST" action="{{ route('configuration.time-travel.disable') }}">
+                        @csrf
+                        <button type="submit" class="font-semibold underline underline-offset-2">{{ __('navigation.restore_real_time') }}</button>
+                    </form>
+                </div>
+            @endif
 
             {{ $slot }}
 

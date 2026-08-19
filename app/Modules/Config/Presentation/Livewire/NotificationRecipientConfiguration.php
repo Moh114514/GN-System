@@ -7,6 +7,7 @@ use App\Modules\Config\Infrastructure\Models\NotificationRecipientConfig;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\ValidationException;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -32,6 +33,17 @@ class NotificationRecipientConfiguration extends Component
             'dingtalkUserIds' => ['array'],
             'dingtalkUserIds.*' => ['integer', 'exists:users,id'],
         ]);
+        $dingtalkUserIds = array_unique(array_map('intval', $this->dingtalkUserIds));
+        $boundDingtalkUserCount = User::query()
+            ->whereIn('id', $dingtalkUserIds)
+            ->whereNotNull('dingtalk_user_id')
+            ->where('dingtalk_user_id', '<>', '')
+            ->count();
+        if ($boundDingtalkUserCount !== count($dingtalkUserIds)) {
+            throw ValidationException::withMessages([
+                'dingtalkUserIds' => __('config.notification_recipients.errors.dingtalk_unbound'),
+            ]);
+        }
         DB::transaction(function (): void {
             foreach (['internal' => $this->internalUserIds, 'dingtalk' => $this->dingtalkUserIds] as $channel => $ids) {
                 NotificationRecipientConfig::query()
@@ -62,6 +74,14 @@ class NotificationRecipientConfiguration extends Component
     {
         $records = NotificationRecipientConfig::query()->where('event_type', 'agent_grade_adjustment')->get();
         $this->internalUserIds = $records->where('channel', 'internal')->pluck('user_id')->map(fn ($id): int => (int) $id)->values()->all();
-        $this->dingtalkUserIds = $records->where('channel', 'dingtalk')->pluck('user_id')->map(fn ($id): int => (int) $id)->values()->all();
+        $configuredDingtalkUserIds = $records->where('channel', 'dingtalk')->pluck('user_id')->map(fn ($id): int => (int) $id)->values()->all();
+        $this->dingtalkUserIds = User::query()
+            ->whereIn('id', $configuredDingtalkUserIds)
+            ->whereNotNull('dingtalk_user_id')
+            ->where('dingtalk_user_id', '<>', '')
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->values()
+            ->all();
     }
 }

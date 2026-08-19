@@ -128,6 +128,10 @@ chmod 0600 .env.uat
 sudo ./deploy/deploy.sh .env.uat
 ```
 
+部署脚本会先执行 migration 和 `optimize:clear`，再启动服务并执行
+`php artisan queue:restart`。UAT 使用 `queue:work` 常驻 Worker，不能只替换镜像后直接打开页面；
+必须确认 Queue 已重新加载新版本依赖。
+
 服务器访问 GHCR 不稳定时，不要反复运行标准脚本。办公电脑下载并传输镜像、服务器
 导入镜像以及带 `--pull never` 的手工部署步骤见[局域网离线镜像部署](offline-deployment.md)。
 

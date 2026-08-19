@@ -4,11 +4,11 @@ namespace App\Modules\Config\Application\Services;
 
 use App\Models\User;
 use App\Modules\Config\Application\Contracts\NotificationRecipientGateway;
+use App\Modules\Config\Application\Jobs\SendDingTalkNotification;
 use App\Modules\Config\Infrastructure\Models\InternalNotification;
+use App\Modules\Config\Infrastructure\Models\NotificationDelivery;
 use App\Modules\Config\Infrastructure\Models\NotificationRecipientConfig;
 use App\Modules\Reminder\Application\Contracts\StaffNotificationSender;
-use Illuminate\Support\Facades\Log;
-use Throwable;
 
 final readonly class DatabaseNotificationRecipientGateway implements NotificationRecipientGateway
 {
@@ -34,14 +34,35 @@ final readonly class DatabaseNotificationRecipientGateway implements Notificatio
             return;
         }
 
-        try {
-            $this->sender->send($title, $body, $link, $dingtalkIds);
-        } catch (Throwable $exception) {
-            Log::warning('Configured DingTalk notification failed.', [
+        $delivery = NotificationDelivery::query()->firstOrCreate(
+            [
                 'event_type' => $eventType,
                 'event_key' => $eventKey,
-                'exception' => $exception,
+                'channel' => 'dingtalk',
+            ],
+            [
+                'title' => $title,
+                'body' => $body,
+                'link' => $link,
+                'recipients' => $dingtalkIds,
+                'status' => 'queued',
+            ],
+        );
+        if ($delivery->wasRecentlyCreated) {
+            SendDingTalkNotification::dispatch($delivery->id)->afterCommit();
+
+            return;
+        }
+        if ($delivery->status === 'failed') {
+            $delivery->update([
+                'title' => $title,
+                'body' => $body,
+                'link' => $link,
+                'recipients' => $dingtalkIds,
+                'status' => 'queued',
+                'last_error' => null,
             ]);
+            SendDingTalkNotification::dispatch($delivery->id)->afterCommit();
         }
     }
 

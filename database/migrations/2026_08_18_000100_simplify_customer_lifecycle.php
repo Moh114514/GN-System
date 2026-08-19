@@ -9,9 +9,11 @@ return new class extends Migration
 {
     public function up(): void
     {
-        Schema::table('customers', function (Blueprint $table): void {
-            $table->timestamp('treatment_completed_at')->nullable()->after('current_status_id');
-        });
+        if (! Schema::hasColumn('customers', 'treatment_completed_at')) {
+            Schema::table('customers', function (Blueprint $table): void {
+                $table->timestamp('treatment_completed_at')->nullable()->after('current_status_id');
+            });
+        }
 
         DB::transaction(function (): void {
             DB::table('customers')->update(['current_status_id' => null, 'treatment_completed_at' => null]);
@@ -115,8 +117,10 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('customers', function (Blueprint $table): void {
-            $table->dropColumn('treatment_completed_at');
-        });
+        if (Schema::hasColumn('customers', 'treatment_completed_at')) {
+            Schema::table('customers', function (Blueprint $table): void {
+                $table->dropColumn('treatment_completed_at');
+            });
+        }
     }
 };

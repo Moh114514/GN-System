@@ -53,16 +53,21 @@
             <tbody>
             @forelse ($runs as $run)
                 @php($isCollapsed = in_array((string) $run->id, $collapsedRunIds, true))
+                @php($queueState = $queueStates[(string) $run->id] ?? ['anomalous' => false, 'pending_members' => 0, 'failed_jobs' => 0, 'pending_jobs' => 0])
                 <tr wire:key="settlement-run-{{ $run->id }}" class="cursor-pointer" wire:click="toggleRun('{{ $run->id }}')" wire:keydown.enter="toggleRun('{{ $run->id }}')" wire:keydown.space.prevent="toggleRun('{{ $run->id }}')" tabindex="0" role="button" aria-label="{{ __($isCollapsed ? 'settlements.center.expand' : 'settlements.center.collapse') }}{{ __('settlements.center.runs') }}">
                     <td>{{ $run->period_start->format('Y-m-d') }} {{ __('settlements.labels.date_to') }} {{ $run->period_end->format('Y-m-d') }}<div class="text-xs text-zinc-500">{{ ['manual' => __('settlements.center.manual'), 'historical' => __('settlements.center.historical_manual'), 'scheduled' => __('settlements.center.scheduled')][$run->trigger_source] ?? $run->trigger_source }}</div></td>
                     <td>{{ $run->processed_agents + $run->existing_agents + $run->failed_agents }}/{{ $run->total_agents }}<div class="text-xs text-zinc-500">{{ __('settlements.center.generated_count', ['count' => $run->processed_agents]) }} · {{ __('settlements.center.existing_count', ['count' => $run->existing_agents]) }}</div><div class="text-xs text-red-600">{{ __('settlements.center.failed_count', ['count' => $run->failed_agents]) }}</div></td>
                     <td>₩{{ number_format($run->total_consumption_krw) }}<div class="text-xs text-zinc-500">{{ __('settlements.detail.commission') }} ₩{{ number_format($run->total_commission_krw) }}</div></td>
-                    <td>{{ __('settlements.run_statuses.'.$run->status) }}<div class="text-xs text-zinc-500">{{ __('settlements.center.dingtalk', ['status' => __('settlements.notification_statuses.'.$run->notification_status)]) }}</div></td>
+                    <td>{{ $queueState['anomalous'] ? __('settlements.queue_recovery.status') : __('settlements.run_statuses.'.$run->status) }}<div class="text-xs text-zinc-500">{{ __('settlements.center.dingtalk', ['status' => __('settlements.notification_statuses.'.$run->notification_status)]) }}</div></td>
                     <td class="space-x-2" x-on:keydown.stop>
                         <button type="button" class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-zinc-700 hover:bg-zinc-100" wire:click.stop="toggleRun('{{ $run->id }}')" aria-expanded="{{ $isCollapsed ? 'false' : 'true' }}">
                             <flux:icon :name="$isCollapsed ? 'chevron-right' : 'chevron-down'" class="size-4" aria-hidden="true" />
                             <span>{{ __($isCollapsed ? 'settlements.center.expand' : 'settlements.center.collapse') }}</span>
                         </button>
+                        @if ($queueState['anomalous'] && $queueState['pending_members'] > 0)
+                            <span class="text-sm font-semibold text-amber-700">{{ __('settlements.queue_recovery.batch_failed', ['count' => $queueState['failed_jobs']]) }}</span>
+                            <flux:button wire:click.stop="redispatchPending('{{ $run->id }}')" size="sm" variant="ghost">{{ __('settlements.queue_recovery.redispatch_pending') }}</flux:button>
+                        @endif
                         @if ($run->failed_agents > 0)
                             <a class="text-sm font-semibold text-red-700 hover:underline" href="{{ route('settlements.runs.failures', $run->id) }}" wire:navigate x-on:click.stop>{{ __('settlements.center.view_failures', ['count' => $run->failed_agents]) }}</a>
                             <flux:button wire:click.stop="retry('{{ $run->id }}')" size="sm" variant="ghost">{{ __('settlements.center.retry_failed') }}</flux:button>

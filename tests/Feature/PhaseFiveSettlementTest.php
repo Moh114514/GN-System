@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
 use App\Modules\Agent\Application\Services\DatabaseReferenceConfigurationImportGateway;
@@ -26,6 +27,7 @@ use App\Modules\Settlement\Application\Services\SettlementPeriodCalculator;
 use App\Modules\Settlement\Application\Services\SettlementRunFailureReader;
 use App\Modules\Settlement\Application\Services\SettlementRunFailureReportGenerator;
 use App\Modules\Settlement\Application\Services\SettlementRunManager;
+use App\Modules\Settlement\Application\Services\SettlementRunReconciler;
 use App\Modules\Settlement\Application\Services\SettlementWorkflow;
 use App\Modules\Settlement\Infrastructure\Models\AgentGradeEvaluation;
 use App\Modules\Settlement\Infrastructure\Models\CommissionRule;
@@ -146,6 +148,31 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame(10, (int) $configuration->generation_day);
         $this->assertSame('09:00', substr((string) $calculator->activeConfiguration(CarbonImmutable::now())->trigger_time, 0, 5));
         $this->assertSame('10:30', substr((string) $calculator->activeConfiguration(CarbonImmutable::parse('2026-08-10'))->trigger_time, 0, 5));
+    }
+
+    public function test_settlement_center_uses_business_clock_for_configuration_dates(): void
+    {
+        $clock = app(BusinessClock::class);
+        $clock->set(CarbonImmutable::parse('2026-09-10 09:00:00'));
+        SettlementConfiguration::query()->create([
+            'boundary_day' => 15,
+            'generation_day' => 10,
+            'trigger_time' => '10:30:00',
+            'timezone' => 'Asia/Shanghai',
+            'effective_from' => '2026-09-01',
+            'created_by' => $this->admin->id,
+        ]);
+
+        $component = Livewire::actingAs($this->admin)->test(SettlementCenter::class);
+
+        $component->assertSet('triggerTime', '10:30')
+            ->set('triggerTime', '11:00')
+            ->call('saveConfiguration');
+
+        $this->assertDatabaseHas('settlement_configurations', [
+            'effective_from' => '2026-09-10',
+            'trigger_time' => '11:00:00',
+        ]);
     }
 
     public function test_period_history_keeps_legacy_boundaries_before_natural_month_transition(): void
@@ -629,6 +656,103 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame(0, $run->failed_agents);
         Bus::assertBatched(static fn ($batch): bool => $batch->jobs->count() === 1
             && $batch->jobs->first()->agentId === $pendingAgent->id);
+    }
+
+    public function test_reconciler_marks_pending_run_without_batch_as_stalled(): void
+    {
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'running',
+            'started_at' => now(),
+        ]);
+        SettlementRunMember::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $this->agent->id,
+            'outcome' => 'pending',
+        ]);
+
+        $result = app(SettlementRunReconciler::class)->reconcile();
+
+        $this->assertSame(1, $result['stalled']);
+        $this->assertSame('stalled', $run->fresh()->status);
+    }
+
+    public function test_reconciler_recovery_submits_only_pending_members(): void
+    {
+        Bus::fake();
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'stalled',
+            'started_at' => now(),
+        ]);
+        SettlementRunMember::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $this->agent->id,
+            'outcome' => 'pending',
+        ]);
+
+        $recovered = app(SettlementRunManager::class)->redispatchPending($run->id);
+
+        $this->assertSame('running', $recovered->status);
+        $this->assertNotNull($recovered->queue_batch_id);
+        Bus::assertBatched(static fn ($batch): bool => $batch->jobs->count() === 1
+            && $batch->jobs->first() instanceof GenerateAgentSettlement);
+    }
+
+    public function test_failed_queue_job_records_failure_without_resolving_generator(): void
+    {
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'running',
+        ]);
+        $member = SettlementRunMember::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $this->agent->id,
+            'outcome' => 'pending',
+        ]);
+        app()->bind(SettlementGenerator::class, static function (): never {
+            throw new RuntimeException('normal settlement dependencies are unavailable');
+        });
+
+        $job = new GenerateAgentSettlement(memberId: $member->id, agentId: $this->agent->id);
+        $job->failed(new RuntimeException('queue dependency failure'));
+
+        $this->assertSame('failed', $member->fresh()->outcome);
+        $this->assertSame('settlements.failure_reasons.unexpected', $member->fresh()->error_message_key);
+    }
+
+    public function test_queue_failure_lifecycle_calls_failed_with_only_the_exception(): void
+    {
+        $run = SettlementRun::query()->create([
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'trigger_source' => 'manual',
+            'status' => 'running',
+        ]);
+        $member = SettlementRunMember::query()->create([
+            'settlement_run_id' => $run->id,
+            'agent_id' => $this->agent->id,
+            'outcome' => 'pending',
+        ]);
+        app()->bind(SettlementGenerator::class, static function (): never {
+            throw new RuntimeException('normal settlement dependencies are unavailable');
+        });
+
+        try {
+            Queue::push(new GenerateAgentSettlement(memberId: $member->id, agentId: $this->agent->id));
+            $this->fail('The queue job should have failed during handle().');
+        } catch (RuntimeException $exception) {
+            $this->assertSame('normal settlement dependencies are unavailable', $exception->getMessage());
+        }
+
+        $this->assertSame('failed', $member->fresh()->outcome);
+        $this->assertSame('settlements.failure_reasons.unexpected', $member->fresh()->error_message_key);
     }
 
     public function test_historical_run_uses_period_eligibility_instead_of_current_status(): void
@@ -2067,6 +2191,50 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertDatabaseHas('agent_grade_evaluations', ['settlement_id' => $second->id, 'result' => 'downgrade_failure', 'consecutive_failure_count' => 2]);
         $this->assertDatabaseHas('settlement_grade_suggestions', ['settlement_id' => $second->id, 'recommended_grade_id' => $recommended->currentGradeId]);
         $this->assertSame(1, AgentGradeEvaluation::query()->where('settlement_id', $second->id)->count());
+    }
+
+    public function test_downgrade_failure_does_not_cross_a_missing_settlement_period(): void
+    {
+        $higher = PolicyGrade::query()->create([
+            'policy_system_id' => $this->grade->policy_system_id,
+            'name' => '高等级断档测试',
+            'monthly_threshold_krw' => 500,
+            'sort_order' => 20,
+            'is_active' => true,
+        ]);
+        AgentGradeAssignment::query()->create([
+            'agent_id' => $this->agent->id,
+            'policy_grade_id' => $higher->id,
+            'effective_month' => '2026-06-01',
+            'approved_by' => $this->admin->id,
+            'reason' => '测试缺失周期不连续',
+        ]);
+        $gateway = app(SettlementAgentGateway::class);
+        $current = $gateway->forMonth($this->agent->id, CarbonImmutable::parse('2026-06-30'));
+        $recommended = $gateway->recommendation($this->agent->id, CarbonImmutable::parse('2026-06-30'), 0);
+        $first = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-06-01',
+            'period_end' => '2026-06-30',
+            'settlement_currency' => 'KRW',
+            'status' => 'pending_review',
+            'generation_status' => 'generated',
+        ]);
+        $gap = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-08-01',
+            'period_end' => '2026-08-31',
+            'settlement_currency' => 'KRW',
+            'status' => 'pending_review',
+            'generation_status' => 'generated',
+        ]);
+
+        $evaluator = app(SettlementGradeEvaluator::class);
+        $evaluator->evaluate($first, $current, $recommended, 0);
+        $evaluation = $evaluator->evaluate($gap, $current, $recommended, 0);
+
+        $this->assertSame(1, $evaluation->consecutive_failure_count);
+        $this->assertDatabaseMissing('settlement_grade_suggestions', ['settlement_id' => $gap->id]);
     }
 
     public function test_one_thousand_items_complete_within_five_minutes(): void

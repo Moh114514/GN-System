@@ -314,6 +314,7 @@ return [
         'headers' => ['batch' => '批次编号', 'period' => '周期', 'agent_code' => '代理商编号', 'agent_name' => '代理商名称', 'agent_id' => '代理商 ID', 'reason' => '失败原因'],
         'period' => ':from 至 :to',
     ],
+    'queue_recovery' => ['status' => '队列异常', 'batch_failed' => '队列失败 :count 个；业务记录仍待处理', 'redispatch_pending' => '重新派发等待任务', 'submitted' => '等待中的月结任务已重新提交；请以批次和成员状态确认结果。', 'not_needed' => '当前没有检测到需要恢复的等待任务。'],
     'failure_reasons' => [
         'missing_commission_snapshot' => '已完成订单 :order_id 缺少推广费快照。',
         'agent_policy_missing' => '代理商在当月没有生效政策等级。',

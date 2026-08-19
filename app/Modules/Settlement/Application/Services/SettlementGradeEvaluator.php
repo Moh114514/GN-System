@@ -21,16 +21,16 @@ final readonly class SettlementGradeEvaluator
         $failureCount = 0;
         if ($direction < 0) {
             $failureCount = 1;
+            $previousPeriod = CarbonImmutable::parse($settlement->period_start)->subDay()->toDateString();
             $previous = AgentGradeEvaluation::query()
                 ->where('agent_id', $settlement->agent_id)
                 ->whereDate('period', '<', $period)
                 ->latest('period')
-                ->get();
-            foreach ($previous as $evaluation) {
-                if ($evaluation->result !== 'downgrade_failure') {
-                    break;
-                }
-                $failureCount++;
+                ->first();
+            if ($previous !== null
+                && CarbonImmutable::parse((string) $previous->period)->toDateString() === $previousPeriod
+                && $previous->result === 'downgrade_failure') {
+                $failureCount = $previous->consecutive_failure_count + 1;
             }
         }
 

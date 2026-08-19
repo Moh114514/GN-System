@@ -2,6 +2,7 @@
 
 namespace App\Modules\Reminder\Presentation\Livewire;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Reminder\Application\Services\ReminderContentPresenter;
 use App\Modules\Reminder\Application\Services\ReminderRuleManager;
@@ -40,7 +41,7 @@ class ReminderCreate extends Component
 
     public string $templateName = '';
 
-    public function mount(ReminderRuleManager $rules): void
+    public function mount(ReminderRuleManager $rules, BusinessClock $clock): void
     {
         $rules->ensureSystemTemplates();
         $requestedCustomer = request()->integer('customer');
@@ -48,7 +49,7 @@ class ReminderCreate extends Component
             $this->customerId = (string) $requestedCustomer;
         }
         $this->assignedTo = (string) Auth::id();
-        $this->dueAt = now()->addDay()->setTime(9, 0)->format('Y-m-d\TH:i');
+        $this->dueAt = $clock->now()->addDay()->setTime(9, 0)->format('Y-m-d\TH:i');
     }
 
     public function updatedTemplateId(): void

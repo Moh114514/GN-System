@@ -2,6 +2,7 @@
 
 namespace App\Modules\Customer\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Customer\Application\Contracts\ConfigurationHistoryGateway;
@@ -12,7 +13,6 @@ use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusTransition;
 use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
 use App\Modules\Reminder\Application\Data\CustomerTreatmentCompletedData;
-use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -22,6 +22,7 @@ final readonly class CustomerStatusManager
         private AuditRecorder $audit,
         private ConfigurationHistoryGateway $configurationHistory,
         private TreatmentReminderGateway $reminders,
+        private BusinessClock $clock,
     ) {}
 
     public function change(
@@ -58,7 +59,7 @@ final readonly class CustomerStatusManager
             }
 
             $completedAt = $target->key === 'treatment_completed'
-                ? ($customer->treatment_completed_at?->toImmutable() ?? CarbonImmutable::now())
+                ? ($customer->treatment_completed_at?->toImmutable() ?? $this->clock->now())
                 : $customer->treatment_completed_at;
             $customer->update([
                 'current_status_id' => $target->id,
@@ -69,7 +70,7 @@ final readonly class CustomerStatusManager
                 'from_status_id' => $current?->id,
                 'to_status_id' => $target->id,
                 'changed_by' => $actor->id,
-                'changed_at' => now(),
+                'changed_at' => $this->clock->now(),
                 'reason' => trim($reason),
             ]);
             $this->audit->record(

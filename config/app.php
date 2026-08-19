@@ -29,6 +29,21 @@ return [
     'env' => env('APP_ENV', 'production'),
 
     /*
+    | The deployment role is separate from APP_ENV because UAT runs with
+    | APP_ENV=production to keep the hardened runtime settings enabled.
+    */
+    'deployment_environment' => env('APP_DEPLOYMENT_ENV', env('APP_ENV', 'production')),
+
+    'time_travel_enabled' => in_array(
+        (string) env('APP_DEPLOYMENT_ENV', env('APP_ENV', 'production')),
+        ['local', 'development', 'testing', 'uat'],
+        true,
+    ) && filter_var(
+        env('APP_TIME_TRAVEL_ENABLED', in_array(env('APP_ENV', 'production'), ['local', 'development', 'testing'], true)),
+        FILTER_VALIDATE_BOOL,
+    ),
+
+    /*
     |--------------------------------------------------------------------------
     | Application Debug Mode
     |--------------------------------------------------------------------------

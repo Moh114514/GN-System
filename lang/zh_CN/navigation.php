@@ -39,4 +39,7 @@ return [
     'appearance' => '外观设置',
     'language' => '语言 / 언어',
     'logout' => '退出登录',
+    'time_travel' => '系统测试：时间模拟',
+    'time_travel_warning' => '⚠ 当前为模拟时间：:time',
+    'restore_real_time' => '恢复真实时间',
 ];

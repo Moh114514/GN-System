@@ -190,6 +190,8 @@ RELEASE_STATE_PATH=/srv/gn-system/releases
 
 APP_NAME="GN-System CRM UAT"
 APP_ENV=production
+APP_DEPLOYMENT_ENV=uat
+APP_TIME_TRAVEL_ENABLED=true
 APP_DEBUG=false
 APP_URL=https://gncrm-uat.local:8443
 
@@ -224,6 +226,8 @@ RELEASE_STATE_PATH=/srv/gn-system/production/releases
 
 APP_NAME="GN-System CRM"
 APP_ENV=production
+APP_DEPLOYMENT_ENV=production
+APP_TIME_TRAVEL_ENABLED=false
 APP_DEBUG=false
 APP_URL=https://gncrm.local
 
@@ -243,7 +247,27 @@ EXTERNAL_HTTPS_PORT_SUFFIX=
 OFFSITE_BACKUP_MONITOR_ENABLED=true
 ```
 
-### 3.3 月结自动汇率
+### 3.3 开发和 UAT 业务时间模拟
+
+业务时间模拟只允许在本地开发、开发环境和 UAT 使用。正式生产必须设置
+`APP_DEPLOYMENT_ENV=production` 和 `APP_TIME_TRAVEL_ENABLED=false`；代码还会按
+`APP_DEPLOYMENT_ENV` 再次阻断生产，即使误把开关改为 `true` 也不会注册入口或读取
+模拟时间。UAT 虽然保留 `APP_ENV=production` 的 Laravel 运行模式，但必须使用独立的
+`APP_DEPLOYMENT_ENV=uat`，不能用 `APP_ENV` 判断是否为正式生产。
+
+启用后，超级管理员可从“配置中心 → 系统测试 → 时间模拟”设置时间、使用快捷调整或
+恢复真实时间。模拟值保存在 Redis，供 Web、Queue 和 Scheduler 共享；页面顶部会持续显示
+警告。不要修改 Ubuntu 或 Docker 的系统时间，也不要使用 `Carbon::setTestNow()` 改变全局
+时间。该功能只影响月结、提醒、客户生命周期和其他已接入的业务日期判断；备份、心跳、日志、
+审计、Session、登录、文件清理、健康检查和 TTL 等运维时间仍使用真实时间。
+
+“设置并立即执行”会按选择触发 `app:generate-settlements`、
+`app:materialize-reminders` 和 `app:dispatch-reminder-notifications`。其中月结明细和
+通知可能通过队列异步完成，操作后应检查 Queue/Scheduler 状态和业务结果。部署、回退或
+验收结束前应确认状态已恢复为“真实时间”；若非生产环境发现遗留模拟状态，优先通过页面
+恢复，不要清空 Redis 或修改生产数据。
+
+### 3.4 月结自动汇率
 
 月结详情页会按 `SETTLEMENT_EXCHANGE_RATE_PROVIDER` 调用接口盒子汇率服务，成功后预填六位
 小数的 CNY → KRW 汇率；审核人仍可手工覆盖。该服务按文章说明每日更新，并非严格实时，页面
@@ -331,7 +355,7 @@ select count(*) from orders where agent_id is null;
 模板和报表看板；该迁移的 `down()` 明确不可用，若新版本已执行且必须恢复，只能停止写入并按第 13.3 节
 从发布前备份恢复，不能只切回旧镜像。
 
-### 3.4 密钥与外部服务
+### 3.5 密钥与外部服务
 
 以下值必须在两套环境分别生成，不能从 UAT 复制到 Production：
 
@@ -416,11 +440,23 @@ Windows PowerShell：
 ```powershell
 Copy-Item .env.example .env
 Copy-Item .env.testing.example .env.testing
-docker compose up --build -d
+docker compose build app
+docker compose up -d postgres redis
+docker compose run --rm app php artisan migrate --force --no-interaction
+docker compose run --rm app php artisan optimize:clear --no-interaction
+docker compose up -d --remove-orphans
 docker compose ps
 docker compose exec app composer ci:check
 docker compose exec vite npm run build
 ```
+
+每次拉取新的代码或镜像都必须先完成 migration 和 `optimize:clear`，再打开业务页面或进行
+验收。不能只执行 `docker compose up` 就假设数据库已经同步；如果 migration 失败，必须停止
+验收并先处理数据库问题。开发环境的 Queue 使用 `queue:listen`，让修改后的 Provider 和依赖
+在下一次任务执行时重新加载；UAT/Production 的 Queue 使用 `queue:work`，因此
+`deploy/deploy.sh` 在 migration、`optimize:clear` 和启动服务后还会执行 `queue:restart`。
+完整顺序是“更新 Git/镜像 → migration → optimize:clear → 启动应用 → 重启 Worker → 健康检查”，
+禁止直接替换正在运行的代码。
 
 只修改文档时至少运行：
 

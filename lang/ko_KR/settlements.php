@@ -103,6 +103,7 @@ return [
         'headers' => ['batch' => '배치 번호', 'period' => '기간', 'agent_code' => '에이전시 번호', 'agent_name' => '에이전시 이름', 'agent_id' => '에이전시 ID', 'reason' => '실패 사유'],
         'period' => ':from ~ :to',
     ],
+    'queue_recovery' => ['status' => '대기열 이상', 'batch_failed' => '대기열 실패 :count건, 업무 기록은 아직 대기 중', 'redispatch_pending' => '대기 작업 다시 제출', 'submitted' => '대기 중인 정산 작업을 다시 제출했습니다. 배치와 구성원 상태에서 결과를 확인하세요.', 'not_needed' => '복구가 필요한 대기 작업이 감지되지 않았습니다.'],
     'failure_reasons' => [
         'missing_commission_snapshot' => '완료된 주문 :order_id에 프로모션 수수료 스냅샷이 없습니다.',
         'agent_policy_missing' => '해당 월에 적용되는 에이전시 정책 등급이 없습니다.',

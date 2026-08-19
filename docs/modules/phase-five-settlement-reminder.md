@@ -16,16 +16,25 @@ KRW 月结不做汇率换算；CNY 月结按本次汇率计算并保存快照，
 
 ## 等级评估
 
-`agent_grade_evaluations` 以代理商和结算周期唯一记录本期结果：`upgrade`、`maintained` 或 `downgrade_failure`，同时记录连续未达标次数。升级当期即可生成 `SettlementGradeSuggestion`；降级只有连续两个结算周期未达标才生成建议。重跑同一周期会更新评估记录，不会重复累加。系统只生成建议，等级仍由管理员人工确认后从下月生效。
+`agent_grade_evaluations` 以代理商和结算周期唯一记录本期结果：`upgrade`、`maintained` 或 `downgrade_failure`，同时记录连续未达标次数。升级当期即可生成 `SettlementGradeSuggestion`；降级只有连续且相邻的两个结算周期未达标才生成建议。重跑同一周期会更新评估记录，不会重复累加；如果中间缺少结算周期，失败次数会从 1 重新计算。系统只生成建议，等级仍由管理员人工确认后从下月生效。
 
 ## 通知
 
-配置中心的通知负责人页面维护 `notification_recipient_configs`。等级调整建议会生成站内通知，并按 `internal` / `dingtalk` 通道发送；钉钉负责人通过 `users.dingtalk_user_id` 绑定，Webhook 请求使用 `atUserIds` 定向 @。提醒实例已有负责人时复用同一 UserId 规则；没有负责人时只发送群通知。
+配置中心的通知负责人页面维护 `notification_recipient_configs`。等级调整建议会生成站内通知，并按 `internal` / `dingtalk` 通道发送；钉钉负责人通过 `users.dingtalk_user_id` 绑定，未绑定用户不能被选择，Webhook 请求使用 `atUserIds` 定向 @。钉钉投递写入 `notification_deliveries`，由队列执行并自动重试，状态记录为 `queued`、`sending`、`sent` 或 `failed`。提醒实例已有负责人时复用同一 UserId 规则；没有负责人时只发送群通知。
 
 ## 主动提醒
 
 当前系统自动生成的施术结束提醒只有术后 7 天和 30 天。提醒实例的幂等键包含客户、施术结束时间和提醒类型，回退并重新设置相同结束时间不会重复生成。旧生命周期自动提醒实例、旧系统规则和模板由客户生命周期清理迁移一次性删除。
 
 ## 运行和验收
+
+月结 Queue 任务的失败回调使用独立的 `SettlementFailureRecorder`，不会再次解析完整的
+`SettlementGenerator` 依赖链。`SettlementRunReconciler` 每分钟比较 `SettlementRun`、Laravel
+Batch 和 `SettlementRunMember`；发现 Batch 失败、批次结束但 member 仍 pending、缺少批次或
+运行过久时，批次标记为队列异常，月结中心提供重新派发等待任务的操作。
+
+开发 Compose 使用 `queue:listen`；UAT/Production 使用 `queue:work`，发布后必须完成
+`migrate --force`、`optimize:clear` 和 `queue:restart`。时间模拟页面的“设置并立即执行”表示
+业务检查已提交到队列，不代表月结已经成功；最终结果以 Batch 和 member 状态为准。
 
 月结仍通过现有批次、队列、重试、审核、结清、文档生成和历史归档流程运行。相关本地测试覆盖 KRW/CNY 审核、汇率快照、升级建议、连续降级门槛、提醒幂等、通知接口和日期边界；真实钉钉凭据、UAT/Production 迁移和人工业务验收仍需在目标环境执行。
