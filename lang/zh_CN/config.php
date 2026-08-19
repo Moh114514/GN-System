@@ -34,7 +34,7 @@ return [
         ],
     ],
     'user_management' => [
-        'dingtalk_user_id' => '钉钉 UserId',
+        'dingtalk_user_id' => '钉钉用户 ID',
         'eyebrow' => '配置中心 · 账号权限',
         'title' => '内部用户管理',
         'description' => '新用户通过一次性密码设置链接激活；停用账号后，该用户将无法登录，已登录的也会立即退出。',
@@ -48,7 +48,7 @@ return [
         'create_invitation' => '创建并发送邀请',
         'list_heading' => '账号列表',
         'table' => ['user' => '用户', 'role' => '角色', 'account' => '账号', 'invitation' => '邀请', 'actions' => '操作'],
-        'actions' => ['make_internal' => '改为内部用户', 'make_super_admin' => '设为超级管理员', 'disable' => '停用', 'enable' => '启用', 'resend' => '重发邀请'],
+        'actions' => ['make_internal' => '改为内部用户', 'make_super_admin' => '设为超级管理员', 'disable' => '停用', 'enable' => '启用', 'resend' => '重发邀请', 'save_dingtalk' => '保存'],
         'toast' => [
             'password_reset_action' => '发送密码重置邮件',
             'password_reset_sent' => '密码重置邮件已发送。',

@@ -68,7 +68,18 @@ class ConfigurationNavigationTest extends TestCase
             ->assertSee('href="'.route('configuration.index').'"', false)
             ->assertSee('wire:navigate', false)
             ->assertSee('수락됨')
-            ->assertDontSee('accepted');
+            ->assertDontSee('accepted')
+            ->assertDontSee('config.user_management.actions.save_dingtalk');
+    }
+
+    public function test_user_management_uses_a_localized_dingtalk_save_label(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create(['preferred_locale' => 'zh_CN']);
+
+        $this->actingAs($admin)->get(route('configuration.users'))
+            ->assertOk()
+            ->assertSee('保存')
+            ->assertDontSee('config.user_management.actions.save_dingtalk');
     }
 
     public function test_primary_navigation_is_ordered_and_hides_admin_links_for_normal_users(): void

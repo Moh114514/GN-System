@@ -26,7 +26,7 @@ return [
         ],
     ],
     'user_management' => [
-        'dingtalk_user_id' => 'DingTalk UserId',
+        'dingtalk_user_id' => '딩톡 사용자 ID',
         'eyebrow' => '설정 센터 · 계정 권한',
         'title' => '내부 사용자 관리',
         'description' => '새 사용자는 일회용 비밀번호 설정 링크로 활성화됩니다. 계정을 비활성화하면 로그인할 수 없고 기존 세션도 즉시 종료됩니다.',
@@ -40,7 +40,7 @@ return [
         'create_invitation' => '생성 후 초대 보내기',
         'list_heading' => '계정 목록',
         'table' => ['user' => '사용자', 'role' => '역할', 'account' => '계정', 'invitation' => '초대', 'actions' => '작업'],
-        'actions' => ['make_internal' => '내부 사용자로 변경', 'make_super_admin' => '슈퍼 관리자로 지정', 'disable' => '비활성화', 'enable' => '활성화', 'resend' => '초대 재발송'],
+        'actions' => ['make_internal' => '내부 사용자로 변경', 'make_super_admin' => '슈퍼 관리자로 지정', 'disable' => '비활성화', 'enable' => '활성화', 'resend' => '초대 재발송', 'save_dingtalk' => '저장'],
         'toast' => [
             'password_reset_action' => '비밀번호 재설정 메일 보내기',
             'password_reset_sent' => '비밀번호 재설정 메일을 보냈습니다.',
