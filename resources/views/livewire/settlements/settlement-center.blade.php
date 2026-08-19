@@ -16,7 +16,7 @@
                 <div class="text-xs text-zinc-500">{{ __('settlements.center.period_natural_month') }}</div>
                 <div class="mt-1 font-semibold">{{ __('settlements.center.generation_day') }}</div>
             </div>
-            <flux:input wire:model="triggerTime" type="time" :label="__('settlements.center.trigger_time')" required />
+            <x-date-time-picker wire:model="triggerTime" :value="$triggerTime" mode="time" :label="__('settlements.center.trigger_time')" required />
             <flux:checkbox wire:model="confirmConfigurationChange" :label="__('settlements.center.confirm_old_config')" />
             <flux:button type="submit">{{ __('settlements.center.save_next_config') }}</flux:button>
         </form>

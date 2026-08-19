@@ -36,7 +36,7 @@
                     <flux:select.option value="completed">{{ __('orders.statuses.completed') }}</flux:select.option>
                 </flux:select>
                 @if ($status === 'completed')
-                    <flux:input wire:model="completedOn" type="datetime-local" :label="__('orders.fields.completed_at')" required />
+                            <x-date-time-picker wire:model="completedOn" mode="datetime" :label="__('orders.fields.completed_at')" required />
                 @endif
                 <flux:select wire:model="translatorLanguageId" :label="__('orders.fields.translator_language')">
                     <flux:select.option value="">{{ __('orders.fields.unselected') }}</flux:select.option>

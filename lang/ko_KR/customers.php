@@ -71,7 +71,7 @@ return [
             'generate_refresh' => '생성/새로고침',
             'confirm_code' => '위 고객 번호를 직접 확인했습니다',
             'institution' => '기관',
-            'arrival_date' => '방문일',
+            'arrival_at' => '방문 예정 시각',
             'translator' => '통역(선택)',
             'notes' => '메모',
         ],

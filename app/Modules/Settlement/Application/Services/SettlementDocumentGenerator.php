@@ -221,7 +221,8 @@ final class SettlementDocumentGenerator
         ]));
 
         return '<!doctype html><html lang="'.str_replace('_', '-', app()->getLocale()).'"><head><meta charset="UTF-8"><style>'
-            .'@font-face{font-family:"GN CJK";font-style:normal;font-weight:normal;src:url("file://'.e($pdfFontPath).'") format("truetype");}'
+            .'@font-face{font-family:"GN CJK";font-style:normal;font-weight:400;src:url("file://'.e($pdfFontPath).'") format("opentype");}'
+            .'@font-face{font-family:"GN CJK";font-style:normal;font-weight:700;src:url("file://'.e($pdfFontPath).'") format("opentype");}'
             .'body{font-family:"GN CJK","Microsoft YaHei","PingFang SC","Noto Sans CJK SC",DejaVu Sans,sans-serif;color:#222}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:6px;text-align:left}'
             .'</style></head><body><h1>'.e($labels['title']).'</h1><p>'.$agent.'</p>'
             .'<p>'.$period.'</p><table><thead><tr>'

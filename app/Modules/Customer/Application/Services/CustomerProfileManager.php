@@ -33,7 +33,10 @@ final readonly class CustomerProfileManager
     public function previewCode(int $sourceAgentId): string
     {
         [$prefix, $digits] = $this->prefixAndDigits($sourceAgentId);
-        $lastNumber = (int) (CustomerNumberSequence::query()->where('prefix', $prefix)->value('last_number') ?? 0);
+        $lastNumber = max(
+            (int) (CustomerNumberSequence::query()->where('prefix', $prefix)->value('last_number') ?? 0),
+            $this->maxCustomerNumber($prefix),
+        );
 
         return sprintf("%s-%0{$digits}d", $prefix, $lastNumber + 1);
     }
@@ -63,7 +66,7 @@ final readonly class CustomerProfileManager
     public function create(
         CustomerProfileData $profile,
         int $institutionId,
-        CarbonImmutable $arrivalDate,
+        CarbonImmutable $arrivalAt,
         ?string $translatorName,
         int $actorId,
         string $confirmedCode,
@@ -73,7 +76,7 @@ final readonly class CustomerProfileManager
         return DB::transaction(function () use (
             $profile,
             $institutionId,
-            $arrivalDate,
+            $arrivalAt,
             $translatorName,
             $actorId,
             $confirmedCode,
@@ -81,28 +84,31 @@ final readonly class CustomerProfileManager
             $ipAddress,
         ): int {
             [$prefix, $digits] = $this->prefixAndDigits($profile->sourceAgentId);
-            $sequence = CustomerNumberSequence::query()->where('prefix', $prefix)->lockForUpdate()->first();
-            if ($sequence === null) {
-                CustomerNumberSequence::query()->create(['prefix' => $prefix, 'last_number' => 0]);
-                $sequence = CustomerNumberSequence::query()->where('prefix', $prefix)->lockForUpdate()->firstOrFail();
-            }
+            CustomerNumberSequence::query()->insertOrIgnore([
+                'prefix' => $prefix,
+                'last_number' => 0,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            $sequence = CustomerNumberSequence::query()->where('prefix', $prefix)->lockForUpdate()->firstOrFail();
 
-            $expected = sprintf("%s-%0{$digits}d", $prefix, ((int) $sequence->last_number) + 1);
+            $lastNumber = max((int) $sequence->last_number, $this->maxCustomerNumber($prefix));
+            $expected = sprintf("%s-%0{$digits}d", $prefix, $lastNumber + 1);
             $confirmedCode = strtoupper(trim($confirmedCode));
             if ($automaticCode && $confirmedCode !== $expected) {
-                throw new CustomerCodeChanged(__('customers.validation.code_changed'));
+                throw new CustomerCodeChanged(__('customers.form.validation.code_changed'));
             }
 
             if (preg_match('/^'.preg_quote($prefix, '/').'-([0-9]{'.$digits.'})$/', $confirmedCode, $matches) !== 1) {
-                throw ValidationException::withMessages(['confirmedCode' => __('customers.validation.code_format')]);
+                throw ValidationException::withMessages(['confirmedCode' => __('customers.form.validation.code_format')]);
             }
             if (Customer::query()->where('code', $confirmedCode)->exists()) {
-                throw ValidationException::withMessages(['confirmedCode' => __('customers.validation.code_exists')]);
+                throw ValidationException::withMessages(['confirmedCode' => __('customers.form.validation.code_exists')]);
             }
 
             $status = CustomerStatus::query()->where('key', 'booked')->where('is_active', true)->first();
             if ($status === null) {
-                throw ValidationException::withMessages(['status' => __('customers.validation.default_status_inactive')]);
+                throw ValidationException::withMessages(['status' => __('customers.form.validation.default_status_inactive')]);
             }
 
             $customer = Customer::query()->create([
@@ -128,14 +134,14 @@ final readonly class CustomerProfileManager
             $this->orders->createInitialAppointment(new CustomerAppointmentData(
                 customerId: $customer->id,
                 institutionId: $institutionId,
-                scheduledAt: $arrivalDate->startOfDay(),
+                scheduledAt: $arrivalAt,
                 projectName: trim($profile->projectIntention),
                 translatorName: $translatorName,
                 ownerId: $actorId,
                 notes: $profile->notes,
             ));
 
-            $sequence->update(['last_number' => max((int) $sequence->last_number, (int) $matches[1])]);
+            $sequence->update(['last_number' => max($lastNumber, (int) $matches[1])]);
             $this->audit->record(
                 description: '创建客户档案',
                 properties: ['code' => $customer->code, 'automatic_code' => $automaticCode],
@@ -165,7 +171,7 @@ final readonly class CustomerProfileManager
                 || data_get($document, 'number_encrypted', '') !== trim($profile->identityDocument);
 
             if ($sensitiveChanged && ! $sensitiveChangeConfirmed) {
-                throw ValidationException::withMessages(['sensitiveConfirmation' => __('customers.validation.sensitive_confirmation_required')]);
+                throw ValidationException::withMessages(['sensitiveConfirmation' => __('customers.form.validation.sensitive_confirmation_required')]);
             }
 
             $before = $customer->only([
@@ -215,12 +221,23 @@ final readonly class CustomerProfileManager
         );
     }
 
+    private function maxCustomerNumber(string $prefix): int
+    {
+        $prefixPattern = '^'.preg_quote($prefix, '/').'-';
+        $codePattern = $prefixPattern.'\d+$';
+
+        return (int) (Customer::query()
+            ->whereRaw('code ~ ?', [$codePattern])
+            ->selectRaw("MAX(CAST(regexp_replace(code, ?, '') AS BIGINT)) AS max_number", [$prefixPattern])
+            ->value('max_number') ?? 0);
+    }
+
     /** @return array{string, int} */
     private function prefixAndDigits(int $sourceId): array
     {
         $agent = $this->agents->agentsByIds([$sourceId])[$sourceId] ?? null;
         if ($agent === null) {
-            throw ValidationException::withMessages(['sourceId' => __('customers.validation.agent_unavailable')]);
+            throw ValidationException::withMessages(['sourceId' => __('customers.form.validation.agent_unavailable')]);
         }
 
         return [$agent['code'], 4];

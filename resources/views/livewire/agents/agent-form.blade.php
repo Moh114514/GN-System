@@ -49,9 +49,9 @@
                     <flux:select.option value="paused">{{ __('agents.form.paused') }}</flux:select.option>
                     <flux:select.option value="terminated">{{ __('agents.form.terminated') }}</flux:select.option>
                 </flux:select>
-                <x-localized-date-picker wire:model="cooperationStartedOn" :value="$cooperationStartedOn" :label="__('agents.form.started')" required />
+                <x-date-time-picker wire:model="cooperationStartedOn" :value="$cooperationStartedOn" :label="__('agents.form.started')" required />
                 @if ($cooperationStatus === 'terminated')
-                    <x-localized-date-picker wire:model="cooperationEndedOn" :value="$cooperationEndedOn" :label="__('agents.form.ended')" required />
+                    <x-date-time-picker wire:model="cooperationEndedOn" :value="$cooperationEndedOn" :label="__('agents.form.ended')" required />
                 @endif
                 <div class="md:col-span-2"><flux:textarea wire:model="notes" :label="__('agents.form.notes')" rows="4" /></div>
             </div>
@@ -71,7 +71,7 @@
                             @endforeach
                         @endforeach
                     </flux:select>
-                    <x-localized-date-picker wire:model="correctionEffectiveMonth" :value="$correctionEffectiveMonth" :label="__('agents.form.correction_effective_month')" required />
+                    <x-date-time-picker wire:model="correctionEffectiveMonth" :value="$correctionEffectiveMonth" :label="__('agents.form.correction_effective_month')" required />
                     <div class="md:col-span-2"><flux:textarea wire:model="correctionReason" :label="__('agents.form.correction_reason')" rows="3" required /></div>
                     <div class="md:col-span-2"><flux:checkbox wire:model="confirmCorrection" :label="__('agents.form.correction_confirm')" /></div>
                 </div>

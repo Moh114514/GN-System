@@ -71,7 +71,7 @@ return [
             'generate_refresh' => '生成/刷新',
             'confirm_code' => '我已人工复核并确认上述客户编号',
             'institution' => '机构',
-            'arrival_date' => '到店日期',
+            'arrival_at' => '到店时间',
             'translator' => '翻译（选填）',
             'notes' => '备注',
         ],

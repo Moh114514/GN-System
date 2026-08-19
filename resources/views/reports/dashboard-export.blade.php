@@ -8,8 +8,14 @@
             @font-face {
                 font-family: "GN CJK";
                 font-style: normal;
-                font-weight: normal;
-                src: url("file://{{ $pdfFontPath }}") format("truetype");
+                font-weight: 400;
+                src: url("file://{{ $pdfFontPath }}") format("opentype");
+            }
+            @font-face {
+                font-family: "GN CJK";
+                font-style: normal;
+                font-weight: 700;
+                src: url("file://{{ $pdfFontPath }}") format("opentype");
             }
         @endif
         body {

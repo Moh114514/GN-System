@@ -143,9 +143,9 @@ class AuditLogIndexTest extends TestCase
             ->assertSee('查看全局审计日志')
             ->assertSee('href="'.route('audit-logs.index').'"', false)
             ->assertSee('data-test="topbar-date-control"', false)
-            ->assertSee('crm-localized-date-picker', false)
+            ->assertSee('crm-date-time-picker', false)
             ->assertSee('name="date"', false)
-            ->assertDontSee('type="date"', false)
+            ->assertSee('type="date"', false)
             ->assertSee('data-test="reminder-notification-button"', false)
             ->assertDontSee('calendar-days', false);
     }

@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Agent\Application\Data\AgentProfileData;
 use App\Modules\Agent\Application\Services\AgentDirectory;
@@ -351,6 +352,44 @@ class PhaseFourAgentCommissionTest extends TestCase
             'effective_month' => '2026-08-01',
         ]);
         $this->assertSame($this->grade->id, app(AgentDirectory::class)->profile($this->agent->id)['policy_grade_id']);
+    }
+
+    public function test_agent_directory_uses_business_clock_for_current_grade_and_history(): void
+    {
+        $next = PolicyGrade::query()->create([
+            'policy_system_id' => $this->grade->policy_system_id,
+            'name' => '黑钻',
+            'monthly_threshold_krw' => 0,
+            'sort_order' => 20,
+            'is_active' => true,
+        ]);
+        AgentGradeAssignment::query()->create([
+            'agent_id' => $this->agent->id,
+            'policy_grade_id' => $next->id,
+            'effective_month' => '2026-08-01',
+            'approved_by' => $this->admin->id,
+            'reason' => '模拟时间升级',
+        ]);
+
+        $clock = app(BusinessClock::class);
+        $clock->set(CarbonImmutable::parse('2026-08-10 10:00'));
+
+        try {
+            $profile = app(AgentDirectory::class)->profile($this->agent->id);
+            $this->assertSame($next->id, $profile['policy_grade_id']);
+            $this->assertSame('2026-08-01', $profile['grade_effective_month']);
+            $history = collect($profile['grade_history'])->keyBy('policy_grade');
+            $this->assertSame('current', $history['黑钻']['status']);
+            $this->assertSame('historical', $history['黄金']['status']);
+
+            $row = app(AgentDirectory::class)
+                ->paginate('', '', policyGradeId: $next->id)
+                ->getCollection()
+                ->firstWhere('id', $this->agent->id);
+            $this->assertSame('黑钻', $row['grade']);
+        } finally {
+            $clock->disable();
+        }
     }
 
     public function test_normal_grade_import_never_overwrites_current_or_schedules_missing_grade(): void

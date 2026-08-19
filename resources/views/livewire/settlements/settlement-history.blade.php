@@ -11,8 +11,8 @@
     <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <div class="flex flex-wrap items-center gap-2">
             <flux:input class="w-full sm:w-72" wire:model.live.debounce.350ms="search" icon="magnifying-glass" :placeholder="__('settlements.archive.search')" size="sm" />
-            <x-localized-date-picker class="w-full sm:w-44" wire:model.live="businessFrom" :value="$businessFrom" :label="__('settlements.archive.business_from')" size="sm" />
-            <x-localized-date-picker class="w-full sm:w-44" wire:model.live="businessTo" :value="$businessTo" :label="__('settlements.archive.business_to')" size="sm" />
+            <x-date-time-picker class="w-full sm:w-44" wire:model.live="businessFrom" :value="$businessFrom" :label="__('settlements.archive.business_from')" size="sm" />
+            <x-date-time-picker class="w-full sm:w-44" wire:model.live="businessTo" :value="$businessTo" :label="__('settlements.archive.business_to')" size="sm" />
             <flux:select wire:model.live="agentId" class="w-52" :label="__('settlements.archive.agent')" size="sm">
                 <flux:select.option value="">{{ __('settlements.archive.all_agents') }}</flux:select.option>
                 @foreach ($agentOptions as $agent)

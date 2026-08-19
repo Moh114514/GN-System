@@ -40,22 +40,22 @@ final readonly class CustomerStatusManager
             $target = CustomerStatus::query()->whereKey($targetStatusId)->where('is_active', true)->firstOrFail();
 
             if ($current !== null && $current->id === $target->id) {
-                throw ValidationException::withMessages(['targetStatusId' => __('customers.validation.same_status')]);
+                throw ValidationException::withMessages(['targetStatusId' => __('customers.form.validation.same_status')]);
             }
 
             $isBackward = $current !== null && $target->sort_order < $current->sort_order;
             if ($isBackward && ! $actor->is_super_admin) {
-                throw ValidationException::withMessages(['targetStatusId' => __('customers.validation.rollback_requires_super_admin')]);
+                throw ValidationException::withMessages(['targetStatusId' => __('customers.form.validation.rollback_requires_super_admin')]);
             }
             if ($current !== null && ! $isBackward && ! CustomerStatusTransition::query()
                 ->where('from_status_id', $current->id)
                 ->where('to_status_id', $target->id)
                 ->where('is_active', true)
                 ->exists()) {
-                throw ValidationException::withMessages(['targetStatusId' => __('customers.validation.invalid_transition')]);
+                throw ValidationException::withMessages(['targetStatusId' => __('customers.form.validation.invalid_transition')]);
             }
             if (trim($reason) === '') {
-                throw ValidationException::withMessages(['statusReason' => __('customers.validation.status_reason_required')]);
+                throw ValidationException::withMessages(['statusReason' => __('customers.form.validation.status_reason_required')]);
             }
 
             $completedAt = $target->key === 'treatment_completed'
@@ -159,12 +159,12 @@ final readonly class CustomerStatusManager
             $inputStatuses = collect($statuses)->keyBy(static fn (array $input): string => (string) ($input['key'] ?? ''));
 
             if ($stage === null || $canonicalStatuses->count() !== count($expectedStatusKeys) || count($stages) !== 1 || count($statuses) !== count($expectedStatusKeys)) {
-                throw ValidationException::withMessages(['configuration' => __('customers.validation.lifecycle_structure_locked')]);
+                throw ValidationException::withMessages(['configuration' => __('customers.form.validation.lifecycle_structure_locked')]);
             }
             if ((int) ($inputStage['id'] ?? 0) !== $stage->id
                 || ($inputStage['key'] ?? null) !== $stage->key
                 || trim((string) ($inputStage['name'] ?? '')) === '') {
-                throw ValidationException::withMessages(['configuration' => __('customers.validation.lifecycle_structure_locked')]);
+                throw ValidationException::withMessages(['configuration' => __('customers.form.validation.lifecycle_structure_locked')]);
             }
             foreach ($expectedStatusKeys as $key) {
                 $canonicalStatus = $canonicalStatuses->get($key);
@@ -174,7 +174,7 @@ final readonly class CustomerStatusManager
                     || (int) ($input['id'] ?? 0) !== $canonicalStatus->id
                     || (int) ($input['stage_id'] ?? 0) !== $stage->id
                     || trim((string) ($input['name'] ?? '')) === '') {
-                    throw ValidationException::withMessages(['configuration' => __('customers.validation.lifecycle_structure_locked')]);
+                    throw ValidationException::withMessages(['configuration' => __('customers.form.validation.lifecycle_structure_locked')]);
                 }
             }
 

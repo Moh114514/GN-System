@@ -15,6 +15,7 @@ use App\Modules\Customer\Application\Services\CustomerProfileManager;
 use App\Modules\Customer\Application\Services\CustomerStatusManager;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerLifecycleStage;
+use App\Modules\Customer\Infrastructure\Models\CustomerNumberSequence;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusTransition;
@@ -62,7 +63,7 @@ class CustomerLifecycleTest extends TestCase
         $customerId = $manager->create(
             profile: $this->profile(),
             institutionId: $this->institution->id,
-            arrivalDate: CarbonImmutable::parse('2026-08-01'),
+            arrivalAt: CarbonImmutable::parse('2026-08-01 15:30'),
             translatorName: '金翻译',
             actorId: $this->user->id,
             confirmedCode: $code,
@@ -80,6 +81,7 @@ class CustomerLifecycleTest extends TestCase
         $this->assertDatabaseHas('appointments', [
             'customer_id' => $customerId,
             'institution_id' => $this->institution->id,
+            'scheduled_at' => '2026-08-01 15:30:00',
             'status' => 'scheduled',
         ]);
         $this->assertDatabaseHas('customer_status_histories', [
@@ -91,6 +93,56 @@ class CustomerLifecycleTest extends TestCase
             'subject_id' => $customerId,
             'event' => 'created',
         ]);
+    }
+
+    public function test_customer_number_preview_self_heals_from_existing_customer_codes(): void
+    {
+        Customer::query()->create([
+            'code' => 'TEST-JG-0007',
+            'name' => '历史导入客户',
+            'source_agent_id' => $this->agent->id,
+        ]);
+        CustomerNumberSequence::query()->where('prefix', $this->agent->code)->delete();
+
+        $manager = app(CustomerProfileManager::class);
+
+        $this->assertSame('TEST-JG-0008', $manager->previewCode($this->agent->id));
+        $customerId = $manager->create(
+            profile: $this->profile('新客户'),
+            institutionId: $this->institution->id,
+            arrivalAt: CarbonImmutable::parse('2026-08-02 09:45'),
+            translatorName: null,
+            actorId: $this->user->id,
+            confirmedCode: 'TEST-JG-0008',
+            automaticCode: true,
+            ipAddress: null,
+        );
+
+        $this->assertDatabaseHas('customers', ['id' => $customerId, 'code' => 'TEST-JG-0008']);
+        $this->assertDatabaseHas('customer_number_sequences', ['prefix' => 'TEST-JG', 'last_number' => 8]);
+    }
+
+    public function test_customer_code_duplicate_error_uses_the_form_translation(): void
+    {
+        $existingId = $this->createCustomer();
+        $existingCode = Customer::query()->findOrFail($existingId)->code;
+
+        try {
+            app(CustomerProfileManager::class)->create(
+                profile: $this->profile('重复编号客户'),
+                institutionId: $this->institution->id,
+                arrivalAt: CarbonImmutable::parse('2026-08-03 10:00'),
+                translatorName: null,
+                actorId: $this->user->id,
+                confirmedCode: $existingCode,
+                automaticCode: false,
+                ipAddress: null,
+            );
+            $this->fail('Expected duplicate customer code validation.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(__('customers.form.validation.code_exists'), $exception->errors()['confirmedCode'][0]);
+            $this->assertNotSame('customers.validation.code_exists', $exception->errors()['confirmedCode'][0]);
+        }
     }
 
     public function test_stale_generated_code_requires_new_confirmation(): void
@@ -394,7 +446,7 @@ class CustomerLifecycleTest extends TestCase
             app(CustomerStatusManager::class)->change($customerId, $arrived->id, '', $this->user, null);
             $this->fail('Expected a validation exception for an empty reason.');
         } catch (ValidationException $exception) {
-            $this->assertSame(__('customers.validation.status_reason_required'), $exception->errors()['statusReason'][0]);
+            $this->assertSame(__('customers.form.validation.status_reason_required'), $exception->errors()['statusReason'][0]);
         }
     }
 
@@ -534,6 +586,8 @@ class CustomerLifecycleTest extends TestCase
         $this->actingAs($this->user)->get(route('customers.create'))
             ->assertOk()
             ->assertSee(__('customers.form.create_heading'))
+            ->assertSee(__('customers.form.fields.arrival_at'))
+            ->assertSee('type="datetime-local"', false)
             ->assertSee(__('customers.form.back_to_list'))
             ->assertSee('href="'.route('customers.index').'"', false);
         $this->actingAs($this->user)->get(route('customers.show', $customerId))

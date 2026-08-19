@@ -500,7 +500,7 @@ git pull --ff-only origin main
 test -z "$(git status --porcelain)"
 test "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)"
 
-RC_TAG=v0.5.0-rc.11
+$RC_TAG="v0.5.0-rc.11"
 test -z "$(git tag --list "${RC_TAG}")"
 git tag -a "${RC_TAG}" -m "GN-System ${RC_TAG} UAT"
 git push origin "${RC_TAG}"

@@ -51,7 +51,7 @@
                                 <flux:input wire:model="actionNotes" :label="__('reminders.center.complete_notes')" />
                             @elseif ($actionMode === 'snooze')
                                 <div class="grid gap-3 sm:max-w-2xl sm:grid-cols-2">
-                                    <flux:input wire:model="snoozeUntil" type="datetime-local" :label="__('reminders.center.snooze_until')" />
+                                    <x-date-time-picker wire:model="snoozeUntil" mode="datetime" :label="__('reminders.center.snooze_until')" />
                                     <flux:input wire:model="snoozeReason" :label="__('reminders.center.snooze_reason')" />
                                 </div>
                             @elseif ($actionMode === 'transfer')

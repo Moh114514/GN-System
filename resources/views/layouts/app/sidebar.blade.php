@@ -302,7 +302,7 @@
                 <form action="{{ route('dashboard') }}" method="GET" class="crm-date-form">
                     <label class="crm-date-range">
                         <span class="sr-only">{{ __('navigation.date_label') }}</span>
-                        <x-localized-date-picker
+                        <x-date-time-picker
                             :value="request()->routeIs('dashboard') ? (string) request('date', $businessClock->now()->format('Y-m-d')) : $businessClock->now()->format('Y-m-d')"
                             name="date"
                             data-test="topbar-date-control"

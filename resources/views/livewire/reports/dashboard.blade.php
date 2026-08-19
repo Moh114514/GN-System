@@ -14,7 +14,7 @@
             </flux:select>
             @if ($preset === 'custom')
                 <div class="crm-dashboard-custom-range" role="group" aria-label="{{ __('dashboard.controls.custom_range') }}">
-                    <x-localized-date-picker
+                    <x-date-time-picker
                         id="dashboard-custom-from"
                         wire:model="customFrom"
                         :value="$customFrom"
@@ -23,7 +23,7 @@
                         size="sm"
                     />
                     <span class="crm-dashboard-date-separator" aria-hidden="true">—</span>
-                    <x-localized-date-picker
+                    <x-date-time-picker
                         id="dashboard-custom-to"
                         wire:model="customTo"
                         :value="$customTo"

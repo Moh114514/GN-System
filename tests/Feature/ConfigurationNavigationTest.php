@@ -151,6 +151,8 @@ class ConfigurationNavigationTest extends TestCase
             ->assertSee(__('config.time_travel.set_and_execute'))
             ->assertSee(__('config.back_to_configuration'))
             ->assertSee('href="'.route('configuration.index').'"', false)
+            ->assertSee('type="date"', false)
+            ->assertSee('type="time"', false)
             ->assertSee('data-test="configuration-subnav-time-travel"', false);
     }
 

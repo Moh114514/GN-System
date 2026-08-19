@@ -76,7 +76,7 @@
                 <flux:button wire:click="applyDatePreset('today')" variant="ghost" size="sm">{{ __('customers.list.today') }}</flux:button>
                 <flux:button wire:click="applyDatePreset('month')" variant="ghost" size="sm">{{ __('customers.list.this_month') }}</flux:button>
                 <flux:button wire:click="applyDatePreset('year')" variant="ghost" size="sm">{{ __('customers.list.this_year') }}</flux:button>
-                <x-localized-date-picker
+                <x-date-time-picker
                     id="customers-created-from"
                     wire:model.live.debounce.400ms="createdFrom"
                     :value="$createdFrom"
@@ -86,7 +86,7 @@
                     size="sm"
                 />
                 <span class="text-zinc-400" aria-hidden="true">—</span>
-                <x-localized-date-picker
+                <x-date-time-picker
                     id="customers-created-to"
                     wire:model.live.debounce.400ms="createdTo"
                     :value="$createdTo"

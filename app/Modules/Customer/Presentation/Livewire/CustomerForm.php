@@ -37,7 +37,7 @@ class CustomerForm extends Component
 
     public string $institutionId = '';
 
-    public string $arrivalDate = '';
+    public string $arrivalAt = '';
 
     public string $translatorName = '';
 
@@ -66,7 +66,7 @@ class CustomerForm extends Component
         $this->options = $directory->options();
         $this->customerId = $customer;
         if ($customer === null) {
-            $this->arrivalDate = $clock->now()->toDateString();
+            $this->arrivalAt = $clock->now()->format('Y-m-d\\TH:i');
 
             return;
         }
@@ -112,7 +112,7 @@ class CustomerForm extends Component
         if ($this->customerId === null) {
             $rules += [
                 'institutionId' => ['required', 'integer'],
-                'arrivalDate' => ['required', 'date'],
+                'arrivalAt' => ['required', 'date_format:Y-m-d\\TH:i'],
                 'translatorName' => ['nullable', 'string', 'max:255'],
                 'confirmedCode' => ['required', 'string', 'max:48'],
                 'codeConfirmed' => ['accepted'],
@@ -161,7 +161,7 @@ class CustomerForm extends Component
             $customerId = $manager->create(
                 profile: $profile,
                 institutionId: (int) $this->institutionId,
-                arrivalDate: CarbonImmutable::parse($this->arrivalDate),
+                arrivalAt: CarbonImmutable::parse($this->arrivalAt, (string) config('app.timezone')),
                 translatorName: $this->translatorName === '' ? null : $this->translatorName,
                 actorId: $actorId,
                 confirmedCode: $this->confirmedCode,

@@ -20,8 +20,8 @@
             <form wire:submit="enable" class="mt-6 space-y-4">
                 <h3 class="font-semibold">{{ __('config.time_travel.set_heading') }}</h3>
                 <div class="grid gap-3 sm:grid-cols-2">
-                    <flux:input type="date" wire:model="simulationDate" :label="__('config.time_travel.date')" />
-                    <flux:input type="time" wire:model="simulationTime" :label="__('config.time_travel.time')" />
+                    <x-date-time-picker wire:model="simulationDate" :value="$simulationDate" :label="__('config.time_travel.date')" />
+                    <x-date-time-picker wire:model="simulationTime" :value="$simulationTime" mode="time" :label="__('config.time_travel.time')" />
                 </div>
                 <flux:button type="submit" variant="primary" color="amber">{{ __('config.time_travel.enable') }}</flux:button>
             </form>

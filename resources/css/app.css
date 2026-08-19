@@ -59,7 +59,7 @@
     display: none !important;
 }
 
-.crm-localized-date-picker {
+.crm-date-time-picker {
     min-width: 0;
 }
 
@@ -700,6 +700,10 @@ select:focus[data-flux-control] {
     flex: 0 0 auto;
 }
 
+.crm-topbar .crm-date-form {
+    flex: 0 0 140px;
+}
+
 .crm-date-range {
     display: flex;
     align-items: center;
@@ -708,14 +712,24 @@ select:focus[data-flux-control] {
     font-size: 13px;
 }
 
+.crm-topbar .crm-date-range {
+    box-sizing: border-box;
+    width: 140px;
+    height: 36px;
+    padding: 0 8px;
+}
+
 .crm-date-range input {
-    width: 106px;
+    width: 100%;
+    min-width: 0;
+    height: 34px;
     border: 0;
     background: transparent;
     color: inherit;
     cursor: pointer;
     font: inherit;
     outline: 0;
+    padding: 0 2px;
 }
 
 .crm-date-range:focus-within,

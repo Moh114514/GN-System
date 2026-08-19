@@ -24,7 +24,7 @@
                     <flux:select.option value="男">{{ __('customers.form.fields.male') }}</flux:select.option>
                     <flux:select.option value="其他">{{ __('customers.form.fields.other') }}</flux:select.option>
                 </flux:select>
-                <x-localized-date-picker wire:model="birthDate" :value="$birthDate" :label="__('customers.form.fields.birth_date')" required />
+                <x-date-time-picker wire:model="birthDate" :value="$birthDate" :label="__('customers.form.fields.birth_date')" required />
                 <flux:input wire:model="projectIntention" :label="__('customers.form.fields.project_intention')" required />
                 <flux:input wire:model="contact" :label="__('customers.form.fields.contact')" required />
                 <flux:input wire:model="identityDocument" :label="__('customers.form.fields.identity_document')" required />
@@ -68,7 +68,7 @@
                             <flux:select.option value="{{ $institution['id'] }}">{{ $institution['name'] }}</flux:select.option>
                         @endforeach
                     </flux:select>
-                    <x-localized-date-picker wire:model="arrivalDate" :value="$arrivalDate" :label="__('customers.form.fields.arrival_date')" required />
+                    <x-date-time-picker wire:model="arrivalAt" :value="$arrivalAt" mode="datetime" :label="__('customers.form.fields.arrival_at')" required />
                     <flux:input wire:model="translatorName" :label="__('customers.form.fields.translator')" />
                 </div>
             </section>
