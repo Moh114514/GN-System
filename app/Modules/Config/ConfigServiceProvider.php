@@ -20,9 +20,8 @@ use App\Modules\Config\Presentation\Livewire\CatalogConfiguration;
 use App\Modules\Config\Presentation\Livewire\ConfigurationCenter;
 use App\Modules\Config\Presentation\Livewire\ConfigurationHistory;
 use App\Modules\Config\Presentation\Livewire\DataMaintenanceCenter;
-use App\Modules\Config\Presentation\Livewire\NotificationRecipientConfiguration;
 use App\Modules\Config\Presentation\Livewire\TimeTravel;
-use App\Modules\Config\Presentation\Livewire\UserManagement;
+use App\Modules\Config\Presentation\Livewire\UserAndNotificationSettings;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
@@ -46,9 +45,11 @@ class ConfigServiceProvider extends ServiceProvider
                 ->name('configuration.data-maintenance');
             Route::get('/admin/configuration/catalog', CatalogConfiguration::class)
                 ->name('configuration.catalog');
-            Route::get('/admin/configuration/users', UserManagement::class)
+            Route::get('/admin/configuration/users-and-notifications', UserAndNotificationSettings::class)
+                ->name('configuration.users-and-notifications');
+            Route::get('/admin/configuration/users', fn () => redirect()->route('configuration.users-and-notifications', ['tab' => 'users']))
                 ->name('configuration.users');
-            Route::get('/admin/configuration/notifications', NotificationRecipientConfiguration::class)
+            Route::get('/admin/configuration/notifications', fn () => redirect()->route('configuration.users-and-notifications', ['tab' => 'notifications']))
                 ->name('configuration.notifications');
             Route::get('/admin/configuration/history', ConfigurationHistory::class)
                 ->name('configuration.history');

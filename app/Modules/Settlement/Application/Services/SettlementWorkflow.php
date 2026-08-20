@@ -2,6 +2,7 @@
 
 namespace App\Modules\Settlement\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
@@ -37,6 +38,7 @@ final readonly class SettlementWorkflow
         private SettlementRunSummaryUpdater $summary,
         private SettlementFreshnessChecker $freshness,
         private SettlementGradeEvaluator $gradeEvaluator,
+        private BusinessClock $clock,
     ) {}
 
     public function reject(int $settlementId, string $reason, int $actorId, ?string $ipAddress): void
@@ -106,7 +108,7 @@ final readonly class SettlementWorkflow
                 'settlement_currency' => 'CNY',
                 'exchange_rate' => (string) $rate,
                 'exchange_rate_krw_per_cny' => (string) $rate,
-                'exchange_rate_date' => $settlement->exchange_rate_date?->toDateString() ?? now()->toDateString(),
+                'exchange_rate_date' => $settlement->exchange_rate_date?->toDateString() ?? $this->clock->now()->toDateString(),
                 'exchange_rate_source' => $settlement->exchange_rate_source ?: ($manualOverride ? 'manual' : $settlement->exchange_rate_quote_source),
                 'exchange_rate_manual_override' => $manualOverride,
                 'payout_amount_cny_fen' => $payoutFen,
@@ -134,7 +136,7 @@ final readonly class SettlementWorkflow
             $this->assertFresh($settlement);
             $settlement->update([
                 'status' => 'settled',
-                'settled_on' => now()->toDateString(),
+                'settled_on' => $this->clock->now()->toDateString(),
                 'settled_by' => $actorId,
                 'confirmed_at' => now(),
             ]);
@@ -189,7 +191,7 @@ final readonly class SettlementWorkflow
             $attributes = match ($targetStatus) {
                 'settled' => [
                     'status' => 'settled',
-                    'settled_on' => now()->toDateString(),
+                    'settled_on' => $this->clock->now()->toDateString(),
                     'settled_by' => $actorId,
                     'confirmed_at' => now(),
                 ],

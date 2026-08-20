@@ -4,7 +4,6 @@ namespace Tests;
 
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
-use Illuminate\Support\Facades\Cache;
 use Laravel\Fortify\Features;
 
 abstract class TestCase extends BaseTestCase
@@ -13,15 +12,11 @@ abstract class TestCase extends BaseTestCase
     {
         parent::setUp();
 
-        Cache::forget('gn:test-clock:enabled');
-        Cache::forget('gn:test-clock:now');
         $this->withoutMiddleware(PreventRequestForgery::class);
     }
 
     protected function tearDown(): void
     {
-        Cache::forget('gn:test-clock:enabled');
-        Cache::forget('gn:test-clock:now');
         parent::tearDown();
     }
 

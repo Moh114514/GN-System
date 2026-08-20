@@ -2,12 +2,15 @@
 
 namespace App\Modules\Agent\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Application\Contracts\ReportAgentReader;
 use App\Modules\Agent\Infrastructure\Models\Agent;
 use Illuminate\Support\Facades\DB;
 
 final class DatabaseReportAgentReader implements ReportAgentReader
 {
+    public function __construct(private BusinessClock $clock) {}
+
     public function globalSearch(string $query, int $limit): array
     {
         $query = trim($query);
@@ -56,17 +59,19 @@ final class DatabaseReportAgentReader implements ReportAgentReader
 
     public function currentGradeDistribution(): array
     {
+        $currentMonth = $this->clock->now()->startOfMonth()->toDateString();
+
         return DB::table('agent_grade_assignments as assignment')
             ->join('policy_grades as grade', 'grade.id', '=', 'assignment.policy_grade_id')
             ->join('agents as agent', 'agent.id', '=', 'assignment.agent_id')
             ->where('agent.cooperation_status', 'active')
-            ->where('assignment.effective_month', '<=', now('Asia/Shanghai')->startOfMonth()->toDateString())
+            ->where('assignment.effective_month', '<=', $currentMonth)
             ->whereRaw('assignment.effective_month = (
                 SELECT MAX(latest.effective_month)
                 FROM agent_grade_assignments latest
                 WHERE latest.agent_id = assignment.agent_id
                   AND latest.effective_month <= ?
-            )', [now('Asia/Shanghai')->startOfMonth()->toDateString()])
+            )', [$currentMonth])
             ->select('grade.name as key', DB::raw('COUNT(*)::int as value'))
             ->groupBy('grade.name')
             ->orderBy('grade.name')

@@ -16,7 +16,7 @@ return [
     'customer_statuses' => '고객 상태',
     'agent_configuration' => '에이전시 및 수수료',
     'reminder_configuration' => '알림 규칙',
-    'users' => '사용자 및 권한',
+    'users' => '사용자 및 권한 / 알림 설정',
     'history' => '설정 이력',
     'data_maintenance' => '데이터 가져오기 및 이전',
     'security_title' => '데이터 보안',

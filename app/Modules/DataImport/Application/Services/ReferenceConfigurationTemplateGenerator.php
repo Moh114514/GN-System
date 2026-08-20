@@ -2,6 +2,7 @@
 
 namespace App\Modules\DataImport\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
@@ -20,9 +21,12 @@ final readonly class ReferenceConfigurationTemplateGenerator
         '代理商等级分配' => ['代理商编号', '政策体系', '等级名称', '生效月份', '原因'],
     ];
 
+    public function __construct(private BusinessClock $clock) {}
+
     public function example(): string
     {
-        $month = now()->addMonthNoOverflow()->startOfMonth()->format('Y-m-d');
+        $today = $this->clock->now();
+        $month = $today->addMonthNoOverflow()->startOfMonth()->format('Y-m-d');
         $spreadsheet = new Spreadsheet;
         $instructions = $spreadsheet->getActiveSheet();
         $instructions->setTitle('填写说明');
@@ -46,11 +50,11 @@ final readonly class ReferenceConfigurationTemplateGenerator
             '政策体系' => ['UAT 示例政策', '是'],
             '政策等级' => ['UAT 示例政策', 'UAT 银级', 1000000, 10, '是'],
             '机构费率规则' => ['UAT 示例政策', 'UAT 银级', 'UAT-HOSP', 1200, $month, '是'],
-            '代理商档案' => ['UATP5-UAT', 'UAT 示例代理商', 'UAT', '机构合作', 'UAT 联系人', 'uat@example.invalid', now()->format('Y-m-d'), '合作中', '请替换为脱敏数据', ''],
+            '代理商档案' => ['UATP5-UAT', 'UAT 示例代理商', 'UAT', '机构合作', 'UAT 联系人', 'uat@example.invalid', $today->format('Y-m-d'), '合作中', '请替换为脱敏数据', ''],
             '代理商等级分配' => ['UATP5-UAT', 'UAT 示例政策', 'UAT 银级', $month, '基础配置导入'],
         ];
 
-        $examples[array_key_last($examples)][3] = now()->startOfMonth()->format('Y-m-d');
+        $examples[array_key_last($examples)][3] = $today->startOfMonth()->format('Y-m-d');
 
         foreach (self::HEADERS as $title => $headers) {
             $sheet = new Worksheet($spreadsheet, $title);

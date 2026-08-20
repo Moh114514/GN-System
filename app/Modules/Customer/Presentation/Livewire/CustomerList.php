@@ -2,9 +2,9 @@
 
 namespace App\Modules\Customer\Presentation\Livewire;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Customer\Application\Services\CustomerDirectory;
 use App\Support\DateRange;
-use Carbon\CarbonImmutable;
 use Illuminate\Contracts\View\View;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Validation\ValidationException;
@@ -64,9 +64,9 @@ class CustomerList extends Component
         $this->resetPage();
     }
 
-    public function applyDatePreset(string $preset): void
+    public function applyDatePreset(string $preset, BusinessClock $clock): void
     {
-        $range = DateRange::preset($preset, CarbonImmutable::now('Asia/Shanghai'));
+        $range = DateRange::preset($preset, $clock->now());
         $this->createdFrom = $range->startAt?->toDateString() ?? '';
         $this->createdTo = $range->endExclusive?->subDay()->toDateString() ?? '';
         $this->resetPage();

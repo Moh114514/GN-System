@@ -2,6 +2,7 @@
 
 namespace App\Modules\Agent\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Application\Contracts\ConfigurationHistoryGateway;
 use App\Modules\Agent\Application\Data\AgentProfileData;
 use App\Modules\Agent\Domain\AgentCodeNormalizer;
@@ -22,6 +23,7 @@ final readonly class AgentManager
         private AgentCodeNormalizer $normalizer,
         private AuditRecorder $audit,
         private ConfigurationHistoryGateway $configurationHistory,
+        private BusinessClock $clock,
     ) {}
 
     public function create(AgentProfileData $data, int $actorId, ?string $ipAddress): int
@@ -49,7 +51,7 @@ final readonly class AgentManager
             AgentGradeAssignment::query()->create([
                 'agent_id' => $agent->id,
                 'policy_grade_id' => $grade->id,
-                'effective_month' => CarbonImmutable::now()->startOfMonth(),
+                'effective_month' => $this->clock->now()->startOfMonth(),
                 'approved_by' => $actorId,
                 'reason' => '代理商建档初始等级',
             ]);
@@ -92,7 +94,7 @@ final readonly class AgentManager
             ]);
             $current = AgentGradeAssignment::query()
                 ->where('agent_id', $agentId)
-                ->whereDate('effective_month', '<=', CarbonImmutable::now()->startOfMonth())
+                ->whereDate('effective_month', '<=', $this->clock->now()->startOfMonth())
                 ->latest('effective_month')
                 ->first();
             if ($current === null && $grade !== null) {
@@ -103,7 +105,7 @@ final readonly class AgentManager
             }
             if ($current !== null && (int) $current->policy_grade_id !== (int) $grade->id) {
                 AgentGradeAssignment::query()->updateOrCreate(
-                    ['agent_id' => $agentId, 'effective_month' => CarbonImmutable::now()->addMonthNoOverflow()->startOfMonth()],
+                    ['agent_id' => $agentId, 'effective_month' => $this->clock->now()->addMonthNoOverflow()->startOfMonth()],
                     ['policy_grade_id' => $grade->id, 'approved_by' => $actorId, 'reason' => '代理商档案调整等级'],
                 );
             }
@@ -134,7 +136,7 @@ final readonly class AgentManager
             }
             $grade = PolicyGrade::query()->where('is_active', true)->findOrFail($policyGradeId);
             $month = $effectiveMonth->startOfMonth();
-            $currentMonth = CarbonImmutable::now()->startOfMonth();
+            $currentMonth = $this->clock->now()->startOfMonth();
             if ($month->gt($currentMonth)) {
                 throw new DomainException(__('agents.validation.correction_effective_month_invalid'));
             }

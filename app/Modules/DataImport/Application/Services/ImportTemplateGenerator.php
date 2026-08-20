@@ -2,7 +2,7 @@
 
 namespace App\Modules\DataImport\Application\Services;
 
-use Carbon\CarbonImmutable;
+use App\Infrastructure\Time\BusinessClock;
 use Illuminate\Support\Str;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
@@ -10,7 +10,10 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 final readonly class ImportTemplateGenerator
 {
-    public function __construct(private ImportReferenceReadiness $readiness) {}
+    public function __construct(
+        private ImportReferenceReadiness $readiness,
+        private BusinessClock $clock,
+    ) {}
 
     public function structureExample(): string
     {
@@ -46,7 +49,7 @@ final readonly class ImportTemplateGenerator
         $references = $this->readiness->inspect();
         $type = $references['agent_types'][0];
         $institution = $references['institutions'][0];
-        $today = CarbonImmutable::today();
+        $today = $this->clock->now()->startOfDay();
         $prefix = 'T'.$today->format('ymd');
         $agentCode = "{$prefix}-{$type['code']}";
         $agentCustomerCode = "{$agentCode}-0001";

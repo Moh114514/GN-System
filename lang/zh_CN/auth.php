@@ -6,6 +6,7 @@ return [
         'dingtalk_mention_type_required' => '填写提及值时必须选择提及类型。',
         'dingtalk_mention_value_required' => '钉钉提及值不能为空。',
         'dingtalk_mention_value_too_long' => '钉钉提及值不能超过 255 个字符。',
+        'dingtalk_mention_value_invalid' => '钉钉提及值格式无效：手机号只能填写数字，User ID 只能填写安全标识字符。',
         'invitation_already_completed' => '该用户已经完成密码设置，无需重发邀请。',
         'password_reset_not_available' => '只有已完成邀请的用户可以发送密码重置链接。',
         'last_super_admin_role' => '不能降级最后一个启用中的超级管理员。',

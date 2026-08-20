@@ -13,6 +13,8 @@ use Livewire\Component;
 #[Layout('layouts.app')]
 class UserManagement extends Component
 {
+    public bool $embedded = false;
+
     public string $name = '';
 
     public string $email = '';

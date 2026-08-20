@@ -25,7 +25,7 @@ return [
         'cards' => [
             'time_travel' => ['title' => '时间模拟', 'description' => '仅在开发和 UAT 模拟业务时间，帮助验证月结与提醒规则。', 'action' => '进入时间模拟'],
             'history' => ['title' => '配置历史与回滚', 'description' => '集中查看各项配置的保存版本、修改差异和回滚记录。', 'action' => '查看历史'],
-            'users' => ['title' => '内部用户与权限', 'description' => '邀请用户、分配角色、启停账号并查看邮件发送状态。', 'action' => '进入管理'],
+            'users' => ['title' => '用户与权限 / 通知设置', 'description' => '邀请用户、管理角色与账号状态，并配置站内通知和钉钉负责人。', 'action' => '进入管理'],
             'catalog' => ['title' => '机构、字典与系统参数', 'description' => '维护机构联系信息、施术项目、翻译语种和报表参数。', 'action' => '进入配置'],
             'customer_statuses' => ['title' => '客户生命周期状态配置', 'description' => '维护客户阶段、状态显示、启用规则和允许的流转路径。', 'action' => '进入配置'],
             'agent' => ['title' => '代理商与推广费配置', 'description' => '维护代理商类型、政策等级、机构费率和代理商特批。', 'action' => '进入配置'],

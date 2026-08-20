@@ -1,5 +1,8 @@
 <div>
-    <x-page-back :href="route('configuration.index')" :label="__('config.back_to_configuration')" class="mb-4" />
+    @unless ($embedded)
+        <x-page-back :href="route('configuration.index')" :label="__('config.back_to_configuration')" class="mb-4" />
+    @endunless
+    @unless ($embedded)
     <section class="crm-section-header">
         <div>
             <p class="text-xs font-medium text-zinc-400">{{ __('config.user_management.eyebrow') }}</p>
@@ -11,6 +14,7 @@
             <flux:icon.arrow-right class="size-4" aria-hidden="true" />
         </a>
     </section>
+    @endunless
 
     <form wire:submit="invite" class="w-full max-w-[720px] rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <h3 class="font-semibold">{{ __('config.user_management.invite_heading') }}</h3>

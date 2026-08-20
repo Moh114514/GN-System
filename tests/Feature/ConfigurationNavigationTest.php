@@ -35,7 +35,7 @@ class ConfigurationNavigationTest extends TestCase
             ->assertSee('href="'.route('configuration.catalog').'"', false)
             ->assertSee('href="'.route('agent-configuration.index').'"', false)
             ->assertSee('href="'.route('reminder-configuration.index').'"', false)
-            ->assertSee('href="'.route('configuration.users').'"', false)
+            ->assertSee('href="'.route('configuration.users-and-notifications').'"', false)
             ->assertSee('href="'.route('configuration.history').'"', false)
             ->assertSee('数据导入与迁移')
             ->assertSee('href="'.route('configuration.data-maintenance').'"', false)
@@ -59,9 +59,9 @@ class ConfigurationNavigationTest extends TestCase
             ->assertOk()
             ->assertSee('<html lang="ko-KR"', false)
             ->assertSee('설정 센터')
-            ->assertSee('내부 사용자 및 권한');
+            ->assertSee(__('config.center.cards.users.title'));
 
-        $this->actingAs($admin)->get(route('configuration.users'))
+        $this->actingAs($admin)->get(route('configuration.users-and-notifications'))
             ->assertOk()
             ->assertSee('내부 사용자 관리')
             ->assertSee('설정 센터로 돌아가기')
@@ -76,10 +76,35 @@ class ConfigurationNavigationTest extends TestCase
     {
         $admin = User::factory()->superAdmin()->withTwoFactor()->create(['preferred_locale' => 'zh_CN']);
 
-        $this->actingAs($admin)->get(route('configuration.users'))
+        $this->actingAs($admin)->get(route('configuration.users-and-notifications'))
             ->assertOk()
             ->assertSee('保存')
             ->assertDontSee('config.user_management.actions.save_dingtalk');
+    }
+
+    public function test_users_and_notifications_page_combines_the_two_configuration_tabs(): void
+    {
+        $user = User::factory()->create();
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+
+        $this->actingAs($user)->get(route('configuration.users-and-notifications'))->assertForbidden();
+
+        $this->actingAs($admin)->get(route('configuration.users-and-notifications'))
+            ->assertOk()
+            ->assertSee('data-test="users-and-notifications-tab-users"', false)
+            ->assertSee('data-test="users-and-notifications-tab-notifications"', false)
+            ->assertSee(__('config.user_management.invite_heading'))
+            ->assertSee(__('config.user_management.audit_link'))
+            ->assertSee(__('config.back_to_configuration'))
+            ->assertSee('href="'.route('configuration.index').'"', false);
+
+        $this->actingAs($admin)->get(route('configuration.users-and-notifications', ['tab' => 'notifications']))
+            ->assertOk()
+            ->assertSee(__('config.notification_recipients.internal_heading'))
+            ->assertSee(__('config.notification_recipients.dingtalk_heading'));
+
+        $this->actingAs($admin)->get(route('configuration.users'))->assertRedirect(route('configuration.users-and-notifications', ['tab' => 'users']));
+        $this->actingAs($admin)->get(route('configuration.notifications'))->assertRedirect(route('configuration.users-and-notifications', ['tab' => 'notifications']));
     }
 
     public function test_primary_navigation_is_ordered_and_hides_admin_links_for_normal_users(): void

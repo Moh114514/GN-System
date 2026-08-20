@@ -158,8 +158,8 @@
                                     </a>
 
                                     <a
-                                        href="{{ route('configuration.users') }}"
-                                        class="crm-subnav-item {{ request()->routeIs('configuration.users') ? 'is-active' : '' }}"
+                                        href="{{ route('configuration.users-and-notifications') }}"
+                                        class="crm-subnav-item {{ request()->routeIs('configuration.users-and-notifications', 'configuration.users', 'configuration.notifications') ? 'is-active' : '' }}"
                                         data-test="configuration-subnav-users"
                                         wire:navigate
                                     >

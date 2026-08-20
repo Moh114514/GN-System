@@ -31,7 +31,7 @@ class NotificationRecipientConfigurationTest extends TestCase
         ]);
         $unbound = User::factory()->create(['name' => '未绑定负责人']);
 
-        $response = $this->actingAs($admin)->get(route('configuration.notifications'))->assertOk();
+        $response = $this->actingAs($admin)->get(route('configuration.users-and-notifications', ['tab' => 'notifications']))->assertOk();
         self::assertMatchesRegularExpression('/value="'.$unbound->id.'"[^>]*disabled/', $response->getContent());
         self::assertMatchesRegularExpression('/value="'.$invalidType->id.'"[^>]*disabled/', $response->getContent());
 
@@ -88,10 +88,10 @@ class NotificationRecipientConfigurationTest extends TestCase
         Http::assertSent(fn ($request): bool => $request->data()['at'] === [
             'atUserIds' => ['dt-user-1'],
             'isAtAll' => false,
-        ] && ! str_contains((string) $request->data()['markdown']['text'], '@dt-user-1'));
+        ] && str_contains((string) $request->data()['markdown']['text'], '@dt-user-1'));
     }
 
-    public function test_dingtalk_mention_values_are_trimmed_without_remote_format_assumptions_and_overlong_values_are_rejected(): void
+    public function test_dingtalk_mention_values_are_trimmed_and_type_validated(): void
     {
         config([
             'dingtalk.enabled' => true,
@@ -107,7 +107,7 @@ class NotificationRecipientConfigurationTest extends TestCase
         $sender->send('提醒', '正文', null, $sparseRecipients);
         Http::assertSent(fn ($request): bool => $request->data()['at']['atUserIds'] === ['employee/id+1']
             && $request->data()['at']['isAtAll'] === false
-            && ! str_contains((string) $request->data()['markdown']['text'], '@employee/id+1'));
+            && str_contains((string) $request->data()['markdown']['text'], '@employee/id+1'));
 
         try {
             $sender->send('提醒', '正文', null, [['type' => 'nickname', 'value' => '张三']]);
@@ -121,6 +121,20 @@ class NotificationRecipientConfigurationTest extends TestCase
             self::fail('Expected a blank DingTalk mention value to be rejected.');
         } catch (\DomainException $exception) {
             $this->assertSame(__('auth.errors.dingtalk_mention_value_required'), $exception->getMessage());
+        }
+
+        try {
+            $sender->send('鎻愰啋', '姝ｆ枃', null, [['type' => 'mobile', 'value' => 'not-a-phone']]);
+            self::fail('Expected a malformed DingTalk mobile value to be rejected.');
+        } catch (\DomainException $exception) {
+            $this->assertSame(__('auth.errors.dingtalk_mention_value_invalid'), $exception->getMessage());
+        }
+
+        try {
+            $sender->send('鎻愰啋', "姝ｆ枃\n", null, [['type' => 'user_id', 'value' => "safe\nid"]]);
+            self::fail('Expected a control character in a DingTalk User ID to be rejected.');
+        } catch (\DomainException $exception) {
+            $this->assertSame(__('auth.errors.dingtalk_mention_value_invalid'), $exception->getMessage());
         }
 
         $this->expectException(\DomainException::class);
@@ -145,7 +159,9 @@ class NotificationRecipientConfigurationTest extends TestCase
             'atMobiles' => ['13982227918'],
             'atUserIds' => ['enterprise-user-1'],
             'isAtAll' => false,
-        ]);
+        ]
+            && str_contains((string) $request->data()['markdown']['text'], '@13982227918')
+            && str_contains((string) $request->data()['markdown']['text'], '@enterprise-user-1'));
     }
 
     public function test_user_management_saves_dingtalk_mention_type_and_value(): void

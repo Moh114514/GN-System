@@ -20,7 +20,7 @@ KRW 月结不做汇率换算；CNY 月结按本次汇率计算并保存快照，
 
 ## 通知
 
-配置中心的通知负责人页面维护 `notification_recipient_configs`。等级调整建议会生成站内通知，并按 `internal` / `dingtalk` 通道发送；钉钉负责人通过 `users.dingtalk_mention_type` 与 `users.dingtalk_mention_value` 绑定，支持企业 `user_id` 和普通群验证过的 `mobile`。未绑定用户不能被选择，Webhook 按绑定类型分别使用 `atUserIds` 或 `atMobiles` 定向 @，不会把内部绑定值拼入 Markdown 正文。钉钉投递写入 `notification_deliveries`，由队列执行并自动重试，状态记录为 `queued`、`sending`、`sent` 或 `failed`；历史投递中的旧字符串值按企业 User ID 兼容读取。提醒实例已有负责人时复用同一绑定规则；没有负责人时只发送群通知。
+配置中心的通知负责人页面维护 `notification_recipient_configs`。等级调整建议会生成站内通知，并按 `internal` / `dingtalk` 通道发送；钉钉负责人通过 `users.dingtalk_mention_type` 与 `users.dingtalk_mention_value` 绑定，支持企业 `user_id` 和普通群验证过的 `mobile`。未绑定用户不能被选择，Webhook 按绑定类型分别使用 `atUserIds` 或 `atMobiles` 定向 @，并在 Markdown 正文追加经过格式校验的 `@绑定值`，这是钉钉识别真实提及所需的组合。钉钉投递写入 `notification_deliveries`，由队列执行并自动重试，状态记录为 `queued`、`sending`、`sent` 或 `failed`；历史投递中的旧字符串值按企业 User ID 兼容读取。提醒实例已有负责人时复用同一绑定规则；没有负责人时只发送群通知。
 
 ## 主动提醒
 

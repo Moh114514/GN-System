@@ -1,5 +1,5 @@
 <div>
-    <x-page-back :href="route('configuration.users')" :label="__('audit.index.back')" class="mb-4" />
+    <x-page-back :href="route('configuration.users-and-notifications', ['tab' => 'users'])" :label="__('audit.index.back')" class="mb-4" />
 
     <section class="crm-section-header">
         <div>

@@ -602,7 +602,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
 
         foreach ([
             'configuration.catalog',
-            'configuration.users',
+            'configuration.users-and-notifications',
             'configuration.history',
         ] as $route) {
             $this->actingAs($admin)->get(route($route))

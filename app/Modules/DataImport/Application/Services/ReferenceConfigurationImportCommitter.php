@@ -2,6 +2,7 @@
 
 namespace App\Modules\DataImport\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Application\Contracts\ReferenceConfigurationImportGateway as AgentReferences;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Config\Application\Contracts\ReferenceConfigurationImportGateway as ConfigReferences;
@@ -29,6 +30,7 @@ final readonly class ReferenceConfigurationImportCommitter
         private AuditRecorder $audit,
         private ImportIssueRecorder $issues,
         private ImportStageTracker $stages,
+        private BusinessClock $clock,
     ) {}
 
     public function dryRun(ImportBatch $batch): void
@@ -129,7 +131,7 @@ final readonly class ReferenceConfigurationImportCommitter
             }
             $effectiveMonth = CarbonImmutable::parse((string) $row['effective_month']);
             if ($batch->operation_mode === ImportOperationMode::HistoricalCorrection) {
-                if (! $effectiveMonth->startOfMonth()->lt(CarbonImmutable::now()->startOfMonth())) {
+                if (! $effectiveMonth->startOfMonth()->lt($this->clock->now()->startOfMonth())) {
                     throw new RuntimeException(__('settlements.errors.historical_rate_month_invalid'));
                 }
                 $this->commissions->importHistoricalCorrectionRule(new HistoricalCommissionRuleData(

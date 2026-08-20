@@ -159,7 +159,7 @@ Report 与 Config 的 Phase 6 范围已实现，但不等同于通用数据字�
 
 本轮已在 `develop` 落地客户三状态与旧生命周期一次性清理迁移、锁定生命周期结构并保留显示名编辑、紧凑三步 Stepper、施术结束 7/30 天幂等提醒、邀请成功页 POST-Redirect-GET、Settlement 级 KRW/CNY 与汇率快照、通知负责人配置/钉钉 @、以及客户列表统一日期范围边界。相关本地 Feature/Unit 测试已验证；UAT/Production 迁移、真实钉钉凭据和人工业务验收仍未完成。
 
-本轮新增开发环境/UAT 专用 Test Clock：模拟时间保存在 Redis，并接入月结、提醒、客户生命周期和日期型业务；生产部署角色不会注册入口或读取模拟时间。配置中心提供快捷调整、立即触发和恢复真实时间，顶部提示用于避免遗留模拟状态。相关本地 Feature/Unit 测试已验证；UAT/Production 尚未进行人工页面验收。
+本轮新增开发环境/UAT 专用 Test Clock：模拟时间保存在 PostgreSQL 的 `business_clock_states` 单行状态表，由 Web、Queue 和 Scheduler 共享，并接入月结、提醒、客户生命周期和日期型业务；生产部署角色不会注册入口或读取模拟时间。配置中心提供快捷调整、立即触发和恢复真实时间，顶部提示用于避免遗留模拟状态。相关本地 Feature/Unit 测试已验证；UAT/Production 尚未进行人工页面验收。
 
 本轮补齐发布后的数据库同步和 Worker 热更新流程：`deploy/deploy.sh` 在镜像更新后依次执行 migration、
 `optimize:clear`、应用启动、`queue:restart` 和健康检查；开发 Compose 使用 `queue:listen`，

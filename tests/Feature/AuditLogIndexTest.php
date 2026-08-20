@@ -138,7 +138,7 @@ class AuditLogIndexTest extends TestCase
     {
         $admin = User::factory()->superAdmin()->withTwoFactor()->create();
 
-        $this->actingAs($admin)->get(route('configuration.users'))
+        $this->actingAs($admin)->get(route('configuration.users-and-notifications'))
             ->assertOk()
             ->assertSee('查看全局审计日志')
             ->assertSee('href="'.route('audit-logs.index').'"', false)

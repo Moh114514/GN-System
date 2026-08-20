@@ -2,6 +2,7 @@
 
 namespace App\Modules\DataImport\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Application\Contracts\AgentImportGateway;
 use App\Modules\Agent\Application\Contracts\ReferenceConfigurationImportGateway as AgentReferences;
 use App\Modules\Config\Application\Contracts\ReferenceConfigurationImportGateway as ConfigReferences;
@@ -39,6 +40,7 @@ final readonly class ReferenceConfigurationImportParser
         private ConfigReferences $config,
         private ImportIssueRecorder $issues,
         private ImportStageTracker $stages,
+        private BusinessClock $clock,
     ) {}
 
     public function parse(ImportBatch $batch): void
@@ -262,7 +264,7 @@ final readonly class ReferenceConfigurationImportParser
 
     private function validateBusinessDates(ImportBatch $batch): void
     {
-        $currentMonth = CarbonImmutable::now()->startOfMonth();
+        $currentMonth = $this->clock->now()->startOfMonth();
         $nextMonth = $currentMonth->addMonthNoOverflow();
         $historical = $batch->operation_mode === ImportOperationMode::HistoricalCorrection;
         $cooperationMonths = $batch->rows()

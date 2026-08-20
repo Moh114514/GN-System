@@ -2,6 +2,7 @@
 
 namespace App\Modules\Settlement\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Settlement\Application\Contracts\CommissionConfigurationGateway;
 use App\Modules\Settlement\Application\Contracts\ConfigurationHistoryGateway;
@@ -16,6 +17,7 @@ final readonly class DatabaseCommissionConfigurationGateway implements Commissio
     public function __construct(
         private AuditRecorder $audit,
         private ConfigurationHistoryGateway $configurationHistory,
+        private BusinessClock $clock,
     ) {}
 
     public function configuration(): array
@@ -135,7 +137,7 @@ final readonly class DatabaseCommissionConfigurationGateway implements Commissio
             throw new DomainException(__('historical_correction.settlements.historical_reason_required'));
         }
         $month = $this->validateRate($data->rateBps, $data->effectiveMonth);
-        if (! $month->lt(CarbonImmutable::now()->startOfMonth())) {
+        if (! $month->lt($this->clock->now()->startOfMonth())) {
             throw new DomainException(__('settlements.errors.historical_rate_month_invalid'));
         }
         $rule = CommissionRule::query()->where([
@@ -180,7 +182,7 @@ final readonly class DatabaseCommissionConfigurationGateway implements Commissio
     private function validateMonthAndRate(CarbonImmutable $effectiveMonth, int $rateBps): CarbonImmutable
     {
         $month = $this->validateRate($rateBps, $effectiveMonth);
-        if ($month->lt(CarbonImmutable::now()->startOfMonth())) {
+        if ($month->lt($this->clock->now()->startOfMonth())) {
             throw new DomainException(__('settlements.errors.closed_month_rate_locked'));
         }
 

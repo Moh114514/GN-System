@@ -14,6 +14,8 @@ use Livewire\Component;
 #[Layout('layouts.app')]
 class NotificationRecipientConfiguration extends Component
 {
+    public bool $embedded = false;
+
     /** @var list<int> */
     public array $internalUserIds = [];
 

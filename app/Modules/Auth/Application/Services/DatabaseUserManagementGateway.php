@@ -183,6 +183,9 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
         if ($dingtalkMentionValue !== '' && mb_strlen($dingtalkMentionValue) > 255) {
             throw new DomainException(__('auth.errors.dingtalk_mention_value_too_long'));
         }
+        if ($dingtalkMentionValue !== '' && ! $this->isValidDingTalkMentionValue($dingtalkMentionType, $dingtalkMentionValue)) {
+            throw new DomainException(__('auth.errors.dingtalk_mention_value_invalid'));
+        }
         $user = User::query()->findOrFail($userId);
         $before = [
             'type' => $user->dingtalk_mention_type,
@@ -233,5 +236,16 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
                 ->get(['id'])
                 ->all(),
         );
+    }
+
+    private function isValidDingTalkMentionValue(string $type, string $value): bool
+    {
+        if (preg_match('/[\x00-\x1F\x7F]/', $value) === 1) {
+            return false;
+        }
+
+        return $type === 'mobile'
+            ? preg_match('/^\d{6,20}$/D', $value) === 1
+            : preg_match('/^[A-Za-z0-9][A-Za-z0-9._:\/+-]{0,254}$/D', $value) === 1;
     }
 }

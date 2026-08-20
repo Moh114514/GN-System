@@ -3,15 +3,13 @@
 namespace App\Infrastructure\Time;
 
 use Carbon\CarbonImmutable;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use LogicException;
 
 final class BusinessClock
 {
-    private const ENABLED_KEY = 'gn:test-clock:enabled';
-
-    private const NOW_KEY = 'gn:test-clock:now';
+    private const STATE_ID = 1;
 
     public function isAvailable(): bool
     {
@@ -34,36 +32,82 @@ final class BusinessClock
         return $this->activeNow() ?? $this->realNow();
     }
 
-    public function set(CarbonImmutable $at): CarbonImmutable
+    public function set(CarbonImmutable $at, ?int $changedBy = null): CarbonImmutable
     {
         $this->guardAvailable();
         $businessNow = $at->setTimezone((string) config('app.timezone'));
+        $changedAt = $this->realNow();
 
-        Cache::forever(self::NOW_KEY, $businessNow->toIso8601String());
-        Cache::forever(self::ENABLED_KEY, true);
+        $this->ensureStateRow();
+        DB::transaction(fn (): int => DB::table('business_clock_states')
+            ->where('id', self::STATE_ID)
+            ->lockForUpdate()
+            ->update([
+                'enabled' => true,
+                'simulated_at' => $businessNow,
+                'mode' => 'frozen',
+                'changed_by' => $changedBy,
+                'changed_at' => $changedAt,
+                'updated_at' => $changedAt,
+            ]));
 
         return $businessNow;
     }
 
-    public function disable(): void
+    public function disable(?int $changedBy = null): void
     {
         $this->guardAvailable();
-        Cache::forget(self::ENABLED_KEY);
-        Cache::forget(self::NOW_KEY);
+        $changedAt = $this->realNow();
+
+        $this->ensureStateRow();
+        DB::transaction(fn (): int => DB::table('business_clock_states')
+            ->where('id', self::STATE_ID)
+            ->lockForUpdate()
+            ->update([
+                'enabled' => false,
+                'simulated_at' => null,
+                'mode' => 'real',
+                'changed_by' => $changedBy,
+                'changed_at' => $changedAt,
+                'updated_at' => $changedAt,
+            ]));
     }
 
-    public function shift(string $unit): CarbonImmutable
+    public function shift(string $unit, ?int $changedBy = null): CarbonImmutable
     {
-        $base = $this->isActive() ? $this->now() : $this->realNow();
-        $shifted = match ($unit) {
-            'day' => $base->addDay(),
-            'week' => $base->addWeek(),
-            '30_days' => $base->addDays(30),
-            'month' => $base->addMonthNoOverflow(),
-            default => throw new LogicException('Unsupported business clock adjustment.'),
-        };
+        $this->guardAvailable();
+        $this->ensureStateRow();
+        $changedAt = $this->realNow();
 
-        return $this->set($shifted);
+        return DB::transaction(function () use ($unit, $changedBy, $changedAt): CarbonImmutable {
+            $state = DB::table('business_clock_states')
+                ->where('id', self::STATE_ID)
+                ->lockForUpdate()
+                ->first(['enabled', 'simulated_at']);
+            $base = (bool) $state?->enabled
+                ? ($this->parseSimulatedTimestamp($state) ?? $this->realNow())
+                : $this->realNow();
+            $shifted = match ($unit) {
+                'day' => $base->addDay(),
+                'week' => $base->addWeek(),
+                '30_days' => $base->addDays(30),
+                'month' => $base->addMonthNoOverflow(),
+                default => throw new LogicException('Unsupported business clock adjustment.'),
+            };
+            $businessNow = $shifted->setTimezone((string) config('app.timezone'));
+            DB::table('business_clock_states')
+                ->where('id', self::STATE_ID)
+                ->update([
+                    'enabled' => true,
+                    'simulated_at' => $businessNow,
+                    'mode' => 'frozen',
+                    'changed_by' => $changedBy,
+                    'changed_at' => $changedAt,
+                    'updated_at' => $changedAt,
+                ]);
+
+            return $businessNow;
+        });
     }
 
     private function guardAvailable(): void
@@ -75,12 +119,39 @@ final class BusinessClock
 
     private function activeNow(): ?CarbonImmutable
     {
-        if (! $this->isAvailable() || ! (bool) Cache::get(self::ENABLED_KEY, false)) {
+        if (! $this->isAvailable()) {
             return null;
         }
 
-        $value = Cache::get(self::NOW_KEY);
-        if (! is_string($value) || trim($value) === '') {
+        $state = DB::table('business_clock_states')
+            ->where('id', self::STATE_ID)
+            ->first(['enabled', 'simulated_at']);
+        if ($state === null || ! (bool) $state->enabled) {
+            return null;
+        }
+
+        return $this->parseSimulatedTimestamp($state);
+    }
+
+    private function ensureStateRow(): void
+    {
+        $now = $this->realNow();
+        DB::table('business_clock_states')->insertOrIgnore([
+            'id' => self::STATE_ID,
+            'enabled' => false,
+            'simulated_at' => null,
+            'mode' => 'real',
+            'changed_by' => null,
+            'changed_at' => null,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
+    }
+
+    private function parseSimulatedTimestamp(object $state): ?CarbonImmutable
+    {
+        $value = $state->simulated_at;
+        if ($value === null || trim((string) $value) === '') {
             $this->logInvalidState('missing timestamp');
 
             return null;

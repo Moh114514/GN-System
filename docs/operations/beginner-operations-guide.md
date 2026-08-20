@@ -187,6 +187,9 @@ Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub
 
 ### 2.4 业务时间模拟（仅开发环境和 UAT）
 
+发布新版本时，系统会通过标准 migration 创建 PostgreSQL 的
+`business_clock_states` 表；不要手动创建或清空这张表。
+
 为了测试月结、术后提醒和日期规则，开发环境与 UAT 可以在网页中模拟业务时间。
 正式生产没有这个入口，也不会读取模拟时间。
 
@@ -197,8 +200,8 @@ Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub
 3. 测试完成后点击“恢复真实时间”。页面顶部出现黄色提示时，说明模拟仍在开启。
 
 这项功能只改变业务判断使用的时间，不会修改服务器时间。队列任务可能需要稍等片刻，
-请同时查看页面结果和队列状态。不要在正式生产尝试设置，也不要通过清空 Redis 来处理
-状态。
+请同时查看页面结果和队列状态。不要在正式生产尝试设置，也不要通过清空 PostgreSQL/Redis
+来处理状态；状态由 PostgreSQL 的 `business_clock_states` 表保存。
 
 ## 3. 使用命令行连接
 

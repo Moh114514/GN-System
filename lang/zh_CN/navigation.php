@@ -16,7 +16,7 @@ return [
     'customer_statuses' => '客户状态',
     'agent_configuration' => '代理商与推广费',
     'reminder_configuration' => '提醒规则',
-    'users' => '用户与权限',
+    'users' => '用户与权限 / 通知设置',
     'history' => '配置历史',
     'data_maintenance' => '数据导入与迁移',
     'security_title' => '数据安全',

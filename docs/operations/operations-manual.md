@@ -249,6 +249,10 @@ OFFSITE_BACKUP_MONITOR_ENABLED=true
 
 ### 3.3 开发和 UAT 业务时间模拟
 
+部署包含 `2026_08_20_000200_create_business_clock_states_table` migration；UAT 和
+Production 发布前都必须确认该 migration 已由标准发布流程执行。Production 即使存在历史
+状态行，也会因部署角色禁用而不读取。
+
 业务时间模拟只允许在本地开发、开发环境和 UAT 使用。正式生产必须设置
 `APP_DEPLOYMENT_ENV=production` 和 `APP_TIME_TRAVEL_ENABLED=false`；代码还会按
 `APP_DEPLOYMENT_ENV` 再次阻断生产，即使误把开关改为 `true` 也不会注册入口或读取
@@ -256,7 +260,7 @@ OFFSITE_BACKUP_MONITOR_ENABLED=true
 `APP_DEPLOYMENT_ENV=uat`，不能用 `APP_ENV` 判断是否为正式生产。
 
 启用后，超级管理员可从“配置中心 → 系统测试 → 时间模拟”设置时间、使用快捷调整或
-恢复真实时间。模拟值保存在 Redis，供 Web、Queue 和 Scheduler 共享；页面顶部会持续显示
+恢复真实时间。模拟值保存在 PostgreSQL 的 `business_clock_states` 单行状态表，供 Web、Queue 和 Scheduler 共享；页面顶部会持续显示
 警告。不要修改 Ubuntu 或 Docker 的系统时间，也不要使用 `Carbon::setTestNow()` 改变全局
 时间。该功能只影响月结、提醒、客户生命周期和其他已接入的业务日期判断；备份、心跳、日志、
 审计、Session、登录、文件清理、健康检查和 TTL 等运维时间仍使用真实时间。
@@ -265,7 +269,7 @@ OFFSITE_BACKUP_MONITOR_ENABLED=true
 `app:materialize-reminders` 和 `app:dispatch-reminder-notifications`。其中月结明细和
 通知可能通过队列异步完成，操作后应检查 Queue/Scheduler 状态和业务结果。部署、回退或
 验收结束前应确认状态已恢复为“真实时间”；若非生产环境发现遗留模拟状态，优先通过页面
-恢复，不要清空 Redis 或修改生产数据。
+恢复；不要清空 PostgreSQL/Redis 或修改生产数据来处理状态。
 
 ### 3.4 月结自动汇率
 

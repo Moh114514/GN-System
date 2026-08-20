@@ -7,6 +7,7 @@ use Carbon\CarbonImmutable;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use RuntimeException;
@@ -39,21 +40,21 @@ class TimeTravel extends Component
         if ($at === null) {
             return;
         }
-        $clock->set($at);
+        $clock->set($at, Auth::id() === null ? null : (int) Auth::id());
         $this->fillFrom($at);
         Flux::toast(variant: 'success', text: __('config.time_travel.toast.enabled'));
     }
 
     public function adjust(string $unit, BusinessClock $clock): void
     {
-        $at = $clock->shift($unit);
+        $at = $clock->shift($unit, Auth::id() === null ? null : (int) Auth::id());
         $this->fillFrom($at);
         Flux::toast(variant: 'success', text: __('config.time_travel.toast.enabled'));
     }
 
     public function restore(BusinessClock $clock): void
     {
-        $clock->disable();
+        $clock->disable(Auth::id() === null ? null : (int) Auth::id());
         $this->fillFrom($clock->realNow());
         $this->lastExecution = '';
         Flux::toast(variant: 'success', text: __('config.time_travel.toast.disabled'));
@@ -76,7 +77,7 @@ class TimeTravel extends Component
         if ($at === null) {
             return;
         }
-        $clock->set($at);
+        $clock->set($at, Auth::id() === null ? null : (int) Auth::id());
         $commands = [];
         if ($this->runSettlements) {
             $commands[] = 'settlements';

@@ -2,15 +2,18 @@
 
 namespace App\Modules\Report\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Report\Application\Data\DashboardRangeData;
 use Carbon\CarbonImmutable;
 use DomainException;
 
 final class DashboardRangeFactory
 {
+    public function __construct(private BusinessClock $clock) {}
+
     public function make(string $preset, ?string $customFrom = null, ?string $customTo = null): DashboardRangeData
     {
-        $now = CarbonImmutable::now('Asia/Shanghai');
+        $now = $this->clock->now();
         [$from, $to, $label] = match ($preset) {
             'today' => [$now->startOfDay(), $now, 'today'],
             'week' => [$now->startOfWeek(), $now, 'week'],

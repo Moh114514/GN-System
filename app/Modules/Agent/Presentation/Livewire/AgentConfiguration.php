@@ -2,6 +2,7 @@
 
 namespace App\Modules\Agent\Presentation\Livewire;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Application\Services\AgentConfigurationCoordinator;
 use App\Modules\Agent\Application\Services\AgentManager;
 use Carbon\CarbonImmutable;
@@ -61,9 +62,9 @@ class AgentConfiguration extends Component
 
     public string $overrideListSort = 'effective_desc';
 
-    public function mount(): void
+    public function mount(BusinessClock $clock): void
     {
-        $nextMonth = now()->addMonthNoOverflow()->startOfMonth()->toDateString();
+        $nextMonth = $clock->now()->addMonthNoOverflow()->startOfMonth()->toDateString();
         $this->ruleEffectiveMonth = $nextMonth;
         $this->overrideEffectiveMonth = $nextMonth;
     }
