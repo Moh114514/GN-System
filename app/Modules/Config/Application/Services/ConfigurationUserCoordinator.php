@@ -40,8 +40,8 @@ final readonly class ConfigurationUserCoordinator
         $this->users->setActive($userId, $active, $actorId, $ipAddress);
     }
 
-    public function setDingTalkUserId(int $userId, ?string $dingtalkUserId, int $actorId, ?string $ipAddress): void
+    public function setDingTalkMention(int $userId, ?string $dingtalkMentionType, ?string $dingtalkMentionValue, int $actorId, ?string $ipAddress): void
     {
-        $this->users->setDingTalkUserId($userId, $dingtalkUserId, $actorId, $ipAddress);
+        $this->users->setDingTalkMention($userId, $dingtalkMentionType, $dingtalkMentionValue, $actorId, $ipAddress);
     }
 }

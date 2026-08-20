@@ -15,25 +15,36 @@ final class DingTalkClient implements StaffNotificationSender
             && config('dingtalk.webhook_url') !== '';
     }
 
-    /** @param list<string> $recipients */
     public function send(string $title, string $text, ?string $link = null, array $recipients = []): void
     {
         if (! $this->enabled()) {
             throw new DomainException(__('reminders.errors.dingtalk_not_configured'));
         }
-        $normalizedRecipients = [];
-        foreach ($recipients as $recipient) {
-            $recipient = trim((string) $recipient);
-            if ($recipient === '') {
-                throw new DomainException(__('auth.errors.dingtalk_user_id_required'));
-            }
-            if (mb_strlen($recipient) > 255) {
-                throw new DomainException(__('auth.errors.dingtalk_user_id_too_long'));
+        $atUserIds = [];
+        $atMobiles = [];
+        /** @var list<mixed> $runtimeRecipients */
+        $runtimeRecipients = $recipients;
+        foreach ($runtimeRecipients as $recipient) {
+            $type = is_array($recipient) ? ($recipient['type'] ?? null) : null;
+            if (! is_string($type) || ! in_array($type, ['user_id', 'mobile'], true)) {
+                throw new DomainException(__('auth.errors.dingtalk_mention_type_invalid'));
             }
 
-            $normalizedRecipients[] = $recipient;
+            $value = $recipient['value'] ?? null;
+            if (! is_string($value) || trim($value) === '') {
+                throw new DomainException(__('auth.errors.dingtalk_mention_value_required'));
+            }
+            $value = trim($value);
+            if (mb_strlen($value) > 255) {
+                throw new DomainException(__('auth.errors.dingtalk_mention_value_too_long'));
+            }
+
+            if ($type === 'user_id') {
+                $atUserIds[] = $value;
+            } else {
+                $atMobiles[] = $value;
+            }
         }
-        $recipients = $normalizedRecipients;
         $url = (string) config('dingtalk.webhook_url');
         $secret = (string) config('dingtalk.secret');
         if ($secret !== '') {
@@ -42,16 +53,21 @@ final class DingTalkClient implements StaffNotificationSender
             $url .= (str_contains($url, '?') ? '&' : '?').'timestamp='.$timestamp.'&sign='.urlencode($sign);
         }
         $content = "### {$title}\n\n{$text}";
-        if ($recipients !== []) {
-            $content .= "\n\n".implode(' ', array_map(static fn (string $recipient): string => '@'.$recipient, $recipients));
-        }
         if ($link !== null) {
             $content .= "\n\n[".__('common.open_system')."]({$link})";
         }
+        $at = [];
+        if ($atMobiles !== []) {
+            $at['atMobiles'] = $atMobiles;
+        }
+        if ($atUserIds !== []) {
+            $at['atUserIds'] = $atUserIds;
+        }
+        $at['isAtAll'] = false;
         $response = Http::timeout(10)->post($url, [
             'msgtype' => 'markdown',
             'markdown' => ['title' => $title, 'text' => $content],
-            'at' => ['atUserIds' => $recipients, 'isAtAll' => false],
+            'at' => $at,
         ]);
         $response->throw();
         if ((int) $response->json('errcode', 0) !== 0) {

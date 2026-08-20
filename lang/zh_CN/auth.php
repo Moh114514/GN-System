@@ -2,13 +2,18 @@
 
 return [
     'errors' => [
-        'dingtalk_user_id_required' => '钉钉 User ID 不能为空。',
-        'dingtalk_user_id_too_long' => '钉钉 User ID 不能超过 255 个字符。',
+        'dingtalk_mention_type_invalid' => '钉钉提及类型仅支持 User ID 或手机号。',
+        'dingtalk_mention_type_required' => '填写提及值时必须选择提及类型。',
+        'dingtalk_mention_value_required' => '钉钉提及值不能为空。',
+        'dingtalk_mention_value_too_long' => '钉钉提及值不能超过 255 个字符。',
         'invitation_already_completed' => '该用户已经完成密码设置，无需重发邀请。',
         'password_reset_not_available' => '只有已完成邀请的用户可以发送密码重置链接。',
         'last_super_admin_role' => '不能降级最后一个启用中的超级管理员。',
         'current_account_disable' => '不能停用当前登录账号。',
         'last_super_admin_disable' => '不能停用最后一个启用中的超级管理员。',
+    ],
+    'audit' => [
+        'dingtalk_mention_updated' => '钉钉提及绑定已更新',
     ],
     'failed' => '邮箱或密码不正确。',
     'password' => '密码不正确。',

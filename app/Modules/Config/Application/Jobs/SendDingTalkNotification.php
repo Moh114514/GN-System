@@ -30,11 +30,19 @@ class SendDingTalkNotification implements ShouldQueue
         $delivery->update(['status' => 'sending', 'last_error' => null]);
 
         try {
+            /** @var list<mixed> $storedRecipients */
+            $storedRecipients = $delivery->recipients ?? [];
+            $recipients = [];
+            foreach ($storedRecipients as $recipient) {
+                $recipients[] = is_string($recipient)
+                    ? ['type' => 'user_id', 'value' => $recipient]
+                    : $recipient;
+            }
             $sender->send(
                 (string) $delivery->title,
                 (string) $delivery->body,
                 $delivery->link === null ? null : (string) $delivery->link,
-                array_values(array_map('strval', $delivery->recipients ?? [])),
+                $recipients,
             );
         } catch (Throwable $exception) {
             $delivery->update([

@@ -50,11 +50,20 @@ final readonly class ReminderNotifier
 
             return;
         }
+        $recipients = [];
+        if ($owner !== null
+            && trim((string) $owner->dingtalk_mention_type) !== ''
+            && trim((string) $owner->dingtalk_mention_value) !== '') {
+            $recipients[] = [
+                'type' => (string) $owner->dingtalk_mention_type,
+                'value' => (string) $owner->dingtalk_mention_value,
+            ];
+        }
         $this->sender->send(
             $content['title'],
             $body,
             route('reminders.index'),
-            $owner?->dingtalk_user_id === null ? [] : [(string) $owner->dingtalk_user_id],
+            $recipients,
         );
         $reminder->update(['notification_status' => 'sent', 'notified_at' => now()]);
         $this->event($reminder, 'notified', []);

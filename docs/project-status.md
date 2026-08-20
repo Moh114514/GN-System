@@ -164,9 +164,9 @@ Report 与 Config 的 Phase 6 范围已实现，但不等同于通用数据字�
 本轮补齐发布后的数据库同步和 Worker 热更新流程：`deploy/deploy.sh` 在镜像更新后依次执行 migration、
 `optimize:clear`、应用启动、`queue:restart` 和健康检查；开发 Compose 使用 `queue:listen`，
 UAT/Production 使用 `queue:work`。本地开发与 UAT/Production 操作手册同步要求先完成
-数据库结构升级再打开页面。通知负责人只允许选择已绑定 DingTalk UserId 的用户，等级调整钉钉通知
+数据库结构升级再打开页面。通知负责人只允许选择已绑定 DingTalk `user_id` 或 `mobile` 的用户，等级调整钉钉通知
 改为可重试投递并记录发送状态；降级连续失败只跨相邻结算周期累计。相关本地 Feature/Unit 测试已验证；
-UAT/Production migration、真实钉钉凭据和人工验收仍未完成。
+普通群手机号 @ 已完成人工验证；UAT/Production migration、生产钉钉凭据和正式环境人工验收仍未完成。
 
 功能首次落地、能力移除或阶段变化时，必须在同一变更中更新本页。描述必须能由
 代码、配置、迁移或测试验证；纯计划不得进入“已实现”。

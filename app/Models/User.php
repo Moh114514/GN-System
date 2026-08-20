@@ -21,7 +21,8 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property int $id
  * @property string $name
  * @property string $email
- * @property string|null $dingtalk_user_id
+ * @property string|null $dingtalk_mention_type
+ * @property string|null $dingtalk_mention_value
  * @property string $preferred_locale
  * @property Carbon|null $email_verified_at
  * @property string $password
@@ -40,7 +41,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $updated_at
  */
 #[Fillable([
-    'name', 'email', 'dingtalk_user_id', 'password', 'preferred_locale', 'is_super_admin', 'is_active', 'invitation_status',
+    'name', 'email', 'dingtalk_mention_type', 'dingtalk_mention_value', 'password', 'preferred_locale', 'is_super_admin', 'is_active', 'invitation_status',
     'invitation_sent_at', 'disabled_at', 'disabled_by', 'remember_token', 'session_version',
 ])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]

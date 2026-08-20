@@ -2,13 +2,18 @@
 
 return [
     'errors' => [
-        'dingtalk_user_id_required' => '딩톡 User ID는 비워 둘 수 없습니다.',
-        'dingtalk_user_id_too_long' => '딩톡 User ID는 255자를 초과할 수 없습니다.',
+        'dingtalk_mention_type_invalid' => '딩톡 멘션 유형은 User ID 또는 휴대전화 번호만 지원합니다.',
+        'dingtalk_mention_type_required' => '멘션 값을 입력할 때 멘션 유형을 선택해야 합니다.',
+        'dingtalk_mention_value_required' => '딩톡 멘션 값은 비워 둘 수 없습니다.',
+        'dingtalk_mention_value_too_long' => '딩톡 멘션 값은 255자를 초과할 수 없습니다.',
         'invitation_already_completed' => '이 사용자는 이미 비밀번호를 설정했으므로 초대장을 다시 보낼 필요가 없습니다.',
         'password_reset_not_available' => '초대를 완료한 사용자에게만 비밀번호 재설정 링크를 보낼 수 있습니다.',
         'last_super_admin_role' => '활성화된 마지막 슈퍼 관리자의 권한을 낮출 수 없습니다.',
         'current_account_disable' => '현재 로그인한 계정을 비활성화할 수 없습니다.',
         'last_super_admin_disable' => '활성화된 마지막 슈퍼 관리자를 비활성화할 수 없습니다.',
+    ],
+    'audit' => [
+        'dingtalk_mention_updated' => '딩톡 멘션 연결이 업데이트되었습니다.',
     ],
     'failed' => '이메일 또는 비밀번호가 올바르지 않습니다.',
     'password' => '비밀번호가 올바르지 않습니다.',

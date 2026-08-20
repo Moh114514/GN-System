@@ -36,8 +36,9 @@ class NotificationRecipientConfiguration extends Component
         $dingtalkUserIds = array_unique(array_map('intval', $this->dingtalkUserIds));
         $boundDingtalkUserCount = User::query()
             ->whereIn('id', $dingtalkUserIds)
-            ->whereNotNull('dingtalk_user_id')
-            ->where('dingtalk_user_id', '<>', '')
+            ->whereIn('dingtalk_mention_type', ['user_id', 'mobile'])
+            ->whereNotNull('dingtalk_mention_value')
+            ->where('dingtalk_mention_value', '<>', '')
             ->count();
         if ($boundDingtalkUserCount !== count($dingtalkUserIds)) {
             throw ValidationException::withMessages([
@@ -77,8 +78,9 @@ class NotificationRecipientConfiguration extends Component
         $configuredDingtalkUserIds = $records->where('channel', 'dingtalk')->pluck('user_id')->map(fn ($id): int => (int) $id)->values()->all();
         $this->dingtalkUserIds = User::query()
             ->whereIn('id', $configuredDingtalkUserIds)
-            ->whereNotNull('dingtalk_user_id')
-            ->where('dingtalk_user_id', '<>', '')
+            ->whereIn('dingtalk_mention_type', ['user_id', 'mobile'])
+            ->whereNotNull('dingtalk_mention_value')
+            ->where('dingtalk_mention_value', '<>', '')
             ->pluck('id')
             ->map(fn ($id): int => (int) $id)
             ->values()

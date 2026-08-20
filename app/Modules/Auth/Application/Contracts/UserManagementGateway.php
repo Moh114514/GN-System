@@ -18,5 +18,5 @@ interface UserManagementGateway
 
     public function setActive(int $userId, bool $active, int $actorId, ?string $ipAddress): void;
 
-    public function setDingTalkUserId(int $userId, ?string $dingtalkUserId, int $actorId, ?string $ipAddress): void;
+    public function setDingTalkMention(int $userId, ?string $dingtalkMentionType, ?string $dingtalkMentionValue, int $actorId, ?string $ipAddress): void;
 }

@@ -25,7 +25,8 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
                 'id' => (int) $user->id,
                 'name' => (string) $user->name,
                 'email' => (string) $user->email,
-                'dingtalk_user_id' => $user->dingtalk_user_id,
+                'dingtalk_mention_type' => $user->dingtalk_mention_type,
+                'dingtalk_mention_value' => $user->dingtalk_mention_value,
                 'is_super_admin' => (bool) $user->is_super_admin,
                 'is_active' => (bool) $user->is_active,
                 'invitation_status' => (string) $user->invitation_status,
@@ -169,22 +170,39 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
         });
     }
 
-    public function setDingTalkUserId(int $userId, ?string $dingtalkUserId, int $actorId, ?string $ipAddress): void
+    public function setDingTalkMention(int $userId, ?string $dingtalkMentionType, ?string $dingtalkMentionValue, int $actorId, ?string $ipAddress): void
     {
-        $dingtalkUserId = trim((string) $dingtalkUserId);
-        if ($dingtalkUserId !== '' && mb_strlen($dingtalkUserId) > 255) {
-            throw new DomainException(__('auth.errors.dingtalk_user_id_too_long'));
+        $dingtalkMentionType = trim((string) $dingtalkMentionType);
+        $dingtalkMentionValue = trim((string) $dingtalkMentionValue);
+        if ($dingtalkMentionType !== '' && ! in_array($dingtalkMentionType, ['user_id', 'mobile'], true)) {
+            throw new DomainException(__('auth.errors.dingtalk_mention_type_invalid'));
+        }
+        if ($dingtalkMentionValue !== '' && $dingtalkMentionType === '') {
+            throw new DomainException(__('auth.errors.dingtalk_mention_type_required'));
+        }
+        if ($dingtalkMentionValue !== '' && mb_strlen($dingtalkMentionValue) > 255) {
+            throw new DomainException(__('auth.errors.dingtalk_mention_value_too_long'));
         }
         $user = User::query()->findOrFail($userId);
-        $before = $user->dingtalk_user_id;
-        $user->update(['dingtalk_user_id' => $dingtalkUserId === '' ? null : $dingtalkUserId]);
+        $before = [
+            'type' => $user->dingtalk_mention_type,
+            'value' => $user->dingtalk_mention_value,
+        ];
+        $user->update([
+            'dingtalk_mention_type' => $dingtalkMentionValue === '' ? null : $dingtalkMentionType,
+            'dingtalk_mention_value' => $dingtalkMentionValue === '' ? null : $dingtalkMentionValue,
+        ]);
         $this->audit->record(
-            description: __('auth.audit.dingtalk_user_id_updated'),
-            properties: ['user_id' => $userId, 'before' => $before, 'after' => $user->dingtalk_user_id],
+            description: __('auth.audit.dingtalk_mention_updated'),
+            properties: [
+                'user_id' => $userId,
+                'before' => $before,
+                'after' => ['type' => $user->dingtalk_mention_type, 'value' => $user->dingtalk_mention_value],
+            ],
             causerId: $actorId,
             subject: $user,
             logName: 'auth-user-management',
-            event: 'dingtalk_user_id_updated',
+            event: 'dingtalk_mention_updated',
             ipAddress: $ipAddress,
         );
     }

@@ -328,7 +328,8 @@ class PhaseFiveReminderTest extends TestCase
         ]);
         $this->user->update([
             'preferred_locale' => 'ko_KR',
-            'dingtalk_user_id' => ' dt-owner-1 ',
+            'dingtalk_mention_type' => 'user_id',
+            'dingtalk_mention_value' => ' dt-owner-1 ',
         ]);
         NotificationRecipientConfig::query()->create([
             'event_type' => 'reminder',
@@ -366,7 +367,7 @@ class PhaseFiveReminderTest extends TestCase
         ]);
         Http::assertSent(fn ($request): bool => str_contains($request->url(), 'timestamp=') && str_contains($request->url(), 'sign='));
         Http::assertSent(fn ($request): bool => str_contains((string) $request->data()['markdown']['text'], '고객:')
-            && str_contains((string) $request->data()['markdown']['text'], '@dt-owner-1')
+            && ! str_contains((string) $request->data()['markdown']['text'], '@dt-owner-1')
             && $request->data()['at'] === ['atUserIds' => ['dt-owner-1'], 'isAtAll' => false]);
     }
 

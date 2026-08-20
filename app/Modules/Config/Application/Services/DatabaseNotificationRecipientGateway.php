@@ -23,14 +23,20 @@ final readonly class DatabaseNotificationRecipientGateway implements Notificatio
         $userIds = $configs->where('channel', 'internal')->pluck('user_id')->unique()->values()->all();
         $this->notifyInternalUsers($eventType, $eventKey, $title, $body, $userIds, $link);
 
-        $dingtalkIds = User::query()
+        $dingtalkRecipients = User::query()
             ->whereIn('id', $configs->where('channel', 'dingtalk')->pluck('user_id')->unique()->all())
-            ->whereNotNull('dingtalk_user_id')
-            ->pluck('dingtalk_user_id')
-            ->filter()
+            ->whereIn('dingtalk_mention_type', ['user_id', 'mobile'])
+            ->whereNotNull('dingtalk_mention_type')
+            ->whereNotNull('dingtalk_mention_value')
+            ->where('dingtalk_mention_value', '<>', '')
+            ->get(['dingtalk_mention_type', 'dingtalk_mention_value'])
+            ->map(static fn (User $user): array => [
+                'type' => (string) $user->dingtalk_mention_type,
+                'value' => (string) $user->dingtalk_mention_value,
+            ])
             ->values()
             ->all();
-        if ($dingtalkIds === [] || ! $this->sender->enabled()) {
+        if ($dingtalkRecipients === [] || ! $this->sender->enabled()) {
             return;
         }
 
@@ -44,7 +50,7 @@ final readonly class DatabaseNotificationRecipientGateway implements Notificatio
                 'title' => $title,
                 'body' => $body,
                 'link' => $link,
-                'recipients' => $dingtalkIds,
+                'recipients' => $dingtalkRecipients,
                 'status' => 'queued',
             ],
         );
@@ -58,7 +64,7 @@ final readonly class DatabaseNotificationRecipientGateway implements Notificatio
                 'title' => $title,
                 'body' => $body,
                 'link' => $link,
-                'recipients' => $dingtalkIds,
+                'recipients' => $dingtalkRecipients,
                 'status' => 'queued',
                 'last_error' => null,
             ]);

@@ -24,7 +24,7 @@
 
 `CustomerStatusManager` 在状态变为 `treatment_completed` 时通过 Reminder Application Contract 调度两条被动提醒：术后 7 天和术后 30 天。每条提醒的幂等键由客户、施术结束时间和提醒类型组成；回退后再次设置相同结束时间不会重复创建。
 
-客户的 `treatment_completed_at` 会被保存，作为提醒日期和幂等依据。提醒默认使用客户负责人作为 `assigned_to`；如负责人绑定了钉钉 UserId，发送钉钉通知时会被 @。
+客户的 `treatment_completed_at` 会被保存，作为提醒日期和幂等依据。提醒默认使用客户负责人作为 `assigned_to`；如负责人绑定了钉钉 `user_id` 或 `mobile`，发送钉钉通知时会通过 Webhook 对应的定向字段尝试 @，不会在正文暴露该内部绑定值。
 
 ## 验证
 

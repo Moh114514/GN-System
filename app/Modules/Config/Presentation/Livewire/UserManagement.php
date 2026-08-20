@@ -20,7 +20,10 @@ class UserManagement extends Component
     public bool $isSuperAdmin = false;
 
     /** @var array<int, string> */
-    public array $dingtalkUserIds = [];
+    public array $dingtalkMentionTypes = [];
+
+    /** @var array<int, string> */
+    public array $dingtalkMentionValues = [];
 
     public function invite(ConfigurationUserCoordinator $users): void
     {
@@ -78,10 +81,18 @@ class UserManagement extends Component
         );
     }
 
-    public function saveDingTalkUserId(int $id, ConfigurationUserCoordinator $users): void
+    public function saveDingTalkMention(int $id, ConfigurationUserCoordinator $users): void
     {
+        $type = trim((string) ($this->dingtalkMentionTypes[$id] ?? ''));
+        $value = trim((string) ($this->dingtalkMentionValues[$id] ?? ''));
+        $this->dingtalkMentionTypes[$id] = $type;
+        $this->dingtalkMentionValues[$id] = $value;
+        $this->validate([
+            "dingtalkMentionTypes.{$id}" => ['nullable', 'string', 'in:user_id,mobile'],
+            "dingtalkMentionValues.{$id}" => ['nullable', 'string', 'max:255'],
+        ]);
         $this->run(
-            fn () => $users->setDingTalkUserId($id, $this->dingtalkUserIds[$id] ?? null, (int) Auth::id(), request()->ip()),
+            fn () => $users->setDingTalkMention($id, $type === '' ? null : $type, $value === '' ? null : $value, (int) Auth::id(), request()->ip()),
             __('config.user_management.toast.dingtalk_updated'),
         );
     }
@@ -90,7 +101,9 @@ class UserManagement extends Component
     {
         $records = $users->users();
         foreach ($records as $record) {
-            $this->dingtalkUserIds[(int) $record['id']] = (string) ($record['dingtalk_user_id'] ?? '');
+            $id = (int) $record['id'];
+            $this->dingtalkMentionTypes[$id] ??= (string) ($record['dingtalk_mention_type'] ?? '');
+            $this->dingtalkMentionValues[$id] ??= (string) ($record['dingtalk_mention_value'] ?? '');
         }
 
         return view('livewire.configuration.user-management', ['users' => $records])

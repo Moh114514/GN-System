@@ -20,7 +20,7 @@ KRW 月结不做汇率换算；CNY 月结按本次汇率计算并保存快照，
 
 ## 通知
 
-配置中心的通知负责人页面维护 `notification_recipient_configs`。等级调整建议会生成站内通知，并按 `internal` / `dingtalk` 通道发送；钉钉负责人通过 `users.dingtalk_user_id` 绑定，未绑定用户不能被选择，Webhook 请求在 `atUserIds` 定向 @ 的同时会在 Markdown 正文写入对应 `@userId`。钉钉投递写入 `notification_deliveries`，由队列执行并自动重试，状态记录为 `queued`、`sending`、`sent` 或 `failed`。提醒实例已有负责人时复用同一 UserId 规则；没有负责人时只发送群通知。
+配置中心的通知负责人页面维护 `notification_recipient_configs`。等级调整建议会生成站内通知，并按 `internal` / `dingtalk` 通道发送；钉钉负责人通过 `users.dingtalk_mention_type` 与 `users.dingtalk_mention_value` 绑定，支持企业 `user_id` 和普通群验证过的 `mobile`。未绑定用户不能被选择，Webhook 按绑定类型分别使用 `atUserIds` 或 `atMobiles` 定向 @，不会把内部绑定值拼入 Markdown 正文。钉钉投递写入 `notification_deliveries`，由队列执行并自动重试，状态记录为 `queued`、`sending`、`sent` 或 `failed`；历史投递中的旧字符串值按企业 User ID 兼容读取。提醒实例已有负责人时复用同一绑定规则；没有负责人时只发送群通知。
 
 ## 主动提醒
 
@@ -29,6 +29,7 @@ KRW 月结不做汇率换算；CNY 月结按本次汇率计算并保存快照，
 新建主动提醒默认使用当前用户作为负责人，也只允许选择启用且已接受邀请的内部用户；自动生成的客户、预约和订单提醒继续沿用各自业务记录的负责人。
 
 ## 运行和验收
+钉钉绑定迁移的回滚会在检测到仍存在 `mobile` 绑定时主动中止，以避免手机号绑定被静默丢弃；如确需回滚，必须先完成绑定导出或清理，并在目标环境确认后再执行。
 
 月结 Queue 任务的失败回调使用独立的 `SettlementFailureRecorder`，不会再次解析完整的
 `SettlementGenerator` 依赖链。`SettlementRunReconciler` 每分钟比较 `SettlementRun`、Laravel
