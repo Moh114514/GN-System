@@ -4,8 +4,10 @@ namespace App\Modules\Auth;
 
 use App\Infrastructure\Localization\SupportedLocale;
 use App\Models\User;
+use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
 use App\Modules\Auth\Application\Contracts\ReportUserReader;
 use App\Modules\Auth\Application\Contracts\UserManagementGateway;
+use App\Modules\Auth\Application\Services\DatabaseInternalUserReferenceReader;
 use App\Modules\Auth\Application\Services\DatabaseReportUserReader;
 use App\Modules\Auth\Application\Services\DatabaseUserManagementGateway;
 use App\Modules\Auth\Console\CreateAdminCommand;
@@ -21,6 +23,7 @@ class AuthServiceProvider extends ServiceProvider
 {
     public function register(): void
     {
+        $this->app->bind(InternalUserReferenceReader::class, DatabaseInternalUserReferenceReader::class);
         $this->app->bind(ReportUserReader::class, DatabaseReportUserReader::class);
         $this->app->bind(UserManagementGateway::class, DatabaseUserManagementGateway::class);
     }

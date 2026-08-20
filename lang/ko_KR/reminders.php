@@ -12,6 +12,7 @@ return [
     'scope_types' => ['all_customers' => '전체 고객', 'agent' => '특정 에이전시 ID', 'project' => '특정 프로젝트', 'owner' => '특정 담당자 ID', 'cooperation_status' => '에이전시 협력 상태'],
     'copy_suffix' => ':name 사본',
     'errors' => [
+        'assignee_unavailable' => '선택한 담당자가 없거나 비활성 상태이거나 초대를 수락하지 않았습니다.',
         'custom_due_past' => '사용자 지정 알림 시각은 현재보다 이전일 수 없습니다.',
         'invalid_recurrence_unit' => '반복 알림 단위가 올바르지 않습니다.',
         'invalid_completion_status' => '현재 상태의 알림은 완료할 수 없습니다.',

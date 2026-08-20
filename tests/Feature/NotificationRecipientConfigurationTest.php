@@ -70,7 +70,39 @@ class NotificationRecipientConfigurationTest extends TestCase
             'status' => 'sent',
             'attempts' => 1,
         ]);
-        Http::assertSent(fn ($request): bool => $request->data()['at']['atUserIds'] === ['dt-user-1']);
+        Http::assertSent(fn ($request): bool => $request->data()['at'] === [
+            'atUserIds' => ['dt-user-1'],
+            'isAtAll' => false,
+        ] && str_contains((string) $request->data()['markdown']['text'], '@dt-user-1'));
+    }
+
+    public function test_dingtalk_user_id_is_trimmed_without_remote_format_assumptions_and_overlong_ids_are_rejected(): void
+    {
+        config([
+            'dingtalk.enabled' => true,
+            'dingtalk.webhook_url' => 'https://oapi.dingtalk.com/robot/send?access_token=test',
+            'dingtalk.secret' => '',
+        ]);
+        Http::fake(['oapi.dingtalk.com/*' => Http::response(['errcode' => 0, 'errmsg' => 'ok'])]);
+        $sender = app(StaffNotificationSender::class);
+
+        // The test can exercise the bot webhook only; DingTalk User ID existence is not remotely validated here.
+        $sparseRecipients = [];
+        $sparseRecipients[3] = ' employee/id+1 ';
+        $sender->send('提醒', '正文', null, $sparseRecipients);
+        Http::assertSent(fn ($request): bool => $request->data()['at']['atUserIds'] === ['employee/id+1']
+            && $request->data()['at']['isAtAll'] === false
+            && str_contains((string) $request->data()['markdown']['text'], '@employee/id+1'));
+
+        try {
+            $sender->send('提醒', '正文', null, ['   ']);
+            self::fail('Expected a blank DingTalk User ID to be rejected.');
+        } catch (\DomainException $exception) {
+            $this->assertSame(__('auth.errors.dingtalk_user_id_required'), $exception->getMessage());
+        }
+
+        $this->expectException(\DomainException::class);
+        $sender->send('提醒', '正文', null, [str_repeat('x', 256)]);
     }
 
     public function test_failed_dingtalk_delivery_is_recorded_and_can_be_requeued(): void

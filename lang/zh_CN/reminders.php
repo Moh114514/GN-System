@@ -18,6 +18,7 @@ return [
     'scope_types' => ['all_customers' => '全部客户', 'agent' => '指定代理商 ID', 'project' => '指定项目', 'owner' => '指定负责人 ID', 'cooperation_status' => '代理商合作状态'],
     'copy_suffix' => ':name 副本',
     'errors' => [
+        'assignee_unavailable' => '所选负责人不存在、未激活或尚未接受邀请。',
         'custom_due_past' => '自定义提醒时间不能早于当前时间。',
         'invalid_recurrence_unit' => '周期提醒单位无效。',
         'invalid_completion_status' => '当前提醒状态不可完成。',

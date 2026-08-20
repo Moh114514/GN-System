@@ -2,7 +2,6 @@
 
 namespace App\Modules\Reminder\Presentation\Livewire;
 
-use App\Models\User;
 use App\Modules\Reminder\Application\Services\ReminderNotificationDispatcher;
 use App\Modules\Reminder\Application\Services\ReminderWorkspace;
 use Carbon\CarbonImmutable;
@@ -92,7 +91,7 @@ class ReminderCenter extends Component
     {
         return view('livewire.reminders.reminder-center', [
             'reminders' => $workspace->paginate(Auth::user(), false, $this->type),
-            'users' => User::query()->orderBy('name')->get(['id', 'name']),
+            'users' => $workspace->assigneeCandidates(),
             'stats' => Auth::user()->is_super_admin ? $workspace->completionStats() : null,
             'customerNames' => $workspace->customerNames(),
         ])->title(__('reminders.titles.center'));

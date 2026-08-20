@@ -20,6 +20,7 @@ use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusTransition;
 use App\Modules\Customer\Presentation\Livewire\CustomerDetail;
+use App\Modules\Customer\Presentation\Livewire\CustomerForm;
 use App\Modules\Customer\Presentation\Livewire\CustomerList;
 use App\Modules\Reminder\Infrastructure\Models\Reminder;
 use Carbon\CarbonImmutable;
@@ -59,6 +60,7 @@ class CustomerLifecycleTest extends TestCase
     public function test_agent_customer_creation_is_atomic_and_audited(): void
     {
         $manager = app(CustomerProfileManager::class);
+        $owner = User::factory()->create(['name' => '指定负责人']);
         $code = $manager->previewCode($this->agent->id);
         $customerId = $manager->create(
             profile: $this->profile(),
@@ -66,6 +68,7 @@ class CustomerLifecycleTest extends TestCase
             arrivalAt: CarbonImmutable::parse('2026-08-01 15:30'),
             translatorName: '金翻译',
             actorId: $this->user->id,
+            ownerId: $owner->id,
             confirmedCode: $code,
             automaticCode: true,
             ipAddress: '127.0.0.1',
@@ -75,22 +78,25 @@ class CustomerLifecycleTest extends TestCase
         $this->assertDatabaseHas('customers', [
             'id' => $customerId,
             'code' => 'TEST-JG-0001',
-            'owner_id' => $this->user->id,
+            'owner_id' => $owner->id,
             'current_status_id' => CustomerStatus::query()->where('key', 'booked')->value('id'),
         ]);
         $this->assertDatabaseHas('appointments', [
             'customer_id' => $customerId,
             'institution_id' => $this->institution->id,
             'scheduled_at' => '2026-08-01 15:30:00',
+            'owner_id' => $owner->id,
             'status' => 'scheduled',
         ]);
         $this->assertDatabaseHas('customer_status_histories', [
             'customer_id' => $customerId,
+            'changed_by' => $this->user->id,
             'reason' => '客户建档',
         ]);
         $this->assertDatabaseHas('activity_log', [
             'log_name' => 'customer',
             'subject_id' => $customerId,
+            'causer_id' => $this->user->id,
             'event' => 'created',
         ]);
     }
@@ -113,6 +119,7 @@ class CustomerLifecycleTest extends TestCase
             arrivalAt: CarbonImmutable::parse('2026-08-02 09:45'),
             translatorName: null,
             actorId: $this->user->id,
+            ownerId: $this->user->id,
             confirmedCode: 'TEST-JG-0008',
             automaticCode: true,
             ipAddress: null,
@@ -134,6 +141,7 @@ class CustomerLifecycleTest extends TestCase
                 arrivalAt: CarbonImmutable::parse('2026-08-03 10:00'),
                 translatorName: null,
                 actorId: $this->user->id,
+                ownerId: $this->user->id,
                 confirmedCode: $existingCode,
                 automaticCode: false,
                 ipAddress: null,
@@ -155,6 +163,7 @@ class CustomerLifecycleTest extends TestCase
             CarbonImmutable::parse('2026-08-01'),
             null,
             $this->user->id,
+            $this->user->id,
             $staleCode,
             true,
             null,
@@ -166,6 +175,7 @@ class CustomerLifecycleTest extends TestCase
             $this->institution->id,
             CarbonImmutable::parse('2026-08-02'),
             null,
+            $this->user->id,
             $this->user->id,
             $staleCode,
             true,
@@ -565,6 +575,7 @@ class CustomerLifecycleTest extends TestCase
                 CarbonImmutable::parse('2026-08-01'),
                 null,
                 $this->user->id,
+                $this->user->id,
                 $manager->previewCode($this->agent->id),
                 true,
                 null,
@@ -621,6 +632,51 @@ class CustomerLifecycleTest extends TestCase
             ->assertDontSee('客户状态配置');
     }
 
+    public function test_customer_form_defaults_owner_and_only_lists_eligible_internal_users(): void
+    {
+        $eligible = User::factory()->create(['name' => '可选负责人']);
+        $inactive = User::factory()->create(['name' => '停用负责人', 'is_active' => false]);
+        $pending = User::factory()->create(['name' => '待接受负责人', 'invitation_status' => 'pending']);
+
+        Livewire::actingAs($this->user)
+            ->test(CustomerForm::class)
+            ->assertSet('ownerId', (string) $this->user->id)
+            ->assertSee($this->user->name)
+            ->assertSee($eligible->name)
+            ->assertDontSee($inactive->name)
+            ->assertDontSee($pending->name)
+            ->set('ownerId', $inactive->id)
+            ->call('save')
+            ->assertHasErrors(['ownerId']);
+    }
+
+    public function test_customer_creation_rejects_an_ineligible_owner_before_writing_anything(): void
+    {
+        $inactive = User::factory()->create(['is_active' => false]);
+        $manager = app(CustomerProfileManager::class);
+
+        try {
+            $manager->create(
+                profile: $this->profile(),
+                institutionId: $this->institution->id,
+                arrivalAt: CarbonImmutable::parse('2026-08-01'),
+                translatorName: null,
+                actorId: $this->user->id,
+                ownerId: $inactive->id,
+                confirmedCode: $manager->previewCode($this->agent->id),
+                automaticCode: true,
+                ipAddress: null,
+            );
+            $this->fail('Expected an ineligible owner validation error.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(__('customers.form.validation.owner_unavailable'), $exception->errors()['ownerId'][0]);
+        }
+
+        $this->assertDatabaseCount('customers', 0);
+        $this->assertDatabaseCount('appointments', 0);
+        $this->assertDatabaseCount('activity_log', 0);
+    }
+
     private function createCustomer(string $name = '测试客户'): int
     {
         $manager = app(CustomerProfileManager::class);
@@ -630,6 +686,7 @@ class CustomerLifecycleTest extends TestCase
             $this->institution->id,
             CarbonImmutable::parse('2026-08-01'),
             null,
+            $this->user->id,
             $this->user->id,
             $manager->previewCode($this->agent->id),
             true,

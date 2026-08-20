@@ -3,7 +3,6 @@
 namespace App\Modules\Reminder\Presentation\Livewire;
 
 use App\Infrastructure\Time\BusinessClock;
-use App\Models\User;
 use App\Modules\Reminder\Application\Services\ReminderContentPresenter;
 use App\Modules\Reminder\Application\Services\ReminderRuleManager;
 use App\Modules\Reminder\Application\Services\ReminderWorkspace;
@@ -76,6 +75,11 @@ class ReminderCreate extends Component
             'recurrenceInterval' => ['required_if:recurrenceUnit,day,week,month', 'integer', 'min:1', 'max:365'],
             'templateName' => ['required_if:saveAsTemplate,true', 'nullable', 'string', 'max:255'],
         ]);
+        if (! $workspace->isEligibleAssignee((int) $this->assignedTo)) {
+            $this->addError('assignedTo', __('reminders.errors.assignee_unavailable'));
+
+            return;
+        }
         try {
             $workspace->createCustom(
                 customerId: (int) $this->customerId,
@@ -113,7 +117,7 @@ class ReminderCreate extends Component
 
         return view('livewire.reminders.reminder-create', [
             'customers' => $workspace->customerCandidates(),
-            'users' => User::query()->orderBy('name')->get(['id', 'name']),
+            'users' => $workspace->assigneeCandidates(),
             'templates' => $templates,
         ])->title(__('reminders.titles.create'));
     }

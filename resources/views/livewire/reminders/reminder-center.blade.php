@@ -59,7 +59,7 @@
                                     <flux:select wire:model="assigneeId" :label="__('reminders.center.transfer_to')">
                                         <flux:select.option value="">{{ __('reminders.center.select') }}</flux:select.option>
                                         @foreach ($users as $user)
-                                            <flux:select.option value="{{ $user->id }}">{{ $user->name }}</flux:select.option>
+                                            <flux:select.option value="{{ $user['id'] }}">{{ $user['name'] }}</flux:select.option>
                                         @endforeach
                                     </flux:select>
                                 </div>

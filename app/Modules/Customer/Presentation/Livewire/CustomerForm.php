@@ -11,6 +11,7 @@ use Carbon\CarbonImmutable;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -26,6 +27,8 @@ class CustomerForm extends Component
     public string $birthDate = '';
 
     public string $sourceAgentId = '';
+
+    public string $ownerId = '';
 
     public string $contact = '';
 
@@ -64,8 +67,10 @@ class CustomerForm extends Component
     public function mount(CustomerDirectory $directory, BusinessClock $clock, ?int $customer = null): void
     {
         $this->options = $directory->options();
+        $this->options['users'] = $directory->ownerCandidates();
         $this->customerId = $customer;
         if ($customer === null) {
+            $this->ownerId = (string) Auth::id();
             $this->arrivalAt = $clock->now()->format('Y-m-d\\TH:i');
 
             return;
@@ -111,6 +116,11 @@ class CustomerForm extends Component
         ];
         if ($this->customerId === null) {
             $rules += [
+                'ownerId' => [
+                    'required',
+                    'integer',
+                    Rule::in(array_map('intval', array_column($this->options['users'] ?? [], 'id'))),
+                ],
                 'institutionId' => ['required', 'integer'],
                 'arrivalAt' => ['required', 'date_format:Y-m-d\\TH:i'],
                 'translatorName' => ['nullable', 'string', 'max:255'],
@@ -164,6 +174,7 @@ class CustomerForm extends Component
                 arrivalAt: CarbonImmutable::parse($this->arrivalAt, (string) config('app.timezone')),
                 translatorName: $this->translatorName === '' ? null : $this->translatorName,
                 actorId: $actorId,
+                ownerId: (int) $this->ownerId,
                 confirmedCode: $this->confirmedCode,
                 automaticCode: $this->automaticCode,
                 ipAddress: request()->ip(),

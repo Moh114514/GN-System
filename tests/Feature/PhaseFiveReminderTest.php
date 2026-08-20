@@ -326,7 +326,10 @@ class PhaseFiveReminderTest extends TestCase
             'dingtalk.webhook_url' => 'https://oapi.dingtalk.com/robot/send?access_token=test',
             'dingtalk.secret' => 'secret',
         ]);
-        $this->user->update(['preferred_locale' => 'ko_KR']);
+        $this->user->update([
+            'preferred_locale' => 'ko_KR',
+            'dingtalk_user_id' => ' dt-owner-1 ',
+        ]);
         NotificationRecipientConfig::query()->create([
             'event_type' => 'reminder',
             'user_id' => $this->user->id,
@@ -362,7 +365,9 @@ class PhaseFiveReminderTest extends TestCase
             'event_key' => 'reminder:'.$reminder->id,
         ]);
         Http::assertSent(fn ($request): bool => str_contains($request->url(), 'timestamp=') && str_contains($request->url(), 'sign='));
-        Http::assertSent(fn ($request): bool => str_contains((string) $request->data()['markdown']['text'], '고객:'));
+        Http::assertSent(fn ($request): bool => str_contains((string) $request->data()['markdown']['text'], '고객:')
+            && str_contains((string) $request->data()['markdown']['text'], '@dt-owner-1')
+            && $request->data()['at'] === ['atUserIds' => ['dt-owner-1'], 'isAtAll' => false]);
     }
 
     public function test_reminder_pages_follow_two_level_permissions_and_navigation(): void
@@ -673,6 +678,93 @@ class PhaseFiveReminderTest extends TestCase
         $this->assertDatabaseHas('reminders', [
             'customer_id' => $this->customer->id,
             'title' => '创建后的提醒',
+        ]);
+    }
+
+    public function test_reminder_create_only_offers_active_accepted_assignees_and_rejects_invalid_assignees(): void
+    {
+        $inactive = User::factory()->create([
+            'name' => 'inactive-reminder-assignee',
+            'is_active' => false,
+            'invitation_status' => 'accepted',
+        ]);
+        $pending = User::factory()->create([
+            'name' => 'pending-reminder-assignee',
+            'is_active' => true,
+            'invitation_status' => 'pending',
+        ]);
+
+        $this->actingAs($this->user);
+        $component = Livewire::test(ReminderCreate::class)
+            ->assertSee($this->user->name)
+            ->assertDontSee($inactive->name)
+            ->assertDontSee($pending->name);
+
+        $component
+            ->set('customerId', (string) $this->customer->id)
+            ->set('assignedTo', (string) $inactive->id)
+            ->set('title', 'invalid inactive assignee')
+            ->set('dueAt', CarbonImmutable::now()->addDay()->format('Y-m-d\\TH:i'))
+            ->call('save')
+            ->assertHasErrors('assignedTo');
+
+        $component
+            ->set('assignedTo', (string) $pending->id)
+            ->call('save')
+            ->assertHasErrors('assignedTo');
+    }
+
+    public function test_reminder_transfer_only_offers_and_accepts_eligible_assignees(): void
+    {
+        $inactive = User::factory()->create([
+            'name' => 'inactive-transfer-assignee',
+            'is_active' => false,
+            'invitation_status' => 'accepted',
+        ]);
+        $pending = User::factory()->create([
+            'name' => 'pending-transfer-assignee',
+            'is_active' => true,
+            'invitation_status' => 'pending',
+        ]);
+        $reminder = Reminder::query()->create([
+            'customer_id' => $this->customer->id,
+            'assigned_to' => $this->user->id,
+            'created_by' => $this->user->id,
+            'source_type' => 'custom',
+            'reminder_type' => 'custom',
+            'title' => 'transfer eligibility reminder',
+            'due_at' => now()->addDay(),
+            'status' => 'pending',
+            'notification_status' => 'pending',
+            'dedupe_key' => hash('sha256', 'transfer-eligibility'),
+        ]);
+
+        $this->actingAs($this->user);
+        $component = Livewire::test(ReminderCenter::class)
+            ->call('openAction', $reminder->id, 'transfer')
+            ->assertSee($this->user->name)
+            ->assertSee($this->other->name)
+            ->assertDontSee($inactive->name)
+            ->assertDontSee($pending->name);
+
+        $component
+            ->set('assigneeId', (string) $inactive->id)
+            ->call('transfer', $reminder->id);
+
+        $this->assertDatabaseHas('reminders', [
+            'id' => $reminder->id,
+            'assigned_to' => $this->user->id,
+            'status' => 'pending',
+        ]);
+
+        $component
+            ->set('assigneeId', (string) $this->other->id)
+            ->call('transfer', $reminder->id);
+
+        $this->assertDatabaseHas('reminders', [
+            'id' => $reminder->id,
+            'assigned_to' => $this->other->id,
+            'status' => 'transferred',
         ]);
     }
 

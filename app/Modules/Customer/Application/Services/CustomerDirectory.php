@@ -2,9 +2,10 @@
 
 namespace App\Modules\Customer\Application\Services;
 
-use App\Models\User;
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
+use App\Modules\Auth\Application\Contracts\ReportUserReader;
 use App\Modules\Config\Application\Contracts\InstitutionReferenceReader;
 use App\Modules\Customer\Domain\BlindIndex;
 use App\Modules\Customer\Domain\CustomerLabelLocalizer;
@@ -28,6 +29,8 @@ final readonly class CustomerDirectory
         private CustomerLabelLocalizer $labels,
         private SensitiveValueMasker $masker,
         private AgentReferenceReader $agents,
+        private InternalUserReferenceReader $assignableUsers,
+        private ReportUserReader $userNames,
         private InstitutionReferenceReader $institutions,
         private CustomerOrderGateway $orders,
         private CustomerFollowupGateway $followups,
@@ -124,6 +127,12 @@ final readonly class CustomerDirectory
                     'sort_order' => $stage->sort_order,
                 ])->all(),
         ];
+    }
+
+    /** @return list<array{id: int, name: string}> */
+    public function ownerCandidates(): array
+    {
+        return $this->assignableUsers->eligibleUsers();
     }
 
     /** @return array<string, mixed> */
@@ -350,7 +359,7 @@ final readonly class CustomerDirectory
             }
         }
         $institutionLabels = $this->institutions->institutionsByIds($institutionIds);
-        $owners = User::query()->whereKey($ownerIds)->pluck('name', 'id');
+        $owners = $this->userNames->namesByIds($ownerIds);
 
         $result = [];
         foreach ($events as $event) {

@@ -4,6 +4,7 @@ namespace App\Modules\Reminder\Application\Services;
 
 use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
+use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
 use App\Modules\Customer\Application\Contracts\ReminderCustomerReader;
 use App\Modules\Customer\Application\Data\ReminderCustomerData;
 use App\Modules\Reminder\Infrastructure\Models\Reminder;
@@ -19,6 +20,7 @@ final readonly class ReminderWorkspace
 {
     public function __construct(
         private ReminderCustomerReader $customers,
+        private InternalUserReferenceReader $users,
         private ReminderContentPresenter $content,
         private BusinessClock $clock,
     ) {}
@@ -33,6 +35,17 @@ final readonly class ReminderWorkspace
     public function customerNames(): array
     {
         return collect($this->customers->candidates())->pluck('name', 'id')->all();
+    }
+
+    /** @return list<array{id: int, name: string}> */
+    public function assigneeCandidates(): array
+    {
+        return $this->users->eligibleUsers();
+    }
+
+    public function isEligibleAssignee(int $id): bool
+    {
+        return $this->users->isEligible($id);
     }
 
     /** @return LengthAwarePaginator<int, Reminder> */
@@ -67,7 +80,9 @@ final readonly class ReminderWorkspace
         int $actorId,
     ): int {
         $this->customers->byId($customerId);
-        User::query()->findOrFail($assignedTo);
+        if (! $this->users->isEligible($assignedTo)) {
+            throw new DomainException(__('reminders.errors.assignee_unavailable'));
+        }
         if ($dueAt->isBefore($this->clock->now())) {
             throw new DomainException(__('reminders.errors.custom_due_past'));
         }
@@ -129,7 +144,9 @@ final readonly class ReminderWorkspace
 
     public function transfer(int $id, int $assigneeId, User $actor): void
     {
-        User::query()->findOrFail($assigneeId);
+        if (! $this->users->isEligible($assigneeId)) {
+            throw new DomainException(__('reminders.errors.assignee_unavailable'));
+        }
         $reminder = $this->findVisible($id, $actor);
         $before = $reminder->assigned_to;
         $reminder->update(['status' => 'transferred', 'assigned_to' => $assigneeId, 'notification_status' => 'pending']);

@@ -5,6 +5,7 @@ namespace App\Modules\Customer\Application\Services;
 use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
 use App\Modules\Customer\Application\Data\CustomerProfileData;
 use App\Modules\Customer\Application\Exceptions\CustomerCodeChanged;
 use App\Modules\Customer\Domain\BlindIndex;
@@ -25,6 +26,7 @@ final readonly class CustomerProfileManager
     public function __construct(
         private BlindIndex $blindIndex,
         private AgentReferenceReader $agents,
+        private InternalUserReferenceReader $users,
         private CustomerOrderGateway $orders,
         private AuditRecorder $audit,
         private BusinessClock $clock,
@@ -69,6 +71,7 @@ final readonly class CustomerProfileManager
         CarbonImmutable $arrivalAt,
         ?string $translatorName,
         int $actorId,
+        int $ownerId,
         string $confirmedCode,
         bool $automaticCode,
         ?string $ipAddress,
@@ -79,10 +82,17 @@ final readonly class CustomerProfileManager
             $arrivalAt,
             $translatorName,
             $actorId,
+            $ownerId,
             $confirmedCode,
             $automaticCode,
             $ipAddress,
         ): int {
+            if (! $this->users->isEligible($ownerId)) {
+                throw ValidationException::withMessages([
+                    'ownerId' => __('customers.form.validation.owner_unavailable'),
+                ]);
+            }
+
             [$prefix, $digits] = $this->prefixAndDigits($profile->sourceAgentId);
             CustomerNumberSequence::query()->insertOrIgnore([
                 'prefix' => $prefix,
@@ -119,7 +129,7 @@ final readonly class CustomerProfileManager
                 'source_agent_id' => $profile->sourceAgentId,
                 'current_status_id' => $status->id,
                 'project_intention' => trim($profile->projectIntention),
-                'owner_id' => $actorId,
+                'owner_id' => $ownerId,
                 'notes' => $profile->notes,
             ]);
 
@@ -137,7 +147,7 @@ final readonly class CustomerProfileManager
                 scheduledAt: $arrivalAt,
                 projectName: trim($profile->projectIntention),
                 translatorName: $translatorName,
-                ownerId: $actorId,
+                ownerId: $ownerId,
                 notes: $profile->notes,
             ));
 

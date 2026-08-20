@@ -21,6 +21,19 @@ final class DingTalkClient implements StaffNotificationSender
         if (! $this->enabled()) {
             throw new DomainException(__('reminders.errors.dingtalk_not_configured'));
         }
+        $normalizedRecipients = [];
+        foreach ($recipients as $recipient) {
+            $recipient = trim((string) $recipient);
+            if ($recipient === '') {
+                throw new DomainException(__('auth.errors.dingtalk_user_id_required'));
+            }
+            if (mb_strlen($recipient) > 255) {
+                throw new DomainException(__('auth.errors.dingtalk_user_id_too_long'));
+            }
+
+            $normalizedRecipients[] = $recipient;
+        }
+        $recipients = $normalizedRecipients;
         $url = (string) config('dingtalk.webhook_url');
         $secret = (string) config('dingtalk.secret');
         if ($secret !== '') {
@@ -29,6 +42,9 @@ final class DingTalkClient implements StaffNotificationSender
             $url .= (str_contains($url, '?') ? '&' : '?').'timestamp='.$timestamp.'&sign='.urlencode($sign);
         }
         $content = "### {$title}\n\n{$text}";
+        if ($recipients !== []) {
+            $content .= "\n\n".implode(' ', array_map(static fn (string $recipient): string => '@'.$recipient, $recipients));
+        }
         if ($link !== null) {
             $content .= "\n\n[".__('common.open_system')."]({$link})";
         }

@@ -20,11 +20,13 @@ KRW 月结不做汇率换算；CNY 月结按本次汇率计算并保存快照，
 
 ## 通知
 
-配置中心的通知负责人页面维护 `notification_recipient_configs`。等级调整建议会生成站内通知，并按 `internal` / `dingtalk` 通道发送；钉钉负责人通过 `users.dingtalk_user_id` 绑定，未绑定用户不能被选择，Webhook 请求使用 `atUserIds` 定向 @。钉钉投递写入 `notification_deliveries`，由队列执行并自动重试，状态记录为 `queued`、`sending`、`sent` 或 `failed`。提醒实例已有负责人时复用同一 UserId 规则；没有负责人时只发送群通知。
+配置中心的通知负责人页面维护 `notification_recipient_configs`。等级调整建议会生成站内通知，并按 `internal` / `dingtalk` 通道发送；钉钉负责人通过 `users.dingtalk_user_id` 绑定，未绑定用户不能被选择，Webhook 请求在 `atUserIds` 定向 @ 的同时会在 Markdown 正文写入对应 `@userId`。钉钉投递写入 `notification_deliveries`，由队列执行并自动重试，状态记录为 `queued`、`sending`、`sent` 或 `failed`。提醒实例已有负责人时复用同一 UserId 规则；没有负责人时只发送群通知。
 
 ## 主动提醒
 
 当前系统自动生成的施术结束提醒只有术后 7 天和 30 天。提醒实例的幂等键包含客户、施术结束时间和提醒类型，回退并重新设置相同结束时间不会重复生成。旧生命周期自动提醒实例、旧系统规则和模板由客户生命周期清理迁移一次性删除。
+
+新建主动提醒默认使用当前用户作为负责人，也只允许选择启用且已接受邀请的内部用户；自动生成的客户、预约和订单提醒继续沿用各自业务记录的负责人。
 
 ## 运行和验收
 

@@ -2,6 +2,8 @@
 
 return [
     'errors' => [
+        'dingtalk_user_id_required' => '딩톡 User ID는 비워 둘 수 없습니다.',
+        'dingtalk_user_id_too_long' => '딩톡 User ID는 255자를 초과할 수 없습니다.',
         'invitation_already_completed' => '이 사용자는 이미 비밀번호를 설정했으므로 초대장을 다시 보낼 필요가 없습니다.',
         'password_reset_not_available' => '초대를 완료한 사용자에게만 비밀번호 재설정 링크를 보낼 수 있습니다.',
         'last_super_admin_role' => '활성화된 마지막 슈퍼 관리자의 권한을 낮출 수 없습니다.',
