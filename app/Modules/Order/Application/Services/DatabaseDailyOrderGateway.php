@@ -4,6 +4,8 @@ namespace App\Modules\Order\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
+use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
 use App\Modules\Order\Application\Contracts\DailyOrderGateway;
 use App\Modules\Order\Application\Data\DailyOrderData;
 use App\Modules\Order\Application\Data\OrderSummaryData;
@@ -24,10 +26,13 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
         private DailyCommissionGateway $commissions,
         private TreatmentReminderGateway $reminders,
         private AuditRecorder $audit,
+        private AccessContextResolver $access,
+        private CustomerOrderReferenceReader $customers,
     ) {}
 
     public function create(DailyOrderData $data): int
     {
+        $this->assertOrderAgentAccess($data->agentId);
         $this->assertAgent($data->agentId);
 
         return DB::transaction(function () use ($data): int {
@@ -82,6 +87,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
     {
         return DB::transaction(function () use ($orderId, $completedOn, $actorId, $ipAddress): int {
             $order = Order::query()->lockForUpdate()->findOrFail($orderId);
+            $this->assertOrderVisible($order);
             if ($order->status === 'completed') {
                 return (int) $order->id;
             }
@@ -112,11 +118,15 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
 
     public function forCustomer(int $customerId): array
     {
+        $this->customers->customerForOrder($customerId);
+
         return $this->summaries(Order::query()->where('customer_id', $customerId)->latest('id')->get());
     }
 
     public function forAgent(int $agentId): array
     {
+        abort_unless($this->access->current()->canViewAgent($agentId), 404);
+
         return $this->summaries(Order::query()->where('agent_id', $agentId)->latest('id')->limit(100)->get());
     }
 
@@ -129,6 +139,25 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
         if ($agent['cooperation_status'] !== 'active') {
             throw new DomainException(__('orders.errors.agent_inactive_save'));
         }
+    }
+
+    private function assertOrderAgentAccess(int $agentId): void
+    {
+        $context = $this->access->current();
+        if (! $context->isSuperAdmin()
+            && (! $context->isCustomerService() || $context->agentIds !== [])
+            && ! $context->canViewAgent($agentId)) {
+            throw new DomainException(__('orders.errors.agent_required'));
+        }
+    }
+
+    private function assertOrderVisible(Order $order): void
+    {
+        $context = $this->access->current();
+        abort_unless($context->canViewOrder(
+            $order->agent_id === null ? null : (int) $order->agent_id,
+            $order->owner_id === null ? null : (int) $order->owner_id,
+        ), 404);
     }
 
     private function recordCommission(Order $order, CarbonImmutable $completedOn, int $actorId, ?string $ipAddress): void

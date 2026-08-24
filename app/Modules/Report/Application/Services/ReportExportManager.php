@@ -4,6 +4,7 @@ namespace App\Modules\Report\Application\Services;
 
 use App\Infrastructure\Localization\SupportedLocale;
 use App\Models\User;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Report\Infrastructure\Models\ReportExport;
 use App\Modules\Report\Jobs\GenerateReportExport;
 use Illuminate\Database\Eloquent\Collection;
@@ -14,11 +15,13 @@ final readonly class ReportExportManager
     public function __construct(
         private ReportSearch $search,
         private ReportSearchExportGenerator $generator,
+        private AccessContextResolver $access,
     ) {}
 
     /** @param array<string, int|string|null> $criteria */
     public function queueSearch(User $user, array $criteria): ReportExport
     {
+        $this->assertCanExport();
         $export = $this->createSearchExport($user, $criteria, 'queued');
         GenerateReportExport::dispatch($export->id);
 
@@ -28,6 +31,7 @@ final readonly class ReportExportManager
     /** @param array<string, int|string|null> $criteria */
     public function startSearch(User $user, array $criteria): ReportExport
     {
+        $this->assertCanExport();
         $total = $this->search->count($criteria);
         $maxRows = max(1, (int) config('reporting.max_export_rows', 50000));
 
@@ -51,6 +55,7 @@ final readonly class ReportExportManager
     /** @param array<string, int|string|null> $criteria */
     public function generateSearch(User $user, array $criteria): ReportExport
     {
+        $this->assertCanExport();
         $export = $this->createSearchExport($user, $criteria, 'generating');
 
         try {
@@ -70,6 +75,7 @@ final readonly class ReportExportManager
     public function retry(User $user, string $id): void
     {
         $export = ReportExport::query()->where('created_by', $user->id)->findOrFail($id);
+        $this->assertCurrentAccess($export);
         abort_unless($export->status === 'failed' && $export->expires_at->isFuture(), 422);
         $export->update([
             'status' => 'queued',
@@ -96,8 +102,10 @@ final readonly class ReportExportManager
     /** @param array<string, int|string|null> $criteria */
     private function createSearchExport(User $user, array $criteria, string $status): ReportExport
     {
-        $query = $this->search->queryData($criteria)->toArray();
+        $context = $this->access->forUser($user);
+        $query = $this->access->using($context, fn (): array => $this->search->queryData($criteria)->toArray());
         $query['_locale'] = (SupportedLocale::fromCandidate(app()->getLocale()) ?? SupportedLocale::default())->value;
+        $query['_access'] = $context->toSnapshot();
 
         return ReportExport::query()->create([
             'created_by' => $user->id,
@@ -112,5 +120,22 @@ final readonly class ReportExportManager
     public function presentFailure(ReportExport $export): ?string
     {
         return app(ReportExportFailurePresenter::class)->present($export);
+    }
+
+    public function assertCurrentAccess(ReportExport $export): void
+    {
+        $snapshot = $export->criteria_snapshot;
+        $snapshot = $snapshot['_access'] ?? null;
+        if (! is_array($snapshot)) {
+            $snapshot = is_array($export->data_snapshot) ? $export->data_snapshot : [];
+        }
+        $fingerprint = $snapshot['fingerprint'] ?? $snapshot['_permission_fingerprint'] ?? null;
+        abort_unless($fingerprint === null || (is_string($fingerprint) && hash_equals($fingerprint, $this->access->current()->fingerprint)), 403);
+    }
+
+    private function assertCanExport(): void
+    {
+        $context = $this->access->current();
+        abort_unless(! $context->isCustomerService() || $context->groupUserIds === [], 403);
     }
 }

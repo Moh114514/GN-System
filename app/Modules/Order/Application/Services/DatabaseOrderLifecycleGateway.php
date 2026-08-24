@@ -4,6 +4,7 @@ namespace App\Modules\Order\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Config\Application\Contracts\InstitutionReferenceReader;
 use App\Modules\Order\Application\Contracts\OrderLifecycleGateway;
 use App\Modules\Order\Application\Data\OrderUpdateData;
@@ -21,12 +22,14 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
         private DailyCommissionGateway $commissions,
         private TreatmentReminderGateway $reminders,
         private AuditRecorder $audit,
+        private AccessContextResolver $access,
     ) {}
 
     public function updatePending(OrderUpdateData $data, int $actorId, ?string $ipAddress): int
     {
         return DB::transaction(function () use ($data, $actorId, $ipAddress): int {
             $order = Order::query()->lockForUpdate()->findOrFail($data->orderId);
+            $this->assertVisible($order);
             if ($order->status !== 'pending') {
                 throw new DomainException(__('orders.errors.only_pending_edit'));
             }
@@ -84,6 +87,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
     {
         return DB::transaction(function () use ($orderId, $actorId, $reason, $ipAddress): int {
             $order = Order::query()->lockForUpdate()->findOrFail($orderId);
+            $this->assertVisible($order);
             if ($order->status !== 'pending') {
                 throw new DomainException(__('orders.errors.only_pending_cancel'));
             }
@@ -112,6 +116,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
     {
         return DB::transaction(function () use ($orderId, $actorId, $reason, $ipAddress): int {
             $order = Order::query()->lockForUpdate()->findOrFail($orderId);
+            $this->assertVisible($order);
             if ($order->status !== 'cancelled' || $order->trashed()) {
                 throw new DomainException(__('orders.errors.only_cancelled_reopen'));
             }
@@ -140,6 +145,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
     {
         return DB::transaction(function () use ($orderId, $actorId, $reason, $ipAddress): int {
             $order = Order::query()->lockForUpdate()->findOrFail($orderId);
+            $this->assertVisible($order);
             if ($order->status !== 'completed') {
                 throw new DomainException(__('orders.errors.only_completed_rollback'));
             }
@@ -176,6 +182,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
     {
         return DB::transaction(function () use ($orderId, $actorId, $reason, $ipAddress): int {
             $order = Order::query()->lockForUpdate()->findOrFail($orderId);
+            $this->assertVisible($order);
             if ($order->status !== 'cancelled') {
                 throw new DomainException(__('orders.errors.only_cancelled_delete'));
             }
@@ -200,6 +207,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
     {
         return DB::transaction(function () use ($orderId, $actorId, $ipAddress): int {
             $order = Order::withTrashed()->lockForUpdate()->findOrFail($orderId);
+            $this->assertVisible($order);
             if ($order->status !== 'cancelled' || ! $order->trashed()) {
                 throw new DomainException(__('orders.errors.only_cancelled_restore'));
             }
@@ -232,5 +240,13 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
         if ($agent['cooperation_status'] !== 'active') {
             throw new DomainException(__('orders.errors.agent_inactive_save'));
         }
+    }
+
+    private function assertVisible(Order $order): void
+    {
+        abort_unless($this->access->current()->canViewOrder(
+            $order->agent_id === null ? null : (int) $order->agent_id,
+            $order->owner_id === null ? null : (int) $order->owner_id,
+        ), 404);
     }
 }

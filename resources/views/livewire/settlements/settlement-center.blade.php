@@ -1,14 +1,15 @@
 <div>
+    @php($canManageSettlements = auth()->user()?->isSuperAdmin())
     @php($centerPeriodQuery = $selectedPeriodEnd !== '' ? ['selectedPeriodEnd' => $selectedPeriodEnd] : [])
     <section class="crm-section-header">
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ __('settlements.titles.center') }}</h2>
             <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ __('settlements.center.description') }}</p>
         </div>
-        <flux:button wire:click="generate" icon="play" variant="primary">{{ __('settlements.center.generate_latest') }}</flux:button>
+        @if ($canManageSettlements)<flux:button wire:click="generate" icon="play" variant="primary">{{ __('settlements.center.generate_latest') }}</flux:button>@endif
     </section>
 
-    <section class="mb-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+    @if ($canManageSettlements)<section class="mb-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <h3 class="font-semibold">{{ __('settlements.center.cycle_configuration') }}</h3>
         <p class="mt-1 text-sm text-zinc-500">{{ __('settlements.center.cycle_description') }}</p>
         <form wire:submit="saveConfiguration" class="mt-4 grid items-end gap-3 sm:grid-cols-3">
@@ -35,7 +36,7 @@
             <flux:button class="sm:mt-6" type="submit" variant="primary">{{ __('settlements.center.generate_historical') }}</flux:button>
         </form>
         @error('historicalPeriodEnd')<p class="mt-2 text-sm text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
-    </section>
+    </section>@endif
 
     <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900" wire:poll.10s>
         <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">

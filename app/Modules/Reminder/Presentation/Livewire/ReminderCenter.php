@@ -92,7 +92,9 @@ class ReminderCenter extends Component
         return view('livewire.reminders.reminder-center', [
             'reminders' => $workspace->paginate(Auth::user(), false, $this->type),
             'users' => $workspace->assigneeCandidates(),
-            'stats' => Auth::user()->is_super_admin ? $workspace->completionStats() : null,
+            'stats' => Auth::user()->isSuperAdmin() || Auth::user()->isBdManager()
+                ? $workspace->completionStats(Auth::user())
+                : null,
             'customerNames' => $workspace->customerNames(),
         ])->title(__('reminders.titles.center'));
     }

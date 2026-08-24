@@ -5,6 +5,7 @@ namespace App\Modules\Customer\Application\Services;
 use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Customer\Application\Contracts\ConfigurationHistoryGateway;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerLifecycleStage;
@@ -23,6 +24,7 @@ final readonly class CustomerStatusManager
         private ConfigurationHistoryGateway $configurationHistory,
         private TreatmentReminderGateway $reminders,
         private BusinessClock $clock,
+        private AccessContextResolver $access,
     ) {}
 
     public function change(
@@ -34,6 +36,11 @@ final readonly class CustomerStatusManager
     ): void {
         DB::transaction(function () use ($customerId, $targetStatusId, $reason, $actor, $ipAddress): void {
             $customer = Customer::query()->lockForUpdate()->findOrFail($customerId);
+            $context = $this->access->current();
+            abort_unless($context->canViewCustomer(
+                $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
+                $customer->owner_id === null ? null : (int) $customer->owner_id,
+            ), 404);
             $current = $customer->current_status_id === null
                 ? null
                 : CustomerStatus::query()->findOrFail($customer->current_status_id);

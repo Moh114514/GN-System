@@ -2,6 +2,7 @@
 
 namespace App\Modules\Order\Application\Services;
 
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Order\Application\Contracts\ReportOrderReader;
 use App\Modules\Order\Infrastructure\Models\Appointment;
 use App\Modules\Order\Infrastructure\Models\Order;
@@ -10,10 +11,13 @@ use App\Modules\Report\Application\Data\ReportPageData;
 use App\Modules\Report\Application\Data\ReportQueryData;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
 use Illuminate\Support\Facades\DB;
 
 final class DatabaseReportOrderReader implements ReportOrderReader
 {
+    public function __construct(private readonly AccessContextResolver $access) {}
+
     public function paginate(ReportQueryData $query, int $perPage, int $page): ReportPageData
     {
         $started = hrtime(true);
@@ -46,9 +50,12 @@ final class DatabaseReportOrderReader implements ReportOrderReader
 
     public function completedOrderMonths(CarbonImmutable $from, CarbonImmutable $to): array
     {
-        return Order::query()
+        $query = Order::query()
             ->where('status', 'completed')
-            ->whereBetween('completed_at', [$from, $to])
+            ->whereBetween('completed_at', [$from, $to]);
+        $this->applyScope($query);
+
+        return $query
             ->get(['id', 'completed_at'])
             ->mapWithKeys(fn (Order $order): array => [
                 (int) $order->id => $order->completed_at?->setTimezone('Asia/Shanghai')->format('Y-m') ?? '',
@@ -58,6 +65,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
     public function dashboard(CarbonImmutable $from, CarbonImmutable $to): array
     {
         $base = Order::query()->where('status', 'completed')->whereBetween('completed_at', [$from, $to]);
+        $this->applyScope($base);
         $amount = (int) (clone $base)->sum('amount_krw');
         $customerCounts = (clone $base)
             ->select('customer_id', DB::raw('COUNT(*)::int AS order_count'))
@@ -117,12 +125,13 @@ final class DatabaseReportOrderReader implements ReportOrderReader
             ->select('customer_id')
             ->groupBy('customer_id')
             ->havingRaw('COUNT(*) >= 2');
+        $this->applyScope($repeatCustomerQuery);
         $repeatCustomers = DB::query()
             ->fromSub($repeatCustomerQuery, 'repeat_customers')
             ->count();
 
         return [
-            'appointed_customers' => Appointment::query()
+            'appointed_customers' => $this->scopedAppointments()
                 ->whereNotNull('scheduled_at')
                 ->where('scheduled_at', '<=', $to)
                 ->distinct('customer_id')
@@ -135,6 +144,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
     private function query(ReportQueryData $filters): Builder
     {
         $query = Order::query()->where('status', 'completed')->whereNotNull('completed_at');
+        $this->applyScope($query);
         if ($filters->completedFrom !== null) {
             $query->where('completed_at', '>=', $filters->completedFrom);
         }
@@ -223,5 +233,42 @@ final class DatabaseReportOrderReader implements ReportOrderReader
             completedAt: $order->completed_at?->setTimezone('Asia/Shanghai')->format('Y-m-d H:i:s') ?? '',
             completionPrecision: (string) $order->completion_precision,
         );
+    }
+
+    /** @param Builder<Order>|QueryBuilder $query */
+    private function applyScope(Builder|QueryBuilder $query): void
+    {
+        $context = $this->access->current();
+        if ($context->isSuperAdmin()) {
+            return;
+        }
+
+        $query->where(function ($scope) use ($context): void {
+            if ($context->userId !== null) {
+                $scope->where('owner_id', $context->userId);
+            }
+            if ($context->agentIds !== []) {
+                $scope->orWhereIn('agent_id', $context->agentIds);
+            }
+        });
+    }
+
+    /** @return Builder<Appointment> */
+    private function scopedAppointments(): Builder
+    {
+        $context = $this->access->current();
+        $query = Appointment::query();
+        if (! $context->isSuperAdmin()) {
+            $query->where(function ($scope) use ($context): void {
+                if ($context->userId !== null) {
+                    $scope->where('owner_id', $context->userId);
+                }
+                if ($context->agentIds !== []) {
+                    $scope->orWhereIn('owner_id', $context->groupUserIds);
+                }
+            });
+        }
+
+        return $query;
     }
 }

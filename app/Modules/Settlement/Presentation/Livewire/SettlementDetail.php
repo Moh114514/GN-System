@@ -7,6 +7,7 @@ use App\Modules\Settlement\Application\Services\SettlementDisplayReader;
 use App\Modules\Settlement\Application\Services\SettlementFreshnessChecker;
 use App\Modules\Settlement\Application\Services\SettlementGenerator;
 use App\Modules\Settlement\Application\Services\SettlementOrderLinkReader;
+use App\Modules\Settlement\Application\Services\SettlementReadScope;
 use App\Modules\Settlement\Application\Services\SettlementWorkflow;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
@@ -43,12 +44,12 @@ class SettlementDetail extends Component
 
     public string $refreshReason = '';
 
-    public function mount(int $settlement, ExchangeRateQuoteService $quotes): void
+    public function mount(int $settlement, ExchangeRateQuoteService $quotes, SettlementReadScope $scope): void
     {
-        $record = Settlement::query()->findOrFail($settlement);
+        $record = $scope->visibleQuery()->findOrFail($settlement);
         $this->settlementId = $settlement;
         $this->settlementCurrency = (string) ($record->settlement_currency ?: 'KRW');
-        if ($this->settlementCurrency === 'CNY' && $record->exchange_rate_krw_per_cny === null) {
+        if ($scope->isAdmin() && $this->settlementCurrency === 'CNY' && $record->exchange_rate_krw_per_cny === null) {
             $record = $quotes->refreshFor($record);
         }
         $this->exchangeRate = (string) ($record->exchange_rate_krw_per_cny ?? '');
@@ -75,6 +76,7 @@ class SettlementDetail extends Component
 
     public function updatedSettlementCurrency(ExchangeRateQuoteService $quotes): void
     {
+        $this->assertAdmin();
         $this->resetValidation('exchangeRate');
         if ($this->settlementCurrency === 'KRW') {
             $this->exchangeRate = '';
@@ -98,6 +100,7 @@ class SettlementDetail extends Component
 
     public function refreshExchangeRateQuote(ExchangeRateQuoteService $quotes): void
     {
+        $this->assertAdmin();
         try {
             $record = $quotes->refreshFor(Settlement::query()->findOrFail($this->settlementId), true);
             $this->refreshExchangeRate();
@@ -152,6 +155,7 @@ class SettlementDetail extends Component
 
     public function regenerateSettlement(SettlementGenerator $generator): void
     {
+        $this->assertAdmin();
         $record = Settlement::query()->findOrFail($this->settlementId);
         if (! in_array($record->status, ['pending_review', 'rejected'], true)
             || ! in_array($record->generation_status, ['pending', 'unverified'], true)
@@ -189,9 +193,9 @@ class SettlementDetail extends Component
         $this->run(fn () => $workflow->reviewSuggestion($id, $accept, $this->suggestionReason, (int) Auth::id()), $accept ? __('settlements.toasts.suggestion_approved') : __('settlements.toasts.suggestion_rejected'));
     }
 
-    public function render(SettlementDisplayReader $display, SettlementFreshnessChecker $freshnessChecker, SettlementOrderLinkReader $orders): View
+    public function render(SettlementDisplayReader $display, SettlementFreshnessChecker $freshnessChecker, SettlementOrderLinkReader $orders, SettlementReadScope $scope): View
     {
-        $settlement = Settlement::query()->findOrFail($this->settlementId);
+        $settlement = $scope->visibleQuery()->findOrFail($this->settlementId);
         $items = DB::table('settlement_items')->where('settlement_id', $settlement->id)->orderBy('id')->get();
         $snapshotOrderIds = $items->map(function (object $item): int {
             $snapshot = is_string($item->rule_snapshot) ? json_decode($item->rule_snapshot, true) : $item->rule_snapshot;
@@ -201,7 +205,7 @@ class SettlementDetail extends Component
         $previousSettlement = null;
         $nextSettlement = null;
         if ($settlement->settlement_run_id !== null) {
-            $previousSettlement = Settlement::query()
+            $previousSettlement = $scope->visibleQuery()
                 ->where('settlement_run_id', $settlement->settlement_run_id)
                 ->where(function ($query) use ($settlement): void {
                     $query->where('agent_id', '<', $settlement->agent_id)
@@ -213,7 +217,7 @@ class SettlementDetail extends Component
                 ->orderByDesc('agent_id')
                 ->orderByDesc('id')
                 ->first();
-            $nextSettlement = Settlement::query()
+            $nextSettlement = $scope->visibleQuery()
                 ->where('settlement_run_id', $settlement->settlement_run_id)
                 ->where(function ($query) use ($settlement): void {
                     $query->where('agent_id', '>', $settlement->agent_id)
@@ -244,6 +248,7 @@ class SettlementDetail extends Component
 
     private function run(\Closure $operation, string $message): void
     {
+        $this->assertAdmin();
         try {
             $operation();
             $this->refreshExchangeRate();
@@ -280,5 +285,10 @@ class SettlementDetail extends Component
             || (in_array($settlement->status, ['pending_review', 'rejected'], true)
                 && in_array($settlement->generation_status, ['pending', 'unverified'], true)
                 && $settlement->settlement_run_id !== null);
+    }
+
+    private function assertAdmin(): void
+    {
+        abort_unless(Auth::user()?->isSuperAdmin(), 403);
     }
 }

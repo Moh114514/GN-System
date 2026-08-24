@@ -4,6 +4,7 @@ namespace App\Modules\Report\Application\Services;
 
 use App\Infrastructure\Localization\SupportedLocale;
 use App\Models\User;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Report\Infrastructure\Models\ReportExport;
 use DomainException;
 use Dompdf\Dompdf;
@@ -16,16 +17,21 @@ final class DashboardExportGenerator
 {
     private const PDF_CACHE_PATH = 'framework/cache/dompdf';
 
-    public function __construct(private readonly DashboardSnapshotPresenter $presenter) {}
+    public function __construct(
+        private readonly DashboardSnapshotPresenter $presenter,
+        private readonly AccessContextResolver $access,
+    ) {}
 
     /** @param array<string, mixed> $snapshot */
     public function generate(User $user, string $format, array $snapshot): ReportExport
     {
+        $context = $this->access->forUser($user);
+        abort_unless(! $context->isCustomerService() || $context->groupUserIds === [], 403);
         if (in_array($format, ['pdf', 'html'], true) === false) {
             throw new DomainException(__('dashboard.errors.export_format'));
         }
         $locale = SupportedLocale::fromCandidate($snapshot['locale'] ?? app()->getLocale()) ?? SupportedLocale::default();
-        $snapshot = [...$snapshot, 'locale' => $locale->value];
+        $snapshot = [...$snapshot, 'locale' => $locale->value, '_permission_fingerprint' => $context->fingerprint];
         $previousLocale = app()->getLocale();
         app()->setLocale($locale->value);
         try {

@@ -11,6 +11,7 @@ final class SettlementRunFailureController
 {
     public function download(SettlementRun $run, SettlementRunFailureReportGenerator $generator): BinaryFileResponse
     {
+        abort_unless(request()->user()?->isSuperAdmin(), 403);
         abort_unless($run->failed_agents > 0 && ! empty($run->errors), 404);
         $path = $generator->generate($run);
 

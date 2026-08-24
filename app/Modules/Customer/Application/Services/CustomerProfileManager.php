@@ -5,6 +5,7 @@ namespace App\Modules\Customer\Application\Services;
 use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
 use App\Modules\Customer\Application\Data\CustomerProfileData;
 use App\Modules\Customer\Application\Exceptions\CustomerCodeChanged;
@@ -30,6 +31,7 @@ final readonly class CustomerProfileManager
         private CustomerOrderGateway $orders,
         private AuditRecorder $audit,
         private BusinessClock $clock,
+        private AccessContextResolver $access,
     ) {}
 
     public function previewCode(int $sourceAgentId): string
@@ -87,6 +89,18 @@ final readonly class CustomerProfileManager
             $automaticCode,
             $ipAddress,
         ): int {
+            $context = $this->access->current();
+            if (! $context->isSuperAdmin()
+                && (! $context->isCustomerService() || $context->agentIds !== [])
+                && ! $context->canViewAgent($profile->sourceAgentId)) {
+                throw ValidationException::withMessages(['sourceId' => __('customers.form.validation.agent_unavailable')]);
+            }
+            if (! $context->isSuperAdmin()
+                && $context->groupUserIds !== []
+                && ! in_array($ownerId, $context->groupUserIds, true)
+                && $ownerId !== $context->userId) {
+                throw ValidationException::withMessages(['ownerId' => __('customers.form.validation.owner_unavailable')]);
+            }
             if (! $this->users->isEligible($ownerId)) {
                 throw ValidationException::withMessages([
                     'ownerId' => __('customers.form.validation.owner_unavailable'),
@@ -174,11 +188,25 @@ final readonly class CustomerProfileManager
         ?string $ipAddress,
     ): void {
         DB::transaction(function () use ($customerId, $profile, $actorId, $sensitiveChangeConfirmed, $ipAddress): void {
+            $context = $this->access->current();
             $customer = Customer::query()->lockForUpdate()->findOrFail($customerId);
+            abort_unless($context->canViewCustomer(
+                $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
+                $customer->owner_id === null ? null : (int) $customer->owner_id,
+            ), 404);
+            if (! $context->isSuperAdmin()
+                && (! $context->isCustomerService() || $context->agentIds !== [])
+                && ! $context->canViewAgent($profile->sourceAgentId)) {
+                throw ValidationException::withMessages(['sourceId' => __('customers.form.validation.agent_unavailable')]);
+            }
             $contact = CustomerContact::query()->where('customer_id', $customerId)->where('is_primary', true)->first();
             $document = CustomerIdentityDocument::query()->where('customer_id', $customerId)->first();
             $sensitiveChanged = data_get($contact, 'value_encrypted', '') !== trim($profile->contactValue)
                 || data_get($document, 'number_encrypted', '') !== trim($profile->identityDocument);
+
+            if ($sensitiveChanged && ! $context->canDownloadSensitiveCustomerData($customer->owner_id === null ? null : (int) $customer->owner_id)) {
+                throw ValidationException::withMessages(['sensitiveConfirmation' => __('customers.form.validation.sensitive_confirmation_required')]);
+            }
 
             if ($sensitiveChanged && ! $sensitiveChangeConfirmed) {
                 throw ValidationException::withMessages(['sensitiveConfirmation' => __('customers.form.validation.sensitive_confirmation_required')]);

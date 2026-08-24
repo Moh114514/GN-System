@@ -3,6 +3,7 @@
 namespace App\Modules\Customer\Application\Services;
 
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Reminder\Application\Contracts\CustomerFollowupGateway;
 use App\Modules\Reminder\Application\Data\CustomerFollowupData;
@@ -14,6 +15,7 @@ final readonly class CustomerFollowupManager
     public function __construct(
         private CustomerFollowupGateway $followups,
         private AuditRecorder $audit,
+        private AccessContextResolver $access,
     ) {}
 
     public function record(
@@ -26,6 +28,11 @@ final readonly class CustomerFollowupManager
     ): void {
         DB::transaction(function () use ($customerId, $type, $followedUpOn, $content, $actorId, $ipAddress): void {
             $customer = Customer::query()->findOrFail($customerId);
+            $context = $this->access->current();
+            abort_unless($context->canViewCustomer(
+                $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
+                $customer->owner_id === null ? null : (int) $customer->owner_id,
+            ), 404);
             $followupId = $this->followups->record(new CustomerFollowupData(
                 customerId: $customerId,
                 type: trim($type),

@@ -2,13 +2,18 @@
 
 namespace App\Modules\Customer\Application\Services;
 
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Customer\Application\Contracts\AgentCustomerPortfolioReader;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 
 final class DatabaseAgentCustomerPortfolioReader implements AgentCustomerPortfolioReader
 {
+    public function __construct(private readonly AccessContextResolver $access) {}
+
     public function customersForAgent(int $agentId): array
     {
+        abort_unless($this->access->current()->canViewAgent($agentId), 404);
+
         return Customer::query()
             ->where('source_agent_id', $agentId)
             ->latest('created_at')

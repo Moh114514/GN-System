@@ -49,12 +49,14 @@ class SettlementServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        Route::middleware(['web', 'auth', 'verified', 'super-admin', 'super-admin.2fa'])->group(function (): void {
+        Route::middleware(['web', 'auth', 'verified', 'settlement.read', 'super-admin.2fa'])->group(function (): void {
             Route::get('/settlements', SettlementCenter::class)->name('settlements.index');
-            Route::get('/settlements/history', SettlementHistory::class)->name('settlements.history');
             Route::get('/settlements/{settlement}', SettlementDetail::class)->whereNumber('settlement')->name('settlements.show');
             Route::get('/settlement-documents/{document}', [SettlementDocumentController::class, 'document'])
                 ->whereNumber('document')->name('settlements.documents.download');
+        });
+        Route::middleware(['web', 'auth', 'verified', 'super-admin', 'super-admin.2fa'])->group(function (): void {
+            Route::get('/settlements/history', SettlementHistory::class)->name('settlements.history');
             Route::get('/settlement-runs/{run}/archive', [SettlementDocumentController::class, 'archive'])
                 ->whereUuid('run')->name('settlements.archive');
             Route::get('/settlement-runs/{run}/failures', SettlementRunFailureDetail::class)

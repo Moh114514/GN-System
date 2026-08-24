@@ -7,6 +7,7 @@ use App\Modules\Settlement\Application\Data\SettlementRunStartResult;
 use App\Modules\Settlement\Application\Services\SettlementDisplayReader;
 use App\Modules\Settlement\Application\Services\SettlementNotificationDispatcher;
 use App\Modules\Settlement\Application\Services\SettlementPeriodCalculator;
+use App\Modules\Settlement\Application\Services\SettlementReadScope;
 use App\Modules\Settlement\Application\Services\SettlementRunManager;
 use App\Modules\Settlement\Application\Services\SettlementRunReconciler;
 use App\Modules\Settlement\Application\Services\SettlementWorkflow;
@@ -68,11 +69,13 @@ class SettlementCenter extends Component
 
     public function generate(SettlementRunManager $manager): void
     {
+        $this->assertAdmin();
         $this->flashStartResult($manager->startWithResult('manual', (int) Auth::id()), __('settlements.labels.current'));
     }
 
     public function generateHistorical(SettlementRunManager $manager): void
     {
+        $this->assertAdmin();
         $this->validate([
             'historicalPeriodEnd' => ['required', 'date_format:Y-m-d'],
         ]);
@@ -85,12 +88,14 @@ class SettlementCenter extends Component
 
     public function retry(string $runId, SettlementRunManager $manager): void
     {
+        $this->assertAdmin();
         $manager->retryFailed($runId);
         Flux::toast(variant: 'success', text: __('settlements.toasts.retry_failed'));
     }
 
     public function redispatchPending(string $runId, SettlementRunManager $manager, SettlementRunReconciler $reconciler): void
     {
+        $this->assertAdmin();
         $run = SettlementRun::query()->findOrFail($runId);
         if (! $reconciler->isAnomalous($run)) {
             Flux::toast(variant: 'warning', text: __('settlements.queue_recovery.not_needed'));
@@ -104,6 +109,7 @@ class SettlementCenter extends Component
 
     public function retryNotification(string $runId, SettlementNotificationDispatcher $dispatcher): void
     {
+        $this->assertAdmin();
         try {
             $dispatcher->retry($runId);
             Flux::toast(variant: 'success', text: __('settlements.toasts.retry_notification'));
@@ -114,6 +120,7 @@ class SettlementCenter extends Component
 
     public function regenerateDocuments(int $settlementId, SettlementWorkflow $workflow): void
     {
+        $this->assertAdmin();
         try {
             $workflow->regenerateDocuments($settlementId);
             Flux::toast(variant: 'success', text: __('settlements.toasts.documents_regenerated'));
@@ -127,6 +134,7 @@ class SettlementCenter extends Component
 
     public function saveConfiguration(SettlementPeriodCalculator $periods, BusinessClock $clock): void
     {
+        $this->assertAdmin();
         $this->validate([
             'triggerTime' => ['required', 'date_format:H:i'],
         ]);
@@ -153,9 +161,14 @@ class SettlementCenter extends Component
         SettlementDisplayReader $display,
         SettlementRunReconciler $reconciler,
         BusinessClock $clock,
+        SettlementReadScope $scope,
     ): View {
         $periods = app(SettlementPeriodCalculator::class)->recentClosedPeriods($clock->now(), 13);
-        $availablePeriods = SettlementRun::query()
+        $runsQuery = SettlementRun::query();
+        if (! $scope->isAdmin()) {
+            $runsQuery->whereHas('settlements', fn ($query) => $query->whereIn('agent_id', $scope->agentIds()));
+        }
+        $availablePeriods = (clone $runsQuery)
             ->select(['period_start', 'period_end'])
             ->orderByDesc('period_end')
             ->get()
@@ -165,12 +178,21 @@ class SettlementCenter extends Component
         if (! $availablePeriodEnds->contains($this->selectedPeriodEnd)) {
             $this->selectedPeriodEnd = $availablePeriodEnds->first() ?? '';
         }
-        $runs = SettlementRun::query()
+        $runs = $runsQuery
             ->with(['settlements', 'members.settlement'])
             ->when($this->selectedPeriodEnd !== '', fn ($query) => $query->whereDate('period_end', $this->selectedPeriodEnd))
             ->latest('period_end')
             ->limit(24)
             ->get();
+        if (! $scope->isAdmin()) {
+            $agentIds = $scope->agentIds();
+            $runs->each(function (SettlementRun $run) use ($agentIds): void {
+                $run->setRelation('settlements', $run->settlements->whereIn('agent_id', $agentIds)->values());
+                $run->setRelation('members', $run->members->filter(
+                    fn ($member): bool => in_array((int) $member->agent_id, $agentIds, true),
+                )->values());
+            });
+        }
         $memberDisplays = [];
         $legacyDisplays = [];
         $queueStates = [];
@@ -199,6 +221,7 @@ class SettlementCenter extends Component
                 ->selectRaw('1')
                 ->from('settlement_run_members')
                 ->whereColumn('settlement_run_members.settlement_id', 'settlements.id'))
+            ->when(! $scope->isAdmin(), fn ($query) => $query->whereIn('agent_id', $scope->agentIds()))
             ->count();
         $documentCounts = SettlementDocument::query()
             ->join('settlement_run_members', 'settlement_run_members.settlement_id', '=', 'settlement_documents.settlement_id')
@@ -237,5 +260,10 @@ class SettlementCenter extends Component
             variant: $key === 'warning' ? 'warning' : 'success',
             text: __('settlements.toasts.'.$messageKey, ['label' => $label, 'id' => $result->run->id]),
         );
+    }
+
+    private function assertAdmin(): void
+    {
+        abort_unless(Auth::user()?->isSuperAdmin(), 403);
     }
 }

@@ -73,3 +73,9 @@ Contract，不直接引用对应 Model 或写入业务表；订单主流程和�
 
 领域事件、通用 Service Bus 和异步跨模块一致性机制尚未形成，不得从同步契约放行
 推断它们可用。
+
+## PR2 access scope boundary
+
+Auth owns the `AccessContext` snapshot and permission fingerprint. Other modules consume it through the Auth application contract; they must not read user roles, memberships, or assignment tables directly across module boundaries. Agent exposes the agent assignment scope through its application contract. Presentation and queued export flows may rehydrate a serialized access snapshot, but must still enforce the current user and current fingerprint before serving a file or mutating data.
+
+Scope enforcement belongs at the module application query/gateway boundary and at every Livewire write action. A route or hidden button is not an authorization boundary. Customer Service response DTOs must remain minimal, and Settlement read-only BD access must not reuse administrator write operations.

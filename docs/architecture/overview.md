@@ -99,3 +99,7 @@ Application Contract 管理并展示未归属完整性检查。该基础能力�
 
 完整订单 CRUD、领域事件、CQRS 和看板预聚合尚未实现。对应源文档是后续设计输入，
 不能据此推断当前能力。
+
+## PR2 access context
+
+The current feature branch adds an Auth-owned access context for role, effective business-group membership, agent assignment, group-user ownership, and a permission fingerprint. Application readers and gateways apply that context to business records, reports, dashboards, saved queries, exports, and settlement documents. Queued exports carry a serialized snapshot and are checked against the current creator context when downloaded. This is scope enforcement inside the existing modular monolith; it does not introduce domain events, CQRS, a new projection store, or a general policy framework.

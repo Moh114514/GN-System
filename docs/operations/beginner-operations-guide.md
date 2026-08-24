@@ -892,3 +892,9 @@ The reset writes phase audit records after the database cleanup: database cleanu
 Use the administrator commands to disable or enable accounts and rotate passwords. Always provide both a reason and an operator or ticket identifier. Passwords are entered at a hidden prompt; do not put them in shell history. The last active super administrator cannot be disabled, and there is no delete-admin command.
 
 Never run these operations in `/srv/gn-system/production`, against `gn_system`, or with `docker compose down -v`. Do not copy secrets into chat or expect the reload script to print them.
+
+## PR2 access scope status (2026-08-24)
+
+The current `feature/business-groups-and-roles` worktree also contains PR2 permission scoping. It limits business pages and reports by role, business group, agent owner, and customer owner. BD can read only its settlement scope; mapped non-owner Customer Service accounts cannot export or download sensitive returned data. Dashboard caches and queued exports are separated by a permission fingerprint.
+
+There is no PR2 database migration. This is a local feature-branch result only: it is not merged and has not been checked in UAT/Production. Do not manually change server code or tables. A future release must use the normal RC deployment flow and verify the four role identities, cross-group links, Livewire actions, file downloads, export permissions, and dashboard separation in the target environment.

@@ -1378,3 +1378,9 @@ docker compose --env-file .env.uat -f compose.production.yaml exec app php artis
 `ADMIN` is an ID or email. `--operator` is a required operator or ticket identifier for audit traceability. Passwords are entered interactively, never passed as arguments. Disabling and password reset increment `session_version` and clear existing sessions; disabling the last active super administrator is rejected. There is intentionally no physical delete command.
 
 `reload-config.sh uat` requires `.env.uat` mode `0600`, validates required variables and Compose configuration, force-recreates app/queue/scheduler, rebuilds Laravel configuration cache, verifies PostgreSQL/Redis and the three health endpoints, and prints only a sanitized summary. It never prints password, archive-password, mail, or webhook-secret values.
+
+## PR2 access scope status (2026-08-24)
+
+The `feature/business-groups-and-roles` worktree contains the PR2 authorization scope implementation. It resolves the authenticated role, effective business-group memberships, agent assignments, group users, and a permission fingerprint. Customer, Agent, Order, Reminder, Settlement, Report, dashboard, search, saved-query, export, and settlement-document paths apply that scope; BD settlement access is read-only, and mapped non-owner Customer Service users are denied sensitive exports/downloads.
+
+This PR2 change adds no migration. Dashboard cache keys and queued export snapshots include the permission context, so app, queue, and scheduler workers must be upgraded from the same release before enabling the feature in a target environment. The feature branch is not merged or deployed. Before UAT/Production release, follow the normal immutable RC process and manually verify the four role identities, cross-group URLs, direct Livewire calls, document downloads, export denial, and cache separation. Local tests do not replace target-environment acceptance.

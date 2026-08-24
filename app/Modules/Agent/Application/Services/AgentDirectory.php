@@ -8,6 +8,7 @@ use App\Modules\Agent\Infrastructure\Models\AgentGradeAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Agent\Infrastructure\Models\PolicyGrade;
 use App\Modules\Agent\Infrastructure\Models\PolicySystem;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Customer\Application\Contracts\AgentCustomerPortfolioReader;
 use App\Modules\Order\Application\Contracts\DailyOrderGateway;
 use Carbon\CarbonImmutable;
@@ -20,6 +21,7 @@ final readonly class AgentDirectory
         private AgentCustomerPortfolioReader $customers,
         private DailyOrderGateway $orders,
         private BusinessClock $clock,
+        private AccessContextResolver $access,
     ) {}
 
     /** @return LengthAwarePaginator<int, array<string, mixed>> */
@@ -32,6 +34,10 @@ final readonly class AgentDirectory
         int $perPage = 20,
     ): LengthAwarePaginator {
         $query = Agent::query();
+        $context = $this->access->current();
+        if (! $context->isSuperAdmin()) {
+            $query->whereKey($context->agentIds);
+        }
         $search = trim($search);
         if ($search !== '') {
             $query->where(fn ($builder) => $builder
@@ -126,7 +132,10 @@ final readonly class AgentDirectory
     /** @return array<string, mixed> */
     public function profile(int $agentId): array
     {
-        $agent = Agent::query()->findOrFail($agentId);
+        $context = $this->access->current();
+        $agent = Agent::query()
+            ->when(! $context->isSuperAdmin(), fn ($query) => $query->whereKey($context->agentIds))
+            ->findOrFail($agentId);
         $assignment = AgentGradeAssignment::query()
             ->where('agent_id', $agentId)
             ->whereDate('effective_month', '<=', $this->currentMonth())

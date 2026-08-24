@@ -173,3 +173,10 @@ UAT/Production 使用 `queue:work`。本地开发与 UAT/Production 操作手册
 功能首次落地、能力移除或阶段变化时，必须在同一变更中更新本页。描述必须能由
 代码、配置、迁移或测试验证；纯计划不得进入“已实现”。
 2026-08-06: PR-B added the unified import issue table, persisted stage statuses, unified issue reports, and non-ignorable issue guards. Real historical-file migration and sampling remain pre-release acceptance work.
+
+## 2026-08-24 PR2 access scope implementation
+
+- `feature/business-groups-and-roles` now includes the PR2 access context: authenticated role, effective business-group membership, agent assignment scope, group-user scope, and a permission fingerprint carried by dashboard caches and queued exports.
+- Customer, Agent, Order, Reminder, Settlement, Report, global search, saved queries, dashboard drill-down, export, and settlement-document download paths now apply role and ownership/group scope. BD settlement pages are read-only; mapped non-owner Customer Service users cannot export or download sensitive returned data, and Customer Service responses omit agent contact, grade, contract, and financial fields.
+- Direct Livewire write methods retain server-side authorization checks. The PR2 matrix test covers super administrator, BD, owner Customer Service, and non-owner Customer Service identities, cross-group URL access, sensitive fields, export denial, and cache/fingerprint separation.
+- PR2 adds no migration. The implementation is locally tested on the feature branch only; it has not been merged into `develop` and has not been validated or deployed in UAT/Production.

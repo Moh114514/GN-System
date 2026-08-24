@@ -4,6 +4,7 @@ namespace App\Modules\Order\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Config\Application\Contracts\InstitutionReferenceReader;
 use App\Modules\Config\Application\Contracts\OrderDictionaryReader;
 use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
@@ -13,6 +14,7 @@ use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Reminder\Application\Contracts\OrderReminderReader;
 use App\Modules\Settlement\Application\Contracts\OrderFinancialReader;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 final readonly class OrderManagementWorkspace
@@ -26,6 +28,7 @@ final readonly class OrderManagementWorkspace
         private AuditRecorder $audit,
         private OrderReminderReader $reminders,
         private OrderFinancialReader $financials,
+        private AccessContextResolver $access,
     ) {}
 
     /** @return array<string, array<int, array<string, mixed>>> */
@@ -71,6 +74,7 @@ final readonly class OrderManagementWorkspace
     {
         $this->assertCanViewDeleted($includeDeleted, $canViewDeleted);
         $query = $includeDeleted ? Order::onlyTrashed() : Order::query();
+        $this->applyScope($query);
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') {
             $customerIds = $this->customers->customerIdsForOrderSearch($search);
@@ -136,7 +140,9 @@ final readonly class OrderManagementWorkspace
     /** @return array<string, mixed> */
     public function detail(int $orderId, bool $canViewDeleted = false): array
     {
-        $order = ($canViewDeleted ? Order::withTrashed() : Order::query())->findOrFail($orderId);
+        $query = $canViewDeleted ? Order::withTrashed() : Order::query();
+        $this->applyScope($query);
+        $order = $query->findOrFail($orderId);
         $customer = $this->customers->customerForOrder((int) $order->customer_id);
         $institution = $this->institutions->institutionsByIds([(int) $order->institution_id])[(int) $order->institution_id] ?? null;
         $agent = $order->agent_id === null ? null : ($this->agents->agentsByIds([(int) $order->agent_id])[(int) $order->agent_id] ?? null);
@@ -175,6 +181,13 @@ final readonly class OrderManagementWorkspace
 
     public function updatePending(OrderUpdateData $data, int $actorId, ?string $ipAddress): int
     {
+        $this->assertVisible($data->orderId);
+        $context = $this->access->current();
+        if (! $context->isSuperAdmin()
+            && (! $context->isCustomerService() || $context->agentIds !== [])
+            && ! $context->canViewAgent($data->agentId)) {
+            abort(404);
+        }
         $project = $data->treatmentProjectId === null
             ? null
             : $this->dictionary->activeItem($data->treatmentProjectId, 'treatment_project');
@@ -198,26 +211,36 @@ final readonly class OrderManagementWorkspace
 
     public function cancel(int $orderId, int $actorId, string $reason, ?string $ipAddress): int
     {
+        $this->assertVisible($orderId);
+
         return $this->lifecycle->cancel($orderId, $actorId, $reason, $ipAddress);
     }
 
     public function reopen(int $orderId, int $actorId, string $reason, ?string $ipAddress): int
     {
+        $this->assertVisible($orderId, true);
+
         return $this->lifecycle->reopen($orderId, $actorId, $reason, $ipAddress);
     }
 
     public function rollbackCompleted(int $orderId, int $actorId, string $reason, ?string $ipAddress): int
     {
+        $this->assertVisible($orderId);
+
         return $this->lifecycle->rollbackCompleted($orderId, $actorId, $reason, $ipAddress);
     }
 
     public function softDelete(int $orderId, int $actorId, string $reason, ?string $ipAddress): int
     {
+        $this->assertVisible($orderId);
+
         return $this->lifecycle->softDelete($orderId, $actorId, $reason, $ipAddress);
     }
 
     public function restore(int $orderId, int $actorId, ?string $ipAddress): int
     {
+        $this->assertVisible($orderId, true);
+
         return $this->lifecycle->restore($orderId, $actorId, $ipAddress);
     }
 
@@ -226,5 +249,30 @@ final readonly class OrderManagementWorkspace
         if ($includeDeleted && ! $canViewDeleted) {
             throw new AuthorizationException(__('orders.errors.recycle_bin_admin_only'));
         }
+    }
+
+    private function assertVisible(int $orderId, bool $withTrashed = false): void
+    {
+        $query = $withTrashed ? Order::withTrashed() : Order::query();
+        $this->applyScope($query);
+        $query->findOrFail($orderId);
+    }
+
+    /** @param Builder<Order> $query */
+    private function applyScope(Builder $query): void
+    {
+        $context = $this->access->current();
+        if ($context->isSuperAdmin()) {
+            return;
+        }
+
+        $query->where(function ($scope) use ($context): void {
+            if ($context->userId !== null) {
+                $scope->where('owner_id', $context->userId);
+            }
+            if ($context->agentIds !== []) {
+                $scope->orWhereIn('agent_id', $context->agentIds);
+            }
+        });
     }
 }

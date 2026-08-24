@@ -3,24 +3,29 @@
 namespace App\Modules\Customer\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Customer\Application\Contracts\ReminderCustomerReader;
 use App\Modules\Customer\Application\Data\ReminderCustomerData;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 
 final readonly class DatabaseReminderCustomerReader implements ReminderCustomerReader
 {
-    public function __construct(private AgentReferenceReader $agents) {}
+    public function __construct(
+        private AccessContextResolver $access,
+        private AgentReferenceReader $agents,
+    ) {}
 
     public function candidates(): array
     {
-        return Customer::query()->orderBy('id')->get()->map(fn (Customer $customer): ReminderCustomerData => $this->data($customer))->all();
+        return $this->scoped()->orderBy('id')->get()->map(fn (Customer $customer): ReminderCustomerData => $this->data($customer))->all();
     }
 
     public function byId(int $customerId): ReminderCustomerData
     {
-        return $this->data(Customer::query()->findOrFail($customerId));
+        return $this->data($this->scoped()->findOrFail($customerId));
     }
 
     private function data(Customer $customer): ReminderCustomerData
@@ -44,5 +49,23 @@ final readonly class DatabaseReminderCustomerReader implements ReminderCustomerR
             statusChangedAt: $status === null ? null : CarbonImmutable::parse($status->changed_at),
             projectIntention: $customer->project_intention,
         );
+    }
+
+    /** @return Builder<Customer> */
+    private function scoped(): Builder
+    {
+        $context = $this->access->current();
+        if ($context->isSuperAdmin()) {
+            return Customer::query();
+        }
+
+        return Customer::query()->where(function ($query) use ($context): void {
+            if ($context->userId !== null) {
+                $query->where('owner_id', $context->userId);
+            }
+            if ($context->agentIds !== []) {
+                $query->orWhereIn('source_agent_id', $context->agentIds);
+            }
+        });
     }
 }

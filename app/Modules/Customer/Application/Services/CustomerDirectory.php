@@ -4,6 +4,7 @@ namespace App\Modules\Customer\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
 use App\Modules\Auth\Application\Contracts\ReportUserReader;
 use App\Modules\Config\Application\Contracts\InstitutionReferenceReader;
@@ -20,6 +21,7 @@ use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
 use App\Modules\Reminder\Application\Contracts\CustomerFollowupGateway;
 use App\Support\DateRange;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 final readonly class CustomerDirectory
@@ -35,6 +37,7 @@ final readonly class CustomerDirectory
         private CustomerOrderGateway $orders,
         private CustomerFollowupGateway $followups,
         private AuditRecorder $audit,
+        private AccessContextResolver $access,
     ) {}
 
     /**
@@ -44,6 +47,7 @@ final readonly class CustomerDirectory
     public function paginate(array $filters, int $perPage): LengthAwarePaginator
     {
         $query = Customer::query()->with(['primaryContact', 'identityDocument', 'currentStatus']);
+        $this->applyScope($query);
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') {
             $hash = $this->blindIndex->for($search);
@@ -132,13 +136,26 @@ final readonly class CustomerDirectory
     /** @return list<array{id: int, name: string}> */
     public function ownerCandidates(): array
     {
-        return $this->assignableUsers->eligibleUsers();
+        $users = $this->assignableUsers->eligibleUsers();
+        $context = $this->access->current();
+        if ($context->isSuperAdmin() || $context->groupUserIds === []) {
+            return $users;
+        }
+
+        return array_values(array_filter(
+            $users,
+            fn (array $user): bool => in_array((int) $user['id'], $context->groupUserIds, true)
+                || (int) $user['id'] === (int) $context->userId,
+        ));
     }
 
     /** @return array<string, mixed> */
     public function profile(int $customerId): array
     {
-        $customer = Customer::query()->with(['primaryContact', 'identityDocument', 'currentStatus'])->findOrFail($customerId);
+        $customer = Customer::query()->with(['primaryContact', 'identityDocument', 'currentStatus']);
+        $this->applyScope($customer);
+        $customer = $customer->findOrFail($customerId);
+        $canViewSensitive = $this->access->current()->canDownloadSensitiveCustomerData($customer->owner_id === null ? null : (int) $customer->owner_id);
 
         return [
             'id' => $customer->id,
@@ -152,8 +169,8 @@ final readonly class CustomerDirectory
             'current_status' => $customer->currentStatus === null
                 ? null
                 : $this->labels->status((string) $customer->currentStatus->key, $customer->currentStatus->name),
-            'contact' => data_get($customer->primaryContact, 'value_encrypted'),
-            'identity_document' => data_get($customer->identityDocument, 'number_encrypted'),
+            'contact' => $canViewSensitive ? data_get($customer->primaryContact, 'value_encrypted') : null,
+            'identity_document' => $canViewSensitive ? data_get($customer->identityDocument, 'number_encrypted') : null,
             'project_intention' => $customer->project_intention,
             'notes' => $customer->notes,
             'owner_id' => $customer->owner_id,
@@ -164,7 +181,9 @@ final readonly class CustomerDirectory
     /** @return array<string, mixed> */
     public function statusFlow(int $customerId): array
     {
-        $customer = Customer::query()->findOrFail($customerId);
+        $customer = Customer::query();
+        $this->applyScope($customer);
+        $customer = $customer->findOrFail($customerId);
         $currentStatusId = $customer->current_status_id === null ? null : (int) $customer->current_status_id;
         $stages = CustomerLifecycleStage::query()
             ->orderBy('sort_order')
@@ -286,7 +305,9 @@ final readonly class CustomerDirectory
     /** @return array<int, array<string, mixed>> */
     public function timeline(int $customerId, ?string $type = null): array
     {
-        $customer = Customer::query()->findOrFail($customerId);
+        $customer = Customer::query();
+        $this->applyScope($customer);
+        $customer = $customer->findOrFail($customerId);
         $events = [
             ...$this->orders->timelineForCustomer($customerId),
             ...$this->followups->timelineForCustomer($customerId),
@@ -396,6 +417,24 @@ final readonly class CustomerDirectory
         }
 
         return $isAvailable ? 'available' : 'unavailable';
+    }
+
+    /** @param Builder<Customer> $query */
+    private function applyScope(Builder $query): void
+    {
+        $context = $this->access->current();
+        if ($context->isSuperAdmin()) {
+            return;
+        }
+
+        $query->where(function ($scope) use ($context): void {
+            if ($context->userId !== null) {
+                $scope->where('owner_id', $context->userId);
+            }
+            if ($context->agentIds !== []) {
+                $scope->orWhereIn('source_agent_id', $context->agentIds);
+            }
+        });
     }
 
     private function statusTransitionKey(int $fromStatusId, int $toStatusId): string

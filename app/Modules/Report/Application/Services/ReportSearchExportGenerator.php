@@ -3,6 +3,7 @@
 namespace App\Modules\Report\Application\Services;
 
 use App\Infrastructure\Localization\SupportedLocale;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Report\Infrastructure\Models\ReportExport;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Storage;
@@ -13,7 +14,7 @@ use Throwable;
 
 final readonly class ReportSearchExportGenerator
 {
-    public function __construct(private ReportSearch $search) {}
+    public function __construct(private ReportSearch $search, private AccessContextResolver $access) {}
 
     public function generate(ReportExport $export): ReportExport
     {
@@ -23,7 +24,20 @@ final readonly class ReportSearchExportGenerator
             'failure_reason_key' => null,
             'failure_reason_parameters' => null,
         ]);
+        /** @var array<string, mixed> $criteria */
         $criteria = $export->criteria_snapshot;
+        $accessSnapshot = $criteria['_access'] ?? null;
+        unset($criteria['_access']);
+        $context = is_array($accessSnapshot)
+            ? $this->access->fromSnapshot($accessSnapshot)
+            : $this->access->current();
+
+        return $this->access->using($context, fn (): ReportExport => $this->generateInContext($export, $criteria));
+    }
+
+    /** @param array<string, mixed> $criteria */
+    private function generateInContext(ReportExport $export, array $criteria): ReportExport
+    {
         $locale = SupportedLocale::fromCandidate($criteria['_locale'] ?? null) ?? SupportedLocale::default();
         unset($criteria['_locale']);
         $previousLocale = App::getLocale();
