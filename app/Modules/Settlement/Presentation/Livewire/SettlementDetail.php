@@ -236,7 +236,9 @@ class SettlementDetail extends Component
             'agentDisplay' => $display->agent($settlement),
             'items' => $items,
             'documents' => SettlementDocument::query()->where('settlement_id', $settlement->id)->get(),
-            'suggestion' => SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->first(),
+            'suggestion' => (bool) config('settlements.agent_grade_evaluation_enabled', false)
+                ? SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->first()
+                : null,
             'previousSettlement' => $previousSettlement,
             'nextSettlement' => $nextSettlement,
             'freshness' => $settlement->generation_status === 'generated' ? $freshnessChecker->check($settlement) : null,

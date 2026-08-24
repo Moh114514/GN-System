@@ -3,6 +3,7 @@
 namespace App\Modules\Order\Application\Services;
 
 use App\Infrastructure\Time\BusinessClock;
+use App\Modules\Agent\Application\Contracts\AgentBusinessAttributionReader;
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Config\Application\Contracts\InstitutionReferenceReader;
@@ -32,6 +33,7 @@ final readonly class InstitutionReturnProcessor
         private InstitutionReferenceReader $institutions,
         private CustomerOrderReferenceReader $customers,
         private AgentReferenceReader $agents,
+        private AgentBusinessAttributionReader $attributions,
         private CustomerTreatmentCompletionGateway $customerCompletion,
         private DailyCommissionGateway $commissions,
         private TreatmentReminderGateway $reminders,
@@ -103,6 +105,10 @@ final readonly class InstitutionReturnProcessor
             ]);
 
             $orderId = DB::transaction(function () use ($data, $customer, $agent, $parsed, $returnFile, $template): int {
+                $attribution = $this->attributions->forAgentOnDate(
+                    (int) $customer['source_agent_id'],
+                    $parsed['occurred_on'],
+                );
                 $order = Order::query()->create([
                     'customer_id' => $data->customerId,
                     'institution_id' => $data->institutionId,
@@ -121,6 +127,7 @@ final readonly class InstitutionReturnProcessor
                     'business_attribution_snapshot' => [
                         'source' => 'institution_return',
                         'agent' => $agent,
+                        'business_group' => $attribution,
                         'institution_id' => $data->institutionId,
                         'occurred_on' => $parsed['occurred_on']->toDateString(),
                         'template_key' => InstitutionFormSchema::TEMPLATE_KEY,

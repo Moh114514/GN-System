@@ -4,9 +4,6 @@ namespace App\Modules\Settlement\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
 use App\Modules\Config\Application\Contracts\NotificationRecipientGateway;
-use App\Modules\Order\Application\Contracts\SettlementOrderReader;
-use App\Modules\Settlement\Application\Exceptions\StructuredSettlementFailure;
-use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRunMember;
 use Carbon\CarbonImmutable;
@@ -17,7 +14,7 @@ use Throwable;
 final readonly class SettlementGenerator
 {
     public function __construct(
-        private SettlementOrderReader $orders,
+        private SettlementCalculationService $calculation,
         private SettlementAgentGateway $agents,
         private SettlementRunSummaryUpdater $summary,
         private SettlementGradeEvaluator $gradeEvaluator,
@@ -66,18 +63,12 @@ final readonly class SettlementGenerator
 
             $periodStart = CarbonImmutable::parse($run->period_start);
             $periodEnd = CarbonImmutable::parse($run->period_end);
-            $agent = $this->agents->forMonth((int) $member->agent_id, $periodEnd);
-            $orders = $this->orders->completedForAgent((int) $member->agent_id, $periodStart, $periodEnd);
-            $orderIds = array_map(fn ($order): int => $order->orderId, $orders);
-            $commissions = OrderCommission::query()->whereIn('order_id', $orderIds)->get()->keyBy('order_id');
-            foreach ($orders as $order) {
-                if (! $commissions->has($order->orderId)) {
-                    throw new StructuredSettlementFailure('settlements.failure_reasons.missing_commission_snapshot', ['order_id' => $order->orderId]);
-                }
-            }
-
-            $totalConsumption = array_sum(array_map(fn ($order): int => $order->amountKrw, $orders));
-            $totalCommission = (int) $commissions->sum('amount_krw');
+            $calculation = $this->calculation->calculate((int) $member->agent_id, $periodStart, $periodEnd);
+            $agent = $calculation['agent'];
+            $orders = $calculation['orders'];
+            $commissions = $calculation['commissions'];
+            $totalConsumption = $calculation['total_consumption_krw'];
+            $totalCommission = $calculation['total_commission_krw'];
             $settlement = Settlement::query()->updateOrCreate(
                 ['agent_id' => $member->agent_id, 'period_start' => $periodStart, 'period_end' => $periodEnd],
                 [
@@ -88,7 +79,7 @@ final readonly class SettlementGenerator
                     'status' => 'pending_review',
                     'generation_status' => 'generated',
                     'generated_at' => now(),
-                    'item_count' => count($orders),
+                    'item_count' => $calculation['item_count'],
                     'snapshot' => [
                         'source' => 'phase_five_generation',
                         'agent' => ['id' => $agent->id, 'code' => $agent->code, 'name' => $agent->name],
@@ -103,7 +94,7 @@ final readonly class SettlementGenerator
             );
             DB::table('settlement_items')->where('settlement_id', $settlement->id)->delete();
             foreach ($orders as $order) {
-                $commission = $commissions->get($order->orderId);
+                $commission = $commissions[$order->orderId];
                 DB::table('settlement_items')->insert([
                     'settlement_id' => $settlement->id,
                     'order_commission_id' => $commission->id,
@@ -111,25 +102,27 @@ final readonly class SettlementGenerator
                     'commission_krw' => $commission->amount_krw,
                     'rule_snapshot' => json_encode([
                         ...$commission->rule_snapshot,
-                        'order' => ['id' => $order->orderId, 'customer_id' => $order->customerId, 'project_name' => $order->projectName, 'completed_on' => $order->completedOn->toDateString()],
+                        'order' => ['id' => $order->orderId, 'customer_id' => $order->customerId, 'project_name' => $order->projectName, 'occurred_on' => $order->completedOn->toDateString(), 'completed_on' => $order->completedOn->toDateString()],
                     ], JSON_THROW_ON_ERROR),
                     'created_at' => now(),
                     'updated_at' => now(),
                 ]);
             }
 
-            $recommended = $this->agents->recommendation((int) $member->agent_id, $periodEnd, $totalCommission);
-            $evaluation = $this->gradeEvaluator->evaluate($settlement, $agent, $recommended, $totalCommission);
-            if ($evaluation->result === 'upgrade' || $evaluation->consecutive_failure_count >= 2) {
-                $notification = [
-                    'settlement_id' => $settlement->id,
-                    'agent' => $agent->name,
-                    'period' => $periodEnd->format('Y-m'),
-                    'current_grade' => $agent->currentGradeName,
-                    'recommended_grade' => $recommended->currentGradeName,
-                    'commission' => $totalCommission,
-                    'failure_count' => $evaluation->consecutive_failure_count,
-                ];
+            if ((bool) config('settlements.agent_grade_evaluation_enabled', false)) {
+                $recommended = $this->agents->recommendation((int) $member->agent_id, $periodEnd, $totalCommission);
+                $evaluation = $this->gradeEvaluator->evaluate($settlement, $agent, $recommended, $totalCommission);
+                if ($evaluation->result === 'upgrade' || $evaluation->consecutive_failure_count >= 2) {
+                    $notification = [
+                        'settlement_id' => $settlement->id,
+                        'agent' => $agent->name,
+                        'period' => $periodEnd->format('Y-m'),
+                        'current_grade' => $agent->currentGradeName,
+                        'recommended_grade' => $recommended->currentGradeName,
+                        'commission' => $totalCommission,
+                        'failure_count' => $evaluation->consecutive_failure_count,
+                    ];
+                }
             }
 
             $member->update([

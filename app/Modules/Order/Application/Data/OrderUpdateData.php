@@ -2,6 +2,8 @@
 
 namespace App\Modules\Order\Application\Data;
 
+use Carbon\CarbonImmutable;
+
 final readonly class OrderUpdateData
 {
     public function __construct(
@@ -15,5 +17,10 @@ final readonly class OrderUpdateData
         public ?int $treatmentProjectId,
         public ?int $translatorLanguageId,
         public ?string $translatorLanguageName,
+        public ?CarbonImmutable $occurredOn = null,
+        /** @var array<int, array<string, mixed>> */
+        public array $items = [],
+        public ?string $reason = null,
+        public ?string $expectedUpdatedAt = null,
     ) {}
 }

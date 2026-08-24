@@ -19,8 +19,10 @@ final class DatabaseSettlementOrderReader implements SettlementOrderReader
         return Order::query()
             ->where('agent_id', $agentId)
             ->where('status', 'completed')
-            ->whereBetween('completed_on', [$periodStart, $periodEnd])
-            ->orderBy('completed_on')
+            ->where('record_status', 'active')
+            ->whereNotNull('occurred_on')
+            ->whereBetween('occurred_on', [$periodStart, $periodEnd])
+            ->orderBy('occurred_on')
             ->orderBy('id')
             ->get()
             ->map(fn (Order $order): SettlementOrderData => new SettlementOrderData(
@@ -30,7 +32,7 @@ final class DatabaseSettlementOrderReader implements SettlementOrderReader
                 agentId: (int) $order->agent_id,
                 projectName: (string) $order->project_name,
                 amountKrw: (int) $order->amount_krw,
-                completedOn: CarbonImmutable::parse($order->completed_on),
+                completedOn: CarbonImmutable::parse($order->occurred_on),
             ))
             ->all();
     }

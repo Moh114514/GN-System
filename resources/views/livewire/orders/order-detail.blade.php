@@ -60,9 +60,9 @@
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div><h3 class="font-semibold">{{ __('orders.detail.order_info') }}</h3><p class="mt-1 text-sm text-zinc-500">{{ __('orders.detail.order_info_description') }}</p></div>
                     <div class="flex flex-wrap gap-2">
-                        @if (! $deleted && $order['status'] === 'pending')
+                        @if (! $deleted && ($order['can_edit'] ?? false))
                             <flux:button href="{{ route('orders.edit', $order['id']) }}" wire:navigate variant="ghost" size="sm">{{ __('orders.detail.edit') }}</flux:button>
-                            <span class="text-xs text-zinc-500">{{ __('orders.detail.awaiting_institution_return') }}</span>
+                            @if ($order['status'] === 'pending')<span class="text-xs text-zinc-500">{{ __('orders.detail.awaiting_institution_return') }}</span>@endif
                         @endif
                     </div>
                 </div>

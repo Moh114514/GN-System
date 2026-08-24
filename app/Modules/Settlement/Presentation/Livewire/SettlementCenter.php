@@ -4,6 +4,7 @@ namespace App\Modules\Settlement\Presentation\Livewire;
 
 use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Settlement\Application\Data\SettlementRunStartResult;
+use App\Modules\Settlement\Application\Services\SettlementCalculationService;
 use App\Modules\Settlement\Application\Services\SettlementDisplayReader;
 use App\Modules\Settlement\Application\Services\SettlementNotificationDispatcher;
 use App\Modules\Settlement\Application\Services\SettlementPeriodCalculator;
@@ -36,6 +37,9 @@ class SettlementCenter extends Component
 
     public string $historicalPeriodEnd = '';
 
+    /** @var array<int, array<string, mixed>> */
+    public array $previewResults = [];
+
     /** @var array<string, array<string, string>> */
     protected array $queryString = [
         'selectedPeriodEnd' => ['except' => ''],
@@ -65,6 +69,51 @@ class SettlementCenter extends Component
     public function updatedSelectedPeriodEnd(): void
     {
         $this->collapsedRunIds = [];
+        $this->previewResults = [];
+    }
+
+    public function preview(SettlementCalculationService $calculation, SettlementReadScope $scope, BusinessClock $clock): void
+    {
+        abort_unless(Auth::user()?->isSuperAdmin() || Auth::user()?->isBdManager(), 403);
+        $periodEnd = $this->selectedPeriodEnd;
+        if ($periodEnd === '') {
+            $periodEnd = app(SettlementPeriodCalculator::class)->latestClosedPeriod($clock->now())->end->toDateString();
+        }
+        $period = app(SettlementPeriodCalculator::class)->recentClosedPeriods($clock->now(), 24);
+        $selected = collect($period)->first(fn ($candidate): bool => $candidate->end->toDateString() === $periodEnd);
+        abort_unless($selected !== null, 422);
+
+        $agentIds = collect($calculation->eligibleAgentIds($selected->start, $selected->end))
+            ->map(static fn (int $id): int => $id)
+            ->when(! $scope->isAdmin(), fn ($ids) => $ids->filter(
+                fn (int $id): bool => in_array($id, $scope->agentIds(), true),
+            ))
+            ->unique()
+            ->values();
+        $this->previewResults = [];
+        foreach ($agentIds as $agentId) {
+            try {
+                $result = $calculation->calculate($agentId, $selected->start, $selected->end);
+                $this->previewResults[] = [
+                    'agent_id' => $agentId,
+                    'agent' => $result['agent']->code.' '.$result['agent']->name,
+                    'order_count' => $result['item_count'],
+                    'consumption_krw' => $result['total_consumption_krw'],
+                    'commission_krw' => $result['total_commission_krw'],
+                    'error' => null,
+                ];
+            } catch (Throwable $exception) {
+                report($exception);
+                $this->previewResults[] = [
+                    'agent_id' => $agentId,
+                    'agent' => '#'.$agentId,
+                    'order_count' => 0,
+                    'consumption_krw' => 0,
+                    'commission_krw' => 0,
+                    'error' => __('settlements.center.preview_error'),
+                ];
+            }
+        }
     }
 
     public function generate(SettlementRunManager $manager): void
@@ -184,6 +233,7 @@ class SettlementCenter extends Component
             ->latest('period_end')
             ->limit(24)
             ->get();
+        $runSummaries = [];
         if (! $scope->isAdmin()) {
             $agentIds = $scope->agentIds();
             $runs->each(function (SettlementRun $run) use ($agentIds): void {
@@ -191,14 +241,30 @@ class SettlementCenter extends Component
                 $run->setRelation('members', $run->members->filter(
                     fn ($member): bool => in_array((int) $member->agent_id, $agentIds, true),
                 )->values());
+                $run->total_agents = $run->members->count() ?: $run->settlements->count();
+                $run->processed_agents = $run->members->where('outcome', 'generated')->count();
+                $run->existing_agents = $run->members->where('outcome', 'existing')->count();
+                $run->failed_agents = $run->members->where('outcome', 'failed')->count();
+                $run->total_consumption_krw = $run->settlements->sum('total_consumption_krw');
+                $run->total_commission_krw = $run->settlements->sum('total_commission_krw');
+                $run->notification_status = 'disabled';
             });
+        }
+        foreach ($runs as $run) {
+            $runSummaries[(string) $run->id] = [
+                'agents' => $run->settlements->count(),
+                'consumption_krw' => (int) $run->settlements->sum('total_consumption_krw'),
+                'commission_krw' => (int) $run->settlements->sum('total_commission_krw'),
+            ];
         }
         $memberDisplays = [];
         $legacyDisplays = [];
         $queueStates = [];
         foreach ($runs as $run) {
             $memberDisplays[(string) $run->id] = $display->forMembers($run->members);
-            $queueStates[(string) $run->id] = $reconciler->state($run);
+            $queueStates[(string) $run->id] = $scope->isAdmin()
+                ? $reconciler->state($run)
+                : ['anomalous' => false, 'pending_members' => 0, 'failed_jobs' => 0, 'pending_jobs' => 0];
             foreach ($display->forSettlements($run->settlements) as $settlementId => $agentDisplay) {
                 $legacyDisplays[$settlementId] = $agentDisplay;
             }
@@ -243,6 +309,8 @@ class SettlementCenter extends Component
             'availablePeriods' => $availablePeriods,
             'selectedPeriodEnd' => $this->selectedPeriodEnd,
             'queueStates' => $queueStates,
+            'runSummaries' => $runSummaries,
+            'previewResults' => $this->previewResults,
         ]);
     }
 

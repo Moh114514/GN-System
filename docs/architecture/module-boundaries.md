@@ -123,3 +123,12 @@ The `2026_08_24_000200_add_institution_return_order_facts.php` migration refuses
 legacy orders cannot be mapped safely and refuses rollback after order facts, order items, or
 original return files exist. Private source files are encrypted before being written to the
 configured private disk and are served only after scope checks.
+
+## PR5 order and settlement boundary
+
+Order may consume Agent's `AgentBusinessAttributionReader` contract and Settlement's existing
+commission contracts; it does not write Settlement models directly. Settlement consumes Order's
+`SettlementOrderReader` and Agent's `SettlementAgentGateway`, while its pure calculation service
+is shared by preview and formal generation. Settlement preview has no persistence side effects.
+The grade pause is configuration-driven and does not remove policy, grade, assignment, commission,
+or historical settlement capabilities.

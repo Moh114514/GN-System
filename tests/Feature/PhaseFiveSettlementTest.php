@@ -85,6 +85,7 @@ class PhaseFiveSettlementTest extends TestCase
             'queue.default' => 'sync',
             'dingtalk.enabled' => false,
             'services.settlement_exchange_rate.enabled' => false,
+            'settlements.agent_grade_evaluation_enabled' => true,
         ]);
         $this->seed(PhaseTwoReferenceDataSeeder::class);
         $this->user = User::factory()->create();
@@ -140,11 +141,11 @@ class PhaseFiveSettlementTest extends TestCase
         $period = $calculator->latestClosedPeriod(CarbonImmutable::now());
         $this->assertSame('2026-07-01', $period->start->toDateString());
         $this->assertSame('2026-07-31', $period->end->toDateString());
-        $this->assertSame(10, $period->generationDay);
+        $this->assertSame(5, $period->generationDay);
 
         $configuration = $calculator->saveConfiguration('10:30', $this->admin->id, CarbonImmutable::now());
-        $this->assertSame('2026-08-10', $configuration->effective_from->toDateString());
-        $this->assertSame(10, (int) $configuration->generation_day);
+        $this->assertSame('2026-08-05', $configuration->effective_from->toDateString());
+        $this->assertSame(5, (int) $configuration->generation_day);
         $this->assertSame('09:00', substr((string) $calculator->activeConfiguration(CarbonImmutable::now())->trigger_time, 0, 5));
         $this->assertSame('10:30', substr((string) $calculator->activeConfiguration(CarbonImmutable::parse('2026-08-10'))->trigger_time, 0, 5));
     }
@@ -153,12 +154,11 @@ class PhaseFiveSettlementTest extends TestCase
     {
         $clock = app(BusinessClock::class);
         $clock->set(CarbonImmutable::parse('2026-09-10 09:00:00'));
-        SettlementConfiguration::query()->create([
+        SettlementConfiguration::query()->whereDate('effective_from', '2026-09-01')->update([
             'boundary_day' => 15,
-            'generation_day' => 10,
+            'generation_day' => 5,
             'trigger_time' => '10:30:00',
             'timezone' => 'Asia/Shanghai',
-            'effective_from' => '2026-09-01',
             'created_by' => $this->admin->id,
         ]);
 
@@ -169,9 +169,49 @@ class PhaseFiveSettlementTest extends TestCase
             ->call('saveConfiguration');
 
         $this->assertDatabaseHas('settlement_configurations', [
-            'effective_from' => '2026-09-10',
+            'effective_from' => '2026-10-05',
             'trigger_time' => '11:00:00',
         ]);
+    }
+
+    public function test_settlement_preview_reuses_formal_amounts_without_writing_settlement_tables(): void
+    {
+        $this->createCompletedOrder(10000);
+        $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
+        $settlement = Settlement::query()->where('settlement_run_id', $run->id)->firstOrFail();
+        $counts = [
+            'runs' => SettlementRun::query()->count(),
+            'settlements' => Settlement::query()->count(),
+            'items' => DB::table('settlement_items')->count(),
+            'evaluations' => AgentGradeEvaluation::query()->count(),
+            'suggestions' => SettlementGradeSuggestion::query()->count(),
+        ];
+
+        $component = Livewire::actingAs($this->admin)->test(SettlementCenter::class)
+            ->call('preview');
+
+        $preview = collect($component->get('previewResults'))->firstWhere('agent_id', $this->agent->id);
+        $this->assertNotNull($preview);
+        $this->assertSame((int) $settlement->total_consumption_krw, $preview['consumption_krw']);
+        $this->assertSame((int) $settlement->total_commission_krw, $preview['commission_krw']);
+        $this->assertSame($counts['runs'], SettlementRun::query()->count());
+        $this->assertSame($counts['settlements'], Settlement::query()->count());
+        $this->assertSame($counts['items'], DB::table('settlement_items')->count());
+        $this->assertSame($counts['evaluations'], AgentGradeEvaluation::query()->count());
+        $this->assertSame($counts['suggestions'], SettlementGradeSuggestion::query()->count());
+    }
+
+    public function test_disabled_grade_evaluation_keeps_commission_generation_but_creates_no_grade_side_effects(): void
+    {
+        config(['settlements.agent_grade_evaluation_enabled' => false]);
+        $this->createCompletedOrder(10000);
+
+        $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
+        $settlement = Settlement::query()->where('settlement_run_id', $run->id)->firstOrFail();
+
+        $this->assertSame(1000, (int) $settlement->total_commission_krw);
+        $this->assertSame(0, AgentGradeEvaluation::query()->count());
+        $this->assertSame(0, SettlementGradeSuggestion::query()->count());
     }
 
     public function test_period_history_keeps_legacy_boundaries_before_natural_month_transition(): void
@@ -183,12 +223,11 @@ class PhaseFiveSettlementTest extends TestCase
             'generation_day' => null,
             'trigger_time' => '10:30:00',
         ]);
-        SettlementConfiguration::query()->create([
+        SettlementConfiguration::query()->whereDate('effective_from', '2026-09-01')->update([
             'boundary_day' => 15,
-            'generation_day' => 10,
+            'generation_day' => 5,
             'trigger_time' => '09:00:00',
             'timezone' => 'Asia/Shanghai',
-            'effective_from' => '2026-09-01',
         ]);
 
         $periods = $calculator->recentClosedPeriods(CarbonImmutable::parse('2026-09-20 12:00:00'), 4);
@@ -207,15 +246,15 @@ class PhaseFiveSettlementTest extends TestCase
     {
         $manager = app(SettlementRunManager::class);
 
-        $this->assertNull($manager->startIfDue(CarbonImmutable::parse('2026-09-09 23:59:00')));
-        $this->assertNull($manager->startIfDue(CarbonImmutable::parse('2026-09-10 08:59:00')));
+        $this->assertNull($manager->startIfDue(CarbonImmutable::parse('2026-09-04 23:59:00')));
+        $this->assertNull($manager->startIfDue(CarbonImmutable::parse('2026-09-05 08:59:00')));
 
-        $run = $manager->startIfDue(CarbonImmutable::parse('2026-09-10 09:00:00'));
+        $run = $manager->startIfDue(CarbonImmutable::parse('2026-09-05 09:00:00'));
 
         $this->assertNotNull($run);
         $this->assertSame('2026-08-01', $run->period_start->toDateString());
         $this->assertSame('2026-08-31', $run->period_end->toDateString());
-        $this->assertNull($manager->startIfDue(CarbonImmutable::parse('2026-09-10 09:01:00')));
+        $this->assertNull($manager->startIfDue(CarbonImmutable::parse('2026-09-05 09:01:00')));
         $this->assertDatabaseCount('settlement_runs', 1);
     }
 
@@ -224,7 +263,7 @@ class PhaseFiveSettlementTest extends TestCase
         $manager = app(SettlementRunManager::class);
 
         $august = $manager->startIfDue(CarbonImmutable::parse('2026-09-11 12:00:00'));
-        $september = $manager->startIfDue(CarbonImmutable::parse('2026-10-10 09:00:00'));
+        $september = $manager->startIfDue(CarbonImmutable::parse('2026-10-05 09:00:00'));
 
         $this->assertNotNull($august);
         $this->assertNotNull($september);
@@ -2252,6 +2291,7 @@ class PhaseFiveSettlementTest extends TestCase
                 'project_name' => '性能项目',
                 'amount_krw' => 10000,
                 'completed_on' => '2026-07-15',
+                'occurred_on' => '2026-07-15',
                 'owner_id' => $this->user->id,
                 'status' => 'completed',
                 'created_at' => $now,

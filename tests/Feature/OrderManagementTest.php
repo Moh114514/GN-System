@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Agent\Application\Contracts\AgentBusinessGroupAssignmentGateway;
 use App\Modules\Agent\Infrastructure\Models\Agent;
 use App\Modules\Agent\Infrastructure\Models\AgentGradeAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Agent\Infrastructure\Models\PolicyGrade;
 use App\Modules\Agent\Infrastructure\Models\PolicySystem;
+use App\Modules\Auth\Application\Contracts\BusinessGroupManagementGateway;
+use App\Modules\Auth\Domain\UserRole;
 use App\Modules\Config\Infrastructure\Models\DictionaryItem;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Infrastructure\Models\Customer;
@@ -28,7 +31,7 @@ class OrderManagementTest extends TestCase
 
     public function test_internal_user_can_open_order_center_from_primary_navigation(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
 
         $this->actingAs($user)->get(route('orders.index'))
             ->assertOk()
@@ -92,7 +95,7 @@ class OrderManagementTest extends TestCase
     public function test_pending_order_can_be_edited_and_detail_page_has_parent_navigation(): void
     {
         $this->seed(PhaseTwoReferenceDataSeeder::class);
-        $user = User::factory()->create();
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
         $institution = Institution::query()->firstOrFail();
         $agent = $this->agent();
         $customer = Customer::query()->create([
@@ -126,6 +129,8 @@ class OrderManagementTest extends TestCase
             ->test(OrderEdit::class, ['order' => $order->id])
             ->set('projectName', '更新后的项目')
             ->set('amountKrw', '120000')
+            ->set('unitPriceKrw', '120000')
+            ->set('reason', '修正订单项目和金额')
             ->call('save')
             ->assertHasNoErrors();
 
@@ -147,6 +152,7 @@ class OrderManagementTest extends TestCase
             ->set('treatmentProjectId', (string) $project->id)
             ->set('projectName', '手工篡改名称')
             ->set('translatorLanguageId', (string) $language->id)
+            ->set('reason', '改用标准项目和语种')
             ->call('save')
             ->assertHasNoErrors();
 
@@ -155,6 +161,7 @@ class OrderManagementTest extends TestCase
         Livewire::actingAs($user)
             ->test(OrderEdit::class, ['order' => $order->id])
             ->set('notes', '仅修改备注')
+            ->set('reason', '补充订单备注')
             ->call('save')
             ->assertHasNoErrors();
 
@@ -176,6 +183,77 @@ class OrderManagementTest extends TestCase
         $latestAudit = DB::table('activity_log')->where('log_name', 'order')->where('subject_id', $order->id)->where('event', 'updated')->latest('id')->value('properties');
         $this->assertStringContainsString('treatment_project_id', (string) $latestAudit);
         $this->assertStringContainsString('treatment_project_snapshot', (string) $latestAudit);
+    }
+
+    public function test_customer_service_cannot_open_order_edit_page(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent();
+        $customer = Customer::query()->create([
+            'code' => 'TEST-JG-CS-EDIT',
+            'name' => '客服编辑权限客户',
+            'source_agent_id' => $agent->id,
+            'owner_id' => $user->id,
+        ]);
+        $order = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'agent_id' => $agent->id,
+            'project_name' => '客服不可编辑订单',
+            'amount_krw' => 10000,
+            'status' => 'pending',
+            'owner_id' => $user->id,
+        ]);
+
+        $this->actingAs($user)->get(route('orders.edit', $order))->assertNotFound();
+    }
+
+    public function test_bd_can_edit_only_orders_for_assigned_agents(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $bd = User::factory()->create(['role' => UserRole::BdManager]);
+        $institution = Institution::query()->firstOrFail();
+        $assignedAgent = $this->agent();
+        $otherAgent = Agent::query()->create([
+            'agent_type_code_id' => $assignedAgent->agent_type_code_id,
+            'code' => 'JG-OUT-OF-SCOPE',
+            'name' => '范围外代理商',
+            'cooperation_status' => 'active',
+        ]);
+        $groups = app(BusinessGroupManagementGateway::class);
+        $groupId = $groups->create('PR5-SCOPE', 'PR5 scope', $admin->id, null)['id'];
+        $groups->assignMember($groupId, $bd->id, UserRole::BdManager->value, '2026-01-01', null, 'PR5 scope', $admin->id, null);
+        app(AgentBusinessGroupAssignmentGateway::class)->assign($assignedAgent->id, $groupId, '2026-01-01', null, 'PR5 scope', $admin->id, null);
+        $customer = Customer::query()->create([
+            'code' => 'PR5-SCOPE-CUSTOMER',
+            'name' => 'PR5 scope customer',
+            'source_agent_id' => $assignedAgent->id,
+            'owner_id' => $bd->id,
+        ]);
+        $assignedOrder = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'agent_id' => $assignedAgent->id,
+            'project_name' => 'assigned order',
+            'amount_krw' => 10000,
+            'status' => 'pending',
+            'owner_id' => $bd->id,
+        ]);
+        $outOfScopeOrder = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'agent_id' => $otherAgent->id,
+            'project_name' => 'out of scope order',
+            'amount_krw' => 10000,
+            'status' => 'pending',
+            'owner_id' => $bd->id,
+        ]);
+
+        $this->actingAs($bd)->get(route('orders.edit', $assignedOrder))->assertOk();
+        $this->actingAs($bd)->get(route('orders.edit', $outOfScopeOrder))->assertNotFound();
     }
 
     public function test_admin_can_cancel_soft_delete_restore_and_reopen_pending_order(): void

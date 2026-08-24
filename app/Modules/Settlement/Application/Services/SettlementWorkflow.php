@@ -6,9 +6,6 @@ use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
-use App\Modules\Order\Application\Contracts\SettlementOrderReader;
-use App\Modules\Settlement\Application\Exceptions\StructuredSettlementFailure;
-use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementGradeSuggestion;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
@@ -34,7 +31,7 @@ final readonly class SettlementWorkflow
         private SettlementAgentGateway $agents,
         private AuditRecorder $audit,
         private SettlementGenerator $generator,
-        private SettlementOrderReader $orders,
+        private SettlementCalculationService $calculation,
         private SettlementRunSummaryUpdater $summary,
         private SettlementFreshnessChecker $freshness,
         private SettlementGradeEvaluator $gradeEvaluator,
@@ -293,19 +290,11 @@ final readonly class SettlementWorkflow
 
             $periodStart = CarbonImmutable::parse($settlement->period_start);
             $periodEnd = CarbonImmutable::parse($settlement->period_end);
-            $orders = $this->orders->completedForAgent((int) $settlement->agent_id, $periodStart, $periodEnd);
-            $orderIds = array_values(array_map(static fn ($order): int => $order->orderId, $orders));
-            $commissions = empty($orderIds)
-                ? collect()
-                : OrderCommission::query()->whereIn('order_id', $orderIds)->get()->keyBy('order_id');
-            foreach ($orders as $order) {
-                if (! $commissions->has($order->orderId)) {
-                    throw new StructuredSettlementFailure('settlements.failure_reasons.missing_commission_snapshot', ['order_id' => $order->orderId]);
-                }
-            }
-
-            $totalConsumption = (int) array_sum(array_map(static fn ($order): int => $order->amountKrw, $orders));
-            $totalCommission = (int) $commissions->sum('amount_krw');
+            $calculation = $this->calculation->calculate((int) $settlement->agent_id, $periodStart, $periodEnd);
+            $orders = $calculation['orders'];
+            $commissions = $calculation['commissions'];
+            $totalConsumption = $calculation['total_consumption_krw'];
+            $totalCommission = $calculation['total_commission_krw'];
             $now = now();
             $snapshot = is_array($settlement->snapshot) ? $settlement->snapshot : [];
             $snapshot['generated_at'] = $now->toIso8601String();
@@ -319,7 +308,7 @@ final readonly class SettlementWorkflow
             ]);
             DB::table('settlement_items')->where('settlement_id', $settlement->id)->delete();
             foreach ($orders as $order) {
-                $commission = $commissions->get($order->orderId);
+                $commission = $commissions[$order->orderId];
                 DB::table('settlement_items')->insert([
                     'settlement_id' => $settlement->id,
                     'order_commission_id' => $commission->id,
@@ -331,6 +320,7 @@ final readonly class SettlementWorkflow
                             'id' => $order->orderId,
                             'customer_id' => $order->customerId,
                             'project_name' => $order->projectName,
+                            'occurred_on' => $order->completedOn->toDateString(),
                             'completed_on' => $order->completedOn->toDateString(),
                         ],
                     ], JSON_THROW_ON_ERROR),
@@ -339,9 +329,11 @@ final readonly class SettlementWorkflow
                 ]);
             }
 
-            $agent = $this->agents->forMonth((int) $settlement->agent_id, $periodEnd);
-            $recommended = $this->agents->recommendation((int) $settlement->agent_id, $periodEnd, $totalCommission);
-            $this->gradeEvaluator->evaluate($settlement, $agent, $recommended, $totalCommission);
+            if ((bool) config('settlements.agent_grade_evaluation_enabled', false)) {
+                $agent = $this->agents->forMonth((int) $settlement->agent_id, $periodEnd);
+                $recommended = $this->agents->recommendation((int) $settlement->agent_id, $periodEnd, $totalCommission);
+                $this->gradeEvaluator->evaluate($settlement, $agent, $recommended, $totalCommission);
+            }
 
             $newOrderIds = array_values(array_map(static fn ($order): int => $order->orderId, $orders));
             sort($newOrderIds);
@@ -465,6 +457,9 @@ final readonly class SettlementWorkflow
 
     public function reviewSuggestion(int $suggestionId, bool $accept, string $reason, int $actorId): void
     {
+        if (! (bool) config('settlements.agent_grade_evaluation_enabled', false)) {
+            throw new DomainException(__('settlements.errors.grade_evaluation_disabled'));
+        }
         DB::transaction(function () use ($suggestionId, $accept, $reason, $actorId): void {
             $suggestion = SettlementGradeSuggestion::query()->lockForUpdate()->findOrFail($suggestionId);
             if ($suggestion->status !== 'pending') {

@@ -1420,3 +1420,19 @@ The local branch has automated coverage for the flow and has not run this migrat
 business acceptance in UAT/Production. The local result must not be reported as target-environment
 verification. Rollback requires the normal release rollback procedure and a verified backup;
 never delete `institution_return_files`, `order_items`, or order fact columns manually.
+
+## PR5 order editing and settlement status (2026-08-24)
+
+The local feature branch now contains scoped order editing, occurred-date commission snapshot
+rebuilds, read-only settlement preview, the default monthly generation day 5, and a disabled-by-
+default grade-evaluation switch (`AGENT_GRADE_EVALUATION_ENABLED=false`). It adds
+`2026_08_24_000300_add_pr5_settlement_generation_day.php`; the migration preserves historical
+effective configuration and must be run only by the immutable RC release process after the normal
+environment-specific backup and preflight.
+
+No UAT or Production migration, restart, preview, generation, or business acceptance was run from
+this workstation. Before release, verify BD agent scope, optimistic-lock and settled-order locks,
+preview/formal amount equality, the monthly day-5 scheduler window, historical configuration
+boundaries, and the absence of grade side effects while commission generation remains active.
+Upgrade app, queue, and scheduler together, clear configuration cache, and use the normal rollback
+procedure with a verified backup if the release is rejected.

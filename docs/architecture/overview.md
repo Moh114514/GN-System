@@ -118,3 +118,16 @@ postoperative reminders, and audit record. SHA-256 and form UUID uniqueness prev
 processing. The `occurred_on` business date is independent from upload time, so cross-month
 uploads remain in the month in which the business occurred. Manual order creation and manual
 completion are no longer exposed by the Order pages.
+
+## PR5 order editing and settlement calculation
+
+Order edits are coordinated by the Order application service and lifecycle gateway. The gateway
+keeps customer, institution, source-agent, and original-file references immutable, validates item
+amounts, uses an optimistic-lock timestamp, records an audit diff, and rebuilds only unsettled
+commission snapshots in the same transaction. The Agent module exposes a narrow date-based
+business-attribution reader so the edited `occurred_on` date determines the saved group snapshot.
+
+Settlement preview and formal generation share the pure `SettlementCalculationService`; preview
+does not create settlement-side rows. Settlement readers use the order business date while keeping
+legacy completed-date snapshot keys for document compatibility. Grade evaluation is explicitly
+feature-gated and disabled by default through `AGENT_GRADE_EVALUATION_ENABLED`.

@@ -17,6 +17,14 @@ return [
     'history' => ['back' => '월말 정산 센터로 돌아가기', 'description' => '과거 가져오기로 생성된 정산 기록이며 현재 정산 절차에는 포함되지 않습니다.', 'search' => '에이전시 이름 또는 코드 검색', 'month' => '월', 'agent' => '에이전시', 'all_agents' => '모든 에이전시', 'status' => '상태', 'all_statuses' => '모든 상태', 'clear' => '필터 지우기', 'count' => '과거 기록 :count건', 'view' => '보기', 'empty' => '조건에 맞는 과거 정산이 없습니다.', 'columns' => ['month' => '월', 'agent' => '에이전시', 'consumption' => '소비액', 'commission' => '프로모션 비용', 'status' => '상태', 'action' => '작업']],
     'labels' => ['current' => '월말 정산', 'historical' => '이전 월말 정산', 'unknown_agent' => '에이전시', 'pending' => '검토 대기', 'date_to' => '~'],
     'center' => [
+        'preview' => '정산 미리보기',
+        'preview_title' => '정산 미리보기(저장하지 않음)',
+        'preview_description' => '정식 생성과 동일한 계산을 사용하며 배치, 정산서, 상세, 등급 평가 또는 알림을 생성하지 않습니다.',
+        'preview_ready' => '계산 완료',
+        'orders' => '주문 수',
+        'consumption' => '소비 금액',
+        'commission' => '프로모션 비용',
+        'preview_error' => '계산 실패',
         'outcome_pending' => '처리 대기',
         'outcome_generated' => '이번 배치 생성',
         'outcome_existing' => '기존 정산',
@@ -45,6 +53,7 @@ return [
     'refresh' => ['toast' => '정산 상세를 갱신하고 배치 집계와 감사 기록을 동기화했습니다.', 'audit' => '정산 상세 갱신', 'errors' => ['reason_required' => '정산 갱신 사유를 입력해야 합니다.', 'reason_too_long' => '갱신 사유는 2000자를 초과할 수 없습니다.', 'status_unavailable' => '검토 대기 또는 반려된 정산만 직접 갱신할 수 있습니다. 승인 또는 완료된 정산은 먼저 통제된 상태 수정을 진행하세요.', 'generation_required' => '현재 정산은 갱신 가능한 생성 완료 상세가 아닙니다. 생성 상태를 확인하세요.']],
     'notifications' => ['title' => '정산 생성 완료', 'body' => "기간: :from ~ :to\n\n에이전시: :agents곳\n\n프로모션 비용 합계: ₩ :total"],
     'errors' => [
+        'grade_evaluation_disabled' => '등급 평가, 제안 및 알림이 현재 일시 중지되었습니다.',
         'rejection_reason_required' => '정산 반려 사유를 입력해야 합니다.',
         'only_pending_review_reject' => '검토 대기 정산만 반려할 수 있습니다.',
         'invalid_approval_status' => '현재 정산 상태에서는 승인할 수 없습니다.',

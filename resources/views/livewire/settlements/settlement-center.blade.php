@@ -38,9 +38,21 @@
         @error('historicalPeriodEnd')<p class="mt-2 text-sm text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
     </section>@endif
 
+    @if ($previewResults !== [])
+        <section class="mb-6 rounded-2xl border border-teal-200 bg-teal-50 p-5 shadow-sm dark:border-teal-900 dark:bg-teal-950/30">
+            <h3 class="font-semibold">{{ __('settlements.center.preview_title') }}</h3>
+            <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{{ __('settlements.center.preview_description') }}</p>
+            <div class="crm-table-wrap mt-4"><table class="crm-table"><thead><tr><th>{{ __('settlements.center.agent') }}</th><th>{{ __('settlements.center.orders') }}</th><th>{{ __('settlements.center.consumption') }}</th><th>{{ __('settlements.center.commission') }}</th><th>{{ __('settlements.center.status') }}</th></tr></thead><tbody>
+                @foreach ($previewResults as $preview)
+                    <tr><td>{{ $preview['agent'] }}</td><td>{{ $preview['order_count'] }}</td><td>₩ {{ number_format($preview['consumption_krw']) }}</td><td>₩ {{ number_format($preview['commission_krw']) }}</td><td>{{ $preview['error'] ?? __('settlements.center.preview_ready') }}</td></tr>
+                @endforeach
+            </tbody></table></div>
+        </section>
+    @endif
+
     <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900" wire:poll.10s>
         <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-            <h3 class="font-semibold">{{ __('settlements.center.runs') }}</h3>
+            <div class="flex items-center gap-3"><h3 class="font-semibold">{{ __('settlements.center.runs') }}</h3><flux:button wire:click="preview" size="sm" variant="ghost">{{ __('settlements.center.preview') }}</flux:button></div>
             @if ($availablePeriods->isNotEmpty())
                 <flux:select class="sm:min-w-80" wire:model.live="selectedPeriodEnd" :label="__('settlements.center.selected_period')" size="sm">
                     @foreach ($availablePeriods as $period)

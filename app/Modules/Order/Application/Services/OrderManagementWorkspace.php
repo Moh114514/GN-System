@@ -148,6 +148,33 @@ final readonly class OrderManagementWorkspace
         $customer = $this->customers->customerForOrder((int) $order->customer_id);
         $institution = $this->institutions->institutionsByIds([(int) $order->institution_id])[(int) $order->institution_id] ?? null;
         $agent = $order->agent_id === null ? null : ($this->agents->agentsByIds([(int) $order->agent_id])[(int) $order->agent_id] ?? null);
+        $items = $order->items()->orderBy('id')->get()->map(fn ($item): array => [
+            'id' => (int) $item->id,
+            'treatment_project_id' => $item->treatment_project_id === null ? null : (int) $item->treatment_project_id,
+            'project_name' => (string) $item->project_snapshot,
+            'specification' => $item->specification,
+            'quantity' => (string) $item->quantity,
+            'unit_price_krw' => (int) $item->unit_price_krw,
+            'amount_krw' => (int) $item->amount_krw,
+            'notes' => $item->notes,
+        ])->all();
+        if ($items === []) {
+            $items = [[
+                'id' => null,
+                'treatment_project_id' => $order->treatment_project_id === null ? null : (int) $order->treatment_project_id,
+                'project_name' => (string) $order->project_name,
+                'specification' => null,
+                'quantity' => '1',
+                'unit_price_krw' => (int) $order->amount_krw,
+                'amount_krw' => (int) $order->amount_krw,
+                'notes' => $order->notes,
+            ]];
+        }
+        $context = $this->access->current();
+        $canEdit = ($context->isSuperAdmin() || ($context->isBdManager() && $context->canViewAgent((int) $order->agent_id)))
+            && in_array((string) $order->status, ['pending', 'completed'], true)
+            && $order->deleted_at === null
+            && ($this->financials->forOrder((int) $order->id)['settlement'] ?? null) === null;
 
         return [
             'id' => (int) $order->id,
@@ -170,6 +197,8 @@ final readonly class OrderManagementWorkspace
             'translator_language_id' => $order->translator_language_id,
             'treatment_project_id' => $order->treatment_project_id,
             'notes' => $order->notes,
+            'items' => $items,
+            'can_edit' => $canEdit,
             'financial' => $this->financials->forOrder((int) $order->id),
             'reminders' => $this->reminders->forOrder((int) $order->id),
             'audit' => array_map(fn ($entry): array => [
@@ -186,9 +215,10 @@ final readonly class OrderManagementWorkspace
     {
         $this->assertVisible($data->orderId);
         $context = $this->access->current();
-        if (! $context->isSuperAdmin()
-            && (! $context->isCustomerService() || $context->agentIds !== [])
-            && ! $context->canViewAgent($data->agentId)) {
+        if (! $context->isSuperAdmin() && ! $context->isBdManager()) {
+            abort(404);
+        }
+        if ($context->isBdManager() && ! $context->canViewAgent($data->agentId)) {
             abort(404);
         }
         $project = $data->treatmentProjectId === null
@@ -197,6 +227,10 @@ final readonly class OrderManagementWorkspace
         $language = $data->translatorLanguageId === null
             ? null
             : $this->dictionary->activeItem($data->translatorLanguageId, 'translator_language');
+        $items = $data->items;
+        if ($project !== null && isset($items[0])) {
+            $items[0]['project_name'] = (string) $project['name'];
+        }
 
         return $this->lifecycle->updatePending(new OrderUpdateData(
             orderId: $data->orderId,
@@ -209,6 +243,10 @@ final readonly class OrderManagementWorkspace
             treatmentProjectId: $project['id'] ?? null,
             translatorLanguageId: $language['id'] ?? null,
             translatorLanguageName: $language['name'] ?? null,
+            occurredOn: $data->occurredOn,
+            items: $items,
+            reason: $data->reason,
+            expectedUpdatedAt: $data->expectedUpdatedAt,
         ), $actorId, $ipAddress);
     }
 

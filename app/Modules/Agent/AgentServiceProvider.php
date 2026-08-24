@@ -3,6 +3,7 @@
 namespace App\Modules\Agent;
 
 use App\Modules\Agent\Application\Contracts\AgentAccessScopeReader;
+use App\Modules\Agent\Application\Contracts\AgentBusinessAttributionReader;
 use App\Modules\Agent\Application\Contracts\AgentBusinessGroupAssignmentGateway;
 use App\Modules\Agent\Application\Contracts\AgentCommissionContextReader;
 use App\Modules\Agent\Application\Contracts\AgentImportGateway;
@@ -12,6 +13,7 @@ use App\Modules\Agent\Application\Contracts\ReferenceConfigurationImportGateway;
 use App\Modules\Agent\Application\Contracts\ReportAgentReader;
 use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
 use App\Modules\Agent\Application\Services\DatabaseAgentAccessScopeReader;
+use App\Modules\Agent\Application\Services\DatabaseAgentBusinessAttributionReader;
 use App\Modules\Agent\Application\Services\DatabaseAgentBusinessGroupAssignmentGateway;
 use App\Modules\Agent\Application\Services\DatabaseAgentCommissionContextReader;
 use App\Modules\Agent\Application\Services\DatabaseAgentImportGateway;
@@ -36,6 +38,7 @@ class AgentServiceProvider extends ServiceProvider
         $this->app->bind(ReferenceConfigurationImportGateway::class, DatabaseReferenceConfigurationImportGateway::class);
         $this->app->bind(AgentCommissionContextReader::class, DatabaseAgentCommissionContextReader::class);
         $this->app->bind(AgentBusinessGroupAssignmentGateway::class, DatabaseAgentBusinessGroupAssignmentGateway::class);
+        $this->app->bind(AgentBusinessAttributionReader::class, DatabaseAgentBusinessAttributionReader::class);
         $this->app->bind(AgentAccessScopeReader::class, DatabaseAgentAccessScopeReader::class);
         $this->app->bind(SettlementAgentGateway::class, DatabaseSettlementAgentGateway::class);
         $this->app->bind(ReportAgentReader::class, DatabaseReportAgentReader::class);

@@ -46,6 +46,14 @@ return [
         'date_to' => '至',
     ],
     'center' => [
+        'preview' => '预览月结',
+        'preview_title' => '月结预览（不写入）',
+        'preview_description' => '预览复用正式生成计算，不创建批次、结算单、明细、等级评估或通知。',
+        'preview_ready' => '计算成功',
+        'orders' => '订单数',
+        'consumption' => '消费金额',
+        'commission' => '推广费',
+        'preview_error' => '计算失败',
         'outcome_pending' => '待处理',
         'outcome_generated' => '本批生成',
         'outcome_existing' => '已有月结',
@@ -249,6 +257,7 @@ return [
         'body' => "周期：:from 至 :to\n\n代理商：:agents 家\n\n推广费合计：₩ :total",
     ],
     'errors' => [
+        'grade_evaluation_disabled' => '当前已暂停等级评估、建议和通知。',
         'rejection_reason_required' => '驳回月结必须填写原因。',
         'only_pending_review_reject' => '只有待审核月结可以驳回。',
         'invalid_approval_status' => '当前月结状态不可审核通过。',

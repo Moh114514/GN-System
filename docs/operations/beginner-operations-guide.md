@@ -917,6 +917,20 @@ The current `feature/business-groups-and-roles` worktree also contains PR2 permi
 
 There is no PR2 database migration. This is a local feature-branch result only: it is not merged and has not been checked in UAT/Production. Do not manually change server code or tables. A future release must use the normal RC deployment flow and verify the four role identities, cross-group links, Livewire actions, file downloads, export permissions, and dashboard separation in the target environment.
 
+## PR5 order and settlement status (2026-08-24)
+
+PR5 is currently local branch work only. It adds scoped order editing, a new migration
+`2026_08_24_000300_add_pr5_settlement_generation_day.php`, settlement preview without database
+writes, and the default generation day 5. Grade evaluation is off by default with
+`AGENT_GRADE_EVALUATION_ENABLED=false`; commission generation still runs.
+
+Before release, take the normal backup and let the RC deployment process run the migration. Do not
+edit production tables manually. In UAT, check that BD sees and edits only assigned-agent orders,
+settled orders cannot be edited, preview totals equal formal totals, the scheduler waits for the
+day-5 window, old effective configurations still use their historical day, and no grade records or
+notifications are created while commission records are created. UAT and Production are not
+verified from this computer.
+
 ## PR3 客户负责人移交与状态回退（2026-08-24）
 
 当前电脑上的 `feature/business-groups-and-roles` 还包含 PR3，但没有推送、合入或部署。PR3 新增数据库 migration，服务器不能直接手工改表；以后发布时要按正常 RC 流程先备份，再由发布脚本执行 migration，并同时更新 app、queue、scheduler。
