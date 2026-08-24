@@ -11,6 +11,15 @@
 本页只描述仓库中可以验证的状态。未来规划见 `docs/source/`，不能据此页之外的
 规划内容推断某项能力已经存在。
 
+## 新规划 PR7 收尾状态（2026-08-24）
+
+PR7 已补齐当前 feature worktree 的收尾文档：根 README、文档导航、架构概览、模块边界、
+Customer/Agent/Order/Settlement/Report/Auth 模块说明、ADR-0010，以及角色/业务组/代理商映射、
+只读迁移预检、备份、抽样、回退和恢复手册。建议大版本从 `v0.6.0-rc.1` 开始，但本机没有
+处理 `develop` 与 `main` 的分叉、合并、推送、标签、镜像构建、UAT/Production migration 或
+人工验收；这些仍是发布前置条件。完整执行顺序见
+[PR7 UAT 迁移与发布收尾手册](operations/pr7-uat-migration-runbook.md)。
+
 ## 阶段结论
 
 - 2026-08-24 当前工作区完成最新规划 PR6：新增版本化 BD 提成规则、按 `occurred_on` 和不可变业务归属快照的季度预览/生成/审核/确认、人工调整审计、BD 自身范围查看、超级管理员全量审核，以及确认后订单更正差额转入后续季度；新增 Dashboard/报表入口和 PR6 Feature 测试。当前默认口径为订单金额 KRW × 基点费率，产品确认项通过新增规则版本承接；本 PR 新增 migration，UAT/Production 未验证。

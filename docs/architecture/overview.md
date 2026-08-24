@@ -29,7 +29,7 @@ MySQL 内容只是历史备选，不是当前支持矩阵。
 - `database/`：迁移、Factory 和 Seeder
 
 Auth 已有完整认证实现；Customer 已交付全生命周期页面；Agent 已交付档案、政策
-等级与配置页面；Order 与 Settlement 已交付最小订单完成、推广费核算和月结审核
+等级与配置页面；Order 与 Settlement 已交付机构回传正式订单、推广费核算和月结审核
 闭环；Reminder 已交付面向内部员工的主动提醒中心；Report 已交付查询、看板和
 导出协调；Config 已交付统一配置目录、用户管理协调和配置历史聚合。模块现状详见
 [项目状态](../project-status.md)，隔离规则详见
@@ -60,7 +60,7 @@ Application Contract 在单一事务内提交和回滚。私有源文件应用�
 ## 代理商订单与推广费
 
 Agent 保存代理商、类型、政策等级及月度生效历史；Settlement 保存等级机构固定
-基点费率、代理商机构/全机构特批及订单推广费快照。Order 完成订单时使用同步
+基点费率、代理商机构/全机构特批及订单推广费快照。Order 在机构固定表单回传成功时使用同步
 
 PR6 在 Settlement 内新增版本化 BD 提成规则和季度事实。Settlement 通过 Order 的
 `BdCommissionOrderReader` 读取按 `occurred_on` 的完成订单，订单的
@@ -68,7 +68,9 @@ PR6 在 Settlement 内新增版本化 BD 提成规则和季度事实。Settlemen
 审核确认和更正差额均由 Settlement 自己持久化。Order 只通过 Settlement 的
 `BdCommissionCorrectionGateway` 通知已确认季度的订单更正，不直接写 Settlement 表。
 Application Contract 在同一 PostgreSQL 事务中核算和审计；失败时订单完成一并回滚。
-当前所有订单均归属代理商并产生推广费。当前没有领域事件或异步核算。
+当前所有订单均归属代理商并产生推广费。该跨模块事实规则由
+[ADR-0010](../adr/0010-formal-order-facts-and-bd-commission-history.md) 固化；当前没有领域事件
+或异步核算。
 
 ## 月结、文档与主动提醒
 
@@ -137,3 +139,11 @@ Settlement preview and formal generation share the pure `SettlementCalculationSe
 does not create settlement-side rows. Settlement readers use the order business date while keeping
 legacy completed-date snapshot keys for document compatibility. Grade evaluation is explicitly
 feature-gated and disabled by default through `AGENT_GRADE_EVALUATION_ENABLED`.
+
+## PR7 发布收尾边界
+
+新规划 PR1–PR6 的代码在当前 feature worktree 中完成，但尚未合入 `develop`/`main`，也没有
+UAT/Production migration 或人工验收结论。发布必须沿
+`feature -> develop -> main -> v0.6.0-rc.1 -> UAT -> v0.6.0` 执行，并在 UAT 先完成角色、业务组、
+代理商归属和订单事实预检。具体备份、迁移、抽样和恢复步骤见
+[PR7 UAT 迁移与发布收尾手册](../operations/pr7-uat-migration-runbook.md)。

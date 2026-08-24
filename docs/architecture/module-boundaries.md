@@ -5,7 +5,8 @@
 > [ADR-0004](../adr/0004-application-import-contracts.md)、
 > [ADR-0005](../adr/0005-daily-application-contracts.md)、
 > [ADR-0006](../adr/0006-synchronous-order-commission-contract.md)、
-> [ADR-0007](../adr/0007-phase-five-settlement-reminder-processing.md)
+ > [ADR-0007](../adr/0007-phase-five-settlement-reminder-processing.md)、
+ > [ADR-0010](../adr/0010-formal-order-facts-and-bd-commission-history.md)
 
 ## 当前模块
 
@@ -137,3 +138,9 @@ commission contracts; it does not write Settlement models directly. Settlement c
 is shared by preview and formal generation. Settlement preview has no persistence side effects.
 The grade pause is configuration-driven and does not remove policy, grade, assignment, commission,
 or historical settlement capabilities.
+
+## PR7 发布边界
+
+PR1–PR6 的边界实现仍属于当前 feature worktree，未改变服务器上的已发布版本。迁移、备份、
+角色与业务组映射、订单历史快照抽样和恢复方案由发布收尾手册管理；不能通过直接 SQL 写入跨模块
+表来完成 UAT 准备。长期决策见 [ADR-0010](../adr/0010-formal-order-facts-and-bd-commission-history.md)。

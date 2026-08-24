@@ -16,7 +16,8 @@
 [小白运维指南](beginner-operations-guide.md)。版本标签与镜像晋级的细节见
 [发布管理手册](release-management.md)，生产首次部署和灾难恢复的原则见
 [生产部署与恢复](production-deployment.md)，Phase 5 业务验收见
-[Phase 5 UAT 验收手册](phase-five-uat-acceptance.md)。GHCR 访问不稳定时，按
+[Phase 5 UAT 验收手册](phase-five-uat-acceptance.md)；新规划 PR1–PR6 的角色映射、迁移预检和
+恢复收尾见 [PR7 UAT 迁移与发布收尾手册](pr7-uat-migration-runbook.md)。GHCR 访问不稳定时，按
 [局域网离线镜像部署](offline-deployment.md)执行。
 
 出现冲突时，按以下顺序确认事实：
@@ -118,6 +119,7 @@ GitHub CI 和 GHCR 是发布基础设施，不是可登录的业务环境。
 | 2026-08-14，当前 `develop` | 工作区未发布 | PR1–PR6 已加入：客户/订单归属收敛、客户状态树、提醒 UI 紧凑化、指定节假日客服提醒、Dashboard 数据下钻及自然月月结生成 | PR1 含不可逆 migration，PR6 新增 `2026_08_14_000200_add_generation_day_to_settlement_configurations`；发布前按完整门禁执行，备份并核对 PR1/PR6 数据前置条件；UAT/Production 需人工验收状态树、提醒页面、指定日期规则、Dashboard 日期范围跳转和月结生成时间 |
 | 2026-08-17，当前 `develop` | 工作区未发布 | PR7 让月结中心默认展示最新已生成周期并支持周期切换，历史归档改用业务日期重叠查询；已结清详情保留文档下载，历史 `paid`/`reconciled` 月结可在只读详情按需生成并下载 Word/PDF | 不新增 migration；UAT 需核对周期下拉、业务日期边界、已结清详情文档下载及历史文档生成后状态不变；本机结果不能替代目标环境验证 |
 | 2026-08-24，`feature/business-groups-and-roles` | 工作区未发布 | 新规划 PR1 增加用户角色兼容回填、业务组/成员有效期历史、代理商业务组有效期历史及配置管理；新增 `2026_08_21_000100_add_roles_business_groups_and_agent_assignments` migration | 仅完成本地开发和自动化验证，未合入 `develop`，未部署 UAT/Production。正式发布前必须备份数据库，按 RC 流程运行 migration，并人工核对角色、业务组成员、代理商归属和未归属完整性；本机结果不能替代目标环境验收 |
+| 2026-08-24，`feature/business-groups-and-roles` | 工作区未发布 | 新规划 PR7 完成 README、架构/模块文档、替代 ADR、UAT 角色映射、只读预检、备份迁移、抽样及回退/恢复手册；建议 `v0.6.0-rc.1` | 未处理 `develop`/`main` 分叉，未创建 RC，未推送、部署或执行 UAT/Production migration；发布前必须按 PR7 手册完成完整门禁、备份、映射、迁移和人工验收 |
 
 当前 `main` 高于 `v0.5.0-rc.8`。服务器上的 `releases/current` 和
 `history.tsv` 才能证明 UAT/Production 实际运行版本；本地 Git 日志不能证明目标环境已经升级。

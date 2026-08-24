@@ -49,5 +49,16 @@
 
 当前已实现待完成订单编辑、取消、软删除、回收站恢复、订单详情、版本化机构模板、
 私有原始文件下载和机构回传原子入账；历史订单迁移仍要求先通过 pending/缺日期/缺代理商/
-缺推广费快照/不可映射状态预检。退款、已完成订单更正/冲正、已结算订单反结算以及 Settlement
-已结算订单反结算、退款和 Settlement 完整 CRUD 仍不在本阶段；UAT/Production migration、历史数据回填和人工业务验收尚未完成。
+缺推广费快照/不可映射状态预检。退款、完整财务冲正、已结算订单反结算和 Settlement 完整 CRUD
+仍不在本阶段；UAT/Production migration、历史数据回填和人工业务验收尚未完成。
+
+## PR6 BD 提成事实协作
+
+机构回传成功形成正式订单时，Order 将 `occurred_on` 和发生日对应的代理商、业务组、BD 成员
+写入 `business_attribution_snapshot`。Settlement 通过 `BdCommissionOrderReader` 按订单
+事实生成季度提成，订单更正只通过 `BdCommissionCorrectionGateway` 通知已确认季度的差额；
+Order 不直接写 Settlement 表。季度规则、明细、确认和调整记录由 Settlement 独占，历史订单
+不会因为当前业务组或 BD 归属变化而重新解释。
+
+该边界和正式订单入口见
+[ADR-0010](../adr/0010-formal-order-facts-and-bd-commission-history.md)。

@@ -19,7 +19,8 @@
 
 新版本发布、数据库恢复、证书更换等工作，请按照
 [GN-System 完整运维手册](operations-manual.md)执行。不要只看本页的零散命令完成
-发布或恢复。
+发布或恢复。新规划 PR1–PR6 的角色映射、迁移预检和恢复步骤还要先读
+[PR7 UAT 迁移与发布收尾手册](pr7-uat-migration-runbook.md)。
 
 ## 1. 先认识几个词
 
@@ -946,3 +947,10 @@ verified from this computer.
 本机测试已通过；服务器 UAT 和正式环境还没有执行迁移或人工验收。服务器验收时要用测试账号
 检查季度边界、BD/代理商中途转移、重复订单、草稿重算、确认锁定、人工调整审计、越权访问和
 订单更正差额是否进入后续季度。
+
+## PR7 发布收尾提示
+
+PR1–PR6 仍是本机 feature worktree 的未发布内容。小白运维人员不要在服务器上运行
+`git pull`、手工 migration、手工 SQL 映射或 `docker compose down -v`。角色、业务组和代理商
+归属必须在备份后按目标 RC 的页面和 Application 约束配置；迁移失败时停止写入并联系发布负责人，
+按 PR7 手册选择兼容版本回退或经过验证的备份恢复。当前 UAT/Production 仍未由本机验证。
