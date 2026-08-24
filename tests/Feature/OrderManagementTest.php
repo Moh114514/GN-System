@@ -225,7 +225,7 @@ class OrderManagementTest extends TestCase
         ]);
         $groups = app(BusinessGroupManagementGateway::class);
         $groupId = $groups->create('PR5-SCOPE', 'PR5 scope', $admin->id, null)['id'];
-        $groups->assignMember($groupId, $bd->id, UserRole::BdManager->value, '2026-01-01', null, 'PR5 scope', $admin->id, null);
+        $groups->assignMember($groupId, $bd->id, '2026-01-01', null, 'PR5 scope', $admin->id, null);
         app(AgentBusinessGroupAssignmentGateway::class)->assign($assignedAgent->id, $groupId, '2026-01-01', null, 'PR5 scope', $admin->id, null);
         $customer = Customer::query()->create([
             'code' => 'PR5-SCOPE-CUSTOMER',
@@ -477,7 +477,7 @@ class OrderManagementTest extends TestCase
     {
         $groups = app(BusinessGroupManagementGateway::class);
         $groupId = $groups->create('ORDER-'.$ownerId.'-'.$agent->id, 'Order test scope', $ownerId, null)['id'];
-        $groups->assignMember($groupId, $ownerId, UserRole::CustomerService->value, '2026-01-01', null, 'Order test scope', $ownerId, null);
+        $groups->assignMember($groupId, $ownerId, '2026-01-01', null, 'Order test scope', $ownerId, null);
         app(AgentBusinessGroupAssignmentGateway::class)->assign($agent->id, $groupId, '2026-01-01', null, 'Order test scope', $ownerId, null);
     }
 }

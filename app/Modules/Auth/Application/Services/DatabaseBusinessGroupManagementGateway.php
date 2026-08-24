@@ -76,8 +76,8 @@ final readonly class DatabaseBusinessGroupManagementGateway implements BusinessG
 
         return User::query()
             ->where('is_active', true)
-            ->where('invitation_status', 'accepted')
             ->where('is_super_admin', false)
+            ->whereIn('role', [UserRole::BdManager->value, UserRole::CustomerService->value])
             ->whereNotExists(function ($query) use ($date): void {
                 $query->selectRaw('1')
                     ->from('business_group_memberships')
@@ -140,17 +140,12 @@ final readonly class DatabaseBusinessGroupManagementGateway implements BusinessG
     public function assignMember(
         int $businessGroupId,
         int $userId,
-        string $memberRole,
         string $effectiveFrom,
         ?string $effectiveUntil,
         string $reason,
         int $actorId,
         ?string $ipAddress,
     ): void {
-        $role = UserRole::tryFrom($memberRole);
-        if ($role === null || ! $role->isBusinessRole()) {
-            throw new DomainException(__('auth.errors.business_group_member_role_invalid'));
-        }
         $from = $this->parseDate($effectiveFrom);
         $until = $effectiveUntil === null || trim($effectiveUntil) === '' ? null : $this->parseDate($effectiveUntil);
         $reason = trim($reason);
@@ -161,17 +156,18 @@ final readonly class DatabaseBusinessGroupManagementGateway implements BusinessG
             throw new DomainException(__('auth.errors.business_group_reason_required'));
         }
 
-        DB::transaction(function () use ($businessGroupId, $userId, $role, $from, $until, $reason, $actorId, $ipAddress): void {
+        DB::transaction(function () use ($businessGroupId, $userId, $from, $until, $reason, $actorId, $ipAddress): void {
             $group = BusinessGroup::query()->lockForUpdate()->findOrFail($businessGroupId);
             if (! $group->is_active) {
                 throw new DomainException(__('auth.errors.business_group_inactive'));
             }
             $user = User::query()->lockForUpdate()->findOrFail($userId);
-            if (! $user->is_active || $user->invitation_status !== 'accepted') {
+            if (! $user->is_active) {
                 throw new DomainException(__('auth.errors.business_group_user_inactive'));
             }
-            if ($user->isSuperAdmin() || $user->roleValue() !== $role) {
-                throw new DomainException(__('auth.errors.business_group_user_role_mismatch'));
+            $role = $user->roleValue();
+            if (! $role->isBusinessRole()) {
+                throw new DomainException(__('auth.errors.business_group_member_role_invalid'));
             }
 
             $overlap = BusinessGroupMembership::query()

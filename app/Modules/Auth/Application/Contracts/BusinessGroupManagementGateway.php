@@ -16,7 +16,6 @@ interface BusinessGroupManagementGateway extends BusinessGroupReferenceReader
     public function assignMember(
         int $businessGroupId,
         int $userId,
-        string $memberRole,
         string $effectiveFrom,
         ?string $effectiveUntil,
         string $reason,

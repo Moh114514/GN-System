@@ -86,9 +86,9 @@ final readonly class ConfigurationUserCoordinator
         return $this->businessGroups->create($code, $name, $actorId, $ipAddress);
     }
 
-    public function assignBusinessGroupMember(int $businessGroupId, int $userId, string $memberRole, string $effectiveFrom, ?string $effectiveUntil, string $reason, int $actorId, ?string $ipAddress): void
+    public function assignBusinessGroupMember(int $businessGroupId, int $userId, string $effectiveFrom, ?string $effectiveUntil, string $reason, int $actorId, ?string $ipAddress): void
     {
-        $this->businessGroups->assignMember($businessGroupId, $userId, $memberRole, $effectiveFrom, $effectiveUntil, $reason, $actorId, $ipAddress);
+        $this->businessGroups->assignMember($businessGroupId, $userId, $effectiveFrom, $effectiveUntil, $reason, $actorId, $ipAddress);
     }
 
     public function endBusinessGroupMembership(int $membershipId, string $effectiveUntil, string $reason, int $actorId, ?string $ipAddress): void

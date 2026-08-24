@@ -73,6 +73,7 @@ Customer/Agent/Order/Settlement/Report/Auth 模块说明、ADR-0010，以及角�
   支持从已生成周期下拉切换并在进入详情返回时保留选择；历史月结归档改为业务日期起止和周期重叠查询；月结中心代理商行支持直接下载或按需生成
   Word/PDF 文档；补齐已结清详情继续下载审核时生成的文档回归测试。本 PR 不新增 migration，UAT/Production 未验证。
 - 当前 `feature/business-groups-and-roles` 完成新规划 PR1：增加 `UserRole` 与 `users.role` 兼容回填，落地业务组、成员有效期历史和代理商业务组有效期历史，配置中心支持角色、业务组、成员及代理商归属管理，并展示未归属用户/代理商完整性检查结果。数据库使用 PostgreSQL exclusion constraint 防止同一业务组多个有效 BD、同一用户重叠成员期和同一代理商重叠归属期；本 PR 不修改订单主流程或 PR2 数据范围执行。已通过 PR1 定向测试和相关回归测试，尚未合入 `develop`，UAT/Production 未验证。
+- 2026-08-24 完成该 feature 的开发环境集成修复：业务组成员配置页不再编辑重复的“成员角色”，服务端从 `users.role` 推导并写入 `business_group_memberships.member_role` 历史快照；已创建、启用但尚未接受邀请的合法业务角色用户可以提前加入业务组，但其 `AccessContext` 仍为 deny-all，客户负责人、提醒负责人和转派目标等业务操作候选人继续要求启用且已接受邀请。开发库 migration 已全部执行，`/bd-commissions` 当前可正常打开；已用 `admin`、`ttt`、`zzz` 完成成员预配置流程核验。后端完整门禁为 403 个测试通过，前端构建通过，UAT/Production 未验证。
 - 历史 `feature/customer-status-tree` 分支曾完成 PR2：Customer 详情增加只读客户状态流转可视化，
   直接读取现有阶段、状态、流转和该客户的状态历史，区分已经过、当前、可继续、暂不可达及停用节点，
   并用箭头展示允许的流转关系；

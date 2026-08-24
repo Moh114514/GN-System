@@ -7,7 +7,6 @@ use App\Modules\Agent\Application\Contracts\AgentBusinessGroupAssignmentGateway;
 use App\Modules\Agent\Infrastructure\Models\Agent;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Auth\Application\Contracts\BusinessGroupManagementGateway;
-use App\Modules\Auth\Domain\UserRole;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Config\Infrastructure\Models\NotificationRecipientConfig;
 use App\Modules\Customer\Infrastructure\Models\Customer;
@@ -64,7 +63,7 @@ class PhaseFiveReminderTest extends TestCase
         $groups = app(BusinessGroupManagementGateway::class);
         $groupId = $groups->create('REMINDER-TEST', 'Reminder test group', $this->admin->id, null)['id'];
         foreach ([$this->user, $this->other] as $member) {
-            $groups->assignMember($groupId, $member->id, UserRole::CustomerService->value, '2026-01-01', null, 'Reminder test scope', $this->admin->id, null);
+            $groups->assignMember($groupId, $member->id, '2026-01-01', null, 'Reminder test scope', $this->admin->id, null);
         }
         $this->agent = Agent::query()->create([
             'agent_type_code_id' => AgentTypeCode::query()->where('code', 'JG')->value('id'),

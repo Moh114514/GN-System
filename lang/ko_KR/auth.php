@@ -22,7 +22,7 @@ return [
         'business_group_date_order_invalid' => '종료일은 적용 시작일보다 빠를 수 없습니다.',
         'business_group_reason_required' => '업무 그룹 소속 변경 사유를 입력하세요.',
         'business_group_inactive' => '대상 업무 그룹이 활성 상태가 아닙니다.',
-        'business_group_user_inactive' => '비활성 사용자나 초대를 완료하지 않은 사용자는 새 구성원이 될 수 없습니다.',
+        'business_group_user_inactive' => '비활성 사용자는 새 구성원이 될 수 없습니다.',
         'business_group_user_role_mismatch' => '구성원 역할은 사용자의 현재 역할과 일치해야 합니다.',
         'business_group_bd_overlap' => '같은 업무 그룹의 유효 BD 관리자 기간은 겹칠 수 없습니다.',
         'business_group_user_overlap' => '같은 사용자의 유효 업무 그룹 기간은 겹칠 수 없습니다.',

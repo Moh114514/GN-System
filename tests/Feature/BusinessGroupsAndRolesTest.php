@@ -6,7 +6,10 @@ use App\Models\User;
 use App\Modules\Agent\Application\Contracts\AgentBusinessGroupAssignmentGateway;
 use App\Modules\Agent\Infrastructure\Models\Agent;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Auth\Application\Contracts\BusinessGroupManagementGateway;
+use App\Modules\Auth\Application\Contracts\BusinessGroupMembershipReader;
+use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
 use App\Modules\Auth\Domain\UserRole;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -35,11 +38,11 @@ class BusinessGroupsAndRolesTest extends TestCase
         $group = app(BusinessGroupManagementGateway::class)->create('NORTH', '北区业务组', $admin->id, null);
         $gateway = app(BusinessGroupManagementGateway::class);
 
-        $gateway->assignMember($group['id'], $firstBd->id, UserRole::BdManager->value, '2026-08-01', null, '初始配置', $admin->id, null);
+        $gateway->assignMember($group['id'], $firstBd->id, '2026-08-01', null, '初始配置', $admin->id, null);
 
         $this->expectException(DomainException::class);
         $this->expectExceptionMessage('同一业务组的有效 BD 经理期间不能重叠。');
-        $gateway->assignMember($group['id'], $secondBd->id, UserRole::BdManager->value, '2026-08-15', null, '重复配置', $admin->id, null);
+        $gateway->assignMember($group['id'], $secondBd->id, '2026-08-15', null, '重复配置', $admin->id, null);
     }
 
     public function test_business_group_membership_rejects_overlapping_group_for_same_user_and_inactive_user(): void
@@ -51,18 +54,76 @@ class BusinessGroupsAndRolesTest extends TestCase
         $first = $gateway->create('NORTH', '北区业务组', $admin->id, null);
         $second = $gateway->create('SOUTH', '南区业务组', $admin->id, null);
 
-        $gateway->assignMember($first['id'], $user->id, UserRole::CustomerService->value, '2026-08-01', null, '初始配置', $admin->id, null);
+        $gateway->assignMember($first['id'], $user->id, '2026-08-01', null, '初始配置', $admin->id, null);
 
         try {
-            $gateway->assignMember($second['id'], $user->id, UserRole::CustomerService->value, '2026-09-01', null, '重复配置', $admin->id, null);
+            $gateway->assignMember($second['id'], $user->id, '2026-09-01', null, '重复配置', $admin->id, null);
             $this->fail('Expected overlapping user membership to be rejected.');
         } catch (DomainException $exception) {
             $this->assertSame('同一用户的有效业务组期间不能重叠。', $exception->getMessage());
         }
 
         $this->expectException(DomainException::class);
-        $this->expectExceptionMessage('停用或未完成邀请的用户不能成为新成员。');
-        $gateway->assignMember($second['id'], $inactive->id, UserRole::CustomerService->value, '2026-08-01', null, '停用账号', $admin->id, null);
+        $this->expectExceptionMessage('停用用户不能成为新成员。');
+        $gateway->assignMember($second['id'], $inactive->id, '2026-08-01', null, '停用账号', $admin->id, null);
+    }
+
+    public function test_membership_role_is_derived_and_pending_invitation_can_be_preconfigured(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $pending = User::factory()->create([
+            'name' => '待接受客服',
+            'role' => UserRole::CustomerService,
+            'invitation_status' => 'sent',
+        ]);
+        $group = app(BusinessGroupManagementGateway::class)->create('PRECONFIG', '预配置业务组', $admin->id, null);
+        $gateway = app(BusinessGroupManagementGateway::class);
+
+        $gateway->assignMember($group['id'], $pending->id, '2026-08-24', null, '邀请发送后提前配置', $admin->id, null);
+
+        $this->assertDatabaseHas('business_group_memberships', [
+            'business_group_id' => $group['id'],
+            'user_id' => $pending->id,
+            'member_role' => UserRole::CustomerService->value,
+        ]);
+        $this->assertEmpty(array_filter(
+            app(InternalUserReferenceReader::class)->eligibleUsers(),
+            static fn (array $user): bool => (int) $user['id'] === (int) $pending->id,
+        ));
+        $this->assertNotContains(
+            $pending->id,
+            app(BusinessGroupMembershipReader::class)->activeCustomerServiceUserIds([$group['id']], '2026-08-24'),
+        );
+        $context = app(AccessContextResolver::class)->forUser($pending);
+        $this->assertSame([], $context->businessGroupIds);
+        $this->assertSame([], $context->agentIds);
+
+        $pending->update(['invitation_status' => 'accepted']);
+        $this->assertContains(
+            $pending->id,
+            array_column(app(InternalUserReferenceReader::class)->eligibleUsers(), 'id'),
+        );
+        $this->assertContains(
+            $pending->id,
+            app(BusinessGroupMembershipReader::class)->activeCustomerServiceUserIds([$group['id']], '2026-08-24'),
+        );
+    }
+
+    public function test_membership_form_uses_readonly_user_role_and_shows_pending_configuration_candidate(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $pending = User::factory()->create([
+            'name' => '待接受 BD',
+            'role' => UserRole::BdManager,
+            'invitation_status' => 'sent',
+        ]);
+
+        $this->actingAs($admin)
+            ->get(route('configuration.users-and-notifications'))
+            ->assertOk()
+            ->assertSee($pending->name)
+            ->assertDontSee('wire:model="membershipRole"', false)
+            ->assertSee('readonly', false);
     }
 
     public function test_agent_business_group_assignment_rejects_overlapping_periods_and_reports_unmapped_agents(): void

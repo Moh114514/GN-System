@@ -22,7 +22,7 @@ return [
         'business_group_date_order_invalid' => '结束日期不能早于生效日期。',
         'business_group_reason_required' => '业务组归属变更必须填写原因。',
         'business_group_inactive' => '目标业务组未启用。',
-        'business_group_user_inactive' => '停用或未完成邀请的用户不能成为新成员。',
+        'business_group_user_inactive' => '停用用户不能成为新成员。',
         'business_group_user_role_mismatch' => '成员角色必须与用户当前角色一致。',
         'business_group_bd_overlap' => '同一业务组的有效 BD 经理期间不能重叠。',
         'business_group_user_overlap' => '同一用户的有效业务组期间不能重叠。',

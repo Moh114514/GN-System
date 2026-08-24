@@ -59,7 +59,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->user = User::factory()->create(['role' => UserRole::BdManager]);
         $groups = app(BusinessGroupManagementGateway::class);
         $groupId = $groups->create('P6-TEST', 'Phase Six test group', $this->user->id, null)['id'];
-        $groups->assignMember($groupId, $this->user->id, UserRole::BdManager->value, '2026-01-01', null, 'Phase Six test scope', $this->user->id, null);
+        $groups->assignMember($groupId, $this->user->id, '2026-01-01', null, 'Phase Six test scope', $this->user->id, null);
         $this->institutionId = (int) DB::table('institutions')->value('id');
         $this->agentId = (int) DB::table('agents')->insertGetId([
             'agent_type_code_id' => DB::table('agent_type_codes')->value('id'),

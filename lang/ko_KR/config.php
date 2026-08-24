@@ -57,6 +57,7 @@ return [
         'business_group' => '업무 그룹',
         'member_user' => '구성원 사용자',
         'member_role' => '구성원 역할',
+        'current_role' => '현재 역할',
         'effective_from' => '적용 시작일',
         'effective_until' => '종료일(선택)',
         'reason' => '사유',

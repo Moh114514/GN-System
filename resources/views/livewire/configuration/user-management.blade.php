@@ -115,6 +115,7 @@
     <section class="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <h3 class="font-semibold">{{ __('config.user_management.members_heading') }}</h3>
         <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{{ __('config.user_management.members_description') }}</p>
+        @php($selectedMembershipUser = collect($unassignedUsers)->firstWhere('id', (int) $membershipUserId))
         <form wire:submit="assignMember" class="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <flux:select wire:model="membershipGroupId" :label="__('config.user_management.business_group')">
                 <flux:select.option value="">{{ __('config.user_management.select') }}</flux:select.option>
@@ -126,16 +127,15 @@
             </flux:select>
             <flux:select wire:model="membershipUserId" :label="__('config.user_management.member_user')">
                 <flux:select.option value="">{{ __('config.user_management.select') }}</flux:select.option>
-                @foreach ($users as $user)
-                    @if (! $user['is_super_admin'] && $user['is_active'] && $user['invitation_status'] === 'accepted')
+                @foreach ($unassignedUsers as $user)
                         <flux:select.option value="{{ $user['id'] }}">{{ $user['name'] }} · {{ __('config.user_management.roles.'.$user['role']) }}</flux:select.option>
-                    @endif
                 @endforeach
             </flux:select>
-            <flux:select wire:model="membershipRole" :label="__('config.user_management.member_role')">
-                <flux:select.option value="bd_manager">{{ __('config.user_management.roles.bd_manager') }}</flux:select.option>
-                <flux:select.option value="customer_service">{{ __('config.user_management.roles.customer_service') }}</flux:select.option>
-            </flux:select>
+            <flux:input
+                :value="$selectedMembershipUser === null ? __('config.user_management.select') : __('config.user_management.roles.'.$selectedMembershipUser['role'])"
+                :label="__('config.user_management.current_role')"
+                readonly
+            />
             <flux:input wire:model="membershipEffectiveFrom" type="date" :label="__('config.user_management.effective_from')" />
             <flux:input wire:model="membershipEffectiveUntil" type="date" :label="__('config.user_management.effective_until')" />
             <flux:input wire:model="membershipReason" :label="__('config.user_management.reason')" class="sm:col-span-2" />

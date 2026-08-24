@@ -65,6 +65,7 @@ return [
         'business_group' => '业务组',
         'member_user' => '成员用户',
         'member_role' => '成员角色',
+        'current_role' => '当前角色',
         'effective_from' => '生效日期',
         'effective_until' => '结束日期（可选）',
         'reason' => '原因',

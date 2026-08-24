@@ -57,9 +57,9 @@ class CustomerTransferAndApprovalTest extends TestCase
 
         $groups = app(BusinessGroupManagementGateway::class);
         $this->groupId = $groups->create('PR3', 'PR3 Group', $this->admin->id, null)['id'];
-        $groups->assignMember($this->groupId, $this->bd->id, UserRole::BdManager->value, '2026-08-01', null, 'PR3 fixture', $this->admin->id, null);
-        $groups->assignMember($this->groupId, $this->owner->id, UserRole::CustomerService->value, '2026-08-01', null, 'PR3 fixture', $this->admin->id, null);
-        $groups->assignMember($this->groupId, $this->targetOwner->id, UserRole::CustomerService->value, '2026-08-01', null, 'PR3 fixture', $this->admin->id, null);
+        $groups->assignMember($this->groupId, $this->bd->id, '2026-08-01', null, 'PR3 fixture', $this->admin->id, null);
+        $groups->assignMember($this->groupId, $this->owner->id, '2026-08-01', null, 'PR3 fixture', $this->admin->id, null);
+        $groups->assignMember($this->groupId, $this->targetOwner->id, '2026-08-01', null, 'PR3 fixture', $this->admin->id, null);
 
         $type = AgentTypeCode::query()->where('code', 'JG')->firstOrFail();
         $this->agent = Agent::query()->create([
@@ -200,7 +200,7 @@ class CustomerTransferAndApprovalTest extends TestCase
         $otherOwner = User::factory()->create(['name' => 'PR3 Other Group']);
         $groups = app(BusinessGroupManagementGateway::class);
         $otherGroupId = $groups->create('PR3-OTHER', 'PR3 Other Group', $this->admin->id, null)['id'];
-        $groups->assignMember($otherGroupId, $otherOwner->id, UserRole::CustomerService->value, '2026-08-01', null, 'PR3 fixture', $this->admin->id, null);
+        $groups->assignMember($otherGroupId, $otherOwner->id, '2026-08-01', null, 'PR3 fixture', $this->admin->id, null);
         $customerId = $this->createCustomer();
 
         try {

@@ -32,8 +32,6 @@ class UserManagement extends Component
 
     public string $membershipUserId = '';
 
-    public string $membershipRole = 'customer_service';
-
     public string $membershipEffectiveFrom = '';
 
     public string $membershipEffectiveUntil = '';
@@ -164,7 +162,6 @@ class UserManagement extends Component
         $this->validate([
             'membershipGroupId' => ['required', 'integer', 'min:1'],
             'membershipUserId' => ['required', 'integer', 'min:1'],
-            'membershipRole' => ['required', 'string', 'in:bd_manager,customer_service'],
             'membershipEffectiveFrom' => ['required', 'date_format:Y-m-d'],
             'membershipEffectiveUntil' => ['nullable', 'date_format:Y-m-d'],
             'membershipReason' => ['required', 'string', 'max:2000'],
@@ -173,7 +170,6 @@ class UserManagement extends Component
             $users->assignBusinessGroupMember(
                 (int) $this->membershipGroupId,
                 (int) $this->membershipUserId,
-                $this->membershipRole,
                 $this->membershipEffectiveFrom,
                 $this->membershipEffectiveUntil === '' ? null : $this->membershipEffectiveUntil,
                 $this->membershipReason,
