@@ -19,7 +19,36 @@ class UserManagement extends Component
 
     public string $email = '';
 
-    public bool $isSuperAdmin = false;
+    public string $inviteRole = 'customer_service';
+
+    /** @var array<int, string> */
+    public array $roleSelections = [];
+
+    public string $businessGroupCode = '';
+
+    public string $businessGroupName = '';
+
+    public string $membershipGroupId = '';
+
+    public string $membershipUserId = '';
+
+    public string $membershipRole = 'customer_service';
+
+    public string $membershipEffectiveFrom = '';
+
+    public string $membershipEffectiveUntil = '';
+
+    public string $membershipReason = '';
+
+    public string $assignmentAgentId = '';
+
+    public string $assignmentGroupId = '';
+
+    public string $assignmentEffectiveFrom = '';
+
+    public string $assignmentEffectiveUntil = '';
+
+    public string $assignmentReason = '';
 
     /** @var array<int, string> */
     public array $dingtalkMentionTypes = [];
@@ -27,15 +56,22 @@ class UserManagement extends Component
     /** @var array<int, string> */
     public array $dingtalkMentionValues = [];
 
+    public function mount(): void
+    {
+        $this->membershipEffectiveFrom = now()->toDateString();
+        $this->assignmentEffectiveFrom = now()->toDateString();
+    }
+
     public function invite(ConfigurationUserCoordinator $users): void
     {
         $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'isSuperAdmin' => ['boolean'],
+            'inviteRole' => ['required', 'string', 'in:super_admin,bd_manager,customer_service'],
         ]);
-        $result = $users->invite($this->name, $this->email, $this->isSuperAdmin, (int) Auth::id(), request()->ip());
-        $this->reset('name', 'email', 'isSuperAdmin');
+        $result = $users->inviteWithRole($this->name, $this->email, $this->inviteRole, (int) Auth::id(), request()->ip());
+        $this->reset('name', 'email', 'inviteRole');
+        $this->inviteRole = 'customer_service';
         Flux::toast(
             variant: $result['invitation_status'] === 'sent' ? 'success' : 'danger',
             text: $result['invitation_status'] === 'sent'
@@ -75,6 +111,18 @@ class UserManagement extends Component
         $this->run(fn () => $users->changeRole($id, $makeSuperAdmin, (int) Auth::id(), request()->ip()), __('config.user_management.toast.role_updated'));
     }
 
+    public function saveRole(int $id, ConfigurationUserCoordinator $users): void
+    {
+        $role = (string) ($this->roleSelections[$id] ?? '');
+        $this->validate([
+            "roleSelections.{$id}" => ['required', 'string', 'in:super_admin,bd_manager,customer_service'],
+        ]);
+        $this->run(
+            fn () => $users->setRole($id, $role, (int) Auth::id(), request()->ip()),
+            __('config.user_management.toast.role_updated'),
+        );
+    }
+
     public function toggleActive(int $id, bool $activate, ConfigurationUserCoordinator $users): void
     {
         $this->run(
@@ -99,16 +147,85 @@ class UserManagement extends Component
         );
     }
 
+    public function createBusinessGroup(ConfigurationUserCoordinator $users): void
+    {
+        $this->validate([
+            'businessGroupCode' => ['required', 'string', 'max:32', 'regex:/^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$/'],
+            'businessGroupName' => ['required', 'string', 'max:255'],
+        ]);
+        $this->run(function () use ($users): void {
+            $users->createBusinessGroup($this->businessGroupCode, $this->businessGroupName, (int) Auth::id(), request()->ip());
+            $this->reset('businessGroupCode', 'businessGroupName');
+        }, __('config.user_management.toast.business_group_created'));
+    }
+
+    public function assignMember(ConfigurationUserCoordinator $users): void
+    {
+        $this->validate([
+            'membershipGroupId' => ['required', 'integer', 'min:1'],
+            'membershipUserId' => ['required', 'integer', 'min:1'],
+            'membershipRole' => ['required', 'string', 'in:bd_manager,customer_service'],
+            'membershipEffectiveFrom' => ['required', 'date_format:Y-m-d'],
+            'membershipEffectiveUntil' => ['nullable', 'date_format:Y-m-d'],
+            'membershipReason' => ['required', 'string', 'max:2000'],
+        ]);
+        $this->run(function () use ($users): void {
+            $users->assignBusinessGroupMember(
+                (int) $this->membershipGroupId,
+                (int) $this->membershipUserId,
+                $this->membershipRole,
+                $this->membershipEffectiveFrom,
+                $this->membershipEffectiveUntil === '' ? null : $this->membershipEffectiveUntil,
+                $this->membershipReason,
+                (int) Auth::id(),
+                request()->ip(),
+            );
+            $this->reset('membershipUserId', 'membershipEffectiveUntil', 'membershipReason');
+        }, __('config.user_management.toast.business_group_member_assigned'));
+    }
+
+    public function assignAgent(ConfigurationUserCoordinator $users): void
+    {
+        $this->validate([
+            'assignmentAgentId' => ['required', 'integer', 'min:1'],
+            'assignmentGroupId' => ['required', 'integer', 'min:1'],
+            'assignmentEffectiveFrom' => ['required', 'date_format:Y-m-d'],
+            'assignmentEffectiveUntil' => ['nullable', 'date_format:Y-m-d'],
+            'assignmentReason' => ['required', 'string', 'max:2000'],
+        ]);
+        $this->run(function () use ($users): void {
+            $users->assignAgentToBusinessGroup(
+                (int) $this->assignmentAgentId,
+                (int) $this->assignmentGroupId,
+                $this->assignmentEffectiveFrom,
+                $this->assignmentEffectiveUntil === '' ? null : $this->assignmentEffectiveUntil,
+                $this->assignmentReason,
+                (int) Auth::id(),
+                request()->ip(),
+            );
+            $this->reset('assignmentAgentId', 'assignmentEffectiveUntil', 'assignmentReason');
+        }, __('config.user_management.toast.agent_assignment_created'));
+    }
+
     public function render(ConfigurationUserCoordinator $users): View
     {
         $records = $users->users();
         foreach ($records as $record) {
             $id = (int) $record['id'];
+            $this->roleSelections[$id] ??= (string) $record['role'];
             $this->dingtalkMentionTypes[$id] ??= (string) ($record['dingtalk_mention_type'] ?? '');
             $this->dingtalkMentionValues[$id] ??= (string) ($record['dingtalk_mention_value'] ?? '');
         }
 
-        return view('livewire.configuration.user-management', ['users' => $records])
+        return view('livewire.configuration.user-management', [
+            'users' => $records,
+            'businessGroups' => $users->businessGroups(),
+            'memberships' => $users->memberships(),
+            'unassignedUsers' => $users->unassignedUsers(),
+            'agents' => $users->agents(),
+            'agentAssignments' => $users->agentAssignments(),
+            'unassignedAgents' => $users->unassignedAgents(),
+        ])
             ->title(__('config.user_management.title'));
     }
 

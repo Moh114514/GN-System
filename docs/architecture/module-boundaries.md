@@ -1,6 +1,6 @@
 # 模块边界
 
-> 最后核验：2026-07-30
+> 最后核验：2026-08-24
 > 决策依据：[ADR-0002](../adr/0002-module-boundaries-and-data-ownership.md)、
 > [ADR-0004](../adr/0004-application-import-contracts.md)、
 > [ADR-0005](../adr/0005-daily-application-contracts.md)、
@@ -63,6 +63,13 @@ Reminder 和 Auth 的只读 Contract/Data 组合查询与看板快照。Order �
 Report 不跨模块引用 Model/Builder。
 Config Application 通过 Agent、Customer、Settlement 的配置历史 Contract 和 Auth
 的用户管理 Contract 聚合配置页面；每个数据所有者仍独占实际写入、快照和回滚。
+
+Auth 拥有 `users.role`、`business_groups` 和 `business_group_memberships`，并通过
+`BusinessGroupReferenceReader` 与 `BusinessGroupManagementGateway` 暴露业务组、成员
+有效期和未归属用户查询/写入契约。Agent 拥有
+`agent_business_group_assignments`，通过 `AgentBusinessGroupAssignmentGateway`
+暴露代理商归属有效期和未归属代理商查询/写入契约。Config 只编排这些 Application
+Contract，不直接引用对应 Model 或写入业务表；订单主流程和业务数据范围不由本 PR 改变。
 
 领域事件、通用 Service Bus 和异步跨模块一致性机制尚未形成，不得从同步契约放行
 推断它们可用。

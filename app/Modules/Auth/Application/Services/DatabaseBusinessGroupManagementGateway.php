@@ -1,0 +1,270 @@
+<?php
+
+namespace App\Modules\Auth\Application\Services;
+
+use App\Models\User;
+use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Application\Contracts\BusinessGroupManagementGateway;
+use App\Modules\Auth\Domain\UserRole;
+use App\Modules\Auth\Infrastructure\Models\BusinessGroup;
+use App\Modules\Auth\Infrastructure\Models\BusinessGroupMembership;
+use Carbon\CarbonImmutable;
+use Carbon\CarbonInterface;
+use DomainException;
+use Illuminate\Support\Facades\DB;
+
+final readonly class DatabaseBusinessGroupManagementGateway implements BusinessGroupManagementGateway
+{
+    public function __construct(private AuditRecorder $audit) {}
+
+    /** @return array<int, array{id: int, code: string, name: string, is_active: bool}> */
+    public function businessGroups(): array
+    {
+        return BusinessGroup::query()
+            ->orderByDesc('is_active')
+            ->orderBy('code')
+            ->get()
+            ->map(fn (BusinessGroup $group): array => [
+                'id' => (int) $group->id,
+                'code' => (string) $group->code,
+                'name' => (string) $group->name,
+                'is_active' => (bool) $group->is_active,
+            ])
+            ->all();
+    }
+
+    public function exists(int $businessGroupId, bool $activeOnly = true): bool
+    {
+        return BusinessGroup::query()
+            ->whereKey($businessGroupId)
+            ->when($activeOnly, fn ($query) => $query->where('is_active', true))
+            ->exists();
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    public function memberships(?string $onDate = null): array
+    {
+        $date = $this->parseDate($onDate ?? now()->toDateString());
+
+        return BusinessGroupMembership::query()
+            ->with(['businessGroup', 'user'])
+            ->orderByDesc('effective_from')
+            ->orderBy('id')
+            ->get()
+            ->map(function (BusinessGroupMembership $membership) use ($date): array {
+                return [
+                    'id' => (int) $membership->id,
+                    'business_group_id' => (int) $membership->business_group_id,
+                    'group_code' => (string) ($membership->businessGroup->code ?? ''),
+                    'group_name' => (string) ($membership->businessGroup->name ?? ''),
+                    'user_id' => (int) $membership->user_id,
+                    'user_name' => (string) ($membership->user->name ?? ''),
+                    'member_role' => (string) $membership->member_role,
+                    'effective_from' => $membership->effective_from->format('Y-m-d'),
+                    'effective_until' => $membership->effective_until?->format('Y-m-d'),
+                    'reason' => (string) $membership->reason,
+                    'is_current' => $this->covers($membership->effective_from, $membership->effective_until, $date),
+                ];
+            })
+            ->all();
+    }
+
+    /** @return array<int, array<string, mixed>> */
+    public function unassignedUsers(?string $onDate = null): array
+    {
+        $date = $this->parseDate($onDate ?? now()->toDateString())->toDateString();
+
+        return User::query()
+            ->where('is_active', true)
+            ->where('invitation_status', 'accepted')
+            ->where('is_super_admin', false)
+            ->whereNotExists(function ($query) use ($date): void {
+                $query->selectRaw('1')
+                    ->from('business_group_memberships')
+                    ->whereColumn('business_group_memberships.user_id', 'users.id')
+                    ->whereDate('effective_from', '<=', $date)
+                    ->where(function ($range) use ($date): void {
+                        $range->whereNull('effective_until')->orWhereDate('effective_until', '>=', $date);
+                    });
+            })
+            ->orderBy('name')
+            ->get(['id', 'name', 'email', 'role'])
+            ->map(fn (User $user): array => [
+                'id' => (int) $user->id,
+                'name' => (string) $user->name,
+                'email' => (string) $user->email,
+                'role' => $user->roleValue()->value,
+            ])
+            ->all();
+    }
+
+    /** @return array{id: int, code: string, name: string, is_active: bool} */
+    public function create(string $code, string $name, int $actorId, ?string $ipAddress): array
+    {
+        $code = strtoupper(trim($code));
+        $name = trim($name);
+        if (preg_match('/^[A-Z0-9][A-Z0-9_-]{1,31}$/D', $code) !== 1) {
+            throw new DomainException(__('auth.errors.business_group_code_invalid'));
+        }
+        if ($name === '') {
+            throw new DomainException(__('auth.errors.business_group_name_required'));
+        }
+        if (BusinessGroup::query()->where('code', $code)->exists()) {
+            throw new DomainException(__('auth.errors.business_group_code_duplicate'));
+        }
+
+        $group = BusinessGroup::query()->create([
+            'code' => $code,
+            'name' => $name,
+            'is_active' => true,
+            'created_by' => $actorId,
+        ]);
+        $this->audit->record(
+            description: __('auth.audit.business_group_created'),
+            properties: ['code' => $group->code, 'name' => $group->name],
+            causerId: $actorId,
+            subject: $group,
+            logName: 'auth-business-groups',
+            event: 'created',
+            ipAddress: $ipAddress,
+        );
+
+        return [
+            'id' => (int) $group->id,
+            'code' => (string) $group->code,
+            'name' => (string) $group->name,
+            'is_active' => (bool) $group->is_active,
+        ];
+    }
+
+    public function assignMember(
+        int $businessGroupId,
+        int $userId,
+        string $memberRole,
+        string $effectiveFrom,
+        ?string $effectiveUntil,
+        string $reason,
+        int $actorId,
+        ?string $ipAddress,
+    ): void {
+        $role = UserRole::tryFrom($memberRole);
+        if ($role === null || ! $role->isBusinessRole()) {
+            throw new DomainException(__('auth.errors.business_group_member_role_invalid'));
+        }
+        $from = $this->parseDate($effectiveFrom);
+        $until = $effectiveUntil === null || trim($effectiveUntil) === '' ? null : $this->parseDate($effectiveUntil);
+        $reason = trim($reason);
+        if ($until !== null && $until->lt($from)) {
+            throw new DomainException(__('auth.errors.business_group_date_order_invalid'));
+        }
+        if ($reason === '') {
+            throw new DomainException(__('auth.errors.business_group_reason_required'));
+        }
+
+        DB::transaction(function () use ($businessGroupId, $userId, $role, $from, $until, $reason, $actorId, $ipAddress): void {
+            $group = BusinessGroup::query()->lockForUpdate()->findOrFail($businessGroupId);
+            if (! $group->is_active) {
+                throw new DomainException(__('auth.errors.business_group_inactive'));
+            }
+            $user = User::query()->lockForUpdate()->findOrFail($userId);
+            if (! $user->is_active || $user->invitation_status !== 'accepted') {
+                throw new DomainException(__('auth.errors.business_group_user_inactive'));
+            }
+            if ($user->isSuperAdmin() || $user->roleValue() !== $role) {
+                throw new DomainException(__('auth.errors.business_group_user_role_mismatch'));
+            }
+
+            $overlap = BusinessGroupMembership::query()
+                ->where(function ($query) use ($businessGroupId, $userId, $role): void {
+                    $query->where('user_id', $userId)
+                        ->orWhere(function ($groupQuery) use ($businessGroupId, $role): void {
+                            $groupQuery->where('business_group_id', $businessGroupId)
+                                ->where('member_role', $role->value);
+                        });
+                })
+                ->whereDate('effective_from', '<=', $until?->toDateString() ?? '9999-12-31')
+                ->where(function ($query) use ($from): void {
+                    $query->whereNull('effective_until')->orWhereDate('effective_until', '>=', $from->toDateString());
+                })
+                ->lockForUpdate()
+                ->exists();
+            if ($overlap) {
+                throw new DomainException($role === UserRole::BdManager
+                    ? __('auth.errors.business_group_bd_overlap')
+                    : __('auth.errors.business_group_user_overlap'));
+            }
+
+            $membership = BusinessGroupMembership::query()->create([
+                'business_group_id' => $group->id,
+                'user_id' => $user->id,
+                'member_role' => $role->value,
+                'effective_from' => $from->toDateString(),
+                'effective_until' => $until?->toDateString(),
+                'assigned_by' => $actorId,
+                'reason' => $reason,
+            ]);
+            $this->audit->record(
+                description: __('auth.audit.business_group_member_assigned'),
+                properties: [
+                    'business_group_id' => $group->id,
+                    'user_id' => $user->id,
+                    'member_role' => $role->value,
+                    'effective_from' => $from->toDateString(),
+                    'effective_until' => $until?->toDateString(),
+                    'reason' => $reason,
+                ],
+                causerId: $actorId,
+                subject: $membership,
+                logName: 'auth-business-groups',
+                event: 'member_assigned',
+                ipAddress: $ipAddress,
+            );
+        });
+    }
+
+    public function endMembership(int $membershipId, string $effectiveUntil, string $reason, int $actorId, ?string $ipAddress): void
+    {
+        $until = $this->parseDate($effectiveUntil);
+        $reason = trim($reason);
+        if ($reason === '') {
+            throw new DomainException(__('auth.errors.business_group_reason_required'));
+        }
+
+        DB::transaction(function () use ($membershipId, $until, $reason, $actorId, $ipAddress): void {
+            $membership = BusinessGroupMembership::query()->lockForUpdate()->findOrFail($membershipId);
+            if ($until->lt($membership->effective_from)) {
+                throw new DomainException(__('auth.errors.business_group_date_order_invalid'));
+            }
+            $membership->update(['effective_until' => $until->toDateString()]);
+            $this->audit->record(
+                description: __('auth.audit.business_group_member_ended'),
+                properties: ['membership_id' => $membership->id, 'effective_until' => $until->toDateString(), 'reason' => $reason],
+                causerId: $actorId,
+                subject: $membership,
+                logName: 'auth-business-groups',
+                event: 'member_ended',
+                ipAddress: $ipAddress,
+            );
+        });
+    }
+
+    private function parseDate(string $value): CarbonImmutable
+    {
+        $value = trim($value);
+        try {
+            $date = CarbonImmutable::createFromFormat('!Y-m-d', $value);
+        } catch (\Throwable) {
+            $date = false;
+        }
+        if ($date === false || $date->format('Y-m-d') !== $value) {
+            throw new DomainException(__('auth.errors.business_group_date_invalid'));
+        }
+
+        return $date;
+    }
+
+    private function covers(CarbonInterface $from, ?CarbonInterface $until, CarbonInterface $date): bool
+    {
+        return $from->lte($date) && ($until === null || $until->gte($date));
+    }
+}

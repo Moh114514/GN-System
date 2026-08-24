@@ -23,7 +23,7 @@ return [
         'back' => '에이전트 관리로 돌아가기', 'profile' => '협력 프로필', 'edit' => '프로필 편집', 'name' => '에이전트 이름', 'code' => '에이전트 번호', 'type' => '유형', 'business_role' => '업무 역할', 'policy_system' => '정책 체계', 'unset_policy' => '정책 미설정', 'grade' => '현재 등급', 'unset_grade' => '등급 미설정', 'contact_name' => '담당자', 'contact_value' => '연락처', 'started' => '협력 시작', 'ended' => '협력 종료', 'effective_month' => '등급 적용 월', 'notes' => '메모', 'customers' => '관련 고객', 'customer' => '고객', 'created_at' => '등록일', 'no_customers' => '관련 고객이 없습니다.', 'orders' => '관련 주문', 'project_amount' => '프로젝트/금액', 'status' => '상태', 'promotion_fee' => '프로모션 비용', 'completed' => '완료', 'pending' => '진행 중', 'no_orders' => '관련 주문이 없습니다.', 'empty' => '—',
     ],
     'messages' => ['created' => '에이전트 프로필이 생성되었습니다.', 'updated' => '에이전트 프로필이 업데이트되었습니다. 등급 변경은 다음 달부터 적용됩니다.', 'grade_corrected' => '등급 보완이 저장되어 현재 등급 조회가 갱신되었습니다.'],
-    'audit' => ['historical_grade_corrected' => '에이전트 과거 등급 보완이 완료되었습니다.'],
+    'audit' => ['historical_grade_corrected' => '에이전트 과거 등급 보완이 완료되었습니다.', 'business_group_assignment_created' => '에이전시 업무 그룹 소속이 저장되었습니다.', 'business_group_assignment_ended' => '에이전시 업무 그룹 소속이 종료되었습니다.'],
     'fallback' => [
         'unset' => '미설정',
         'unknown_policy' => '알 수 없는 정책',
@@ -51,5 +51,10 @@ return [
         'no_effective_policy_grade' => '에이전트에 주문 월에 적용되는 정책 등급이 없습니다.',
         'active_agent_required_for_grade_schedule' => '협력 중인 에이전트만 다음 달 등급을 지정할 수 있습니다.',
         'grade_must_match_current_policy' => '제안 등급은 에이전트의 현재 정책 체계에 속해야 합니다.',
+        'business_group_date_invalid' => '업무 그룹 소속 날짜 형식이 올바르지 않습니다.',
+        'business_group_date_order_invalid' => '종료일은 소속 적용 시작일보다 빠를 수 없습니다.',
+        'business_group_reason_required' => '에이전시 업무 그룹 소속 사유를 입력하세요.',
+        'business_group_inactive' => '대상 업무 그룹이 활성 상태가 아닙니다.',
+        'business_group_assignment_overlap' => '같은 에이전시의 유효 업무 그룹 소속 기간은 겹칠 수 없습니다.',
     ],
 ];

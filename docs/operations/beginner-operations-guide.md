@@ -63,6 +63,7 @@ GN-System 当前有两套服务器环境，不能混用：
 | `main` `2fe5d13` | 已把上述变更合入主分支，但不是已经验收的 RC | 需要创建下一个递增 RC（预计 `v0.5.0-rc.11`）后才能部署 UAT |
 | `develop`（2026-08-14 工作区） | 国际化基础设施、PR-B/PR-C/PR-D 及规划 PR1–PR6 已加入；PR4 增加指定节假日客服提醒，PR5 增加 Dashboard 数据下钻，PR6 增加自然月月结生成 | 尚未发布；PR1 包含不可逆 `2026_08_14_000100_remove_direct_sales_business` migration，PR6 新增 `2026_08_14_000200_add_generation_day_to_settlement_configurations`。发布前备份数据库，核对 PR1/PR6 数据前置条件，并人工检查客户状态树、提醒文案、指定日期规则、Dashboard 日期范围跳转和月结生成时间 |
 | `develop`（2026-08-17 工作区） | PR7 让月结中心默认展示最新已生成周期，支持周期切换；历史月结改用业务日期重叠查询；已结清详情保留下载，历史 `paid`/`reconciled` 月结支持只读详情按需生成并下载 Word/PDF | 尚未发布；不新增 migration。UAT 需核对周期下拉、业务日期起止边界、已结清详情下载，以及历史文档生成后状态不变 |
+| `feature/business-groups-and-roles`（2026-08-24 本地工作区） | 新规划 PR1 增加角色、业务组、成员有效期历史和代理商业务组有效期历史，配置中心支持管理并显示未归属检查；新增 `2026_08_21_000100_add_roles_business_groups_and_agent_assignments` migration | 只在本地开发 Compose 测试数据库验证，尚未发布。以后发布前要备份数据库，并人工检查角色、业务组成员、代理商归属及未归属列表；不要在服务器手工建表 |
 | `feature/customer-status-tree`（历史工作分支） | PR2 客户详情状态流转可视化及 Agent 详情“关联客户”中韩文案 | 内容已合入 `develop`，不作为当前发布目标 |
 
 服务器实际版本以 `/srv/gn-system/releases/current` 和

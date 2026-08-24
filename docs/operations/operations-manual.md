@@ -117,9 +117,17 @@ GitHub CI 和 GHCR 是发布基础设施，不是可登录的业务环境。
 | 2026-08-14，当前 `develop` | 工作区未发布 | PR1 收敛客户与订单为代理商归属，移除直销来源、渠道分支及七工作表以外的直销配置内容 | 包含不可逆的 `2026_08_14_000100_remove_direct_sales_business` forward migration；UAT/Production 发布前必须备份，并只读核对直销记录和缺少代理商归属的记录均为 0；迁移发现异常会中止，不能用旧镜像回退替代数据恢复 |
 | 2026-08-14，当前 `develop` | 工作区未发布 | PR1–PR6 已加入：客户/订单归属收敛、客户状态树、提醒 UI 紧凑化、指定节假日客服提醒、Dashboard 数据下钻及自然月月结生成 | PR1 含不可逆 migration，PR6 新增 `2026_08_14_000200_add_generation_day_to_settlement_configurations`；发布前按完整门禁执行，备份并核对 PR1/PR6 数据前置条件；UAT/Production 需人工验收状态树、提醒页面、指定日期规则、Dashboard 日期范围跳转和月结生成时间 |
 | 2026-08-17，当前 `develop` | 工作区未发布 | PR7 让月结中心默认展示最新已生成周期并支持周期切换，历史归档改用业务日期重叠查询；已结清详情保留文档下载，历史 `paid`/`reconciled` 月结可在只读详情按需生成并下载 Word/PDF | 不新增 migration；UAT 需核对周期下拉、业务日期边界、已结清详情文档下载及历史文档生成后状态不变；本机结果不能替代目标环境验证 |
+| 2026-08-24，`feature/business-groups-and-roles` | 工作区未发布 | 新规划 PR1 增加用户角色兼容回填、业务组/成员有效期历史、代理商业务组有效期历史及配置管理；新增 `2026_08_21_000100_add_roles_business_groups_and_agent_assignments` migration | 仅完成本地开发和自动化验证，未合入 `develop`，未部署 UAT/Production。正式发布前必须备份数据库，按 RC 流程运行 migration，并人工核对角色、业务组成员、代理商归属和未归属完整性；本机结果不能替代目标环境验收 |
 
 当前 `main` 高于 `v0.5.0-rc.8`。服务器上的 `releases/current` 和
 `history.tsv` 才能证明 UAT/Production 实际运行版本；本地 Git 日志不能证明目标环境已经升级。
+
+新规划 PR1 的本地分支包含角色和归属历史 migration，当前只在开发 Compose 的隔离
+测试数据库中验证。不得直接在 UAT/Production 手工建表或执行未审阅的 SQL；发布时
+必须先完成备份、RC 门禁和 migration 预检查，再按本手册的不可变版本流程执行。该
+migration 会启用 PostgreSQL `btree_gist` 扩展并创建日期重叠约束，目标环境需要确认
+数据库账号具备相应扩展/约束权限。回退前必须备份，并确认可以接受删除 PR1 新增结构
+及其归属历史数据。
 
 国际化 PR-A、PR-B、PR-C 及 PR-D，以及规划 PR1–PR4 当前只在 `develop` 工作区完成，尚未发布到 UAT 或 Production。发布该变更时，
 需先完成完整本地门禁，再按正常 RC 流程部署；migration 会为既有用户提供 `zh_CN` 默认值。
