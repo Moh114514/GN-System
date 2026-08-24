@@ -4,12 +4,16 @@ namespace App\Modules\Agent\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\AgentBusinessAttributionReader;
 use App\Modules\Agent\Infrastructure\Models\AgentBusinessGroupAssignment;
+use App\Modules\Auth\Application\Contracts\BusinessGroupBdAttributionReader;
 use App\Modules\Auth\Application\Contracts\BusinessGroupReferenceReader;
 use Carbon\CarbonImmutable;
 
 final readonly class DatabaseAgentBusinessAttributionReader implements AgentBusinessAttributionReader
 {
-    public function __construct(private BusinessGroupReferenceReader $groups) {}
+    public function __construct(
+        private BusinessGroupReferenceReader $groups,
+        private BusinessGroupBdAttributionReader $bdAttributions,
+    ) {}
 
     public function forAgentOnDate(int $agentId, CarbonImmutable $date): ?array
     {
@@ -39,6 +43,7 @@ final readonly class DatabaseAgentBusinessAttributionReader implements AgentBusi
             'agent_id' => $agentId,
             'occurred_on' => $date->toDateString(),
             'source' => 'agent_business_group_assignment',
+            'bd_manager' => $this->bdAttributions->forGroupOnDate((int) $assignment->business_group_id, $date),
         ];
     }
 }

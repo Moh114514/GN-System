@@ -48,6 +48,13 @@
                     <span>{{ __('navigation.reports') }}</span>
                 </a>
 
+                @if (auth()->user()->is_super_admin || auth()->user()->isBdManager())
+                    <a href="{{ route('bd-commissions.index') }}" class="crm-nav-item {{ request()->routeIs('bd-commissions.*') ? 'is-active' : '' }}" wire:navigate>
+                        <flux:icon.chart-pie aria-hidden="true" />
+                        <span>{{ __('navigation.bd_commissions') }}</span>
+                    </a>
+                @endif
+
                 @if (auth()->user()->is_super_admin)
                     <a href="{{ route('agents.index') }}" class="crm-nav-item {{ request()->routeIs('agents.*') ? 'is-active' : '' }}" wire:navigate>
                         <flux:icon.building-office aria-hidden="true" />

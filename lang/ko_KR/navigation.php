@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'bd_commissions' => 'BD 분기 인센티브',
     'main' => '주 메뉴',
     'brand_tagline' => '전문적 · 안전 · 효율적',
     'dashboard' => '개요',

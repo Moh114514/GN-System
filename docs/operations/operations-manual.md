@@ -1387,7 +1387,7 @@ This PR2 change adds no migration. Dashboard cache keys and queued export snapsh
 
 ## PR3 customer transfer and rollback status (2026-08-24)
 
-The current feature worktree also contains the PR3 Customer transfer and lifecycle approval implementation. It adds the `2026_08_24_000100_add_customer_transfer_and_status_approval.php` migration, so any UAT/Production release must take the normal pre-migration backup, run the migration through the release process, and verify the schema before opening customer pages. No UAT/Production migration or business acceptance was run from this workstation.
+The current feature worktree contains the PR3 Customer transfer and lifecycle approval implementation and the later PR6 BD quarterly commission implementation. It adds the `2026_08_24_000100_add_customer_transfer_and_status_approval.php` and `2026_08_24_000400_create_bd_quarterly_commission_tables.php` migrations, so any UAT/Production release must take the normal pre-migration backup, run migrations through the release process, and verify the schema before opening business pages. No UAT/Production migration or business acceptance was run from this workstation.
 
 Before release, manually verify owner Customer Service request/withdrawal, BD approval/rejection/direct/batch transfer, super-admin cross-group transfer, future appointment and unfinished reminder reassignment, historical follow-up creator preservation, repeated arrival timestamp/history behavior, rollback approval, stale/duplicate request rejection, batch atomicity, and the no-order rollback rule. Upgrade app, queue, and scheduler from the same immutable RC because transfer notifications and reminder updates are part of the application release. Rollback follows the normal release rollback procedure; do not manually delete the new tables or edit production data.
 
@@ -1436,3 +1436,14 @@ preview/formal amount equality, the monthly day-5 scheduler window, historical c
 boundaries, and the absence of grade side effects while commission generation remains active.
 Upgrade app, queue, and scheduler together, clear configuration cache, and use the normal rollback
 procedure with a verified backup if the release is rejected.
+# PR6 BD季度提成运行说明
+
+PR6 新增 `2026_08_24_000400_create_bd_quarterly_commission_tables` migration，正式环境发布前
+必须先备份数据库并确认迁移目标库。当前不需要新增环境变量、Redis 键或外部服务。迁移完成后，
+超级管理员在 `/bd-commissions` 创建已确认的规则版本，再按季度执行预览、正式生成、审核和确认；
+BD 仅能查看自身业务归属快照对应的记录。已确认周期不可重算，订单更正会在后续季度生成调整记录。
+
+本机已覆盖 PR6 定向 Feature、PR4 订单推广费、PR5 月结、Dashboard、模块边界和中韩本地化检查；
+UAT/Production 迁移、规则配置、历史快照质量、季度抽样和人工权限验收仍未执行。目标环境验收需
+检查季度边界、季度中途代理商/BD 转移、重复订单、草稿重算、确认不可变、调整审计、越权访问和
+更正差额。

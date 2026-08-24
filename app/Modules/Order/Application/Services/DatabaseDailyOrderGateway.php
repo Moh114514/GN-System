@@ -2,6 +2,7 @@
 
 namespace App\Modules\Order\Application\Services;
 
+use App\Modules\Agent\Application\Contracts\AgentBusinessAttributionReader;
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
@@ -28,6 +29,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
         private AuditRecorder $audit,
         private AccessContextResolver $access,
         private CustomerOrderReferenceReader $customers,
+        private AgentBusinessAttributionReader $attributions,
     ) {}
 
     public function create(DailyOrderData $data): int
@@ -60,6 +62,13 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
                 'owner_id' => $data->ownerId,
                 'status' => $data->status,
                 'notes' => $data->notes,
+                'business_attribution_snapshot' => $data->status === 'completed' && $data->completedOn !== null
+                    ? [
+                        'source' => 'daily_order',
+                        'business_group' => $this->attributions->forAgentOnDate($data->agentId, $data->completedOn),
+                        'occurred_on' => $data->completedOn->toDateString(),
+                    ]
+                    : null,
             ]);
 
             if ($data->status === 'completed') {
@@ -101,6 +110,12 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
                 'completed_at' => $completedOn->setTimezone('Asia/Shanghai'),
                 'completion_precision' => 'datetime',
                 'treatment_project_snapshot' => $order->treatment_project_snapshot ?: $order->project_name,
+                'business_attribution_snapshot' => [
+                    ...((array) $order->business_attribution_snapshot),
+                    'source' => 'daily_order',
+                    'business_group' => $this->attributions->forAgentOnDate((int) $order->agent_id, $completedOn),
+                    'occurred_on' => $completedOn->toDateString(),
+                ],
             ]);
             $this->recordCommission($order, $completedOn, $actorId, $ipAddress);
             $this->scheduleReminders($order, $completedOn, $actorId);

@@ -12,7 +12,9 @@ use App\Modules\Order\Application\Data\OrderUpdateData;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Order\Infrastructure\Models\OrderItem;
 use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
+use App\Modules\Settlement\Application\Contracts\BdCommissionCorrectionGateway;
 use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
+use App\Modules\Settlement\Application\Data\BdCommissionOrderData;
 use App\Modules\Settlement\Application\Data\CompletedOrderCommissionData;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
@@ -30,6 +32,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
         private AuditRecorder $audit,
         private AccessContextResolver $access,
         private AgentBusinessAttributionReader $attributions,
+        private BdCommissionCorrectionGateway $bdCommissions,
     ) {}
 
     public function updatePending(OrderUpdateData $data, int $actorId, ?string $ipAddress): int
@@ -73,6 +76,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             if ($order->status === 'completed') {
                 $this->commissions->rollbackForOrder((int) $order->id);
             }
+            $beforeBdCommission = $order->status === 'completed' ? $this->bdCommissionData($order) : null;
 
             $beforeItems = $order->items()->orderBy('id')->get()->toArray();
             $before = $order->only([
@@ -139,6 +143,14 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                     actorId: $actorId,
                     ipAddress: $ipAddress,
                 ));
+                if ($beforeBdCommission !== null) {
+                    $this->bdCommissions->onOrderCorrected(
+                        $beforeBdCommission,
+                        $this->bdCommissionData($order),
+                        $actorId,
+                        $ipAddress,
+                    );
+                }
             }
 
             $after = [
@@ -228,6 +240,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             }
 
             $before = $order->only(['status', 'completed_on', 'completed_at', 'completion_precision']);
+            $beforeBdCommission = $this->bdCommissionData($order);
             $this->commissions->rollbackForOrder($orderId);
             $this->reminders->cancelForOrder($orderId, $actorId, $reason);
             $order->update([
@@ -237,6 +250,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                 'completed_at' => null,
                 'completion_precision' => 'date',
             ]);
+            $this->bdCommissions->onOrderCorrected($beforeBdCommission, null, $actorId, $ipAddress);
             $this->audit->record(
                 description: __('orders.audit.rolled_back'),
                 properties: [
@@ -372,5 +386,17 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             $order->agent_id === null ? null : (int) $order->agent_id,
             $order->owner_id === null ? null : (int) $order->owner_id,
         ), 404);
+    }
+
+    private function bdCommissionData(Order $order): BdCommissionOrderData
+    {
+        return new BdCommissionOrderData(
+            orderId: (int) $order->id,
+            amountKrw: (int) $order->amount_krw,
+            occurredOn: CarbonImmutable::parse($order->occurred_on ?? $order->completed_on),
+            attributionSnapshot: is_array($order->business_attribution_snapshot)
+                ? $order->business_attribution_snapshot
+                : null,
+        );
     }
 }

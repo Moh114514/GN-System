@@ -61,6 +61,12 @@ Application Contract 在单一事务内提交和回滚。私有源文件应用�
 
 Agent 保存代理商、类型、政策等级及月度生效历史；Settlement 保存等级机构固定
 基点费率、代理商机构/全机构特批及订单推广费快照。Order 完成订单时使用同步
+
+PR6 在 Settlement 内新增版本化 BD 提成规则和季度事实。Settlement 通过 Order 的
+`BdCommissionOrderReader` 读取按 `occurred_on` 的完成订单，订单的
+`business_attribution_snapshot` 保存发生日对应的业务组和 BD 成员快照；季度明细、人工调整、
+审核确认和更正差额均由 Settlement 自己持久化。Order 只通过 Settlement 的
+`BdCommissionCorrectionGateway` 通知已确认季度的订单更正，不直接写 Settlement 表。
 Application Contract 在同一 PostgreSQL 事务中核算和审计；失败时订单完成一并回滚。
 当前所有订单均归属代理商并产生推广费。当前没有领域事件或异步核算。
 

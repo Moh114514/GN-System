@@ -5,6 +5,7 @@ namespace App\Modules\Auth;
 use App\Infrastructure\Localization\SupportedLocale;
 use App\Models\User;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
+use App\Modules\Auth\Application\Contracts\BusinessGroupBdAttributionReader;
 use App\Modules\Auth\Application\Contracts\BusinessGroupManagementGateway;
 use App\Modules\Auth\Application\Contracts\BusinessGroupMembershipReader;
 use App\Modules\Auth\Application\Contracts\BusinessGroupReferenceReader;
@@ -12,6 +13,7 @@ use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
 use App\Modules\Auth\Application\Contracts\ReportUserReader;
 use App\Modules\Auth\Application\Contracts\UserManagementGateway;
 use App\Modules\Auth\Application\Services\DatabaseAccessContextResolver;
+use App\Modules\Auth\Application\Services\DatabaseBusinessGroupBdAttributionReader;
 use App\Modules\Auth\Application\Services\DatabaseBusinessGroupManagementGateway;
 use App\Modules\Auth\Application\Services\DatabaseBusinessGroupMembershipReader;
 use App\Modules\Auth\Application\Services\DatabaseInternalUserReferenceReader;
@@ -32,6 +34,7 @@ class AuthServiceProvider extends ServiceProvider
     {
         $this->app->bind(InternalUserReferenceReader::class, DatabaseInternalUserReferenceReader::class);
         $this->app->bind(BusinessGroupManagementGateway::class, DatabaseBusinessGroupManagementGateway::class);
+        $this->app->bind(BusinessGroupBdAttributionReader::class, DatabaseBusinessGroupBdAttributionReader::class);
         $this->app->bind(BusinessGroupMembershipReader::class, DatabaseBusinessGroupMembershipReader::class);
         $this->app->scoped(AccessContextResolver::class, DatabaseAccessContextResolver::class);
         $this->app->bind(BusinessGroupReferenceReader::class, DatabaseBusinessGroupManagementGateway::class);

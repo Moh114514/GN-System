@@ -49,6 +49,11 @@ DataImport 使用同步 Application Contract 协调历史导入和基础配置�
 Phase 4 Agent Application 通过 Customer/Order/Config/Settlement 的最小 Contract
 聚合代理商详情和配置；Order Application 在完成订单的事务中同步调用 Settlement
 核算，Settlement 通过 Agent Contract 读取当月等级。Order 只写订单表，Settlement
+
+PR6 Settlement Application 通过 Order 的 `BdCommissionOrderReader` 获取季度订单事实，
+只使用订单内不可变业务归属快照，不在报表生成时读取 Agent/Auth 的当前归属 Model。Order
+在已完成订单更正事务中只调用 Settlement 的 `BdCommissionCorrectionGateway`；季度规则、
+明细、人工调整和确认事实仍由 Settlement 独占，BD 范围过滤也在 Settlement Application 层执行。
 只写费率、特批和推广费表，Agent 只写代理商及政策等级表。
 
 Phase 5 Settlement Application 通过 Order、Agent 的只读 Contract 获取月结订单、

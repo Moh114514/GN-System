@@ -44,6 +44,10 @@ Batch 和 `SettlementRunMember`；发现 Batch 失败、批次结束但 member �
 
 ## PR5 月结预览、生成日与等级暂停
 
+PR6 的 BD 季度提成与代理商月结分开持久化，不复用 `settlements` 或
+`settlement_items`。季度提成规则、订单归属快照、人工调整和确认状态见
+`docs/modules/phase-six-bd-quarterly-commission.md`。
+
 月结中心的预览调用 `SettlementCalculationService`，与正式生成共享订单和推广费计算，
 但不写入批次、结算单、明细、等级评估、建议或通知表。正式生成默认在每月 5 日窗口处理
 上一个自然月；旧配置按 `effective_from` 保留历史边界。

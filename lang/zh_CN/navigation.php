@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'bd_commissions' => 'BD季度提成',
     'main' => '主导航',
     'brand_tagline' => '专业 · 安全 · 高效',
     'dashboard' => '总览',

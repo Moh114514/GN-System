@@ -2,6 +2,7 @@
 
 namespace App\Modules\Order;
 
+use App\Modules\Order\Application\Contracts\BdCommissionOrderReader;
 use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
 use App\Modules\Order\Application\Contracts\DailyOrderGateway;
 use App\Modules\Order\Application\Contracts\InstitutionUsageReader;
@@ -10,6 +11,7 @@ use App\Modules\Order\Application\Contracts\OrderLifecycleGateway;
 use App\Modules\Order\Application\Contracts\ReminderSourceReader;
 use App\Modules\Order\Application\Contracts\ReportOrderReader;
 use App\Modules\Order\Application\Contracts\SettlementOrderReader;
+use App\Modules\Order\Application\Services\DatabaseBdCommissionOrderReader;
 use App\Modules\Order\Application\Services\DatabaseCustomerOrderGateway;
 use App\Modules\Order\Application\Services\DatabaseDailyOrderGateway;
 use App\Modules\Order\Application\Services\DatabaseInstitutionUsageReader;
@@ -35,6 +37,7 @@ class OrderServiceProvider extends ServiceProvider
         $this->app->bind(OrderImportGateway::class, DatabaseOrderImportGateway::class);
         $this->app->bind(OrderLifecycleGateway::class, DatabaseOrderLifecycleGateway::class);
         $this->app->bind(CustomerOrderGateway::class, DatabaseCustomerOrderGateway::class);
+        $this->app->bind(BdCommissionOrderReader::class, DatabaseBdCommissionOrderReader::class);
         $this->app->bind(DailyOrderGateway::class, DatabaseDailyOrderGateway::class);
         $this->app->bind(SettlementOrderReader::class, DatabaseSettlementOrderReader::class);
         $this->app->bind(ReminderSourceReader::class, DatabaseReminderSourceReader::class);

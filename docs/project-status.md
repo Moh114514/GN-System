@@ -6,12 +6,14 @@
 
 > 最后核验：2026-08-24
 > 核验依据：Phase 6、订单中心、发布门禁、`v0.5.0-rc.13`、当前 `main` 提交记录和服务器环境记录，以及 `feature/business-groups-and-roles` 的 PR1 定向测试与完整本地门禁
-> 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及已合入 `develop` 的既有规划能力继续保持；`feature/business-groups-and-roles` 当前已在本地完成新规划 PR1、PR2 和 PR3，包含角色/业务组底座、权限范围、客户负责人移交与状态回退审批，当前工作区尚未合入 `develop`，也未推送本轮 PR3。PR3 新增数据库 migration，UAT/Production 尚未升级或人工验收。UAT/生产历史数据升级、抽样核验和人工业务验收仍未完成。
+> 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及已合入 `develop` 的既有规划能力继续保持；`feature/business-groups-and-roles` 当前已在本地完成新规划 PR1–PR6，包含角色/业务组底座、权限范围、客户负责人移交与状态回退审批、订单事实快照和 BD 季度提成闭环，当前工作区尚未合入 `develop`，也未推送本轮 PR6。PR3、PR4 和 PR6 均新增数据库 migration，UAT/Production 尚未升级或人工验收。UAT/生产历史数据升级、抽样核验和人工业务验收仍未完成。
 
 本页只描述仓库中可以验证的状态。未来规划见 `docs/source/`，不能据此页之外的
 规划内容推断某项能力已经存在。
 
 ## 阶段结论
+
+- 2026-08-24 当前工作区完成最新规划 PR6：新增版本化 BD 提成规则、按 `occurred_on` 和不可变业务归属快照的季度预览/生成/审核/确认、人工调整审计、BD 自身范围查看、超级管理员全量审核，以及确认后订单更正差额转入后续季度；新增 Dashboard/报表入口和 PR6 Feature 测试。当前默认口径为订单金额 KRW × 基点费率，产品确认项通过新增规则版本承接；本 PR 新增 migration，UAT/Production 未验证。
 
 - 2026-08-07 已完成国际化 PR-A 基础设施的第一部分：统一 `zh_CN`/`ko_KR` 白名单、请求级
   Locale 解析、用户 `preferred_locale` 增量字段、匿名 Session/加密 Cookie 持久化、登录同步、

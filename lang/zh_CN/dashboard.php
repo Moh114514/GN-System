@@ -3,6 +3,7 @@
 return [
     'title' => '数据看板',
     'controls' => [
+        'bd_commission' => 'BD季度提成',
         'actions' => '看板操作',
         'range' => '统计区间',
         'custom_range' => '自定义日期区间',

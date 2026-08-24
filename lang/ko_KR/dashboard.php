@@ -3,6 +3,7 @@
 return [
     'title' => '대시보드',
     'controls' => [
+        'bd_commission' => 'BD 분기 인센티브',
         'actions' => '대시보드 작업',
         'range' => '통계 기간',
         'custom_range' => '사용자 지정 날짜 범위',

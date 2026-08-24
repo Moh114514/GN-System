@@ -1,6 +1,31 @@
 <?php
 
 return [
+    'bd_commission' => [
+        'title' => 'BD季度提成', 'back' => '返回Dashboard', 'eyebrow' => '报表 · BD激励',
+        'description' => '按订单发生日期和不可变业务归属快照汇总季度提成。当前版本默认以订单金额 KRW 为基数，按版本化基点费率计算。',
+        'quarter' => '季度起始日', 'preview' => '季度预览', 'generate' => '正式生成', 'preview_title' => '季度预览',
+        'item_count' => '订单数', 'basis' => '提成基数', 'adjustment' => '人工调整', 'total' => '提成合计',
+        'periods' => '季度记录', 'status' => '状态', 'actions' => '操作', 'view' => '查看', 'empty' => '暂无季度提成记录。',
+        'detail' => '季度明细', 'order' => '订单', 'bd' => 'BD', 'occurred_on' => '发生日期', 'rate' => '费率',
+        'commission' => '提成', 'empty_items' => '暂无可见明细。', 'allocation' => '不指定BD', 'adjustment_amount' => '调整金额 KRW',
+        'reason' => '原因', 'add_adjustment' => '添加人工调整', 'review' => '提交审核', 'confirm' => '确认季度',
+        'rules' => '提成规则版本', 'rule_assumption' => '当前明确默认：订单金额 KRW × 基点费率，半入取整；产品确认后应新增下一生效版本，不修改历史规则。',
+        'effective_from' => '生效日期', 'rate_bps' => '费率基点（100点=1%）', 'save_rule' => '保存规则版本', 'unknown_bd' => '未知BD',
+        'correction_reason' => '已确认季度订单更正差额转入后续季度',
+        'statuses' => ['draft' => '草稿', 'generated' => '已生成', 'reviewed' => '已审核', 'confirmed' => '已确认'],
+        'errors' => [
+            'rule_basis_unsupported' => '当前只支持订单金额 KRW 作为提成基数和 KRW 作为提成币种。',
+            'rule_reason_required' => '新增提成规则版本必须填写原因。', 'rule_version_exists' => '同一生效日期已有提成规则版本，历史版本不可覆盖。',
+            'period_locked' => '已审核或已确认季度不可重算、调整或修改。', 'review_status_invalid' => '只有已生成季度可以提交审核。',
+            'confirm_status_invalid' => '只有已审核季度可以确认。', 'adjustment_nonzero' => '人工调整金额不能为零。',
+            'adjustment_reason_required' => '人工调整必须填写原因。', 'bd_invalid' => '指定的BD账号不可用。', 'period_required' => '请先生成或选择季度记录。',
+            'attribution_missing' => '订单 :order_id 缺少不可变BD业务归属快照，无法安全生成季度提成。',
+            'rule_missing' => '日期 :date 没有生效的BD提成规则版本。',
+            'date_invalid' => '日期格式必须为 YYYY-MM-DD。',
+        ],
+        'audit' => ['rule_created' => 'BD提成规则版本已创建', 'generated' => 'BD季度提成已生成', 'reviewed' => 'BD季度提成已审核', 'confirmed' => 'BD季度提成已确认', 'adjusted' => 'BD季度提成已人工调整', 'corrected' => '已记录BD季度订单更正差额'],
+    ],
     'archive' => [
         'title' => '历史月结归档',
         'back' => '返回月结中心',

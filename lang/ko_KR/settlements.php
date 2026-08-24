@@ -1,6 +1,31 @@
 <?php
 
 return [
+    'bd_commission' => [
+        'title' => 'BD 분기 인센티브', 'back' => '대시보드로 돌아가기', 'eyebrow' => '리포트 · BD 인센티브',
+        'description' => '주문 발생일과 불변 업무 귀속 스냅샷으로 분기 인센티브를 집계합니다. 현재 기본값은 주문 금액 KRW와 버전별 기준점 요율입니다.',
+        'quarter' => '분기 시작일', 'preview' => '분기 미리보기', 'generate' => '정식 생성', 'preview_title' => '분기 미리보기',
+        'item_count' => '주문 수', 'basis' => '산정 기준액', 'adjustment' => '수동 조정', 'total' => '인센티브 합계',
+        'periods' => '분기 기록', 'status' => '상태', 'actions' => '작업', 'view' => '보기', 'empty' => '분기 인센티브 기록이 없습니다.',
+        'detail' => '분기 상세', 'order' => '주문', 'bd' => 'BD', 'occurred_on' => '발생일', 'rate' => '요율',
+        'commission' => '인센티브', 'empty_items' => '표시할 상세가 없습니다.', 'allocation' => 'BD 미지정', 'adjustment_amount' => '조정 금액 KRW',
+        'reason' => '사유', 'add_adjustment' => '수동 조정 추가', 'review' => '검토 제출', 'confirm' => '분기 확정',
+        'rules' => '인센티브 규칙 버전', 'rule_assumption' => '현재 기본값: 주문 금액 KRW × 기준점 요율, 반올림; 제품 확정 후 새 적용 버전을 추가하고 과거 규칙은 변경하지 않습니다.',
+        'effective_from' => '적용일', 'rate_bps' => '요율 기준점(100점=1%)', 'save_rule' => '규칙 버전 저장', 'unknown_bd' => '알 수 없는 BD',
+        'correction_reason' => '확정 분기 주문 수정 차액의 후속 분기 이월',
+        'statuses' => ['draft' => '초안', 'generated' => '생성됨', 'reviewed' => '검토됨', 'confirmed' => '확정됨'],
+        'errors' => [
+            'rule_basis_unsupported' => '현재 주문 금액 KRW 기준과 KRW 통화만 지원합니다.',
+            'rule_reason_required' => '새 인센티브 규칙 버전에는 사유가 필요합니다.', 'rule_version_exists' => '같은 적용일의 규칙 버전이 이미 있어 과거 버전을 덮어쓸 수 없습니다.',
+            'period_locked' => '검토 또는 확정된 분기는 재계산, 조정 및 수정할 수 없습니다.', 'review_status_invalid' => '생성된 분기만 검토 제출할 수 있습니다.',
+            'confirm_status_invalid' => '검토된 분기만 확정할 수 있습니다.', 'adjustment_nonzero' => '수동 조정 금액은 0일 수 없습니다.',
+            'adjustment_reason_required' => '수동 조정에는 사유가 필요합니다.', 'bd_invalid' => '지정한 BD 계정을 사용할 수 없습니다.', 'period_required' => '분기 기록을 먼저 생성하거나 선택하세요.',
+            'attribution_missing' => '주문 :order_id 에 불변 BD 업무 귀속 스냅샷이 없어 분기 인센티브를 생성할 수 없습니다.',
+            'rule_missing' => ':date 에 적용되는 BD 인센티브 규칙 버전이 없습니다.',
+            'date_invalid' => '날짜 형식은 YYYY-MM-DD여야 합니다.',
+        ],
+        'audit' => ['rule_created' => 'BD 인센티브 규칙 버전 생성', 'generated' => 'BD 분기 인센티브 생성', 'reviewed' => 'BD 분기 인센티브 검토', 'confirmed' => 'BD 분기 인센티브 확정', 'adjusted' => 'BD 분기 인센티브 수동 조정', 'corrected' => 'BD 분기 주문 수정 차액 기록'],
+    ],
     'archive' => [
         'title' => '과거 정산 보관함', 'back' => '월말 정산 센터로 돌아가기',
         'description' => '과거 가져오기로 생성된 정산 기록을 조회합니다. 현재 정산 절차에는 포함되지 않습니다.',
