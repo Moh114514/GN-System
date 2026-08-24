@@ -156,6 +156,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             $order->update([
                 'status' => 'pending',
                 'completed_on' => null,
+                'occurred_on' => null,
                 'completed_at' => null,
                 'completion_precision' => 'date',
             ]);

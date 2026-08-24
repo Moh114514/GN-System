@@ -33,7 +33,9 @@ class OrderManagementTest extends TestCase
         $this->actingAs($user)->get(route('orders.index'))
             ->assertOk()
             ->assertSee('订单管理')
-            ->assertSee('新建订单')
+            ->assertSee('机构表单回传')
+            ->assertDontSee('新建订单')
+            ->assertDontSee('标记完成')
             ->assertSee('href="'.route('orders.index').'"', false)
             ->assertDontSee('功能将在后续阶段开放');
     }
@@ -71,68 +73,20 @@ class OrderManagementTest extends TestCase
         $this->actingAs($user)->get(route('orders.index'))
             ->assertOk()
             ->assertSee('주문 관리')
-            ->assertSee('새 주문')
+            ->assertSee('기관 양식 회신')
+            ->assertDontSee('새 주문')
+            ->assertDontSee('완료로 표시')
             ->assertSee('주문 번호, 고객 또는 프로젝트 검색');
     }
 
-    public function test_order_center_creates_filters_and_completes_agent_order_with_audit_trail(): void
+    public function test_order_center_routes_formal_orders_through_institution_return_page(): void
     {
-        $this->seed(PhaseTwoReferenceDataSeeder::class);
         $user = User::factory()->create();
-        $institution = Institution::query()->firstOrFail();
-        $agent = $this->agent();
-        $customer = Customer::query()->create([
-            'code' => 'TEST-JG-0002',
-            'name' => '订单中心客户',
-            'source_agent_id' => $agent->id,
-            'owner_id' => $user->id,
-        ]);
-
-        Livewire::actingAs($user)
-            ->test(OrderCenter::class)
-            ->call('openCreate')
-            ->set('customerSearch', '订单中心')
-            ->assertSee('订单中心客户')
-            ->call('selectCustomer', $customer->id)
-            ->set('institutionId', (string) $institution->id)
-            ->set('projectName', '皮肤管理')
-            ->set('amountKrw', '880000')
-            ->call('save')
-            ->assertHasNoErrors()
-            ->assertSee('皮肤管理')
-            ->set('search', '不存在的客户')
-            ->assertDontSee('皮肤管理')
-            ->set('search', '订单中心客户')
-            ->assertSee('皮肤管理')
-            ->set('search', '')
-            ->set('statusFilter', 'completed')
-            ->assertDontSee('皮肤管理')
-            ->set('statusFilter', 'pending')
-            ->assertSee('皮肤管理');
-
-        $order = Order::query()->firstOrFail();
-
-        Livewire::actingAs($user)
-            ->test(OrderCenter::class)
-            ->call('complete', $order->id)
-            ->assertHasNoErrors()
-            ->assertSee('已完成');
-
-        $this->assertDatabaseHas('orders', [
-            'id' => $order->id,
-            'status' => 'completed',
-            'amount_krw' => 880000,
-        ]);
-        $this->assertDatabaseHas('activity_log', [
-            'log_name' => 'order',
-            'subject_id' => $order->id,
-            'event' => 'created',
-        ]);
-        $this->assertDatabaseHas('activity_log', [
-            'log_name' => 'order',
-            'subject_id' => $order->id,
-            'event' => 'completed',
-        ]);
+        $this->actingAs($user)->get(route('institution-returns.index'))
+            ->assertOk()
+            ->assertSee('机构表单回传')
+            ->assertSee('下载固定模板')
+            ->assertSee('校验并生成订单');
     }
 
     public function test_pending_order_can_be_edited_and_detail_page_has_parent_navigation(): void
@@ -148,16 +102,15 @@ class OrderManagementTest extends TestCase
             'owner_id' => $user->id,
         ]);
 
-        Livewire::actingAs($user)
-            ->test(OrderCenter::class)
-            ->call('openCreate')
-            ->call('selectCustomer', $customer->id)
-            ->set('institutionId', (string) $institution->id)
-            ->set('projectName', '初始项目')
-            ->set('amountKrw', '100000')
-            ->call('save');
-
-        $order = Order::query()->firstOrFail();
+        $order = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'agent_id' => $agent->id,
+            'project_name' => '初始项目',
+            'amount_krw' => 100000,
+            'status' => 'pending',
+            'owner_id' => $user->id,
+        ]);
         $this->actingAs($user)->get(route('orders.show', $order))
             ->assertOk()
             ->assertSee('订单详情')

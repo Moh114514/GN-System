@@ -18,7 +18,9 @@ use App\Modules\Order\Application\Services\DatabaseOrderLifecycleGateway;
 use App\Modules\Order\Application\Services\DatabaseReminderSourceReader;
 use App\Modules\Order\Application\Services\DatabaseReportOrderReader;
 use App\Modules\Order\Application\Services\DatabaseSettlementOrderReader;
+use App\Modules\Order\Presentation\Http\InstitutionReturnFileController;
 use App\Modules\Order\Presentation\Livewire\CustomerOrders;
+use App\Modules\Order\Presentation\Livewire\InstitutionReturnCenter;
 use App\Modules\Order\Presentation\Livewire\OrderCenter;
 use App\Modules\Order\Presentation\Livewire\OrderDetail;
 use App\Modules\Order\Presentation\Livewire\OrderEdit;
@@ -45,6 +47,10 @@ class OrderServiceProvider extends ServiceProvider
         Route::middleware(['web', 'auth', 'verified', 'super-admin.2fa'])
             ->group(function (): void {
                 Route::get('/orders', OrderCenter::class)->name('orders.index');
+                Route::get('/institution-returns', InstitutionReturnCenter::class)->name('institution-returns.index');
+                Route::get('/institution-returns/{returnFile}/download', [InstitutionReturnFileController::class, 'download'])
+                    ->whereUuid('returnFile')
+                    ->name('institution-returns.download');
                 Route::get('/orders/recycle-bin', OrderRecycleBin::class)->name('orders.recycle-bin');
                 Route::get('/orders/{order}', OrderDetail::class)->whereNumber('order')->name('orders.show');
                 Route::get('/orders/{order}/edit', OrderEdit::class)->whereNumber('order')->name('orders.edit');

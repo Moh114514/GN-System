@@ -543,6 +543,9 @@ class PhaseSixReportingConfigurationTest extends TestCase
             'owner_id' => $this->user->id,
             'status' => 'completed',
         ]);
+        $pr4Migration = require database_path('migrations/2026_08_24_000200_add_institution_return_order_facts.php');
+        $order->update(['occurred_on' => null]);
+        $pr4Migration->down();
         $migration = require database_path('migrations/2026_07_30_030000_add_phase_six_reporting_and_configuration.php');
 
         $migration->down();

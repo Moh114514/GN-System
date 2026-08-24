@@ -129,7 +129,7 @@
 | 完整配置中心 | 已实现机构、项目/语种字典、白名单系统参数、内部用户邀请/角色/启停、全局审计日志入口，以及 Agent/Customer/Settlement 分类快照、差异和事务回滚 | 2026-08-14 |
 | 角色、业务组与代理商历史归属底座（新规划 PR1） | `feature/business-groups-and-roles` 已实现角色兼容回填、业务组、成员有效期历史、代理商业务组有效期历史、配置管理和未归属完整性检查；定向测试与相关回归测试通过，尚未合入 `develop`，UAT/Production 未验证 | 2026-08-24 |
 | 订单成交时间兼容升级 | 新增 `completed_at` 与精度标识；历史日期按 Asia/Shanghai 零点回填，新写入双写保留的 `completed_on` | 2026-07-30 |
-| 订单中心 | 已启用侧栏一级订单页面，支持全量列表与订单号/客户/项目、状态、机构、代理商筛选及分页；可搜索客户新建订单，并通过独立二级回收站页面提供超级管理员的已删除订单查看与恢复入口 | 2026-08-14 |
+| 订单中心 | 已启用侧栏一级订单页面，支持全量列表与订单号/客户/项目、状态、机构、代理商筛选及分页；机构回传中心提供版本化固定模板、私有原始文件下载和原子入账；人工新建/人工完成入口已移除，回收站仍由独立二级页面提供超级管理员查看与恢复 | 2026-08-24 |
 | Order 日常管理扩展 | 已实现待完成订单编辑、订单详情二级页和状态编辑入口；支持待完成/已完成/已取消状态流转、超级管理员填写原因后将已完成订单受控回退为待完成、已取消订单软删除与回收站恢复。回收站及已删除详情仅超级管理员可读，操作按角色限制并写入审计 | 2026-08-03 |
 | 第一批前端易用性优化 | 已改善历史数据导入与基础配置导入的上传引导、中文状态、预览确认和撤销文案，并简化配置中心及月结中心的技术术语；相关 Feature 断言已同步 | 2026-08-03 |
 | Phase 5 月结工作流优化 | 已实现历史合作期间选取、真实周期边界重建、零订单生成、持久化生成状态及独立回填迁移；`unverified` 支持超级管理员审计归档或恢复批次，`not_applicable` 禁止重新生成；已生成且处于待审核/已驳回的月结支持检测源数据变化后人工刷新，刷新会重建明细、同步批次金额并记录审计；未关联批次历史月结已移入独立归档查询，需在 UAT 升级前备份并完成审计 | 2026-08-10 |
@@ -173,6 +173,24 @@ UAT/Production 使用 `queue:work`。本地开发与 UAT/Production 操作手册
 功能首次落地、能力移除或阶段变化时，必须在同一变更中更新本页。描述必须能由
 代码、配置、迁移或测试验证；纯计划不得进入“已实现”。
 2026-08-06: PR-B added the unified import issue table, persisted stage statuses, unified issue reports, and non-ignorable issue guards. Real historical-file migration and sampling remain pre-release acceptance work.
+
+## 2026-08-24 PR4 institution return and order facts implementation
+
+- `feature/business-groups-and-roles` now contains the PR4 institution return workflow: versioned
+  fixed XLSX templates, very-hidden form metadata with HMAC integrity signing, private encrypted
+  original-file storage, customer-scope downloads, and SHA-256/form-UUID duplicate protection.
+- The new order facts migration adds `occurred_on`, `record_status`, attribution snapshots,
+  order item snapshots, template records, and return-file records. It refuses to run when pending
+  or otherwise unmappable legacy order facts remain, backfills `occurred_on` from `completed_on`,
+  and refuses rollback after business facts or original files exist.
+- A successful institution return atomically creates the order, items, commission snapshot,
+  customer completion, exactly two postoperative reminders, and audit record. Manual order
+  creation and manual completion are removed from the order pages. Excel serial dates, date
+  objects, supported string dates, customer/amount validation, tamper rejection, duplicate
+  upload, commission rollback, and scoped original-file download are covered by local tests.
+- This is local feature-branch work only. It is not merged into `develop`, has not been deployed
+  or migrated in UAT/Production, and still requires historical-data preflight, backup, RC release,
+  and manual business acceptance in target environments.
 
 ## 2026-08-24 PR2 access scope implementation
 

@@ -42,13 +42,13 @@ final readonly class OrderManagementWorkspace
         ];
     }
 
-    /** @return array{id: int, code: string, name: string, source_agent_id: int} */
+    /** @return array{id: int, code: string, name: string, source_agent_id: int, owner_id: int|null} */
     public function customer(int $customerId): array
     {
         return $this->customers->customerForOrder($customerId);
     }
 
-    /** @return array<int, array{id: int, code: string, name: string, source_agent_id: int}> */
+    /** @return array<int, array{id: int, code: string, name: string, source_agent_id: int, owner_id: int|null}> */
     public function customerCandidates(string $search): array
     {
         return $this->customers->searchCustomersForOrder($search);
@@ -66,6 +66,7 @@ final readonly class OrderManagementWorkspace
      *     project_name: string,
      *     amount_krw: int,
      *     status: string,
+     *     occurred_on: string|null,
      *     completed_at: string|null,
      *     created_at: string|null
      * }>
@@ -121,6 +122,7 @@ final readonly class OrderManagementWorkspace
                 'project_name' => (string) $order->project_name,
                 'amount_krw' => (int) $order->amount_krw,
                 'status' => (string) $order->status,
+                'occurred_on' => $order->occurred_on?->format('Y-m-d'),
                 'completed_at' => $order->completed_at?->format('Y-m-d H:i'),
                 'created_at' => $order->created_at?->format('Y-m-d H:i'),
             ];
@@ -155,6 +157,7 @@ final readonly class OrderManagementWorkspace
             'project_name' => (string) $order->project_name,
             'amount_krw' => (int) $order->amount_krw,
             'status' => (string) $order->status,
+            'occurred_on' => $order->occurred_on?->format('Y-m-d'),
             'completed_at' => $order->completed_at?->format('Y-m-d H:i'),
             'created_at' => $order->created_at?->format('Y-m-d H:i'),
             'updated_at' => $order->updated_at === null ? null : (string) $order->updated_at,

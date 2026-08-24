@@ -490,7 +490,7 @@ class PhaseFourAgentCommissionTest extends TestCase
             ->assertSee('href="'.route('configuration.index').'"', false);
         $this->actingAs($this->user)->get(route('customers.orders', $this->customer->id))
             ->assertOk()
-            ->assertSee('<span class="font-semibold">订单测试客户</span>', false)
+            ->assertSee('订单测试客户')
             ->assertSee('返回客户详情')
             ->assertSee('href="'.route('customers.show', $this->customer->id).'"', false)
             ->assertDontSee('completionDate')

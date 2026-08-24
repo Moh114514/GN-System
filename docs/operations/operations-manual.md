@@ -1,6 +1,6 @@
 # GN-System 完整运维手册
 
-> 当前基线：2026-08-04
+> 当前基线：2026-08-24
 >
 > 适用仓库：`Moh114514/GN-System`
 >
@@ -1390,3 +1390,33 @@ This PR2 change adds no migration. Dashboard cache keys and queued export snapsh
 The current feature worktree also contains the PR3 Customer transfer and lifecycle approval implementation. It adds the `2026_08_24_000100_add_customer_transfer_and_status_approval.php` migration, so any UAT/Production release must take the normal pre-migration backup, run the migration through the release process, and verify the schema before opening customer pages. No UAT/Production migration or business acceptance was run from this workstation.
 
 Before release, manually verify owner Customer Service request/withdrawal, BD approval/rejection/direct/batch transfer, super-admin cross-group transfer, future appointment and unfinished reminder reassignment, historical follow-up creator preservation, repeated arrival timestamp/history behavior, rollback approval, stale/duplicate request rejection, batch atomicity, and the no-order rollback rule. Upgrade app, queue, and scheduler from the same immutable RC because transfer notifications and reminder updates are part of the application release. Rollback follows the normal release rollback procedure; do not manually delete the new tables or edit production data.
+
+## PR4 institution return and order facts status (2026-08-24)
+
+The current local `feature/business-groups-and-roles` worktree also contains the institution
+return flow. It adds `2026_08_24_000200_add_institution_return_order_facts.php`, versioned fixed
+institution templates, encrypted private original files, `order_items`, and the `occurred_on`
+business-date/attribution facts. The migration performs a preflight for pending orders,
+completed orders without dates, agents, or commission snapshots, and unmappable statuses. It
+backfills `occurred_on` from `completed_on` only after the preflight succeeds. Its `down()` refuses
+to remove schema once order facts, item snapshots, or original return files exist.
+
+Release requirements for this PR4 are:
+
+1. Take the normal environment-specific database and private-file backup before migration.
+2. Run the release migration through the immutable RC deployment process; do not create the new
+   tables manually or execute ad-hoc SQL on UAT/Production.
+3. Record the migration preflight output and stop if any blocker is reported. Repair and audit
+   legacy data through the approved migration plan before retrying with a new RC.
+4. Confirm that the configured private storage root is persistent, access-controlled, and not
+   served by Nginx as a public directory. Verify encrypted original-file download through the
+   application with both an authorized customer scope and an unauthorized scope.
+5. Manually verify template download, hidden metadata preservation, XLSX/WPS date variants,
+   customer and amount rejection, duplicate upload, cross-month `occurred_on` reporting,
+   commission failure rollback, exactly one 7-day and one 30-day reminder, and order/audit
+   attribution snapshots.
+
+The local branch has automated coverage for the flow and has not run this migration or any
+business acceptance in UAT/Production. The local result must not be reported as target-environment
+verification. Rollback requires the normal release rollback procedure and a verified backup;
+never delete `institution_return_files`, `order_items`, or order fact columns manually.

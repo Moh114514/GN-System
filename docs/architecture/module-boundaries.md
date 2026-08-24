@@ -99,3 +99,27 @@ scope changed. Batch transfers lock customers in deterministic ID order and roll
 the whole batch on any invalid item. Status rollback requests use the same Customer
 status manager with an explicit approval marker; the manager still enforces the current
 actor's scope and the no-order rollback rule.
+
+## PR4 institution return and order facts boundary
+
+Order owns `institution_form_templates`, `institution_return_files`, `order_items`, and the
+new order fact columns (`occurred_on`, `record_status`, `business_attribution_snapshot`, and
+`source_return_file_id`). Its Application layer owns template generation, hidden metadata
+signing, fixed-form parsing, encrypted private storage, duplicate protection, and the atomic
+institution-return processor. Order may consume only the Config institution reader, Customer
+customer/order reference and treatment-completion contracts, Agent reference contract,
+Settlement daily commission contract, Reminder treatment-reminder contract, and Audit recorder
+contract. It must not import those modules' Models or write their tables directly.
+
+Customer owns the customer status transition performed through
+`CustomerTreatmentCompletionGateway`; it does not create orders or reminders as a side effect.
+The Order processor schedules the two postoperative reminders exactly once after the customer
+completion contract succeeds. Settlement owns the commission snapshot, Reminder owns reminder
+instances, and Audit owns audit records. This remains synchronous application-contract
+coordination; domain events, a general event bus, and asynchronous cross-module consistency are
+not assumed.
+
+The `2026_08_24_000200_add_institution_return_order_facts.php` migration refuses to start when
+legacy orders cannot be mapped safely and refuses rollback after order facts, order items, or
+original return files exist. Private source files are encrypted before being written to the
+configured private disk and are served only after scope checks.

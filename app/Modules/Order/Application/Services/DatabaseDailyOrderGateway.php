@@ -49,6 +49,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
                 'project_name' => trim($data->projectName),
                 'amount_krw' => $data->amountKrw,
                 'completed_on' => $data->status === 'completed' ? $data->completedOn : null,
+                'occurred_on' => $data->status === 'completed' ? $data->completedOn : null,
                 'completed_at' => $completedAt,
                 'completion_precision' => $completedAt === null ? 'date' : 'datetime',
                 'treatment_project_snapshot' => trim($data->projectName),
@@ -96,6 +97,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
             $order->update([
                 'status' => 'completed',
                 'completed_on' => $completedOn,
+                'occurred_on' => $completedOn,
                 'completed_at' => $completedOn->setTimezone('Asia/Shanghai'),
                 'completion_precision' => 'datetime',
                 'treatment_project_snapshot' => $order->treatment_project_snapshot ?: $order->project_name,
@@ -207,6 +209,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
                 projectName: (string) $order->project_name,
                 amountKrw: (int) $order->amount_krw,
                 status: (string) $order->status,
+                occurredOn: $order->occurred_on?->format('Y-m-d'),
                 completedOn: $order->completed_on?->format('Y-m-d'),
                 commissionAmountKrw: $commission === null ? null : (int) $commission->amount_krw,
                 commissionRateBps: $commission === null ? null : (int) $commission->rate_bps,

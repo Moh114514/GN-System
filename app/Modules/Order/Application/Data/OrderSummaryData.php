@@ -12,6 +12,7 @@ final readonly class OrderSummaryData
         public string $projectName,
         public int $amountKrw,
         public string $status,
+        public ?string $occurredOn,
         public ?string $completedOn,
         public ?int $commissionAmountKrw,
         public ?int $commissionRateBps,

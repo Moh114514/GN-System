@@ -1,6 +1,6 @@
 # 当前架构概览
 
-> 最后核验：2026-07-31
+> 最后核验：2026-08-24
 > 本文只描述当前仓库已经采用的架构，不描述未来业务数据流。
 
 ## 系统形态
@@ -103,3 +103,18 @@ Application Contract 管理并展示未归属完整性检查。该基础能力�
 ## PR2 access context
 
 The current feature branch adds an Auth-owned access context for role, effective business-group membership, agent assignment, group-user ownership, and a permission fingerprint. Application readers and gateways apply that context to business records, reports, dashboards, saved queries, exports, and settlement documents. Queued exports carry a serialized snapshot and are checked against the current creator context when downloaded. This is scope enforcement inside the existing modular monolith; it does not introduce domain events, CQRS, a new projection store, or a general policy framework.
+
+## PR4 institution return and order facts
+
+The Order module now receives completed business facts from a versioned institution XLSX
+template. The generated workbook contains a very-hidden metadata sheet with a form UUID and
+HMAC signature. The parser accepts Excel serial dates, date objects, and supported string date
+forms, then validates customer identity, date consistency, item quantities, unit prices, and
+amounts before processing.
+
+The original workbook is encrypted into the private storage root. A successful upload atomically
+creates the order fact, item snapshots, commission snapshot, customer treatment completion, two
+postoperative reminders, and audit record. SHA-256 and form UUID uniqueness prevent duplicate
+processing. The `occurred_on` business date is independent from upload time, so cross-month
+uploads remain in the month in which the business occurred. Manual order creation and manual
+completion are no longer exposed by the Order pages.

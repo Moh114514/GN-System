@@ -22,7 +22,7 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
     {
         return $this->scoped()
             ->whereKey(array_values(array_unique($ids)))
-            ->get(['id', 'code', 'name', 'source_agent_id'])
+            ->get(['id', 'code', 'name', 'source_agent_id', 'owner_id'])
             ->mapWithKeys(fn (Customer $customer): array => [
                 (int) $customer->id => $this->serializeCustomer($customer),
             ])
@@ -43,7 +43,7 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
         return $query
             ->latest('updated_at')
             ->limit(max(1, min($limit, 50)))
-            ->get(['id', 'code', 'name', 'source_agent_id'])
+            ->get(['id', 'code', 'name', 'source_agent_id', 'owner_id'])
             ->map(fn (Customer $customer): array => $this->serializeCustomer($customer))
             ->all();
     }
@@ -65,7 +65,7 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
             ->all();
     }
 
-    /** @return array{id: int, code: string, name: string, source_agent_id: int} */
+    /** @return array{id: int, code: string, name: string, source_agent_id: int, owner_id: int|null} */
     private function serializeCustomer(Customer $customer): array
     {
         return [
@@ -73,6 +73,7 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
             'code' => (string) $customer->code,
             'name' => (string) $customer->name,
             'source_agent_id' => (int) $customer->source_agent_id,
+            'owner_id' => $customer->owner_id === null ? null : (int) $customer->owner_id,
         ];
     }
 
