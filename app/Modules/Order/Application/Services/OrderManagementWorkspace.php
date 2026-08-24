@@ -307,6 +307,12 @@ final readonly class OrderManagementWorkspace
             return;
         }
 
+        if (! $context->hasEffectiveBusinessScope()) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
         $query->where(function ($scope) use ($context): void {
             if ($context->userId !== null) {
                 $scope->where('owner_id', $context->userId);

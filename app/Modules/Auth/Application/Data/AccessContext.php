@@ -36,29 +36,41 @@ final readonly class AccessContext
         return ! $this->isSuperAdmin() && $this->role === UserRole::CustomerService->value;
     }
 
+    public function hasEffectiveBusinessScope(): bool
+    {
+        return $this->isSuperAdmin()
+            || ($this->businessGroupIds !== [] && $this->agentIds !== []);
+    }
+
     public function canViewAgent(int $agentId): bool
     {
-        return $this->isSuperAdmin() || in_array($agentId, $this->agentIds, true);
+        return $this->isSuperAdmin()
+            || ($this->hasEffectiveBusinessScope() && in_array($agentId, $this->agentIds, true));
     }
 
     public function canViewCustomer(?int $sourceAgentId, ?int $ownerId): bool
     {
         return $this->isSuperAdmin()
-            || ($ownerId !== null && $this->userId === $ownerId)
-            || ($sourceAgentId !== null && in_array($sourceAgentId, $this->agentIds, true));
+            || ($this->hasEffectiveBusinessScope() && (
+                ($ownerId !== null && $this->userId === $ownerId)
+                || ($sourceAgentId !== null && in_array($sourceAgentId, $this->agentIds, true))
+            ));
     }
 
     public function canViewOrder(?int $agentId, ?int $customerOwnerId = null, ?int $customerSourceAgentId = null): bool
     {
         return $this->isSuperAdmin()
-            || ($agentId !== null && in_array($agentId, $this->agentIds, true))
-            || ($customerOwnerId !== null && $this->userId === $customerOwnerId)
-            || ($customerSourceAgentId !== null && in_array($customerSourceAgentId, $this->agentIds, true));
+            || ($this->hasEffectiveBusinessScope() && (
+                ($agentId !== null && in_array($agentId, $this->agentIds, true))
+                || ($customerOwnerId !== null && $this->userId === $customerOwnerId)
+                || ($customerSourceAgentId !== null && in_array($customerSourceAgentId, $this->agentIds, true))
+            ));
     }
 
     public function canDownloadSensitiveCustomerData(?int $ownerId): bool
     {
-        return $this->isSuperAdmin() || ($ownerId !== null && $ownerId === $this->userId);
+        return $this->isSuperAdmin()
+            || ($this->hasEffectiveBusinessScope() && $ownerId !== null && $ownerId === $this->userId);
     }
 
     /** @return array<string, mixed> */

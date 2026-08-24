@@ -2,6 +2,7 @@
 
 namespace App\Modules\Customer\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
@@ -41,6 +42,7 @@ final readonly class CustomerDirectory
         private AuditRecorder $audit,
         private AccessContextResolver $access,
         private BusinessGroupMembershipReader $memberships,
+        private BusinessClock $clock,
     ) {}
 
     /**
@@ -145,10 +147,10 @@ final readonly class CustomerDirectory
     {
         $users = $this->assignableUsers->eligibleUsers();
         $context = $this->access->current();
-        $groupIds = $context->isSuperAdmin() || $context->businessGroupIds === []
+        $groupIds = $context->isSuperAdmin()
             ? null
             : $context->businessGroupIds;
-        $allowedIds = $this->memberships->activeCustomerServiceUserIds($groupIds);
+        $allowedIds = $this->memberships->activeCustomerServiceUserIds($groupIds, $this->clock->now()->toDateString());
         $allowed = array_flip($allowedIds);
 
         return array_values(array_filter($users, fn (array $user): bool => isset($allowed[(int) $user['id']])));
@@ -452,6 +454,12 @@ final readonly class CustomerDirectory
     {
         $context = $this->access->current();
         if ($context->isSuperAdmin()) {
+            return;
+        }
+
+        if (! $context->hasEffectiveBusinessScope()) {
+            $query->whereRaw('1 = 0');
+
             return;
         }
 

@@ -47,8 +47,8 @@ final readonly class ReminderWorkspace
         if ($context->isSuperAdmin()) {
             return $users;
         }
-        if ($context->isCustomerService()) {
-            return $users;
+        if (! $context->hasEffectiveBusinessScope()) {
+            return [];
         }
         $allowed = [...$context->groupUserIds, $context->userId];
 

@@ -136,6 +136,6 @@ final readonly class ReportExportManager
     private function assertCanExport(): void
     {
         $context = $this->access->current();
-        abort_unless(! $context->isCustomerService() || $context->groupUserIds === [], 403);
+        abort_unless(! $context->isCustomerService() && $context->hasEffectiveBusinessScope(), 403);
     }
 }

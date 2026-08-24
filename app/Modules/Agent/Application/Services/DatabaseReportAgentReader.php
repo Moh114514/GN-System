@@ -94,11 +94,11 @@ final class DatabaseReportAgentReader implements ReportAgentReader
     private function scoped(Builder $query): Builder
     {
         $context = $this->access->current();
-        if ($context->isSuperAdmin() || $context->isCustomerService()) {
+        if ($context->isSuperAdmin()) {
             return $query;
         }
 
-        return $context->agentIds === []
+        return ! $context->hasEffectiveBusinessScope()
             ? $query->whereRaw('1 = 0')
             : $query->whereKey($context->agentIds);
     }

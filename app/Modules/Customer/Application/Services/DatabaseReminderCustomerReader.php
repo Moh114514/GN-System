@@ -59,6 +59,10 @@ final readonly class DatabaseReminderCustomerReader implements ReminderCustomerR
             return Customer::query();
         }
 
+        if (! $context->hasEffectiveBusinessScope()) {
+            return Customer::query()->whereRaw('1 = 0');
+        }
+
         return Customer::query()->where(function ($query) use ($context): void {
             if ($context->userId !== null) {
                 $query->where('owner_id', $context->userId);

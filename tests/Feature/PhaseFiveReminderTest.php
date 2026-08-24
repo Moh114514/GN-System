@@ -3,8 +3,11 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Agent\Application\Contracts\AgentBusinessGroupAssignmentGateway;
 use App\Modules\Agent\Infrastructure\Models\Agent;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
+use App\Modules\Auth\Application\Contracts\BusinessGroupManagementGateway;
+use App\Modules\Auth\Domain\UserRole;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Config\Infrastructure\Models\NotificationRecipientConfig;
 use App\Modules\Customer\Infrastructure\Models\Customer;
@@ -58,12 +61,18 @@ class PhaseFiveReminderTest extends TestCase
         $this->user = User::factory()->create(['name' => '负责客服']);
         $this->other = User::factory()->create(['name' => '其他客服']);
         $this->admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $groups = app(BusinessGroupManagementGateway::class);
+        $groupId = $groups->create('REMINDER-TEST', 'Reminder test group', $this->admin->id, null)['id'];
+        foreach ([$this->user, $this->other] as $member) {
+            $groups->assignMember($groupId, $member->id, UserRole::CustomerService->value, '2026-01-01', null, 'Reminder test scope', $this->admin->id, null);
+        }
         $this->agent = Agent::query()->create([
             'agent_type_code_id' => AgentTypeCode::query()->where('code', 'JG')->value('id'),
             'code' => 'REM-JG',
             'name' => '提醒测试代理商',
             'cooperation_status' => 'active',
         ]);
+        app(AgentBusinessGroupAssignmentGateway::class)->assign($this->agent->id, $groupId, '2026-01-01', null, 'Reminder test scope', $this->admin->id, null);
         $this->customer = Customer::query()->create([
             'code' => 'REMIND-0001',
             'name' => '提醒测试客户',

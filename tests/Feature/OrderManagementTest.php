@@ -263,6 +263,7 @@ class OrderManagementTest extends TestCase
         $admin = User::factory()->create(['is_super_admin' => true, 'two_factor_confirmed_at' => now()]);
         $institution = Institution::query()->firstOrFail();
         $agent = $this->agent();
+        $this->scope($agent, $user->id);
         $customer = Customer::query()->create([
             'code' => 'TEST-JG-0004',
             'name' => '订单生命周期客户',
@@ -462,11 +463,21 @@ class OrderManagementTest extends TestCase
 
     private function customer(Agent $agent, int $ownerId): Customer
     {
+        $this->scope($agent, $ownerId);
+
         return Customer::query()->create([
             'code' => 'TEST-JG-0001',
             'name' => '测试订单客户',
             'source_agent_id' => $agent->id,
             'owner_id' => $ownerId,
         ]);
+    }
+
+    private function scope(Agent $agent, int $ownerId): void
+    {
+        $groups = app(BusinessGroupManagementGateway::class);
+        $groupId = $groups->create('ORDER-'.$ownerId.'-'.$agent->id, 'Order test scope', $ownerId, null)['id'];
+        $groups->assignMember($groupId, $ownerId, UserRole::CustomerService->value, '2026-01-01', null, 'Order test scope', $ownerId, null);
+        app(AgentBusinessGroupAssignmentGateway::class)->assign($agent->id, $groupId, '2026-01-01', null, 'Order test scope', $ownerId, null);
     }
 }

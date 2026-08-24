@@ -2,6 +2,7 @@
 
 namespace App\Modules\Auth\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Agent\Application\Contracts\AgentAccessScopeReader;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
@@ -15,7 +16,10 @@ final class DatabaseAccessContextResolver implements AccessContextResolver
 {
     private ?AccessContext $override = null;
 
-    public function __construct(private readonly AgentAccessScopeReader $agents) {}
+    public function __construct(
+        private readonly AgentAccessScopeReader $agents,
+        private readonly BusinessClock $clock,
+    ) {}
 
     public function current(): AccessContext
     {
@@ -38,7 +42,7 @@ final class DatabaseAccessContextResolver implements AccessContextResolver
             return $this->unrestricted((int) $user->id, $role->value);
         }
 
-        $date = now()->toDateString();
+        $date = $this->clock->now()->toDateString();
         $groupIds = BusinessGroupMembership::query()
             ->where('user_id', $user->id)
             ->where('member_role', $role->value)

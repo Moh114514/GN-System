@@ -9,11 +9,14 @@ use App\Modules\Agent\Application\Services\AgentDirectory;
 use App\Modules\Agent\Application\Services\AgentManager;
 use App\Modules\Agent\Application\Services\DatabaseReferenceConfigurationImportGateway;
 use App\Modules\Agent\Infrastructure\Models\Agent;
+use App\Modules\Agent\Infrastructure\Models\AgentBusinessGroupAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentGradeAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Agent\Infrastructure\Models\PolicyGrade;
 use App\Modules\Agent\Infrastructure\Models\PolicySystem;
 use App\Modules\Agent\Presentation\Livewire\AgentList;
+use App\Modules\Auth\Infrastructure\Models\BusinessGroup;
+use App\Modules\Auth\Infrastructure\Models\BusinessGroupMembership;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Order\Application\Contracts\DailyOrderGateway;
@@ -55,6 +58,20 @@ class PhaseFourAgentCommissionTest extends TestCase
         $this->seed(PhaseTwoReferenceDataSeeder::class);
         $this->user = User::factory()->create();
         $this->admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $businessGroup = BusinessGroup::query()->create([
+            'code' => 'TEST-GROUP',
+            'name' => '测试业务组',
+            'is_active' => true,
+            'created_by' => $this->admin->id,
+        ]);
+        BusinessGroupMembership::query()->create([
+            'business_group_id' => $businessGroup->id,
+            'user_id' => $this->user->id,
+            'member_role' => 'customer_service',
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $this->admin->id,
+            'reason' => 'phase four test scope',
+        ]);
         $system = PolicySystem::query()->create(['name' => '代理商计划', 'is_active' => true]);
         $this->grade = PolicyGrade::query()->create([
             'policy_system_id' => $system->id,
@@ -70,6 +87,13 @@ class PhaseFourAgentCommissionTest extends TestCase
             'name' => '测试代理商',
             'cooperation_started_on' => '2026-01-01',
             'cooperation_status' => 'active',
+        ]);
+        AgentBusinessGroupAssignment::query()->create([
+            'agent_id' => $this->agent->id,
+            'business_group_id' => $businessGroup->id,
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $this->admin->id,
+            'reason' => 'phase four test scope',
         ]);
         AgentGradeAssignment::query()->create([
             'agent_id' => $this->agent->id,

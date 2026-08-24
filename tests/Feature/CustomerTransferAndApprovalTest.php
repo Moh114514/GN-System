@@ -211,6 +211,11 @@ class CustomerTransferAndApprovalTest extends TestCase
         }
         app(CustomerTransferManager::class)->direct($customerId, $otherOwner->id, '超级管理员跨组交接', $this->admin, null);
         $this->assertDatabaseHas('customers', ['id' => $customerId, 'owner_id' => $otherOwner->id]);
+        $this->assertDatabaseHas('customer_owner_histories', [
+            'customer_id' => $customerId,
+            'business_group_id' => $this->groupId,
+            'source' => 'admin_cross_group',
+        ]);
     }
 
     public function test_arrived_timestamp_and_status_history_survive_approved_rollback(): void

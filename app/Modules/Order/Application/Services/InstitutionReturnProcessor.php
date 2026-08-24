@@ -54,21 +54,30 @@ final readonly class InstitutionReturnProcessor
 
         $returnFileId = (string) Str::uuid();
         $stored = $this->storage->store($returnFileId, $data->contents);
+        $storedPath = (string) $stored['path'];
         $returnFile = null;
         try {
-            $returnFile = InstitutionReturnFile::query()->create([
-                'id' => $returnFileId,
-                'institution_id' => $data->institutionId,
-                'original_name' => $data->originalName,
-                'extension' => strtolower($data->extension),
-                'mime_type' => $data->mimeType,
-                'size_bytes' => $stored['size'],
-                'sha256' => $stored['sha256'],
-                'encrypted_path' => $stored['path'],
-                'status' => 'uploaded',
-                'uploaded_by' => $data->actorId,
-                'uploaded_at' => $this->clock->now(),
-            ]);
+            try {
+                $returnFile = InstitutionReturnFile::query()->create([
+                    'id' => $returnFileId,
+                    'institution_id' => $data->institutionId,
+                    'original_name' => $data->originalName,
+                    'extension' => strtolower($data->extension),
+                    'mime_type' => $data->mimeType,
+                    'size_bytes' => $stored['size'],
+                    'sha256' => $stored['sha256'],
+                    'encrypted_path' => $stored['path'],
+                    'status' => 'uploaded',
+                    'uploaded_by' => $data->actorId,
+                    'uploaded_at' => $this->clock->now(),
+                ]);
+            } catch (QueryException $exception) {
+                $this->storage->delete($storedPath);
+                throw new DomainException(__('orders.errors.institution_return_duplicate_form'), previous: $exception);
+            } catch (Throwable $exception) {
+                $this->storage->delete($storedPath);
+                throw $exception;
+            }
 
             $parsed = $this->parser->parse($data->contents, $data->extension, [
                 'institution_id' => $data->institutionId,

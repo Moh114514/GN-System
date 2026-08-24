@@ -94,18 +94,13 @@ final readonly class CustomerProfileManager
             $ipAddress,
         ): int {
             $context = $this->access->forUser(User::query()->findOrFail($actorId));
-            if (! $context->isSuperAdmin()
-                && (! $context->isCustomerService() || $context->agentIds !== [])
-                && ! $context->canViewAgent($profile->sourceAgentId)) {
+            if (! $context->isSuperAdmin() && ! $context->canViewAgent($profile->sourceAgentId)) {
                 throw ValidationException::withMessages(['sourceId' => __('customers.form.validation.agent_unavailable')]);
             }
-            if (! $context->isSuperAdmin()
-                && $context->groupUserIds !== []
-                && ! in_array($ownerId, $context->groupUserIds, true)
-                && $ownerId !== $context->userId) {
+            if (! $context->isSuperAdmin() && ! in_array($ownerId, $context->groupUserIds, true)) {
                 throw ValidationException::withMessages(['ownerId' => __('customers.form.validation.owner_unavailable')]);
             }
-            $groupIds = $context->isSuperAdmin() || $context->businessGroupIds === []
+            $groupIds = $context->isSuperAdmin()
                 ? null
                 : $context->businessGroupIds;
             if (! $this->users->isEligible($ownerId)
@@ -218,9 +213,7 @@ final readonly class CustomerProfileManager
                 || ($context->isCustomerService() && (int) $customer->owner_id === (int) $actorId),
                 403,
             );
-            if (! $context->isSuperAdmin()
-                && (! $context->isCustomerService() || $context->agentIds !== [])
-                && ! $context->canViewAgent($profile->sourceAgentId)) {
+            if (! $context->isSuperAdmin() && ! $context->canViewAgent($profile->sourceAgentId)) {
                 throw ValidationException::withMessages(['sourceId' => __('customers.form.validation.agent_unavailable')]);
             }
             $contact = CustomerContact::query()->where('customer_id', $customerId)->where('is_primary', true)->first();

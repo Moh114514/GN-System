@@ -304,10 +304,10 @@ SETTLEMENT_EXCHANGE_RATE_TIMEOUT=10
 月结中心的“往期月结”可选择最近已关闭的历史周期生成批次。节点按相邻历史配置边界计算，配置切换期间的过渡周期不得被跳过或重叠；参与代理商按周期内合作起止日期判断，不能用当前状态替代历史资格。
 如果该周期已有批次，系统保持幂等并返回原批次，同时明确区分新建、处理中、已完成和部分失败，不覆盖已有明细、审核状态或结算文档。
 
-PR6 的新配置使用 `settlement_configurations.generation_day=10`，统计周期固定为自然月，
-每月 10 日指定时间生成上一个自然月。Scheduler 仍每分钟运行，但生成日和时间之前不生成；
+PR6 的新配置使用 `settlement_configurations.generation_day=5`，统计周期固定为自然月，
+每月 5 日指定时间生成上一个自然月。Scheduler 仍每分钟运行，但生成日和时间之前不生成；
 生成窗口内恢复时补偿缺失周期。旧配置的 `generation_day` 为空，仍使用 `boundary_day`
-重建历史周期；不得直接把旧 `boundary_day` 改成 10。
+重建历史周期；不得直接把旧 `boundary_day` 改成 5。
 
 PR7 的月结中心默认展示最新已生成周期，顶部下拉可切换其他已生成周期，避免首页同时堆叠所有批次。
 历史月结归档使用业务日期起止，并按 `period_start <= businessTo AND period_end >= businessFrom` 判断周期重叠，

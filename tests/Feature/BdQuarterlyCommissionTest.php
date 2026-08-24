@@ -182,6 +182,30 @@ final class BdQuarterlyCommissionTest extends TestCase
         $this->assertSame('order_correction', $next->adjustments()->value('source'));
     }
 
+    public function test_correction_skips_a_confirmed_next_quarter(): void
+    {
+        $before = $this->order(6002, 10000, '2026-07-15', $this->firstBd->id);
+        $this->reader->orders = [$before];
+        $service = $this->service();
+        $q1 = $service->generate(CarbonImmutable::parse('2026-07-01'), $this->admin->id, null);
+        $service->review((int) $q1->id, $this->admin->id, null);
+        $service->confirm((int) $q1->id, $this->admin->id, null);
+
+        $q2 = $service->generate(CarbonImmutable::parse('2026-10-01'), $this->admin->id, null);
+        $service->review((int) $q2->id, $this->admin->id, null);
+        $service->confirm((int) $q2->id, $this->admin->id, null);
+        $service->onOrderCorrected(
+            $before,
+            $this->order(6002, 20000, '2026-07-15', $this->firstBd->id),
+            $this->admin->id,
+            null,
+        );
+
+        $q3 = BdQuarterlyCommission::query()->whereDate('quarter_start', '2027-01-01')->firstOrFail();
+        $this->assertSame(1000, (int) $q3->total_adjustment_krw);
+        $this->assertSame(0, (int) $q2->fresh()->total_adjustment_krw);
+    }
+
     public function test_bd_quarterly_page_is_available_to_bd_and_admin_with_dashboard_back_link(): void
     {
         $this->actingAs($this->admin)

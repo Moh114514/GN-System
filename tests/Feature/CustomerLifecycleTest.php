@@ -4,8 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Modules\Agent\Infrastructure\Models\Agent;
+use App\Modules\Agent\Infrastructure\Models\AgentBusinessGroupAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Infrastructure\Models\BusinessGroup;
+use App\Modules\Auth\Infrastructure\Models\BusinessGroupMembership;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Application\Data\CustomerProfileData;
 use App\Modules\Customer\Application\Exceptions\CustomerCodeChanged;
@@ -42,17 +45,40 @@ class CustomerLifecycleTest extends TestCase
 
     private Institution $institution;
 
+    private BusinessGroup $businessGroup;
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->seed(PhaseTwoReferenceDataSeeder::class);
         $this->user = User::factory()->create();
+        $this->businessGroup = BusinessGroup::query()->create([
+            'code' => 'TEST-GROUP',
+            'name' => '测试业务组',
+            'is_active' => true,
+            'created_by' => $this->user->id,
+        ]);
+        BusinessGroupMembership::query()->create([
+            'business_group_id' => $this->businessGroup->id,
+            'user_id' => $this->user->id,
+            'member_role' => 'customer_service',
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $this->user->id,
+            'reason' => 'lifecycle test scope',
+        ]);
         $type = AgentTypeCode::query()->where('code', 'JG')->firstOrFail();
         $this->agent = Agent::query()->create([
             'agent_type_code_id' => $type->id,
             'code' => 'TEST-JG',
             'name' => '测试代理商',
             'cooperation_status' => 'active',
+        ]);
+        AgentBusinessGroupAssignment::query()->create([
+            'agent_id' => $this->agent->id,
+            'business_group_id' => $this->businessGroup->id,
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $this->user->id,
+            'reason' => 'lifecycle test scope',
         ]);
         $this->institution = Institution::query()->firstOrFail();
     }
@@ -61,6 +87,14 @@ class CustomerLifecycleTest extends TestCase
     {
         $manager = app(CustomerProfileManager::class);
         $owner = User::factory()->create(['name' => '指定负责人']);
+        BusinessGroupMembership::query()->create([
+            'business_group_id' => $this->businessGroup->id,
+            'user_id' => $owner->id,
+            'member_role' => 'customer_service',
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $this->user->id,
+            'reason' => 'lifecycle test scope',
+        ]);
         $code = $manager->previewCode($this->agent->id);
         $customerId = $manager->create(
             profile: $this->profile(),
@@ -635,6 +669,14 @@ class CustomerLifecycleTest extends TestCase
     public function test_customer_form_defaults_owner_and_only_lists_eligible_internal_users(): void
     {
         $eligible = User::factory()->create(['name' => '可选负责人']);
+        BusinessGroupMembership::query()->create([
+            'business_group_id' => $this->businessGroup->id,
+            'user_id' => $eligible->id,
+            'member_role' => 'customer_service',
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $this->user->id,
+            'reason' => 'lifecycle test scope',
+        ]);
         $inactive = User::factory()->create(['name' => '停用负责人', 'is_active' => false]);
         $pending = User::factory()->create(['name' => '待接受负责人', 'invitation_status' => 'pending']);
 

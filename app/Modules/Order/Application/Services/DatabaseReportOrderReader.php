@@ -243,6 +243,12 @@ final class DatabaseReportOrderReader implements ReportOrderReader
             return;
         }
 
+        if (! $context->hasEffectiveBusinessScope()) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
         $query->where(function ($scope) use ($context): void {
             if ($context->userId !== null) {
                 $scope->where('owner_id', $context->userId);
@@ -259,6 +265,10 @@ final class DatabaseReportOrderReader implements ReportOrderReader
         $context = $this->access->current();
         $query = Appointment::query();
         if (! $context->isSuperAdmin()) {
+            if (! $context->hasEffectiveBusinessScope()) {
+                return $query->whereRaw('1 = 0');
+            }
+
             $query->where(function ($scope) use ($context): void {
                 if ($context->userId !== null) {
                     $scope->where('owner_id', $context->userId);

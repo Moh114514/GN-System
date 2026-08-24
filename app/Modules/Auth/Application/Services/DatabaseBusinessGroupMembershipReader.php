@@ -2,12 +2,15 @@
 
 namespace App\Modules\Auth\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Auth\Application\Contracts\BusinessGroupMembershipReader;
 use Carbon\CarbonImmutable;
 
 final class DatabaseBusinessGroupMembershipReader implements BusinessGroupMembershipReader
 {
+    public function __construct(private readonly BusinessClock $clock) {}
+
     /**
      * @param  list<int>|null  $businessGroupIds
      * @return list<int>
@@ -59,6 +62,6 @@ final class DatabaseBusinessGroupMembershipReader implements BusinessGroupMember
             }
         }
 
-        return now()->toDateString();
+        return $this->clock->now()->toDateString();
     }
 }

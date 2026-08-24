@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
+use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Agent\Infrastructure\Models\Agent;
 use App\Modules\Agent\Infrastructure\Models\AgentBusinessGroupAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
@@ -13,6 +15,7 @@ use App\Modules\Auth\Infrastructure\Models\BusinessGroupMembership;
 use App\Modules\Customer\Application\Services\CustomerDirectory;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
+use App\Modules\Reminder\Application\Services\ReminderWorkspace;
 use App\Modules\Report\Application\Services\DashboardRangeFactory;
 use App\Modules\Report\Application\Services\DashboardService;
 use App\Modules\Report\Application\Services\ReportExportManager;
@@ -144,5 +147,38 @@ class AccessScopeTest extends TestCase
             $adminSnapshot->metrics['new_customers']['value'],
             $bdSnapshot->metrics['new_customers']['value'],
         );
+    }
+
+    public function test_customer_service_without_group_or_agent_scope_is_denied_everywhere(): void
+    {
+        $unassigned = User::factory()->create(['role' => UserRole::CustomerService]);
+        $context = app(AccessContextResolver::class)->forUser($unassigned);
+
+        $this->assertSame([], $context->businessGroupIds);
+        $this->assertSame([], $context->agentIds);
+
+        $this->actingAs($unassigned);
+        $this->assertSame([], app(AgentReferenceReader::class)->activeAgents());
+        $this->assertSame([], app(CustomerDirectory::class)->ownerCandidates());
+        $this->assertSame(0, app(CustomerDirectory::class)->paginate([], 15)->total());
+        $this->assertSame([], app(ReminderWorkspace::class)->assigneeCandidates());
+    }
+
+    public function test_permission_effective_dates_follow_business_clock(): void
+    {
+        $membership = BusinessGroupMembership::query()->where('user_id', $this->owner->id)->firstOrFail();
+        $assignment = AgentBusinessGroupAssignment::query()->where('agent_id', $this->groupACustomer->source_agent_id)->firstOrFail();
+        $membership->update(['effective_until' => '2026-08-31']);
+        $assignment->update(['effective_until' => '2026-08-31']);
+
+        $clock = app(BusinessClock::class);
+        $clock->set(CarbonImmutable::parse('2026-09-01'), $this->admin->id);
+        try {
+            $context = app(AccessContextResolver::class)->forUser($this->owner);
+            $this->assertSame([], $context->businessGroupIds);
+            $this->assertSame([], $context->agentIds);
+        } finally {
+            $clock->disable();
+        }
     }
 }

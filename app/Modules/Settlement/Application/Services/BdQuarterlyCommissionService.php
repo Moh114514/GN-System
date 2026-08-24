@@ -454,21 +454,25 @@ final readonly class BdQuarterlyCommissionService implements BdCommissionCorrect
 
     private function draftPeriod(CarbonImmutable $quarterStart): BdQuarterlyCommission
     {
-        $existing = $this->period($quarterStart, true);
-        if ($existing !== null && $existing->status === 'confirmed') {
-            throw new DomainException(__('settlements.bd_commission.errors.period_locked'));
-        }
-        if ($existing !== null) {
-            return $existing;
-        }
-        $bounds = $this->quarter($quarterStart);
+        $candidateStart = $quarterStart->startOfQuarter();
+        while (true) {
+            $existing = $this->period($candidateStart, true);
+            if ($existing === null) {
+                $bounds = $this->quarter($candidateStart);
 
-        return BdQuarterlyCommission::query()->create([
-            'quarter_start' => $bounds['start']->toDateString(),
-            'quarter_end' => $bounds['end']->toDateString(),
-            'status' => 'draft',
-            'currency' => 'KRW',
-        ]);
+                return BdQuarterlyCommission::query()->create([
+                    'quarter_start' => $bounds['start']->toDateString(),
+                    'quarter_end' => $bounds['end']->toDateString(),
+                    'status' => 'draft',
+                    'currency' => 'KRW',
+                ]);
+            }
+            if ($existing->status !== 'confirmed') {
+                return $existing;
+            }
+
+            $candidateStart = $candidateStart->addMonths(3)->startOfQuarter();
+        }
     }
 
     /**

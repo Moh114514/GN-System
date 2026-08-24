@@ -4,6 +4,7 @@ namespace App\Modules\Customer\Application\Services;
 
 use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
+use App\Modules\Agent\Application\Contracts\AgentBusinessAttributionReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Auth\Application\Contracts\BusinessGroupMembershipReader;
@@ -29,13 +30,14 @@ final readonly class CustomerTransferManager
         private NotificationRecipientGateway $notifications,
         private AuditRecorder $audit,
         private BusinessClock $clock,
+        private AgentBusinessAttributionReader $attributions,
     ) {}
 
     /** @return list<array{id: int, name: string}> */
     public function ownerCandidates(): array
     {
         $context = $this->access->current();
-        $groupIds = $context->isSuperAdmin() || $context->businessGroupIds === []
+        $groupIds = $context->isSuperAdmin()
             ? null
             : $context->businessGroupIds;
         $allowedIds = $this->memberships->activeCustomerServiceUserIds($groupIds, $this->clock->now()->toDateString());
@@ -205,7 +207,7 @@ final readonly class CustomerTransferManager
                     'reviewed_at' => $this->clock->now(),
                     'review_reason' => __('customers.transfer.errors.superseded'),
                 ]);
-            $this->applyTransfer($customer, $toOwnerId, $context->isSuperAdmin() && $this->crossGroupTarget($toOwnerId, $context) ? 'admin_cross_group' : 'bd_direct', null, $reason, $actor, $ipAddress);
+            $this->applyTransfer($customer, $toOwnerId, $context->isSuperAdmin() && $this->crossGroupTarget($customer, $toOwnerId, $context) ? 'admin_cross_group' : 'bd_direct', null, $reason, $actor, $ipAddress);
         }, 3);
     }
 
@@ -274,10 +276,12 @@ final readonly class CustomerTransferManager
         $customer->update(['owner_id' => $toOwnerId]);
         $this->orders->transferFutureAppointments((int) $customer->id, $toOwnerId, $this->clock->now());
         $this->reminders->transferForCustomer((int) $customer->id, $toOwnerId, (int) $actor->id);
-        $context = $this->access->forUser($actor);
+        $attribution = $customer->source_agent_id === null
+            ? null
+            : $this->attributions->forAgentOnDate((int) $customer->source_agent_id, $this->clock->now());
         $history = CustomerOwnerHistory::query()->create([
             'customer_id' => $customer->id,
-            'business_group_id' => $context->businessGroupIds[0] ?? null,
+            'business_group_id' => isset($attribution['business_group_id']) ? (int) $attribution['business_group_id'] : null,
             'from_owner_id' => $fromOwnerId,
             'to_owner_id' => $toOwnerId,
             'source' => $source,
@@ -351,10 +355,23 @@ final readonly class CustomerTransferManager
         }
     }
 
-    private function crossGroupTarget(int $toOwnerId, AccessContext $context): bool
+    private function crossGroupTarget(Customer $customer, int $toOwnerId, AccessContext $context): bool
     {
-        return $context->isSuperAdmin()
-            && ! $this->memberships->isActiveCustomerServiceInGroups($toOwnerId, $context->businessGroupIds, $this->clock->now()->toDateString());
+        if (! $context->isSuperAdmin() || $customer->source_agent_id === null) {
+            return false;
+        }
+
+        $attribution = $this->attributions->forAgentOnDate((int) $customer->source_agent_id, $this->clock->now());
+        $groupId = $attribution['business_group_id'] ?? null;
+        if (! is_numeric($groupId) || (int) $groupId < 1) {
+            return false;
+        }
+
+        return ! $this->memberships->isActiveCustomerServiceInGroups(
+            $toOwnerId,
+            [(int) $groupId],
+            $this->clock->now()->toDateString(),
+        );
     }
 
     private function assertPending(string $status): void

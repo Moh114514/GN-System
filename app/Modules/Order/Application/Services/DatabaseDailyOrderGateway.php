@@ -161,9 +161,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
     private function assertOrderAgentAccess(int $agentId): void
     {
         $context = $this->access->current();
-        if (! $context->isSuperAdmin()
-            && (! $context->isCustomerService() || $context->agentIds !== [])
-            && ! $context->canViewAgent($agentId)) {
+        if (! $context->isSuperAdmin() && ! $context->canViewAgent($agentId)) {
             throw new DomainException(__('orders.errors.agent_required'));
         }
     }

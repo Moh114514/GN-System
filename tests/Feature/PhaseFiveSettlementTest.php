@@ -242,7 +242,7 @@ class PhaseFiveSettlementTest extends TestCase
         ));
     }
 
-    public function test_scheduler_generates_previous_natural_month_at_or_after_the_tenth(): void
+    public function test_scheduler_generates_previous_natural_month_at_or_after_the_fifth(): void
     {
         $manager = app(SettlementRunManager::class);
 

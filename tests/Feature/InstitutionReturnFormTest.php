@@ -4,10 +4,13 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Modules\Agent\Infrastructure\Models\Agent;
+use App\Modules\Agent\Infrastructure\Models\AgentBusinessGroupAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentGradeAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Agent\Infrastructure\Models\PolicyGrade;
 use App\Modules\Agent\Infrastructure\Models\PolicySystem;
+use App\Modules\Auth\Infrastructure\Models\BusinessGroup;
+use App\Modules\Auth\Infrastructure\Models\BusinessGroupMembership;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Order\Application\Data\InstitutionReturnUploadData;
@@ -314,6 +317,28 @@ class InstitutionReturnFormTest extends TestCase
 
     private function customer(Agent $agent, User $owner): Customer
     {
+        $group = BusinessGroup::query()->create([
+            'code' => 'PR4-RETURN-GROUP',
+            'name' => 'PR4 回传测试业务组',
+            'is_active' => true,
+            'created_by' => $owner->id,
+        ]);
+        BusinessGroupMembership::query()->create([
+            'business_group_id' => $group->id,
+            'user_id' => $owner->id,
+            'member_role' => 'customer_service',
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $owner->id,
+            'reason' => 'institution return test scope',
+        ]);
+        AgentBusinessGroupAssignment::query()->create([
+            'agent_id' => $agent->id,
+            'business_group_id' => $group->id,
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $owner->id,
+            'reason' => 'institution return test scope',
+        ]);
+
         return Customer::query()->create([
             'code' => 'TEST-JG-PR4-0001',
             'name' => 'PR4 测试客户',
