@@ -898,3 +898,9 @@ Never run these operations in `/srv/gn-system/production`, against `gn_system`, 
 The current `feature/business-groups-and-roles` worktree also contains PR2 permission scoping. It limits business pages and reports by role, business group, agent owner, and customer owner. BD can read only its settlement scope; mapped non-owner Customer Service accounts cannot export or download sensitive returned data. Dashboard caches and queued exports are separated by a permission fingerprint.
 
 There is no PR2 database migration. This is a local feature-branch result only: it is not merged and has not been checked in UAT/Production. Do not manually change server code or tables. A future release must use the normal RC deployment flow and verify the four role identities, cross-group links, Livewire actions, file downloads, export permissions, and dashboard separation in the target environment.
+
+## PR3 客户负责人移交与状态回退（2026-08-24）
+
+当前电脑上的 `feature/business-groups-and-roles` 还包含 PR3，但没有推送、合入或部署。PR3 新增数据库 migration，服务器不能直接手工改表；以后发布时要按正常 RC 流程先备份，再由发布脚本执行 migration，并同时更新 app、queue、scheduler。
+
+上线前需要在 UAT 逐项确认：客服提交/撤回负责人移交，BD 审核、驳回、直接移交和批量移交，超级管理员跨业务组移交，未来预约和未完成提醒换负责人，历史跟进创建人不变，重复到院更新时间且保留历史，状态回退审批，重复/失效申请拒绝，批量操作原子性，以及已有订单后不能普通回退。当前仅完成本地自动化测试，不能把本机结果写成 UAT 或 Production 已验证。

@@ -6,7 +6,7 @@
 
 > 最后核验：2026-08-24
 > 核验依据：Phase 6、订单中心、发布门禁、`v0.5.0-rc.13`、当前 `main` 提交记录和服务器环境记录，以及 `feature/business-groups-and-roles` 的 PR1 定向测试与完整本地门禁
-> 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及最新规划 PR1–PR6 已合入 `develop`；PR7 当前位于 `feature/settlement-period-navigation`，新增月结周期选择、历史业务日期重叠查询和结清后文档下载回归。新规划 PR1（角色、业务组、成员历史和代理商归属）当前位于 `feature/business-groups-and-roles`，已完成本地开发验证但尚未合入 `develop`。UAT/生产历史数据升级、抽样核验和人工业务验收仍未完成。
+> 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及已合入 `develop` 的既有规划能力继续保持；`feature/business-groups-and-roles` 当前已在本地完成新规划 PR1、PR2 和 PR3，包含角色/业务组底座、权限范围、客户负责人移交与状态回退审批，当前工作区尚未合入 `develop`，也未推送本轮 PR3。PR3 新增数据库 migration，UAT/Production 尚未升级或人工验收。UAT/生产历史数据升级、抽样核验和人工业务验收仍未完成。
 
 本页只描述仓库中可以验证的状态。未来规划见 `docs/source/`，不能据此页之外的
 规划内容推断某项能力已经存在。
@@ -180,3 +180,10 @@ UAT/Production 使用 `queue:work`。本地开发与 UAT/Production 操作手册
 - Customer, Agent, Order, Reminder, Settlement, Report, global search, saved queries, dashboard drill-down, export, and settlement-document download paths now apply role and ownership/group scope. BD settlement pages are read-only; mapped non-owner Customer Service users cannot export or download sensitive returned data, and Customer Service responses omit agent contact, grade, contract, and financial fields.
 - Direct Livewire write methods retain server-side authorization checks. The PR2 matrix test covers super administrator, BD, owner Customer Service, and non-owner Customer Service identities, cross-group URL access, sensitive fields, export denial, and cache/fingerprint separation.
 - PR2 adds no migration. The implementation is locally tested on the feature branch only; it has not been merged into `develop` and has not been validated or deployed in UAT/Production.
+
+## 2026-08-24 PR3 customer transfer and rollback implementation
+
+- `feature/business-groups-and-roles` now contains the PR3 Customer application flow: same-group active Customer Service owner candidates, Customer Service transfer request/withdrawal, BD approval/rejection/direct/batch transfer, and super-admin cross-group transfer.
+- Customer transfer is transactional across the customer owner, future scheduled appointments, unfinished reminders, owner history, audit, and internal notification records. Historical follow-up creators remain unchanged. Duplicate pending requests, stale owners, inactive targets, and batch failures are rejected atomically.
+- Customer lifecycle now stores the latest `arrived_at`; repeated arrival creates another status history while updating the latest timestamp. The detail flow derives current/completed/available nodes from the current status, while status history and owner history remain on the timeline. Non-super rollback requires a status approval request, and any existing order blocks ordinary rollback.
+- PR3 adds `2026_08_24_000100_add_customer_transfer_and_status_approval.php` for arrival time, transfer requests, owner history, and status rollback requests. Local tests cover the PR3 matrix and existing customer lifecycle/business-group regressions. The migration and feature branch have not been validated or deployed in UAT/Production; release must use the normal immutable RC process with a pre-migration backup and target-environment acceptance.

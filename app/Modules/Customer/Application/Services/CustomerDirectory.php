@@ -5,6 +5,7 @@ namespace App\Modules\Customer\Application\Services;
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
+use App\Modules\Auth\Application\Contracts\BusinessGroupMembershipReader;
 use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
 use App\Modules\Auth\Application\Contracts\ReportUserReader;
 use App\Modules\Config\Application\Contracts\InstitutionReferenceReader;
@@ -14,6 +15,7 @@ use App\Modules\Customer\Domain\SensitiveValueMasker;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerContact;
 use App\Modules\Customer\Infrastructure\Models\CustomerLifecycleStage;
+use App\Modules\Customer\Infrastructure\Models\CustomerOwnerHistory;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusTransition;
@@ -38,11 +40,12 @@ final readonly class CustomerDirectory
         private CustomerFollowupGateway $followups,
         private AuditRecorder $audit,
         private AccessContextResolver $access,
+        private BusinessGroupMembershipReader $memberships,
     ) {}
 
     /**
      * @param  array{search?: string, status_id?: int|null, agent_id?: int|null, institution_id?: int|null, created_from?: string, created_to?: string}  $filters
-     * @return LengthAwarePaginator<int, array{id: int, code: string, name: string, contact_masked: string, document_masked: string, status: string, source: string, created_at: string|null}>
+     * @return LengthAwarePaginator<int, array{id: int, code: string, name: string, contact_masked: string, document_masked: string, status: string, source: string, owner_id: int|null, owner: string|null, created_at: string|null}>
      */
     public function paginate(array $filters, int $perPage): LengthAwarePaginator
     {
@@ -82,8 +85,10 @@ final readonly class CustomerDirectory
         $page = $query->latest('created_at')->paginate($perPage);
         $agentIds = $page->getCollection()->pluck('source_agent_id')->filter()->map(fn ($id): int => (int) $id)->all();
         $agentLabels = $this->agents->agentsByIds($agentIds);
+        $ownerIds = $page->getCollection()->pluck('owner_id')->filter()->map(fn ($id): int => (int) $id)->all();
+        $ownerLabels = $this->userNames->namesByIds($ownerIds);
 
-        $items = $page->getCollection()->map(function (Customer $customer) use ($agentLabels): array {
+        $items = $page->getCollection()->map(function (Customer $customer) use ($agentLabels, $ownerLabels): array {
             return [
                 'id' => $customer->id,
                 'code' => $customer->code,
@@ -94,6 +99,8 @@ final readonly class CustomerDirectory
                     ? __('customers.fallback.unset')
                     : $this->labels->status((string) $customer->currentStatus->key, $customer->currentStatus->name),
                 'source' => (string) ($agentLabels[(int) $customer->source_agent_id]['name'] ?? __('customers.fallback.unknown_agent')),
+                'owner_id' => $customer->owner_id === null ? null : (int) $customer->owner_id,
+                'owner' => $customer->owner_id === null ? null : ($ownerLabels[(int) $customer->owner_id] ?? null),
                 'created_at' => $customer->created_at?->format('Y-m-d H:i'),
             ];
         });
@@ -138,15 +145,13 @@ final readonly class CustomerDirectory
     {
         $users = $this->assignableUsers->eligibleUsers();
         $context = $this->access->current();
-        if ($context->isSuperAdmin() || $context->groupUserIds === []) {
-            return $users;
-        }
+        $groupIds = $context->isSuperAdmin() || $context->businessGroupIds === []
+            ? null
+            : $context->businessGroupIds;
+        $allowedIds = $this->memberships->activeCustomerServiceUserIds($groupIds);
+        $allowed = array_flip($allowedIds);
 
-        return array_values(array_filter(
-            $users,
-            fn (array $user): bool => in_array((int) $user['id'], $context->groupUserIds, true)
-                || (int) $user['id'] === (int) $context->userId,
-        ));
+        return array_values(array_filter($users, fn (array $user): bool => isset($allowed[(int) $user['id']])));
     }
 
     /** @return array<string, mixed> */
@@ -174,6 +179,10 @@ final readonly class CustomerDirectory
             'project_intention' => $customer->project_intention,
             'notes' => $customer->notes,
             'owner_id' => $customer->owner_id,
+            'owner_name' => $customer->owner_id === null
+                ? null
+                : ($this->userNames->namesByIds([(int) $customer->owner_id])[(int) $customer->owner_id] ?? null),
+            'arrived_at' => $customer->arrived_at?->format('Y-m-d H:i'),
             'created_at' => $customer->created_at?->format('Y-m-d H:i'),
         ];
     }
@@ -227,8 +236,11 @@ final readonly class CustomerDirectory
             ->pluck('to_status_id')
             ->map(fn ($id): int => (int) $id)
             ->all();
+        $currentStatusSortOrder = $currentStatusId === null
+            ? null
+            : $statuses->firstWhere('id', $currentStatusId)?->sort_order;
 
-        $statusData = $statuses->map(function (CustomerStatus $status) use ($currentStatusId, $visitedStatusIds, $availableStatusIds): array {
+        $statusData = $statuses->map(function (CustomerStatus $status) use ($currentStatusId, $visitedStatusIds, $availableStatusIds, $currentStatusSortOrder): array {
             $statusId = (int) $status->id;
             $isCurrent = $statusId === $currentStatusId;
             $isVisited = in_array($statusId, $visitedStatusIds, true);
@@ -244,7 +256,7 @@ final readonly class CustomerDirectory
                 'is_visited' => $isVisited,
                 'is_current' => $isCurrent,
                 'is_available' => $isAvailable,
-                'state' => $this->statusFlowState((bool) $status->is_active, $isCurrent, $isVisited, $isAvailable),
+                'state' => $this->statusFlowState((bool) $status->is_active, $isCurrent, $isAvailable, $currentStatusSortOrder, (int) $status->sort_order),
             ];
         })->values();
         $statusesByStage = $statusData->groupBy('stage_id');
@@ -308,6 +320,7 @@ final readonly class CustomerDirectory
         $customer = Customer::query();
         $this->applyScope($customer);
         $customer = $customer->findOrFail($customerId);
+        /** @var array<int, array<string, mixed>> $events */
         $events = [
             ...$this->orders->timelineForCustomer($customerId),
             ...$this->followups->timelineForCustomer($customerId),
@@ -336,6 +349,20 @@ final readonly class CustomerDirectory
                     .'（'.($history->from_status_id === null ? __('customers.timeline.customer_registered') : $history->reason).'）',
                 'owner_id' => $history->changed_by,
                 'meta' => [],
+            ];
+        }
+        foreach (CustomerOwnerHistory::query()->where('customer_id', $customerId)->orderBy('effective_at')->orderBy('id')->get() as $history) {
+            $events[] = [
+                'type' => 'owner',
+                'occurred_at' => $history->effective_at->toIso8601String(),
+                'title' => __('customers.timeline.owner_changed'),
+                'content' => __('customers.timeline.owner_changed_detail', ['reason' => $history->reason]),
+                'owner_id' => $history->changed_by,
+                'meta' => [
+                    'from_owner_id' => $history->from_owner_id,
+                    'to_owner_id' => $history->to_owner_id,
+                    'source' => $history->source,
+                ],
             ];
         }
         foreach ($this->audit->trail($customer, 'customer') as $entry) {
@@ -382,6 +409,7 @@ final readonly class CustomerDirectory
         $institutionLabels = $this->institutions->institutionsByIds($institutionIds);
         $owners = $this->userNames->namesByIds($ownerIds);
 
+        /** @var array<int, array<string, mixed>> $result */
         $result = [];
         foreach ($events as $event) {
             if ($type !== null && $type !== '' && $event['type'] !== $type) {
@@ -402,7 +430,7 @@ final readonly class CustomerDirectory
         return $result;
     }
 
-    private function statusFlowState(bool $isActive, bool $isCurrent, bool $isVisited, bool $isAvailable): string
+    private function statusFlowState(bool $isActive, bool $isCurrent, bool $isAvailable, ?int $currentSortOrder, int $statusSortOrder): string
     {
         if ($isCurrent) {
             return $isActive ? 'current' : 'current_inactive';
@@ -412,7 +440,7 @@ final readonly class CustomerDirectory
             return 'inactive';
         }
 
-        if ($isVisited) {
+        if ($currentSortOrder !== null && $statusSortOrder < $currentSortOrder) {
             return 'completed';
         }
 

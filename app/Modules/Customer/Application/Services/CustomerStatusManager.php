@@ -12,6 +12,7 @@ use App\Modules\Customer\Infrastructure\Models\CustomerLifecycleStage;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusTransition;
+use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
 use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
 use App\Modules\Reminder\Application\Data\CustomerTreatmentCompletedData;
 use Illuminate\Support\Facades\DB;
@@ -25,6 +26,7 @@ final readonly class CustomerStatusManager
         private TreatmentReminderGateway $reminders,
         private BusinessClock $clock,
         private AccessContextResolver $access,
+        private CustomerOrderGateway $orders,
     ) {}
 
     public function change(
@@ -33,14 +35,21 @@ final readonly class CustomerStatusManager
         string $reason,
         User $actor,
         ?string $ipAddress,
+        bool $approvedRollback = false,
     ): void {
-        DB::transaction(function () use ($customerId, $targetStatusId, $reason, $actor, $ipAddress): void {
+        DB::transaction(function () use ($customerId, $targetStatusId, $reason, $actor, $ipAddress, $approvedRollback): void {
             $customer = Customer::query()->lockForUpdate()->findOrFail($customerId);
-            $context = $this->access->current();
+            $context = $this->access->forUser($actor);
             abort_unless($context->canViewCustomer(
                 $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
                 $customer->owner_id === null ? null : (int) $customer->owner_id,
             ), 404);
+            abort_unless(
+                $context->isSuperAdmin()
+                || $context->isBdManager()
+                || ($context->isCustomerService() && (int) $customer->owner_id === (int) $actor->id),
+                403,
+            );
             $current = $customer->current_status_id === null
                 ? null
                 : CustomerStatus::query()->findOrFail($customer->current_status_id);
@@ -51,8 +60,11 @@ final readonly class CustomerStatusManager
             }
 
             $isBackward = $current !== null && $target->sort_order < $current->sort_order;
-            if ($isBackward && ! $actor->is_super_admin) {
-                throw ValidationException::withMessages(['targetStatusId' => __('customers.form.validation.rollback_requires_super_admin')]);
+            if ($isBackward && $this->orders->hasAnyOrder($customer->id) && ! $context->isSuperAdmin()) {
+                throw ValidationException::withMessages(['targetStatusId' => __('customers.form.validation.order_exists_rollback_forbidden')]);
+            }
+            if ($isBackward && ! $context->isSuperAdmin() && ! $approvedRollback) {
+                throw ValidationException::withMessages(['targetStatusId' => __('customers.form.validation.rollback_requires_approval')]);
             }
             if ($current !== null && ! $isBackward && ! CustomerStatusTransition::query()
                 ->where('from_status_id', $current->id)
@@ -70,6 +82,7 @@ final readonly class CustomerStatusManager
                 : $customer->treatment_completed_at;
             $customer->update([
                 'current_status_id' => $target->id,
+                'arrived_at' => $target->key === 'arrived' ? $this->clock->now() : $customer->arrived_at,
                 'treatment_completed_at' => $completedAt,
             ]);
             CustomerStatusHistory::query()->create([

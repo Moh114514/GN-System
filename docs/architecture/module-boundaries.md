@@ -79,3 +79,23 @@ Contract，不直接引用对应 Model 或写入业务表；订单主流程和�
 Auth owns the `AccessContext` snapshot and permission fingerprint. Other modules consume it through the Auth application contract; they must not read user roles, memberships, or assignment tables directly across module boundaries. Agent exposes the agent assignment scope through its application contract. Presentation and queued export flows may rehydrate a serialized access snapshot, but must still enforce the current user and current fingerprint before serving a file or mutating data.
 
 Scope enforcement belongs at the module application query/gateway boundary and at every Livewire write action. A route or hidden button is not an authorization boundary. Customer Service response DTOs must remain minimal, and Settlement read-only BD access must not reuse administrator write operations.
+
+## PR3 customer transfer and rollback boundary
+
+Customer owns `customers.arrived_at`, `customer_transfer_requests`,
+`customer_owner_histories`, and `customer_status_change_requests`. Its Application
+services own the transactional transfer and status-approval workflows. Customer may
+consume Auth's `AccessContextResolver`, active Customer Service membership reader and
+user reference contract, Order's future-appointment/order-existence contract, Reminder's
+unfinished-reminder transfer contract, Config's internal-notification contract, and
+Audit's recorder contract. Customer must not read those modules' models or tables
+directly. Follow-up and historical status records remain owned by their existing
+Customer/Reminder contracts, and the transfer workflow changes only the owner of
+future/open work; it does not rewrite historical creators.
+
+The effective-target check is performed inside the locked transaction. A pending
+transfer is applied only after review and is invalidated if the source owner or target
+scope changed. Batch transfers lock customers in deterministic ID order and roll back
+the whole batch on any invalid item. Status rollback requests use the same Customer
+status manager with an explicit approval marker; the manager still enforces the current
+actor's scope and the no-order rollback rule.

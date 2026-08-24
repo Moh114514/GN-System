@@ -176,11 +176,13 @@ final readonly class DatabaseBusinessGroupManagementGateway implements BusinessG
 
             $overlap = BusinessGroupMembership::query()
                 ->where(function ($query) use ($businessGroupId, $userId, $role): void {
-                    $query->where('user_id', $userId)
-                        ->orWhere(function ($groupQuery) use ($businessGroupId, $role): void {
+                    $query->where('user_id', $userId);
+                    if ($role === UserRole::BdManager) {
+                        $query->orWhere(function ($groupQuery) use ($businessGroupId, $role): void {
                             $groupQuery->where('business_group_id', $businessGroupId)
                                 ->where('member_role', $role->value);
                         });
+                    }
                 })
                 ->whereDate('effective_from', '<=', $until?->toDateString() ?? '9999-12-31')
                 ->where(function ($query) use ($from): void {

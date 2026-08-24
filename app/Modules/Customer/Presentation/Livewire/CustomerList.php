@@ -4,7 +4,9 @@ namespace App\Modules\Customer\Presentation\Livewire;
 
 use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Customer\Application\Services\CustomerDirectory;
+use App\Modules\Customer\Application\Services\CustomerTransferManager;
 use App\Support\DateRange;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Validation\ValidationException;
@@ -30,6 +32,13 @@ class CustomerList extends Component
     public string $createdTo = '';
 
     public int $perPage = 20;
+
+    /** @var list<int> */
+    public array $selectedCustomerIds = [];
+
+    public string $bulkTransferTargetOwnerId = '';
+
+    public string $bulkTransferReason = '';
 
     /** @var array<string, array<int, array<string, mixed>>> */
     public array $options = [];
@@ -72,6 +81,25 @@ class CustomerList extends Component
         $this->resetPage();
     }
 
+    public function bulkTransfer(CustomerTransferManager $manager): void
+    {
+        $this->validate([
+            'selectedCustomerIds' => ['required', 'array', 'min:1'],
+            'selectedCustomerIds.*' => ['integer', 'distinct'],
+            'bulkTransferTargetOwnerId' => ['required', 'integer'],
+            'bulkTransferReason' => ['required', 'string', 'max:1000'],
+        ]);
+        $manager->batch(
+            customerIds: array_map('intval', $this->selectedCustomerIds),
+            toOwnerId: (int) $this->bulkTransferTargetOwnerId,
+            reason: $this->bulkTransferReason,
+            actor: auth()->user(),
+            ipAddress: request()->ip(),
+        );
+        $this->reset('selectedCustomerIds', 'bulkTransferTargetOwnerId', 'bulkTransferReason');
+        Flux::toast(variant: 'success', text: __('customers.toasts.transfer_completed'));
+    }
+
     /** @return array<string, array<int, string>> */
     protected function rules(): array
     {
@@ -91,7 +119,7 @@ class CustomerList extends Component
         ];
     }
 
-    public function render(CustomerDirectory $directory): View
+    public function render(CustomerDirectory $directory, CustomerTransferManager $transfers): View
     {
         $hasDateError = false;
         try {
@@ -113,7 +141,10 @@ class CustomerList extends Component
                 'created_to' => $this->createdTo,
             ], $perPage);
 
-        return view('livewire.customers.customer-list', compact('customers'))
+        return view('livewire.customers.customer-list', [
+            'customers' => $customers,
+            'ownerCandidates' => $transfers->ownerCandidates(),
+        ])
             ->title(__('customers.title.list'));
     }
 }

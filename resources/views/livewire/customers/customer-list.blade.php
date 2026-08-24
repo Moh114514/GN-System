@@ -115,16 +115,39 @@
                     @error('createdTo')<p>{{ $message }}</p>@enderror
                 </div>
             @endif
+
+            @if (auth()->user()->is_super_admin || auth()->user()->isBdManager())
+                <div class="rounded-xl border border-teal-100 bg-teal-50/60 p-4 dark:border-teal-900 dark:bg-teal-950/20">
+                    <div class="flex flex-wrap items-center gap-3">
+                        <span class="font-medium">{{ __('customers.list.bulk_transfer') }}</span>
+                        <span class="text-sm text-zinc-500">{{ __('customers.list.selected_count', ['count' => count($selectedCustomerIds)]) }}</span>
+                    </div>
+                    <div class="mt-3 grid gap-3 md:grid-cols-[minmax(0,16rem)_minmax(0,1fr)_auto]">
+                        <flux:select wire:model="bulkTransferTargetOwnerId" :label="__('customers.list.target_owner')">
+                            <flux:select.option value="">{{ __('customers.form.select') }}</flux:select.option>
+                            @foreach ($ownerCandidates as $owner)
+                                <flux:select.option value="{{ $owner['id'] }}">{{ $owner['name'] }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
+                        <flux:input wire:model="bulkTransferReason" :label="__('customers.list.transfer_reason')" />
+                        <flux:button wire:click="bulkTransfer" variant="primary" class="self-end">{{ __('customers.list.bulk_transfer_submit') }}</flux:button>
+                    </div>
+                </div>
+            @endif
         </div>
 
         <div class="crm-table-wrap mt-5">
             <table class="crm-table">
                 <thead>
                     <tr>
+                        @if (auth()->user()->is_super_admin || auth()->user()->isBdManager())
+                            <th><span class="sr-only">{{ __('customers.list.columns.customer') }}</span></th>
+                        @endif
                         <th>{{ __('customers.list.columns.customer') }}</th>
                         <th>{{ __('customers.list.columns.contact') }}</th>
                         <th>{{ __('customers.list.columns.document') }}</th>
                         <th>{{ __('customers.list.columns.source') }}</th>
+                        <th>{{ __('customers.list.columns.owner') }}</th>
                         <th>{{ __('customers.list.columns.status') }}</th>
                         <th>{{ __('customers.list.columns.created_at') }}</th>
                     </tr>
@@ -132,6 +155,9 @@
                 <tbody>
                     @forelse ($customers as $customer)
                         <tr wire:key="customer-{{ $customer['id'] }}">
+                            @if (auth()->user()->is_super_admin || auth()->user()->isBdManager())
+                                <td><flux:checkbox wire:model.live="selectedCustomerIds" value="{{ $customer['id'] }}" /></td>
+                            @endif
                             <td>
                                 <a class="font-semibold text-teal-700 hover:underline" href="{{ route('customers.show', $customer['id']) }}" wire:navigate>
                                     {{ $customer['name'] }}
@@ -141,11 +167,12 @@
                             <td>{{ $customer['contact_masked'] }}</td>
                             <td>{{ $customer['document_masked'] }}</td>
                             <td class="font-semibold">{{ $customer['source'] }}</td>
+                            <td>{{ $customer['owner'] ?: __('customers.fallback.unset') }}</td>
                             <td><span class="crm-pill tone-blue">{{ $customer['status'] }}</span></td>
                             <td>{{ $customer['created_at'] }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="6" class="py-10 text-center text-zinc-500">{{ __('customers.list.empty') }}</td></tr>
+                        <tr><td colspan="{{ auth()->user()->is_super_admin || auth()->user()->isBdManager() ? 8 : 7 }}" class="py-10 text-center text-zinc-500">{{ __('customers.list.empty') }}</td></tr>
                     @endforelse
                 </tbody>
             </table>

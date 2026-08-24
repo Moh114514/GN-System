@@ -3,9 +3,11 @@
 namespace App\Modules\Customer\Application\Services;
 
 use App\Infrastructure\Time\BusinessClock;
+use App\Models\User;
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
+use App\Modules\Auth\Application\Contracts\BusinessGroupMembershipReader;
 use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
 use App\Modules\Customer\Application\Data\CustomerProfileData;
 use App\Modules\Customer\Application\Exceptions\CustomerCodeChanged;
@@ -14,6 +16,7 @@ use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerContact;
 use App\Modules\Customer\Infrastructure\Models\CustomerIdentityDocument;
 use App\Modules\Customer\Infrastructure\Models\CustomerNumberSequence;
+use App\Modules\Customer\Infrastructure\Models\CustomerOwnerHistory;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
 use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
@@ -32,6 +35,7 @@ final readonly class CustomerProfileManager
         private AuditRecorder $audit,
         private BusinessClock $clock,
         private AccessContextResolver $access,
+        private BusinessGroupMembershipReader $memberships,
     ) {}
 
     public function previewCode(int $sourceAgentId): string
@@ -89,7 +93,7 @@ final readonly class CustomerProfileManager
             $automaticCode,
             $ipAddress,
         ): int {
-            $context = $this->access->current();
+            $context = $this->access->forUser(User::query()->findOrFail($actorId));
             if (! $context->isSuperAdmin()
                 && (! $context->isCustomerService() || $context->agentIds !== [])
                 && ! $context->canViewAgent($profile->sourceAgentId)) {
@@ -101,7 +105,11 @@ final readonly class CustomerProfileManager
                 && $ownerId !== $context->userId) {
                 throw ValidationException::withMessages(['ownerId' => __('customers.form.validation.owner_unavailable')]);
             }
-            if (! $this->users->isEligible($ownerId)) {
+            $groupIds = $context->isSuperAdmin() || $context->businessGroupIds === []
+                ? null
+                : $context->businessGroupIds;
+            if (! $this->users->isEligible($ownerId)
+                || ! $this->memberships->isActiveCustomerServiceInGroups($ownerId, $groupIds, $this->clock->now()->toDateString())) {
                 throw ValidationException::withMessages([
                     'ownerId' => __('customers.form.validation.owner_unavailable'),
                 ]);
@@ -155,6 +163,16 @@ final readonly class CustomerProfileManager
                 'changed_at' => $this->clock->now(),
                 'reason' => '客户建档',
             ]);
+            CustomerOwnerHistory::query()->create([
+                'customer_id' => $customer->id,
+                'business_group_id' => $context->businessGroupIds[0] ?? null,
+                'from_owner_id' => null,
+                'to_owner_id' => $ownerId,
+                'source' => 'initial',
+                'changed_by' => $actorId,
+                'reason' => '客户建档',
+                'effective_at' => $this->clock->now(),
+            ]);
             $this->orders->createInitialAppointment(new CustomerAppointmentData(
                 customerId: $customer->id,
                 institutionId: $institutionId,
@@ -188,12 +206,18 @@ final readonly class CustomerProfileManager
         ?string $ipAddress,
     ): void {
         DB::transaction(function () use ($customerId, $profile, $actorId, $sensitiveChangeConfirmed, $ipAddress): void {
-            $context = $this->access->current();
+            $context = $this->access->forUser(User::query()->findOrFail($actorId));
             $customer = Customer::query()->lockForUpdate()->findOrFail($customerId);
             abort_unless($context->canViewCustomer(
                 $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
                 $customer->owner_id === null ? null : (int) $customer->owner_id,
             ), 404);
+            abort_unless(
+                $context->isSuperAdmin()
+                || $context->isBdManager()
+                || ($context->isCustomerService() && (int) $customer->owner_id === (int) $actorId),
+                403,
+            );
             if (! $context->isSuperAdmin()
                 && (! $context->isCustomerService() || $context->agentIds !== [])
                 && ! $context->canViewAgent($profile->sourceAgentId)) {

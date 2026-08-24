@@ -66,4 +66,20 @@ final class DatabaseCustomerOrderGateway implements CustomerOrderGateway
 
         return $events;
     }
+
+    public function hasAnyOrder(int $customerId): bool
+    {
+        return Order::query()->where('customer_id', $customerId)->exists();
+    }
+
+    public function transferFutureAppointments(int $customerId, int $ownerId, CarbonImmutable $from): int
+    {
+        return Appointment::query()
+            ->where('customer_id', $customerId)
+            ->where('status', 'scheduled')
+            ->where(function ($query) use ($from): void {
+                $query->whereNull('scheduled_at')->orWhere('scheduled_at', '>=', $from);
+            })
+            ->update(['owner_id' => $ownerId]);
+    }
 }
