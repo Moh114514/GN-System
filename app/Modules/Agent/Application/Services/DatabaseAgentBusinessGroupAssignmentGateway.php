@@ -2,6 +2,7 @@
 
 namespace App\Modules\Agent\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Application\Contracts\AgentBusinessGroupAssignmentGateway;
 use App\Modules\Agent\Infrastructure\Models\Agent;
 use App\Modules\Agent\Infrastructure\Models\AgentBusinessGroupAssignment;
@@ -9,6 +10,7 @@ use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Auth\Application\Contracts\BusinessGroupReferenceReader;
 use Carbon\CarbonImmutable;
 use DomainException;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 
 final readonly class DatabaseAgentBusinessGroupAssignmentGateway implements AgentBusinessGroupAssignmentGateway
@@ -16,6 +18,7 @@ final readonly class DatabaseAgentBusinessGroupAssignmentGateway implements Agen
     public function __construct(
         private BusinessGroupReferenceReader $groups,
         private AuditRecorder $audit,
+        private BusinessClock $clock,
     ) {}
 
     /** @return array<int, array{id: int, code: string, name: string, status: string}> */
@@ -62,7 +65,7 @@ final readonly class DatabaseAgentBusinessGroupAssignmentGateway implements Agen
     /** @return array<int, array<string, mixed>> */
     public function unassignedAgents(?string $onDate = null): array
     {
-        $date = $this->parseDate($onDate ?? now()->toDateString())->toDateString();
+        $date = $this->parseDate($onDate ?? $this->clock->now()->toDateString())->toDateString();
 
         return Agent::query()
             ->where('cooperation_status', 'active')
@@ -104,47 +107,56 @@ final readonly class DatabaseAgentBusinessGroupAssignmentGateway implements Agen
             throw new DomainException(__('agents.validation.business_group_reason_required'));
         }
 
-        DB::transaction(function () use ($agentId, $businessGroupId, $from, $until, $reason, $actorId, $ipAddress): void {
-            if (! $this->groups->exists($businessGroupId)) {
-                throw new DomainException(__('agents.validation.business_group_inactive'));
-            }
-            $agent = Agent::query()->lockForUpdate()->findOrFail($agentId);
-            $overlap = AgentBusinessGroupAssignment::query()
-                ->where('agent_id', $agent->id)
-                ->whereDate('effective_from', '<=', $until?->toDateString() ?? '9999-12-31')
-                ->where(function ($query) use ($from): void {
-                    $query->whereNull('effective_until')->orWhereDate('effective_until', '>=', $from->toDateString());
-                })
-                ->lockForUpdate()
-                ->exists();
-            if ($overlap) {
-                throw new DomainException(__('agents.validation.business_group_assignment_overlap'));
-            }
+        try {
+            DB::transaction(function () use ($agentId, $businessGroupId, $from, $until, $reason, $actorId, $ipAddress): void {
+                if (! $this->groups->exists($businessGroupId)) {
+                    throw new DomainException(__('agents.validation.business_group_inactive'));
+                }
+                $agent = Agent::query()->lockForUpdate()->findOrFail($agentId);
+                $overlap = AgentBusinessGroupAssignment::query()
+                    ->where('agent_id', $agent->id)
+                    ->whereDate('effective_from', '<=', $until?->toDateString() ?? '9999-12-31')
+                    ->where(function ($query) use ($from): void {
+                        $query->whereNull('effective_until')->orWhereDate('effective_until', '>=', $from->toDateString());
+                    })
+                    ->lockForUpdate()
+                    ->exists();
+                if ($overlap) {
+                    throw new DomainException(__('agents.validation.business_group_assignment_overlap'));
+                }
 
-            $assignment = AgentBusinessGroupAssignment::query()->create([
-                'agent_id' => $agent->id,
-                'business_group_id' => $businessGroupId,
-                'effective_from' => $from->toDateString(),
-                'effective_until' => $until?->toDateString(),
-                'assigned_by' => $actorId,
-                'reason' => $reason,
-            ]);
-            $this->audit->record(
-                description: __('agents.audit.business_group_assignment_created'),
-                properties: [
+                $assignment = AgentBusinessGroupAssignment::query()->create([
                     'agent_id' => $agent->id,
                     'business_group_id' => $businessGroupId,
                     'effective_from' => $from->toDateString(),
                     'effective_until' => $until?->toDateString(),
+                    'assigned_by' => $actorId,
                     'reason' => $reason,
-                ],
-                causerId: $actorId,
-                subject: $assignment,
-                logName: 'agent-business-groups',
-                event: 'assigned',
-                ipAddress: $ipAddress,
-            );
-        });
+                ]);
+                $this->audit->record(
+                    description: __('agents.audit.business_group_assignment_created'),
+                    properties: [
+                        'agent_id' => $agent->id,
+                        'business_group_id' => $businessGroupId,
+                        'effective_from' => $from->toDateString(),
+                        'effective_until' => $until?->toDateString(),
+                        'reason' => $reason,
+                    ],
+                    causerId: $actorId,
+                    subject: $assignment,
+                    logName: 'agent-business-groups',
+                    event: 'assigned',
+                    ipAddress: $ipAddress,
+                );
+            });
+        } catch (QueryException $exception) {
+            if ($exception->getCode() === '23P01'
+                && str_contains($exception->getMessage(), 'agent_business_group_assignments_overlap_exclude')) {
+                throw new DomainException(__('agents.validation.business_group_assignment_overlap'), previous: $exception);
+            }
+
+            throw $exception;
+        }
     }
 
     public function endAssignment(int $assignmentId, string $effectiveUntil, string $reason, int $actorId, ?string $ipAddress): void

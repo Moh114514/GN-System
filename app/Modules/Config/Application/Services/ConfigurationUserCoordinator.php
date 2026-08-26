@@ -80,6 +80,12 @@ final readonly class ConfigurationUserCoordinator
         return $this->businessGroups->unassignedUsers($onDate);
     }
 
+    /** @return array<int, array<string, mixed>> */
+    public function memberCandidates(?string $onDate = null): array
+    {
+        return $this->businessGroups->memberCandidates($onDate);
+    }
+
     /** @return array{id: int, code: string, name: string, is_active: bool} */
     public function createBusinessGroup(string $code, string $name, int $actorId, ?string $ipAddress): array
     {

@@ -2,6 +2,7 @@
 
 namespace App\Modules\Config\Presentation\Livewire;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Config\Application\Services\ConfigurationUserCoordinator;
 use DomainException;
 use Flux\Flux;
@@ -38,6 +39,12 @@ class UserManagement extends Component
 
     public string $membershipReason = '';
 
+    public ?int $endingMembershipId = null;
+
+    public string $membershipEndDate = '';
+
+    public string $membershipEndReason = '';
+
     public string $assignmentAgentId = '';
 
     public string $assignmentGroupId = '';
@@ -48,16 +55,23 @@ class UserManagement extends Component
 
     public string $assignmentReason = '';
 
+    public ?int $endingAssignmentId = null;
+
+    public string $assignmentEndDate = '';
+
+    public string $assignmentEndReason = '';
+
     /** @var array<int, string> */
     public array $dingtalkMentionTypes = [];
 
     /** @var array<int, string> */
     public array $dingtalkMentionValues = [];
 
-    public function mount(): void
+    public function mount(BusinessClock $clock): void
     {
-        $this->membershipEffectiveFrom = now()->toDateString();
-        $this->assignmentEffectiveFrom = now()->toDateString();
+        $businessDate = $clock->now()->toDateString();
+        $this->membershipEffectiveFrom = $businessDate;
+        $this->assignmentEffectiveFrom = $businessDate;
     }
 
     public function invite(ConfigurationUserCoordinator $users): void
@@ -180,6 +194,39 @@ class UserManagement extends Component
         }, __('config.user_management.toast.business_group_member_assigned'));
     }
 
+    public function beginMembershipEnd(int $membershipId): void
+    {
+        $this->endingMembershipId = $membershipId;
+        $this->membershipEndDate = '';
+        $this->membershipEndReason = '';
+    }
+
+    public function cancelMembershipEnd(): void
+    {
+        $this->endingMembershipId = null;
+        $this->membershipEndDate = '';
+        $this->membershipEndReason = '';
+    }
+
+    public function endMembership(ConfigurationUserCoordinator $users): void
+    {
+        $this->validate([
+            'endingMembershipId' => ['required', 'integer', 'min:1'],
+            'membershipEndDate' => ['required', 'date_format:Y-m-d'],
+            'membershipEndReason' => ['required', 'string', 'max:2000'],
+        ]);
+        $this->run(function () use ($users): void {
+            $users->endBusinessGroupMembership(
+                (int) $this->endingMembershipId,
+                $this->membershipEndDate,
+                $this->membershipEndReason,
+                (int) Auth::id(),
+                request()->ip(),
+            );
+            $this->cancelMembershipEnd();
+        }, __('config.user_management.toast.business_group_member_ended'));
+    }
+
     public function assignAgent(ConfigurationUserCoordinator $users): void
     {
         $this->validate([
@@ -203,6 +250,39 @@ class UserManagement extends Component
         }, __('config.user_management.toast.agent_assignment_created'));
     }
 
+    public function beginAssignmentEnd(int $assignmentId): void
+    {
+        $this->endingAssignmentId = $assignmentId;
+        $this->assignmentEndDate = '';
+        $this->assignmentEndReason = '';
+    }
+
+    public function cancelAssignmentEnd(): void
+    {
+        $this->endingAssignmentId = null;
+        $this->assignmentEndDate = '';
+        $this->assignmentEndReason = '';
+    }
+
+    public function endAssignment(ConfigurationUserCoordinator $users): void
+    {
+        $this->validate([
+            'endingAssignmentId' => ['required', 'integer', 'min:1'],
+            'assignmentEndDate' => ['required', 'date_format:Y-m-d'],
+            'assignmentEndReason' => ['required', 'string', 'max:2000'],
+        ]);
+        $this->run(function () use ($users): void {
+            $users->endAgentBusinessGroupAssignment(
+                (int) $this->endingAssignmentId,
+                $this->assignmentEndDate,
+                $this->assignmentEndReason,
+                (int) Auth::id(),
+                request()->ip(),
+            );
+            $this->cancelAssignmentEnd();
+        }, __('config.user_management.toast.agent_assignment_ended'));
+    }
+
     public function render(ConfigurationUserCoordinator $users): View
     {
         $records = $users->users();
@@ -218,6 +298,7 @@ class UserManagement extends Component
             'businessGroups' => $users->businessGroups(),
             'memberships' => $users->memberships(),
             'unassignedUsers' => $users->unassignedUsers(),
+            'memberCandidates' => $users->memberCandidates(),
             'agents' => $users->agents(),
             'agentAssignments' => $users->agentAssignments(),
             'unassignedAgents' => $users->unassignedAgents(),

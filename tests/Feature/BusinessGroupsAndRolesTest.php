@@ -2,17 +2,23 @@
 
 namespace Tests\Feature;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Agent\Application\Contracts\AgentBusinessGroupAssignmentGateway;
 use App\Modules\Agent\Infrastructure\Models\Agent;
+use App\Modules\Agent\Infrastructure\Models\AgentBusinessGroupAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Auth\Application\Contracts\BusinessGroupManagementGateway;
 use App\Modules\Auth\Application\Contracts\BusinessGroupMembershipReader;
 use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
 use App\Modules\Auth\Domain\UserRole;
+use App\Modules\Auth\Infrastructure\Models\BusinessGroupMembership;
+use App\Modules\Config\Presentation\Livewire\UserManagement;
+use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 class BusinessGroupsAndRolesTest extends TestCase
@@ -109,7 +115,7 @@ class BusinessGroupsAndRolesTest extends TestCase
         );
     }
 
-    public function test_membership_form_uses_readonly_user_role_and_shows_pending_configuration_candidate(): void
+    public function test_membership_form_hides_redundant_user_role_control_and_shows_pending_configuration_candidate(): void
     {
         $admin = User::factory()->superAdmin()->withTwoFactor()->create();
         $pending = User::factory()->create([
@@ -122,8 +128,106 @@ class BusinessGroupsAndRolesTest extends TestCase
             ->get(route('configuration.users-and-notifications'))
             ->assertOk()
             ->assertSee($pending->name)
-            ->assertDontSee('wire:model="membershipRole"', false)
-            ->assertSee('readonly', false);
+            ->assertDontSee('当前角色');
+    }
+
+    public function test_member_candidates_include_current_users_and_configuration_uses_business_clock(): void
+    {
+        config([
+            'app.deployment_environment' => 'testing',
+            'app.time_travel_enabled' => true,
+        ]);
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $user = User::factory()->create(['name' => '当前组内客服']);
+        $group = app(BusinessGroupManagementGateway::class)->create('NORTH', '北区业务组', $admin->id, null);
+        app(BusinessGroupManagementGateway::class)->assignMember(
+            $group['id'],
+            $user->id,
+            '2026-08-01',
+            null,
+            '初始配置',
+            $admin->id,
+            null,
+        );
+        $type = AgentTypeCode::query()->create(['code' => 'CLK', 'name' => '时钟测试代理', 'is_system' => false, 'is_active' => true]);
+        $agent = Agent::query()->create([
+            'agent_type_code_id' => $type->id,
+            'code' => 'CLK-001',
+            'name' => '时钟测试代理商',
+            'cooperation_status' => 'active',
+        ]);
+        app(AgentBusinessGroupAssignmentGateway::class)->assign(
+            $agent->id,
+            $group['id'],
+            '2026-08-01',
+            '2026-09-30',
+            '时钟测试',
+            $admin->id,
+            null,
+        );
+
+        app(BusinessClock::class)->set(CarbonImmutable::parse('2026-10-01 09:00:00', 'Asia/Shanghai'), $admin->id);
+
+        $candidates = app(BusinessGroupManagementGateway::class)->memberCandidates();
+        $candidate = collect($candidates)->firstWhere('id', $user->id);
+
+        $this->assertNotNull($candidate);
+        $this->assertSame('NORTH', $candidate['current_group_code']);
+        $this->assertCount(0, app(BusinessGroupManagementGateway::class)->unassignedUsers());
+        $this->assertCount(1, app(AgentBusinessGroupAssignmentGateway::class)->unassignedAgents());
+
+        $this->actingAs($admin)
+            ->get(route('configuration.users-and-notifications'))
+            ->assertOk()
+            ->assertSee('当前组内客服')
+            ->assertSee('当前：NORTH');
+
+        Livewire::test(UserManagement::class)
+            ->assertSet('membershipEffectiveFrom', '2026-10-01')
+            ->assertSet('assignmentEffectiveFrom', '2026-10-01');
+    }
+
+    public function test_configuration_can_end_open_membership_and_agent_assignment(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $user = User::factory()->create();
+        $group = app(BusinessGroupManagementGateway::class)->create('NORTH', '北区业务组', $admin->id, null);
+        app(BusinessGroupManagementGateway::class)->assignMember($group['id'], $user->id, '2026-08-01', null, '初始配置', $admin->id, null);
+        $membership = BusinessGroupMembership::query()->where('user_id', $user->id)->firstOrFail();
+
+        $type = AgentTypeCode::query()->create(['code' => 'END', 'name' => '结束测试代理', 'is_system' => false, 'is_active' => true]);
+        $agent = Agent::query()->create([
+            'agent_type_code_id' => $type->id,
+            'code' => 'END-001',
+            'name' => '结束测试代理商',
+            'cooperation_status' => 'active',
+        ]);
+        app(AgentBusinessGroupAssignmentGateway::class)->assign($agent->id, $group['id'], '2026-08-01', null, '初始配置', $admin->id, null);
+        $assignment = AgentBusinessGroupAssignment::query()->where('agent_id', $agent->id)->firstOrFail();
+
+        $this->actingAs($admin);
+        Livewire::test(UserManagement::class)
+            ->assertSee(__('config.user_management.actions.end_membership'))
+            ->assertSee(__('config.user_management.actions.end_assignment'))
+            ->call('beginMembershipEnd', $membership->id)
+            ->set('membershipEndDate', '2026-08-31')
+            ->set('membershipEndReason', '转组')
+            ->call('endMembership')
+            ->assertHasNoErrors()
+            ->call('beginAssignmentEnd', $assignment->id)
+            ->set('assignmentEndDate', '2026-08-31')
+            ->set('assignmentEndReason', '转组')
+            ->call('endAssignment')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('business_group_memberships', [
+            'id' => $membership->id,
+            'effective_until' => '2026-08-31',
+        ]);
+        $this->assertDatabaseHas('agent_business_group_assignments', [
+            'id' => $assignment->id,
+            'effective_until' => '2026-08-31',
+        ]);
     }
 
     public function test_agent_business_group_assignment_rejects_overlapping_periods_and_reports_unmapped_agents(): void

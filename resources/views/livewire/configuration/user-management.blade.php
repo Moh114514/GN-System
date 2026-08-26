@@ -115,7 +115,6 @@
     <section class="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <h3 class="font-semibold">{{ __('config.user_management.members_heading') }}</h3>
         <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{{ __('config.user_management.members_description') }}</p>
-        @php($selectedMembershipUser = collect($unassignedUsers)->firstWhere('id', (int) $membershipUserId))
         <form wire:submit="assignMember" class="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <flux:select wire:model="membershipGroupId" :label="__('config.user_management.business_group')">
                 <flux:select.option value="">{{ __('config.user_management.select') }}</flux:select.option>
@@ -127,15 +126,13 @@
             </flux:select>
             <flux:select wire:model="membershipUserId" :label="__('config.user_management.member_user')">
                 <flux:select.option value="">{{ __('config.user_management.select') }}</flux:select.option>
-                @foreach ($unassignedUsers as $user)
-                        <flux:select.option value="{{ $user['id'] }}">{{ $user['name'] }} · {{ __('config.user_management.roles.'.$user['role']) }}</flux:select.option>
+                @foreach ($memberCandidates as $user)
+                    <flux:select.option value="{{ $user['id'] }}">
+                        {{ $user['name'] }} · {{ __('config.user_management.roles.'.$user['role']) }} ·
+                        {{ $user['current_group_code'] ? __('config.user_management.current_group', ['group' => $user['current_group_code']]) : __('config.user_management.current_group_unassigned') }}
+                    </flux:select.option>
                 @endforeach
             </flux:select>
-            <flux:input
-                :value="$selectedMembershipUser === null ? __('config.user_management.select') : __('config.user_management.roles.'.$selectedMembershipUser['role'])"
-                :label="__('config.user_management.current_role')"
-                readonly
-            />
             <flux:input wire:model="membershipEffectiveFrom" type="date" :label="__('config.user_management.effective_from')" />
             <flux:input wire:model="membershipEffectiveUntil" type="date" :label="__('config.user_management.effective_until')" />
             <flux:input wire:model="membershipReason" :label="__('config.user_management.reason')" class="sm:col-span-2" />
@@ -143,7 +140,7 @@
         </form>
         <div class="crm-table-wrap mt-5">
             <table class="crm-table">
-                <thead><tr><th>{{ __('config.user_management.table.business_group') }}</th><th>{{ __('config.user_management.table.user') }}</th><th>{{ __('config.user_management.table.role') }}</th><th>{{ __('config.user_management.table.effective_period') }}</th><th>{{ __('config.user_management.reason') }}</th></tr></thead>
+                <thead><tr><th>{{ __('config.user_management.table.business_group') }}</th><th>{{ __('config.user_management.table.user') }}</th><th>{{ __('config.user_management.table.role') }}</th><th>{{ __('config.user_management.table.effective_period') }}</th><th>{{ __('config.user_management.reason') }}</th><th>{{ __('config.user_management.table.actions') }}</th></tr></thead>
                 <tbody>
                     @forelse ($memberships as $membership)
                         <tr>
@@ -152,9 +149,25 @@
                             <td>{{ __('config.user_management.roles.'.$membership['member_role']) }}</td>
                             <td>{{ $membership['effective_from'] }} — {{ $membership['effective_until'] ?? __('config.user_management.open_ended') }} @if ($membership['is_current'])<span class="text-xs text-teal-700">({{ __('config.user_management.current') }})</span>@endif</td>
                             <td>{{ $membership['reason'] }}</td>
+                            <td>
+                                @if ($membership['effective_until'] === null)
+                                    @if ($endingMembershipId === $membership['id'])
+                                        <div class="min-w-56 space-y-2">
+                                            <flux:input wire:model="membershipEndDate" type="date" :label="__('config.user_management.end_date')" />
+                                            <flux:input wire:model="membershipEndReason" :label="__('config.user_management.end_reason')" />
+                                            <div class="flex flex-wrap gap-2">
+                                                <flux:button wire:click="endMembership" variant="primary" size="sm">{{ __('config.user_management.actions.end_membership') }}</flux:button>
+                                                <flux:button wire:click="cancelMembershipEnd" variant="ghost" size="sm">{{ __('config.user_management.actions.cancel') }}</flux:button>
+                                            </div>
+                                        </div>
+                                    @else
+                                        <flux:button wire:click="beginMembershipEnd({{ $membership['id'] }})" variant="ghost" size="sm">{{ __('config.user_management.actions.end_membership') }}</flux:button>
+                                    @endif
+                                @endif
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="5">{{ __('config.user_management.empty.memberships') }}</td></tr>
+                        <tr><td colspan="6">{{ __('config.user_management.empty.memberships') }}</td></tr>
                     @endforelse
                 </tbody>
             </table>
@@ -186,7 +199,7 @@
         </form>
         <div class="crm-table-wrap mt-5">
             <table class="crm-table">
-                <thead><tr><th>{{ __('config.user_management.table.agent') }}</th><th>{{ __('config.user_management.table.business_group') }}</th><th>{{ __('config.user_management.table.effective_period') }}</th><th>{{ __('config.user_management.reason') }}</th></tr></thead>
+                <thead><tr><th>{{ __('config.user_management.table.agent') }}</th><th>{{ __('config.user_management.table.business_group') }}</th><th>{{ __('config.user_management.table.effective_period') }}</th><th>{{ __('config.user_management.reason') }}</th><th>{{ __('config.user_management.table.actions') }}</th></tr></thead>
                 <tbody>
                     @forelse ($agentAssignments as $assignment)
                         <tr>
@@ -194,9 +207,25 @@
                             <td>{{ $assignment['group_code'] }} · {{ $assignment['group_name'] }}</td>
                             <td>{{ $assignment['effective_from'] }} — {{ $assignment['effective_until'] ?? __('config.user_management.open_ended') }}</td>
                             <td>{{ $assignment['reason'] }}</td>
+                            <td>
+                                @if ($assignment['effective_until'] === null)
+                                    @if ($endingAssignmentId === $assignment['id'])
+                                        <div class="min-w-56 space-y-2">
+                                            <flux:input wire:model="assignmentEndDate" type="date" :label="__('config.user_management.end_date')" />
+                                            <flux:input wire:model="assignmentEndReason" :label="__('config.user_management.end_reason')" />
+                                            <div class="flex flex-wrap gap-2">
+                                                <flux:button wire:click="endAssignment" variant="primary" size="sm">{{ __('config.user_management.actions.end_assignment') }}</flux:button>
+                                                <flux:button wire:click="cancelAssignmentEnd" variant="ghost" size="sm">{{ __('config.user_management.actions.cancel') }}</flux:button>
+                                            </div>
+                                        </div>
+                                    @else
+                                        <flux:button wire:click="beginAssignmentEnd({{ $assignment['id'] }})" variant="ghost" size="sm">{{ __('config.user_management.actions.end_assignment') }}</flux:button>
+                                    @endif
+                                @endif
+                            </td>
                         </tr>
                     @empty
-                        <tr><td colspan="4">{{ __('config.user_management.empty.agent_assignments') }}</td></tr>
+                        <tr><td colspan="5">{{ __('config.user_management.empty.agent_assignments') }}</td></tr>
                     @endforelse
                 </tbody>
             </table>

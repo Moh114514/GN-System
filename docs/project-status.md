@@ -4,7 +4,7 @@
 
 已实现 UAT 宿主机双层重置、配置重载脚本和非破坏性管理员维护命令。UAT 重置与配置重载均已加入目录、Compose 项目、环境文件权限、UAT URL、数据库名称和 PostgreSQL `current_database()` 防护；真实 UAT/Production 执行结果仍须在目标服务器按运维手册验收，不能由本机静态检查替代。
 
-> 最后核验：2026-08-24
+> 最后核验：2026-08-26
 > 核验依据：Phase 6、订单中心、发布门禁、`v0.5.0-rc.13`、当前 `main` 提交记录和服务器环境记录，以及 `feature/business-groups-and-roles` 的 PR1 定向测试与完整本地门禁
 > 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及已合入 `develop` 的既有规划能力继续保持；`feature/business-groups-and-roles` 当前已包含新规划 PR1–PR7 及本轮审查修复，包含角色/业务组底座、权限范围、客户负责人移交与状态回退审批、订单事实快照和 BD 季度提成闭环，当前工作区尚未合入 `develop`。PR3、PR4、PR6 和 PR7 均涉及数据库 migration 或发布运维文档，UAT/Production 尚未升级或人工验收。UAT/生产历史数据升级、抽样核验和人工业务验收仍未完成。
 
@@ -74,6 +74,7 @@ Customer/Agent/Order/Settlement/Report/Auth 模块说明、ADR-0010，以及角�
   Word/PDF 文档；补齐已结清详情继续下载审核时生成的文档回归测试。本 PR 不新增 migration，UAT/Production 未验证。
 - 当前 `feature/business-groups-and-roles` 完成新规划 PR1：增加 `UserRole` 与 `users.role` 兼容回填，落地业务组、成员有效期历史和代理商业务组有效期历史，配置中心支持角色、业务组、成员及代理商归属管理，并展示未归属用户/代理商完整性检查结果。数据库使用 PostgreSQL exclusion constraint 防止同一业务组多个有效 BD、同一用户重叠成员期和同一代理商重叠归属期；本 PR 不修改订单主流程或 PR2 数据范围执行。已通过 PR1 定向测试和相关回归测试，尚未合入 `develop`，UAT/Production 未验证。
 - 2026-08-24 完成该 feature 的开发环境集成修复：业务组成员配置页不再编辑重复的“成员角色”，服务端从 `users.role` 推导并写入 `business_group_memberships.member_role` 历史快照；已创建、启用但尚未接受邀请的合法业务角色用户可以提前加入业务组，但其 `AccessContext` 仍为 deny-all，客户负责人、提醒负责人和转派目标等业务操作候选人继续要求启用且已接受邀请。开发库 migration 已全部执行，`/bd-commissions` 当前可正常打开；已用 `admin`、`ttt`、`zzz` 完成成员预配置流程核验。后端完整门禁为 403 个测试通过，前端构建通过，UAT/Production 未验证。
+- 2026-08-26 完成业务组/代理商归属配置收尾：历史表新增开放式归属的结束日期和原因操作，成员候选改为全部启用的 BD/客服并显示业务日期下当前业务组，允许提前配置不重叠的未来转组；配置默认日期、当前归属和未归属检查统一使用 `BusinessClock`，并将 PostgreSQL 排他约束并发冲突转换为本地化业务错误。当前角色控件按用户要求保持移除。相关 Feature 测试和完整本地门禁已验证；UAT/Production 尚未进行人工页面验收。
 - 历史 `feature/customer-status-tree` 分支曾完成 PR2：Customer 详情增加只读客户状态流转可视化，
   直接读取现有阶段、状态、流转和该客户的状态历史，区分已经过、当前、可继续、暂不可达及停用节点，
   并用箭头展示允许的流转关系；
