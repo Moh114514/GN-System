@@ -79,8 +79,11 @@ docker compose logs -f app nginx queue scheduler
 # 数据库迁移
 docker compose exec app php artisan migrate
 
-# 生成可重复执行的 Phase 2 本地模拟数据
-docker compose exec app php artisan db:seed --class=PhaseTwoDemoDataSeeder
+# 生成完整、可重复执行的本地开发场景数据
+docker compose exec app php artisan db:seed
+
+# 也可以显式执行开发场景 Seeder
+docker compose exec app php artisan db:seed --class=DevelopmentScenarioSeeder
 
 # 运行完整质量门禁
 docker compose exec app composer ci:check

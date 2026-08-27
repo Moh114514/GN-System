@@ -81,15 +81,22 @@ XLSX 填写示例，在七个固定工作表中维护代理商类型、机构及
 
 ## 本地模拟数据
 
-开发环境执行以下命令可生成确定性的调试数据：
+开发环境执行以下命令可生成确定性的完整调试场景数据：
 
 ```powershell
-docker compose exec app php artisan db:seed --class=PhaseTwoDemoDataSeeder
+docker compose exec app php artisan db:seed
+# 或：docker compose exec app php artisan db:seed --class=DevelopmentScenarioSeeder
 ```
 
-Seeder 生成 12 个 `DM` 编号代理商、144 个模拟客户、144 笔预约和订单，以及推广费、
-近三个月月结、跟进和代理商归属订单。名称均含“【模拟】”，联系方式和证件也是无真实
-含义的固定测试值。Seeder 可重复执行而不增加记录，并会拒绝在 production 环境运行。
+`DevelopmentScenarioSeeder` 生成 10 个固定测试用户、2 个业务组、15 个代理商、200 个客户、
+250 笔包含未来预约/取消/跨月/边界金额的订单、推广费、5 个月月结、220 条跟进、70 条提醒、
+10 个导入批次、季度 BD 提成和 120 条审计记录。数据覆盖生命周期、权限范围、提醒、月结、
+导入状态和报告查询等开发场景；业务记录均含“【模拟】”标识，联系方式和证件是无真实含义的
+固定测试值。Seeder 使用稳定业务键，可重复执行而不增加记录，并会拒绝在 production 环境运行。
+
+统一测试密码为 `password`。常用账号：`admin@example.test`（超级管理员）、
+`bd.a@example.test`（BD A）、`service.a1@example.test`（客服 A1）。旧的
+`PhaseTwoDemoDataSeeder` 仍保留，用于 Phase 2 最小数据专项测试。
 ## PR-B import issues and stage state
 
 Import batches use `import_issues` to record file detection, field validation, normalization, relation validation, summary validation, dry-run, and commit issues. Encrypted context is retained for diagnostics; XLSX reports read only from this table and write explicit string cells. `summary.stages` persists each stage status and counters for the Livewire page.
