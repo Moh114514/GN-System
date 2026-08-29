@@ -130,6 +130,38 @@ class AccessScopeTest extends TestCase
         app(ReportExportManager::class)->queueSearch($this->peer, []);
     }
 
+    public function test_customer_list_supports_scoped_owner_filter_and_customer_service_own_first_order(): void
+    {
+        $peerCustomer = Customer::query()->create([
+            'code' => 'SCOPE-CUSTOMER-A-PEER',
+            'name' => '客户 A（组内其他负责人）',
+            'source_agent_id' => $this->groupACustomer->source_agent_id,
+            'current_status_id' => $this->groupACustomer->current_status_id,
+            'owner_id' => $this->peer->id,
+            'created_at' => '2026-08-24 11:00:00',
+            'updated_at' => '2026-08-24 11:00:00',
+        ]);
+        $this->groupACustomer->update(['created_at' => '2026-08-24 09:00:00', 'updated_at' => '2026-08-24 09:00:00']);
+
+        $this->actingAs($this->owner);
+        $directory = app(CustomerDirectory::class);
+
+        $page = $directory->paginate([], 20);
+        $this->assertSame([$this->groupACustomer->id, $peerCustomer->id], $page->getCollection()->pluck('id')->all());
+        $this->assertSame([$peerCustomer->id], $directory->paginate(['owner_id' => $this->peer->id], 20)->getCollection()->pluck('id')->all());
+        $this->assertEqualsCanonicalizing(
+            [$this->owner->id, $this->peer->id],
+            array_column($directory->ownerCandidates(), 'id'),
+        );
+
+        $this->assertSame([], $directory->paginate(['owner_id' => $this->groupBCustomer->owner_id], 20)->getCollection()->pluck('id')->all());
+
+        $this->actingAs($this->bd)->get(route('customers.index', ['ownerId' => $this->peer->id]))
+            ->assertOk()
+            ->assertSee('SCOPE-CUSTOMER-A-PEER')
+            ->assertDontSee('SCOPE-CUSTOMER-A</div>', false);
+    }
+
     public function test_access_fingerprint_and_dashboard_cache_differ_by_identity(): void
     {
         $resolver = app(AccessContextResolver::class);

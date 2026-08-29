@@ -46,13 +46,14 @@ final readonly class CustomerDirectory
     ) {}
 
     /**
-     * @param  array{search?: string, status_id?: int|null, agent_id?: int|null, institution_id?: int|null, created_from?: string, created_to?: string}  $filters
+     * @param  array{search?: string, status_id?: int|null, agent_id?: int|null, institution_id?: int|null, owner_id?: int|null, created_from?: string, created_to?: string}  $filters
      * @return LengthAwarePaginator<int, array{id: int, code: string, name: string, contact_masked: string, document_masked: string, status: string, source: string, owner_id: int|null, owner: string|null, created_at: string|null}>
      */
     public function paginate(array $filters, int $perPage): LengthAwarePaginator
     {
         $query = Customer::query()->with(['primaryContact', 'identityDocument', 'currentStatus']);
         $this->applyScope($query);
+        $context = $this->access->current();
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') {
             $hash = $this->blindIndex->for($search);
@@ -76,6 +77,9 @@ final readonly class CustomerDirectory
         if (($filters['institution_id'] ?? null) !== null) {
             $query->whereKey($this->orders->customerIdsForInstitution((int) $filters['institution_id']));
         }
+        if (($filters['owner_id'] ?? null) !== null) {
+            $query->where('owner_id', (int) $filters['owner_id']);
+        }
         $createdRange = DateRange::fromDates($filters['created_from'] ?? null, $filters['created_to'] ?? null);
         if ($createdRange->startAt !== null) {
             $query->where('created_at', '>=', $createdRange->startAt);
@@ -84,6 +88,9 @@ final readonly class CustomerDirectory
             $query->where('created_at', '<', $createdRange->endExclusive);
         }
 
+        if ($context->isCustomerService() && $context->userId !== null) {
+            $query->orderByRaw('CASE WHEN owner_id = ? THEN 0 ELSE 1 END', [$context->userId]);
+        }
         $page = $query->latest('created_at')->paginate($perPage);
         $agentIds = $page->getCollection()->pluck('source_agent_id')->filter()->map(fn ($id): int => (int) $id)->all();
         $agentLabels = $this->agents->agentsByIds($agentIds);

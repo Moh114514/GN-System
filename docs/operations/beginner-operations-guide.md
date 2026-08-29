@@ -930,6 +930,12 @@ The current `feature/business-groups-and-roles` worktree also contains PR2 permi
 
 There is no PR2 database migration. This is a local feature-branch result only: it is not merged and has not been checked in UAT/Production. Do not manually change server code or tables. A future release must use the normal RC deployment flow and verify the four role identities, cross-group links, Livewire actions, file downloads, export permissions, and dashboard separation in the target environment.
 
+## 客户视角 PR1（2026-08-29）
+
+客户管理列表现在可以按负责人筛选，地址栏会保留 `ownerId`。下拉框只显示当前账号访问范围内、已启用且已接受邀请的客服；客服自己的客户会排在同范围其他客户前面。BD 和超级管理员仍按原有范围查看，手工把地址栏改成其他业务组的负责人编号也不能扩大结果。
+
+这次没有新增 migration、依赖或服务器配置，只在本机 feature 分支完成自动化测试，尚未合入、部署或完成 UAT/Production 验收。正式发布时按正常 RC 流程，在 UAT 用客服、BD、超级管理员分别检查负责人下拉框、URL 保留、客服本人优先、跨业务组 URL 和无业务组客服的空结果；不要在服务器手工改代码或数据库。
+
 ## PR5 order and settlement status (2026-08-24)
 
 PR5 is currently local branch work only. It adds scoped order editing, a new migration

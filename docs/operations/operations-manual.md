@@ -1406,6 +1406,12 @@ The `feature/business-groups-and-roles` worktree contains the PR2 authorization 
 
 This PR2 change adds no migration. Dashboard cache keys and queued export snapshots include the permission context, so app, queue, and scheduler workers must be upgraded from the same release before enabling the feature in a target environment. The feature branch is not merged or deployed. Before UAT/Production release, follow the normal immutable RC process and manually verify the four role identities, cross-group URLs, direct Livewire calls, document downloads, export denial, and cache separation. Local tests do not replace target-environment acceptance.
 
+## Customer work-view PR1 (2026-08-29)
+
+The current `feature/business-groups-and-roles` worktree also contains the first customer work-view increment. The Customer list adds an `ownerId` URL filter whose options are limited to active, accepted Customer Service users in the current `AccessContext`; the query applies the existing customer scope before the owner condition. Customer Service lists put their own customers first in SQL order and then sort by creation time; BD and super administrators retain the existing order.
+
+This increment adds no migration, dependency, worker, or environment variable. It is locally tested only and is not merged or deployed. Before UAT/Production acceptance, use the normal immutable RC process and verify owner-filter URL persistence, scoped candidate options, own-first ordering, BD/admin visibility, cross-group URL attempts, and no-scope Customer Service behavior. Local tests do not replace target-environment acceptance.
+
 ## PR3 customer transfer and rollback status (2026-08-24)
 
 The current feature worktree contains the PR3 Customer transfer and lifecycle approval implementation and the later PR6 BD quarterly commission implementation. It adds the `2026_08_24_000100_add_customer_transfer_and_status_approval.php` and `2026_08_24_000400_create_bd_quarterly_commission_tables.php` migrations, so any UAT/Production release must take the normal pre-migration backup, run migrations through the release process, and verify the schema before opening business pages. No UAT/Production migration or business acceptance was run from this workstation.

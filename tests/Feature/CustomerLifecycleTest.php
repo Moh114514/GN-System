@@ -502,6 +502,7 @@ class CustomerLifecycleTest extends TestCase
             ->set('statusId', '1')
             ->set('agentId', (string) $this->agent->id)
             ->set('institutionId', (string) $this->institution->id)
+            ->set('ownerId', (string) $this->user->id)
             ->set('createdFrom', '2026-08-01')
             ->set('createdTo', '2026-08-31')
             ->set('perPage', 50)
@@ -510,6 +511,7 @@ class CustomerLifecycleTest extends TestCase
             ->assertSet('statusId', '')
             ->assertSet('agentId', '')
             ->assertSet('institutionId', '')
+            ->assertSet('ownerId', '')
             ->assertSet('createdFrom', '')
             ->assertSet('createdTo', '')
             ->assertSet('perPage', 20);

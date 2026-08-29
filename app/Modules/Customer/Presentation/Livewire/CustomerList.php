@@ -27,6 +27,8 @@ class CustomerList extends Component
 
     public string $institutionId = '';
 
+    public string $ownerId = '';
+
     public string $createdFrom = '';
 
     public string $createdTo = '';
@@ -49,6 +51,7 @@ class CustomerList extends Component
         'statusId' => ['except' => ''],
         'agentId' => ['except' => ''],
         'institutionId' => ['except' => ''],
+        'ownerId' => ['except' => ''],
         'createdFrom' => ['except' => ''],
         'createdTo' => ['except' => ''],
         'perPage' => ['except' => 20],
@@ -61,14 +64,14 @@ class CustomerList extends Component
 
     public function updated(string $property): void
     {
-        if (in_array($property, ['search', 'statusId', 'agentId', 'institutionId', 'createdFrom', 'createdTo', 'perPage'], true)) {
+        if (in_array($property, ['search', 'statusId', 'agentId', 'institutionId', 'ownerId', 'createdFrom', 'createdTo', 'perPage'], true)) {
             $this->resetPage();
         }
     }
 
     public function clearFilters(): void
     {
-        $this->reset('search', 'statusId', 'agentId', 'institutionId', 'createdFrom', 'createdTo');
+        $this->reset('search', 'statusId', 'agentId', 'institutionId', 'ownerId', 'createdFrom', 'createdTo');
         $this->perPage = 20;
         $this->resetPage();
     }
@@ -119,7 +122,7 @@ class CustomerList extends Component
         ];
     }
 
-    public function render(CustomerDirectory $directory, CustomerTransferManager $transfers): View
+    public function render(CustomerDirectory $directory): View
     {
         $hasDateError = false;
         try {
@@ -137,13 +140,14 @@ class CustomerList extends Component
                 'status_id' => $this->statusId === '' ? null : (int) $this->statusId,
                 'agent_id' => $this->agentId === '' ? null : (int) $this->agentId,
                 'institution_id' => $this->institutionId === '' ? null : (int) $this->institutionId,
+                'owner_id' => $this->ownerId === '' ? null : (int) $this->ownerId,
                 'created_from' => $this->createdFrom,
                 'created_to' => $this->createdTo,
             ], $perPage);
 
         return view('livewire.customers.customer-list', [
             'customers' => $customers,
-            'ownerCandidates' => $transfers->ownerCandidates(),
+            'ownerCandidates' => $directory->ownerCandidates(),
         ])
             ->title(__('customers.title.list'));
     }

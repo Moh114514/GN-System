@@ -14,6 +14,7 @@ return [
         'all_statuses' => '全部状态',
         'all_agents' => '全部代理商',
         'all_institutions' => '全部机构',
+        'all_owners' => '全部负责人',
         'created_from' => '建档起始日期',
         'created_to' => '建档截止日期',
         'created_date' => '建档日期',

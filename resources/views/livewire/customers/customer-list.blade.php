@@ -17,7 +17,8 @@
             $selectedStatus = collect($options['statuses'])->firstWhere('id', (int) $statusId);
             $selectedAgent = collect($options['agents'])->firstWhere('id', (int) $agentId);
             $selectedInstitution = collect($options['institutions'])->firstWhere('id', (int) $institutionId);
-            $hasFilters = $search !== '' || $statusId !== '' || $agentId !== '' || $institutionId !== '' || $createdFrom !== '' || $createdTo !== '' || $perPage !== 20;
+            $selectedOwner = collect($ownerCandidates)->firstWhere('id', (int) $ownerId);
+            $hasFilters = $search !== '' || $statusId !== '' || $agentId !== '' || $institutionId !== '' || $ownerId !== '' || $createdFrom !== '' || $createdTo !== '' || $perPage !== 20;
         @endphp
 
         <div class="space-y-4">
@@ -62,6 +63,18 @@
                     <flux:menu.item wire:click="$set('institutionId', '')">{{ __('customers.list.all_institutions') }}</flux:menu.item>
                     @foreach ($options['institutions'] as $institution)
                         <flux:menu.item wire:click="$set('institutionId', '{{ $institution['id'] }}')">{{ $institution['name'] }}</flux:menu.item>
+                    @endforeach
+                </flux:menu>
+            </flux:dropdown>
+
+            <flux:dropdown>
+                <flux:button class="w-36 rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
+                    {{ $selectedOwner['name'] ?? __('customers.list.all_owners') }}
+                </flux:button>
+                <flux:menu class="max-h-72 overflow-y-auto">
+                    <flux:menu.item wire:click="$set('ownerId', '')">{{ __('customers.list.all_owners') }}</flux:menu.item>
+                    @foreach ($ownerCandidates as $owner)
+                        <flux:menu.item wire:click="$set('ownerId', '{{ $owner['id'] }}')">{{ $owner['name'] }}</flux:menu.item>
                     @endforeach
                 </flux:menu>
             </flux:dropdown>

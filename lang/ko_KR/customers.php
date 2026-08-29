@@ -14,6 +14,7 @@ return [
         'all_statuses' => '모든 상태',
         'all_agents' => '모든 에이전트',
         'all_institutions' => '모든 기관',
+        'all_owners' => '모든 담당자',
         'created_from' => '등록 시작일',
         'created_to' => '등록 종료일',
         'created_date' => '등록일',
