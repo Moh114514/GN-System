@@ -19,12 +19,14 @@ use App\Modules\Auth\Application\Services\DatabaseBusinessGroupMembershipReader;
 use App\Modules\Auth\Application\Services\DatabaseInternalUserReferenceReader;
 use App\Modules\Auth\Application\Services\DatabaseReportUserReader;
 use App\Modules\Auth\Application\Services\DatabaseUserManagementGateway;
+use App\Modules\Auth\Application\Services\UserImpersonationService;
 use App\Modules\Auth\Console\CreateAdminCommand;
 use App\Modules\Auth\Console\DisableAdminCommand;
 use App\Modules\Auth\Console\EnableAdminCommand;
 use App\Modules\Auth\Console\ListAdminsCommand;
 use App\Modules\Auth\Console\ResetAdminPasswordCommand;
 use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
@@ -46,6 +48,7 @@ class AuthServiceProvider extends ServiceProvider
     {
         Event::listen(Login::class, function (Login $event): void {
             if ($event->user instanceof User && request()->hasSession()) {
+                app(UserImpersonationService::class)->clear();
                 $sessionLocale = SupportedLocale::fromCandidate(
                     request()->session()->get((string) config('localization.session_key', 'locale')),
                 );
@@ -62,6 +65,10 @@ class AuthServiceProvider extends ServiceProvider
 
                 request()->session()->put('auth.session_version', $event->user->session_version);
             }
+        });
+
+        Event::listen(Logout::class, function (): void {
+            app(UserImpersonationService::class)->clear();
         });
 
         if ($this->app->runningInConsole()) {

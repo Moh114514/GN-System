@@ -146,6 +146,7 @@ Customer/Agent/Order/Settlement/Report/Auth 模块说明、ADR-0010，以及角�
 | Order 日常管理扩展 | 已实现待完成订单编辑、订单详情二级页和状态编辑入口；支持待完成/已完成/已取消状态流转、超级管理员填写原因后将已完成订单受控回退为待完成、已取消订单软删除与回收站恢复。回收站及已删除详情仅超级管理员可读，操作按角色限制并写入审计 | 2026-08-03 |
 | 第一批前端易用性优化 | 已改善历史数据导入与基础配置导入的上传引导、中文状态、预览确认和撤销文案，并简化配置中心及月结中心的技术术语；相关 Feature 断言已同步 | 2026-08-03 |
 | Phase 5 月结工作流优化 | 已实现历史合作期间选取、真实周期边界重建、零订单生成、持久化生成状态及独立回填迁移；`unverified` 支持超级管理员审计归档或恢复批次，`not_applicable` 禁止重新生成；已生成且处于待审核/已驳回的月结支持检测源数据变化后人工刷新，刷新会重建明细、同步批次金额并记录审计；未关联批次历史月结已移入独立归档查询，需在 UAT 升级前备份并完成审计 | 2026-08-10 |
+| 开发/UAT 用户身份模拟 | 已实现请求级有效身份切换、真实用户会话保留、BD/客服业务范围复用、顶部告警、登出清理和开始/结束审计；本地自动化测试已通过，UAT/Production 尚未人工验收 | 2026-08-29 |
 
 ## 部分实现
 
@@ -224,4 +225,10 @@ UAT/Production 使用 `queue:work`。本地开发与 UAT/Production 操作手册
 - Order editing is available to super administrators and BD managers within their assigned-agent scope. Customer, source agent, institution, and original return-file references remain immutable. The editable business date, item snapshot, amount, translator fields, and notes require a reason, optimistic-lock token, validation, and an audit diff.
 - Completed orders can be edited only before settlement references exist. The update transaction rolls back and rebuilds the unsettled commission snapshot and refreshes the historical business-group attribution using `occurred_on`; settled orders remain locked.
 - Settlement preview and formal generation use `SettlementCalculationService`. Preview reads only and writes no run, settlement, item, grade, suggestion, or notification rows. The default generation day is now 5, while historical configuration boundaries remain effective by date.
-- Grade evaluation, upgrade/downgrade suggestions, and grade notifications are disabled by default through `AGENT_GRADE_EVALUATION_ENABLED=false`; commission generation and historical grade data remain available. This is local feature-branch work only and has not been migrated, deployed, or accepted in UAT/Production.
+- Agent grades are now manual business attributes: settlement generation no longer evaluates monthly thresholds, creates upgrade/downgrade suggestions, or sends grade notifications. The new `2026_08_27_000300_remove_agent_grade_thresholds.php` migration removes the obsolete threshold column while retaining historical grade-related tables for audit/migration compatibility. This is local feature-branch work only and has not been migrated, deployed, or accepted in UAT/Production.
+
+## 2026-08-27 业务组管理与季度提成体验修正
+
+- 配置中心支持业务组名称编辑、业务组详情查看、BD 原子更换和停用/解散。更换 BD 只结束旧 BD 的有效期并创建新 BD 记录，不移动客服；停用会保留历史并封存当日仍有效的业务组成员关系。
+- 有当前代理商归属的业务组不能停用，必须先结束或转移代理商归属；更换 BD 使用含首尾日期的有效期边界并记录原因和审计事件。
+- BD 季度提成明细支持展开/收起，操作按钮和确认操作保持对齐。相关变更仍仅在本地 feature 分支完成，未在 UAT/Production 部署或验收。

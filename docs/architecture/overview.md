@@ -137,8 +137,9 @@ business-attribution reader so the edited `occurred_on` date determines the save
 
 Settlement preview and formal generation share the pure `SettlementCalculationService`; preview
 does not create settlement-side rows. Settlement readers use the order business date while keeping
-legacy completed-date snapshot keys for document compatibility. Grade evaluation is explicitly
-feature-gated and disabled by default through `AGENT_GRADE_EVALUATION_ENABLED`.
+legacy completed-date snapshot keys for document compatibility. Agent grades are manually configured
+business attributes; settlement generation does not evaluate grades, create grade suggestions, or
+send grade-adjustment notifications.
 
 ## PR7 发布收尾边界
 

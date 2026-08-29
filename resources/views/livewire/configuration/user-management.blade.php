@@ -90,26 +90,61 @@
     <section class="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <h3 class="font-semibold">{{ __('config.user_management.business_groups_heading') }}</h3>
         <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{{ __('config.user_management.business_groups_description') }}</p>
-        <form wire:submit="createBusinessGroup" class="mt-5 grid gap-4 sm:grid-cols-[1fr_1.5fr_auto] sm:items-end">
-            <flux:input wire:model="businessGroupCode" :label="__('config.user_management.business_group_code')" />
+        <form wire:submit="saveBusinessGroup" class="mt-5 grid gap-4 sm:grid-cols-[1fr_1.5fr_auto] sm:items-end">
+            <flux:input wire:model="businessGroupCode" :label="__('config.user_management.business_group_code')" :disabled="$editingBusinessGroupId !== null" />
             <flux:input wire:model="businessGroupName" :label="__('config.user_management.business_group_name')" />
-            <flux:button type="submit" variant="primary">{{ __('config.user_management.actions.create_business_group') }}</flux:button>
+            <div class="flex items-end gap-2"><flux:button type="submit" variant="primary">{{ $editingBusinessGroupId ? __('config.user_management.actions.save_business_group') : __('config.user_management.actions.create_business_group') }}</flux:button>@if ($editingBusinessGroupId)<flux:button wire:click="cancelBusinessGroupEdit" type="button" variant="ghost">{{ __('config.user_management.actions.cancel') }}</flux:button>@endif</div>
         </form>
         <div class="crm-table-wrap mt-5">
             <table class="crm-table">
-                <thead><tr><th>{{ __('config.user_management.table.business_group') }}</th><th>{{ __('config.user_management.table.status') }}</th></tr></thead>
+                <thead><tr><th>{{ __('config.user_management.table.business_group') }}</th><th>{{ __('config.user_management.current_bd') }}</th><th>{{ __('config.user_management.table.customer_service') }}</th><th>{{ __('config.user_management.table.agent_count') }}</th><th>{{ __('config.user_management.table.status') }}</th><th>{{ __('config.user_management.table.actions') }}</th></tr></thead>
                 <tbody>
-                    @forelse ($businessGroups as $group)
+                    @forelse ($businessGroupSummaries as $group)
                         <tr>
                             <td><strong>{{ $group['code'] }}</strong><br><span class="text-xs text-zinc-500">{{ $group['name'] }}</span></td>
+                            <td>{{ $group['current_bd_name'] ?? __('config.user_management.unassigned') }}</td>
+                            <td>{{ $group['customer_service_count'] }}</td>
+                            <td>{{ $group['agent_count'] }}</td>
                             <td>{{ $group['is_active'] ? __('config.status.enabled') : __('config.status.disabled') }}</td>
+                            <td><div class="flex flex-wrap gap-2"><flux:button wire:click="viewBusinessGroup({{ $group['id'] }})" size="sm" variant="ghost">{{ __('config.user_management.actions.view_business_group') }}</flux:button>@if ($group['is_active'])<flux:button wire:click="editBusinessGroup({{ $group['id'] }})" size="sm" variant="ghost">{{ __('config.user_management.actions.edit_business_group') }}</flux:button><flux:button wire:click="beginReplaceBusinessGroupBd({{ $group['id'] }})" size="sm" variant="ghost">{{ __('config.user_management.actions.replace_bd') }}</flux:button><flux:button wire:click="beginBusinessGroupDeactivation({{ $group['id'] }})" size="sm" variant="ghost">{{ __('config.user_management.actions.deactivate_business_group') }}</flux:button>@endif</div></td>
                         </tr>
                     @empty
-                        <tr><td colspan="2">{{ __('config.user_management.empty.business_groups') }}</td></tr>
+                        <tr><td colspan="6">{{ __('config.user_management.empty.business_groups') }}</td></tr>
                     @endforelse
                 </tbody>
             </table>
         </div>
+        @if ($replacingBusinessGroupId !== null)
+            <form wire:submit="replaceBusinessGroupBd" class="mt-5 rounded-xl border border-teal-200 bg-teal-50 p-4 dark:border-teal-900 dark:bg-teal-950/30">
+                <h4 class="font-semibold">{{ __('config.user_management.replace_bd_heading') }}</h4>
+                <div class="mt-4 grid gap-4 sm:grid-cols-3">
+                    <flux:select wire:model="replacementBdUserId" :label="__('config.user_management.new_bd')"><flux:select.option value="">{{ __('config.user_management.select') }}</flux:select.option>@foreach ($memberCandidates as $user)@if ($user['role'] === 'bd_manager')<flux:select.option value="{{ $user['id'] }}">{{ $user['name'] }} · {{ $user['email'] }}</flux:select.option>@endif @endforeach</flux:select>
+                    <flux:input wire:model="replacementEffectiveFrom" type="date" :label="__('config.user_management.effective_from')" />
+                    <flux:input wire:model="replacementReason" :label="__('config.user_management.reason')" />
+                </div>
+                <div class="mt-4 flex justify-end gap-2"><flux:button type="submit" variant="primary">{{ __('config.user_management.actions.confirm_replace_bd') }}</flux:button><flux:button wire:click="cancelReplaceBusinessGroupBd" type="button" variant="ghost">{{ __('config.user_management.actions.cancel') }}</flux:button></div>
+            </form>
+        @endif
+        @if ($deactivatingBusinessGroupId !== null)
+            <form wire:submit="deactivateBusinessGroup" class="mt-5 rounded-xl border border-amber-300 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/30">
+                <h4 class="font-semibold">{{ __('config.user_management.deactivate_heading') }}</h4>
+                <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{{ __('config.user_management.deactivate_description') }}</p>
+                <div class="mt-4"><flux:input wire:model="businessGroupDeactivateReason" :label="__('config.user_management.reason')" /></div>
+                <div class="mt-4 flex justify-end gap-2"><flux:button type="submit" variant="primary">{{ __('config.user_management.actions.confirm_deactivate_business_group') }}</flux:button><flux:button wire:click="cancelBusinessGroupDeactivation" type="button" variant="ghost">{{ __('config.user_management.actions.cancel') }}</flux:button></div>
+            </form>
+        @endif
+        @if ($businessGroupDetails)
+            @php($detailGroup = $businessGroupDetails['group'])
+            <section class="mt-5 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-950">
+                <div class="flex flex-wrap items-start justify-between gap-3"><div><h4 class="text-lg font-semibold">{{ $detailGroup['name'] }}</h4><p class="text-sm text-zinc-500">{{ $detailGroup['code'] }} · {{ $detailGroup['is_active'] ? __('config.status.enabled') : __('config.status.disabled') }}</p></div><flux:button wire:click="closeBusinessGroupDetail" size="sm" variant="ghost">{{ __('config.user_management.actions.close_detail') }}</flux:button></div>
+                <div class="mt-4 grid gap-4 lg:grid-cols-3">
+                    @php($currentBd = collect($businessGroupDetails['memberships'])->first(fn (array $membership): bool => $membership['member_role'] === 'bd_manager' && $membership['is_current']))
+                    <div><h5 class="font-semibold">{{ __('config.user_management.current_bd') }}</h5><p class="mt-2 text-sm {{ $currentBd === null ? 'text-zinc-500' : '' }}">{{ $currentBd['user_name'] ?? __('config.user_management.unassigned') }}</p></div>
+                    <div><h5 class="font-semibold">{{ __('config.user_management.detail_members') }}</h5><ul class="mt-2 space-y-1 text-sm">@forelse ($businessGroupDetails['memberships'] as $membership)<li>{{ $membership['user_name'] }} · {{ __('config.user_management.roles.'.$membership['member_role']) }} · {{ $membership['effective_from'] }} — {{ $membership['effective_until'] ?? __('config.user_management.open_ended') }}</li>@empty<li class="text-zinc-500">{{ __('config.user_management.empty.memberships') }}</li>@endforelse</ul></div>
+                    <div><h5 class="font-semibold">{{ __('config.user_management.detail_agents') }}</h5><ul class="mt-2 space-y-1 text-sm">@forelse ($businessGroupDetails['assignments'] as $assignment)<li>{{ $assignment['agent_code'] }} · {{ $assignment['agent_name'] }} · {{ $assignment['effective_from'] }} — {{ $assignment['effective_until'] ?? __('config.user_management.open_ended') }}</li>@empty<li class="text-zinc-500">{{ __('config.user_management.empty.agent_assignments') }}</li>@endforelse</ul></div>
+                </div>
+            </section>
+        @endif
     </section>
 
     <section class="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">

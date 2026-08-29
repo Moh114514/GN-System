@@ -29,6 +29,22 @@ class UserManagement extends Component
 
     public string $businessGroupName = '';
 
+    public ?int $editingBusinessGroupId = null;
+
+    public ?int $selectedBusinessGroupId = null;
+
+    public ?int $replacingBusinessGroupId = null;
+
+    public string $replacementBdUserId = '';
+
+    public string $replacementEffectiveFrom = '';
+
+    public string $replacementReason = '';
+
+    public ?int $deactivatingBusinessGroupId = null;
+
+    public string $businessGroupDeactivateReason = '';
+
     public string $membershipGroupId = '';
 
     public string $membershipUserId = '';
@@ -72,6 +88,7 @@ class UserManagement extends Component
         $businessDate = $clock->now()->toDateString();
         $this->membershipEffectiveFrom = $businessDate;
         $this->assignmentEffectiveFrom = $businessDate;
+        $this->replacementEffectiveFrom = $businessDate;
     }
 
     public function invite(ConfigurationUserCoordinator $users): void
@@ -169,6 +186,120 @@ class UserManagement extends Component
             $users->createBusinessGroup($this->businessGroupCode, $this->businessGroupName, (int) Auth::id(), request()->ip());
             $this->reset('businessGroupCode', 'businessGroupName');
         }, __('config.user_management.toast.business_group_created'));
+    }
+
+    public function editBusinessGroup(int $id, ConfigurationUserCoordinator $users): void
+    {
+        $group = collect($users->businessGroups())->firstWhere('id', $id);
+        if ($group === null) {
+            return;
+        }
+        $this->editingBusinessGroupId = $id;
+        $this->businessGroupCode = (string) $group['code'];
+        $this->businessGroupName = (string) $group['name'];
+    }
+
+    public function saveBusinessGroup(ConfigurationUserCoordinator $users): void
+    {
+        $this->validate([
+            'businessGroupName' => ['required', 'string', 'max:255'],
+            'businessGroupCode' => ['required', 'string', 'max:32', 'regex:/^[A-Za-z0-9][A-Za-z0-9_-]{1,31}$/'],
+        ]);
+        $this->run(function () use ($users): void {
+            if ($this->editingBusinessGroupId === null) {
+                $users->createBusinessGroup($this->businessGroupCode, $this->businessGroupName, (int) Auth::id(), request()->ip());
+            } else {
+                $users->updateBusinessGroupName($this->editingBusinessGroupId, $this->businessGroupName, (int) Auth::id(), request()->ip());
+            }
+            $this->cancelBusinessGroupEdit();
+        }, $this->editingBusinessGroupId === null
+            ? __('config.user_management.toast.business_group_created')
+            : __('config.user_management.toast.business_group_updated'));
+    }
+
+    public function cancelBusinessGroupEdit(): void
+    {
+        $this->editingBusinessGroupId = null;
+        $this->businessGroupCode = '';
+        $this->businessGroupName = '';
+    }
+
+    public function viewBusinessGroup(int $id): void
+    {
+        $this->selectedBusinessGroupId = $id;
+    }
+
+    public function closeBusinessGroupDetail(): void
+    {
+        $this->selectedBusinessGroupId = null;
+    }
+
+    public function beginReplaceBusinessGroupBd(int $id): void
+    {
+        $this->replacingBusinessGroupId = $id;
+        $this->replacementBdUserId = '';
+        $this->replacementEffectiveFrom = app(BusinessClock::class)->now()->toDateString();
+        $this->replacementReason = '';
+    }
+
+    public function cancelReplaceBusinessGroupBd(): void
+    {
+        $this->replacingBusinessGroupId = null;
+        $this->replacementBdUserId = '';
+        $this->replacementReason = '';
+    }
+
+    public function replaceBusinessGroupBd(ConfigurationUserCoordinator $users): void
+    {
+        $this->validate([
+            'replacingBusinessGroupId' => ['required', 'integer', 'min:1'],
+            'replacementBdUserId' => ['required', 'integer', 'min:1'],
+            'replacementEffectiveFrom' => ['required', 'date_format:Y-m-d'],
+            'replacementReason' => ['required', 'string', 'max:2000'],
+        ]);
+        $this->run(function () use ($users): void {
+            $users->replaceBusinessGroupBd(
+                (int) $this->replacingBusinessGroupId,
+                (int) $this->replacementBdUserId,
+                $this->replacementEffectiveFrom,
+                $this->replacementReason,
+                (int) Auth::id(),
+                request()->ip(),
+            );
+            $this->cancelReplaceBusinessGroupBd();
+        }, __('config.user_management.toast.business_group_bd_replaced'));
+    }
+
+    public function beginBusinessGroupDeactivation(int $id): void
+    {
+        $this->deactivatingBusinessGroupId = $id;
+        $this->businessGroupDeactivateReason = '';
+    }
+
+    public function cancelBusinessGroupDeactivation(): void
+    {
+        $this->deactivatingBusinessGroupId = null;
+        $this->businessGroupDeactivateReason = '';
+    }
+
+    public function deactivateBusinessGroup(ConfigurationUserCoordinator $users): void
+    {
+        $this->validate([
+            'deactivatingBusinessGroupId' => ['required', 'integer', 'min:1'],
+            'businessGroupDeactivateReason' => ['required', 'string', 'max:2000'],
+        ]);
+        $this->run(function () use ($users): void {
+            $users->deactivateBusinessGroup(
+                (int) $this->deactivatingBusinessGroupId,
+                $this->businessGroupDeactivateReason,
+                (int) Auth::id(),
+                request()->ip(),
+            );
+            if ($this->selectedBusinessGroupId === $this->deactivatingBusinessGroupId) {
+                $this->selectedBusinessGroupId = null;
+            }
+            $this->cancelBusinessGroupDeactivation();
+        }, __('config.user_management.toast.business_group_deactivated'));
     }
 
     public function assignMember(ConfigurationUserCoordinator $users): void
@@ -296,6 +427,8 @@ class UserManagement extends Component
         return view('livewire.configuration.user-management', [
             'users' => $records,
             'businessGroups' => $users->businessGroups(),
+            'businessGroupSummaries' => $users->businessGroupSummaries(),
+            'businessGroupDetails' => $this->selectedBusinessGroupId === null ? null : $users->businessGroupDetails($this->selectedBusinessGroupId),
             'memberships' => $users->memberships(),
             'unassignedUsers' => $users->unassignedUsers(),
             'memberCandidates' => $users->memberCandidates(),

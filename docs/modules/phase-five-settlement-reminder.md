@@ -2,7 +2,7 @@
 
 ## 月结边界
 
-月结批次使用 `settlement_run_members` 保存每个代理商的处理结果；`SettlementRun` 只表示批次，`Settlement` 表示单个代理商在一个周期内的月结事实。推广费、等级评估和等级门槛始终使用 KRW 作为内部计算基准。
+月结批次使用 `settlement_run_members` 保存每个代理商的处理结果；`SettlementRun` 只表示批次，`Settlement` 表示单个代理商在一个周期内的月结事实。推广费使用 KRW 作为内部计算基准；代理商等级是人工配置属性，不参与月结自动评估。
 
 每条 Settlement 独立保存：
 
@@ -14,13 +14,13 @@
 
 KRW 月结不做汇率换算；CNY 月结按本次汇率计算并保存快照，之后报价接口变化不会改写已生成月结。
 
-## 等级评估
+## 等级
 
-`agent_grade_evaluations` 以代理商和结算周期唯一记录本期结果：`upgrade`、`maintained` 或 `downgrade_failure`，同时记录连续未达标次数。升级当期即可生成 `SettlementGradeSuggestion`；降级只有连续且相邻的两个结算周期未达标才生成建议。重跑同一周期会更新评估记录，不会重复累加；如果中间缺少结算周期，失败次数会从 1 重新计算。系统只生成建议，等级仍由管理员人工确认后从下月生效。
+等级策略、当前等级和生效历史仍由配置中心人工维护。月结预览、正式生成和刷新不会读取月业绩门槛，不会创建新的等级评估或升降级建议，也不会发送等级调整通知；历史相关表保留用于审计和迁移兼容。
 
 ## 通知
 
-配置中心的通知负责人页面维护 `notification_recipient_configs`。等级调整建议会生成站内通知，并按 `internal` / `dingtalk` 通道发送；钉钉负责人通过 `users.dingtalk_mention_type` 与 `users.dingtalk_mention_value` 绑定，支持企业 `user_id` 和普通群验证过的 `mobile`。未绑定用户不能被选择，Webhook 按绑定类型分别使用 `atUserIds` 或 `atMobiles` 定向 @，并在 Markdown 正文追加经过格式校验的 `@绑定值`，这是钉钉识别真实提及所需的组合。钉钉投递写入 `notification_deliveries`，由队列执行并自动重试，状态记录为 `queued`、`sending`、`sent` 或 `failed`；历史投递中的旧字符串值按企业 User ID 兼容读取。提醒实例已有负责人时复用同一绑定规则；没有负责人时只发送群通知。
+配置中心的通知负责人页面维护 `notification_recipient_configs`。月结不再触发等级调整通知；其他仍在使用的站内、钉钉通知继续按 `internal` / `dingtalk` 通道发送。钉钉负责人通过 `users.dingtalk_mention_type` 与 `users.dingtalk_mention_value` 绑定，支持企业 `user_id` 和普通群验证过的 `mobile`。未绑定用户不能被选择，Webhook 按绑定类型分别使用 `atUserIds` 或 `atMobiles` 定向 @，并在 Markdown 正文追加经过格式校验的 `@绑定值`，这是钉钉识别真实提及所需的组合。钉钉投递写入 `notification_deliveries`，由队列执行并自动重试。
 
 ## 主动提醒
 
@@ -40,7 +40,7 @@ Batch 和 `SettlementRunMember`；发现 Batch 失败、批次结束但 member �
 `migrate --force`、`optimize:clear` 和 `queue:restart`。时间模拟页面的“设置并立即执行”表示
 业务检查已提交到队列，不代表月结已经成功；最终结果以 Batch 和 member 状态为准。
 
-月结仍通过现有批次、队列、重试、审核、结清、文档生成和历史归档流程运行。相关本地测试覆盖 KRW/CNY 审核、汇率快照、升级建议、连续降级门槛、提醒幂等、通知接口和日期边界；真实钉钉凭据、UAT/Production 迁移和人工业务验收仍需在目标环境执行。
+月结仍通过现有批次、队列、重试、审核、结清、文档生成和历史归档流程运行。相关本地测试覆盖 KRW/CNY 审核、汇率快照、无等级副作用、提醒幂等、通知接口和日期边界；真实钉钉凭据、UAT/Production 迁移和人工业务验收仍需在目标环境执行。
 
 ## PR5 月结预览、生成日与等级暂停
 
@@ -52,9 +52,9 @@ PR6 的 BD 季度提成与代理商月结分开持久化，不复用 `settlement
 但不写入批次、结算单、明细、等级评估、建议或通知表。正式生成默认在每月 5 日窗口处理
 上一个自然月；旧配置按 `effective_from` 保留历史边界。
 
-`AGENT_GRADE_EVALUATION_ENABLED` 默认关闭时，不生成新的等级评估、升降级建议或等级通知，
-但保留等级策略、当前等级、代理商分配、佣金规则、覆盖配置和历史快照。启用该开关前应
-完成目标环境的业务验收。
+等级策略、当前等级、代理商分配、佣金规则、覆盖配置和历史快照继续保留；系统不再提供
+通过环境变量恢复自动等级评估的路径。发布前应在目标环境确认迁移完成，以及月结仍生成
+佣金且不产生新的等级评估、建议或通知。
 
 ## PR7 发布收尾
 

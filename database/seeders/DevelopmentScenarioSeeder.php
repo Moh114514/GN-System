@@ -267,7 +267,6 @@ class DevelopmentScenarioSeeder extends Seeder
         $grades = DB::table('policy_grades')->orderBy('id')->get(['id', 'name']);
         foreach ($grades as $gradeIndex => $grade) {
             DB::table('policy_grades')->where('id', $grade->id)->update([
-                'monthly_threshold_krw' => ($gradeIndex + 1) * 10000000,
                 'sort_order' => ($gradeIndex + 1) * 10,
                 'updated_at' => now(),
             ]);
@@ -840,46 +839,6 @@ class DevelopmentScenarioSeeder extends Seeder
             }
         }
 
-        $grades = DB::table('policy_grades')->orderBy('id')->pluck('id')->values();
-        $pendingSettlements = DB::table('settlements')
-            ->whereRaw("snapshot->>'source' = 'development_scenario'")
-            ->where('status', 'pending_review')
-            ->get(['id', 'agent_id', 'period_start', 'total_commission_krw']);
-        foreach ($pendingSettlements as $settlement) {
-            $currentGrade = DB::table('agent_grade_assignments')
-                ->where('agent_id', $settlement->agent_id)
-                ->orderByDesc('effective_month')
-                ->value('policy_grade_id');
-            if ($currentGrade === null || $grades->isEmpty()) {
-                continue;
-            }
-            $gradeIndex = $grades->search((int) $currentGrade);
-            $recommendedGrade = $grades[($gradeIndex === false ? 0 : $gradeIndex + 1) % $grades->count()];
-            DB::table('settlement_grade_suggestions')->updateOrInsert(
-                ['settlement_id' => $settlement->id],
-                [
-                    'agent_id' => $settlement->agent_id,
-                    'current_grade_id' => $currentGrade,
-                    'recommended_grade_id' => $recommendedGrade,
-                    'monthly_commission_krw' => $settlement->total_commission_krw,
-                    'status' => 'pending',
-                    'updated_at' => now(),
-                    'created_at' => now(),
-                ],
-            );
-            DB::table('agent_grade_evaluations')->updateOrInsert(
-                ['agent_id' => $settlement->agent_id, 'period' => $settlement->period_start],
-                [
-                    'settlement_id' => $settlement->id,
-                    'current_grade_id' => $currentGrade,
-                    'evaluated_grade_id' => $recommendedGrade,
-                    'result' => 'upgrade_suggestion',
-                    'consecutive_failure_count' => 0,
-                    'updated_at' => now(),
-                    'created_at' => now(),
-                ],
-            );
-        }
     }
 
     private function seedSettlementRunHeader(string $runId, CarbonImmutable $start, CarbonImmutable $end, int $adminId): string

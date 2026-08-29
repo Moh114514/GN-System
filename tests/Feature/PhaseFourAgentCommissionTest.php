@@ -30,6 +30,7 @@ use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Spatie\Activitylog\Models\Activity;
@@ -38,6 +39,19 @@ use Tests\TestCase;
 class PhaseFourAgentCommissionTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_agent_grade_threshold_migration_removes_legacy_column_and_can_restore_it(): void
+    {
+        $migration = require base_path('database/migrations/2026_08_27_000300_remove_agent_grade_thresholds.php');
+
+        $this->assertFalse(Schema::hasColumn('policy_grades', 'monthly_threshold_krw'));
+
+        $migration->down();
+        $this->assertTrue(Schema::hasColumn('policy_grades', 'monthly_threshold_krw'));
+
+        $migration->up();
+        $this->assertFalse(Schema::hasColumn('policy_grades', 'monthly_threshold_krw'));
+    }
 
     private User $user;
 
@@ -76,7 +90,6 @@ class PhaseFourAgentCommissionTest extends TestCase
         $this->grade = PolicyGrade::query()->create([
             'policy_system_id' => $system->id,
             'name' => '黄金',
-            'monthly_threshold_krw' => 0,
             'sort_order' => 10,
             'is_active' => true,
         ]);
@@ -353,7 +366,6 @@ class PhaseFourAgentCommissionTest extends TestCase
         $next = PolicyGrade::query()->create([
             'policy_system_id' => $this->grade->policy_system_id,
             'name' => '白金',
-            'monthly_threshold_krw' => 0,
             'sort_order' => 20,
             'is_active' => true,
         ]);
@@ -383,7 +395,6 @@ class PhaseFourAgentCommissionTest extends TestCase
         $next = PolicyGrade::query()->create([
             'policy_system_id' => $this->grade->policy_system_id,
             'name' => '黑钻',
-            'monthly_threshold_krw' => 0,
             'sort_order' => 20,
             'is_active' => true,
         ]);
@@ -436,7 +447,6 @@ class PhaseFourAgentCommissionTest extends TestCase
         $nextGrade = PolicyGrade::query()->create([
             'policy_system_id' => $this->grade->policy_system_id,
             'name' => '白金',
-            'monthly_threshold_krw' => 0,
             'sort_order' => 20,
             'is_active' => true,
         ]);
@@ -549,7 +559,6 @@ class PhaseFourAgentCommissionTest extends TestCase
         $secondGrade = PolicyGrade::query()->create([
             'policy_system_id' => $secondSystem->id,
             'name' => '白金合伙人',
-            'monthly_threshold_krw' => 0,
             'sort_order' => 10,
             'is_active' => true,
         ]);

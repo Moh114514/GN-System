@@ -169,10 +169,4 @@
         </tbody></table></div>
     </section>
 
-    @if ($suggestion)
-        <section class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900 dark:bg-amber-950/30">
-            <h3 class="font-semibold">{{ __('settlements.detail.grade_suggestion') }}</h3><p class="mt-2 text-sm">{{ __('settlements.detail.grade_suggestion_description', ['amount' => number_format($suggestion->monthly_commission_krw), 'current' => $suggestion->current_grade_id, 'recommended' => $suggestion->recommended_grade_id]) }}</p>
-            @if ($suggestion->status === 'pending' && $canManageSettlements)<flux:input wire:model="suggestionReason" class="mt-3" :label="__('settlements.detail.review_note')" /><div class="mt-3 flex gap-2"><flux:button wire:click="reviewSuggestion({{ $suggestion->id }}, true)">{{ __('settlements.detail.approve_suggestion') }}</flux:button><flux:button wire:click="reviewSuggestion({{ $suggestion->id }}, false)" variant="ghost">{{ __('settlements.detail.keep_grade') }}</flux:button></div>@else<p class="mt-2 text-sm">{{ __('settlements.detail.result', ['status' => $suggestion->status]) }}</p>@endif
-        </section>
-    @endif
 </div>

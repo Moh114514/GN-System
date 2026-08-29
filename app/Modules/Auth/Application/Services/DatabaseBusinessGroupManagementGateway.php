@@ -177,6 +177,174 @@ final readonly class DatabaseBusinessGroupManagementGateway implements BusinessG
         ];
     }
 
+    /** @return array{id: int, code: string, name: string, is_active: bool} */
+    public function updateName(int $businessGroupId, string $name, int $actorId, ?string $ipAddress): array
+    {
+        $name = trim($name);
+        if ($name === '') {
+            throw new DomainException(__('auth.errors.business_group_name_required'));
+        }
+        if (mb_strlen($name) > 255) {
+            throw new DomainException(__('auth.errors.business_group_name_too_long'));
+        }
+
+        return DB::transaction(function () use ($businessGroupId, $name, $actorId, $ipAddress): array {
+            $group = BusinessGroup::query()->lockForUpdate()->findOrFail($businessGroupId);
+            $before = ['name' => $group->name];
+            $group->update(['name' => $name]);
+            $this->audit->record(
+                description: __('auth.audit.business_group_updated'),
+                properties: ['before' => $before, 'after' => ['name' => $name]],
+                causerId: $actorId,
+                subject: $group,
+                logName: 'auth-business-groups',
+                event: 'updated',
+                ipAddress: $ipAddress,
+            );
+
+            return [
+                'id' => (int) $group->id,
+                'code' => (string) $group->code,
+                'name' => (string) $group->name,
+                'is_active' => (bool) $group->is_active,
+            ];
+        });
+    }
+
+    public function replaceBd(
+        int $businessGroupId,
+        int $newBdUserId,
+        string $effectiveFrom,
+        string $reason,
+        int $actorId,
+        ?string $ipAddress,
+    ): void {
+        $from = $this->parseDate($effectiveFrom);
+        $reason = trim($reason);
+        if ($reason === '') {
+            throw new DomainException(__('auth.errors.business_group_reason_required'));
+        }
+
+        try {
+            DB::transaction(function () use ($businessGroupId, $newBdUserId, $from, $reason, $actorId, $ipAddress): void {
+                $group = BusinessGroup::query()->lockForUpdate()->findOrFail($businessGroupId);
+                if (! $group->is_active) {
+                    throw new DomainException(__('auth.errors.business_group_inactive'));
+                }
+                $newBd = User::query()->lockForUpdate()->findOrFail($newBdUserId);
+                if (! $newBd->is_active || $newBd->roleValue() !== UserRole::BdManager) {
+                    throw new DomainException(__('auth.errors.business_group_bd_required'));
+                }
+
+                $oldMembership = BusinessGroupMembership::query()
+                    ->where('business_group_id', $group->id)
+                    ->where('member_role', UserRole::BdManager->value)
+                    ->whereDate('effective_from', '<=', $from->toDateString())
+                    ->where(function ($query) use ($from): void {
+                        $query->whereNull('effective_until')->orWhereDate('effective_until', '>=', $from->toDateString());
+                    })
+                    ->lockForUpdate()
+                    ->latest('effective_from')
+                    ->latest('id')
+                    ->first();
+                if ($oldMembership !== null && (int) $oldMembership->user_id === (int) $newBd->id) {
+                    throw new DomainException(__('auth.errors.business_group_bd_same'));
+                }
+                if ($oldMembership !== null && $oldMembership->effective_from->gte($from)) {
+                    throw new DomainException(__('auth.errors.business_group_bd_change_date_invalid'));
+                }
+
+                $newUserOverlap = BusinessGroupMembership::query()
+                    ->where('user_id', $newBd->id)
+                    ->whereDate('effective_from', '<=', $from->toDateString())
+                    ->where(function ($query) use ($from): void {
+                        $query->whereNull('effective_until')->orWhereDate('effective_until', '>=', $from->toDateString());
+                    })
+                    ->lockForUpdate()
+                    ->exists();
+                if ($newUserOverlap) {
+                    throw new DomainException(__('auth.errors.business_group_user_overlap'));
+                }
+
+                if ($oldMembership !== null) {
+                    $oldMembership->update(['effective_until' => $from->subDay()->toDateString()]);
+                }
+                $newMembership = BusinessGroupMembership::query()->create([
+                    'business_group_id' => $group->id,
+                    'user_id' => $newBd->id,
+                    'member_role' => UserRole::BdManager->value,
+                    'effective_from' => $from->toDateString(),
+                    'effective_until' => null,
+                    'assigned_by' => $actorId,
+                    'reason' => $reason,
+                ]);
+                $this->audit->record(
+                    description: __('auth.audit.business_group_bd_replaced'),
+                    properties: [
+                        'business_group_id' => $group->id,
+                        'previous_user_id' => $oldMembership?->user_id,
+                        'new_user_id' => $newBd->id,
+                        'effective_from' => $from->toDateString(),
+                        'reason' => $reason,
+                    ],
+                    causerId: $actorId,
+                    subject: $newMembership,
+                    logName: 'auth-business-groups',
+                    event: 'bd_replaced',
+                    ipAddress: $ipAddress,
+                );
+            });
+        } catch (QueryException $exception) {
+            if ($this->isMembershipOverlapViolation($exception)) {
+                throw new DomainException(__('auth.errors.business_group_user_overlap'), previous: $exception);
+            }
+
+            throw $exception;
+        }
+    }
+
+    public function deactivate(int $businessGroupId, string $reason, int $actorId, ?string $ipAddress): void
+    {
+        $reason = trim($reason);
+        if ($reason === '') {
+            throw new DomainException(__('auth.errors.business_group_reason_required'));
+        }
+
+        DB::transaction(function () use ($businessGroupId, $reason, $actorId, $ipAddress): void {
+            $group = BusinessGroup::query()->lockForUpdate()->findOrFail($businessGroupId);
+            if (! $group->is_active) {
+                throw new DomainException(__('auth.errors.business_group_inactive'));
+            }
+            $effectiveUntil = $this->clock->now()->toDateString();
+            $activeMemberships = BusinessGroupMembership::query()
+                ->where('business_group_id', $group->id)
+                ->whereDate('effective_from', '<=', $effectiveUntil)
+                ->where(function ($query) use ($effectiveUntil): void {
+                    $query->whereNull('effective_until')->orWhereDate('effective_until', '>=', $effectiveUntil);
+                })
+                ->lockForUpdate()
+                ->get();
+            foreach ($activeMemberships as $membership) {
+                $membership->update(['effective_until' => $effectiveUntil]);
+            }
+            $group->update(['is_active' => false]);
+            $this->audit->record(
+                description: __('auth.audit.business_group_deactivated'),
+                properties: [
+                    'business_group_id' => $group->id,
+                    'reason' => $reason,
+                    'effective_until' => $effectiveUntil,
+                    'ended_membership_count' => $activeMemberships->count(),
+                ],
+                causerId: $actorId,
+                subject: $group,
+                logName: 'auth-business-groups',
+                event: 'deactivated',
+                ipAddress: $ipAddress,
+            );
+        });
+    }
+
     public function assignMember(
         int $businessGroupId,
         int $userId,

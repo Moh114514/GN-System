@@ -21,7 +21,6 @@ use App\Modules\Settlement\Application\Services\ExchangeRateQuoteService;
 use App\Modules\Settlement\Application\Services\SettlementDocumentGenerator;
 use App\Modules\Settlement\Application\Services\SettlementFreshnessChecker;
 use App\Modules\Settlement\Application\Services\SettlementGenerator;
-use App\Modules\Settlement\Application\Services\SettlementGradeEvaluator;
 use App\Modules\Settlement\Application\Services\SettlementNotificationDispatcher;
 use App\Modules\Settlement\Application\Services\SettlementPeriodCalculator;
 use App\Modules\Settlement\Application\Services\SettlementRunFailureReader;
@@ -29,12 +28,10 @@ use App\Modules\Settlement\Application\Services\SettlementRunFailureReportGenera
 use App\Modules\Settlement\Application\Services\SettlementRunManager;
 use App\Modules\Settlement\Application\Services\SettlementRunReconciler;
 use App\Modules\Settlement\Application\Services\SettlementWorkflow;
-use App\Modules\Settlement\Infrastructure\Models\AgentGradeEvaluation;
 use App\Modules\Settlement\Infrastructure\Models\CommissionRule;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementConfiguration;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
-use App\Modules\Settlement\Infrastructure\Models\SettlementGradeSuggestion;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRunMember;
 use App\Modules\Settlement\Jobs\GenerateAgentSettlement;
@@ -85,7 +82,6 @@ class PhaseFiveSettlementTest extends TestCase
             'queue.default' => 'sync',
             'dingtalk.enabled' => false,
             'services.settlement_exchange_rate.enabled' => false,
-            'settlements.agent_grade_evaluation_enabled' => true,
         ]);
         $this->seed(PhaseTwoReferenceDataSeeder::class);
         $this->user = User::factory()->create();
@@ -94,7 +90,6 @@ class PhaseFiveSettlementTest extends TestCase
         $this->grade = PolicyGrade::query()->create([
             'policy_system_id' => $system->id,
             'name' => '标准级',
-            'monthly_threshold_krw' => 0,
             'sort_order' => 10,
             'is_active' => true,
         ]);
@@ -183,8 +178,6 @@ class PhaseFiveSettlementTest extends TestCase
             'runs' => SettlementRun::query()->count(),
             'settlements' => Settlement::query()->count(),
             'items' => DB::table('settlement_items')->count(),
-            'evaluations' => AgentGradeEvaluation::query()->count(),
-            'suggestions' => SettlementGradeSuggestion::query()->count(),
         ];
 
         $component = Livewire::actingAs($this->admin)->test(SettlementCenter::class)
@@ -197,21 +190,20 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame($counts['runs'], SettlementRun::query()->count());
         $this->assertSame($counts['settlements'], Settlement::query()->count());
         $this->assertSame($counts['items'], DB::table('settlement_items')->count());
-        $this->assertSame($counts['evaluations'], AgentGradeEvaluation::query()->count());
-        $this->assertSame($counts['suggestions'], SettlementGradeSuggestion::query()->count());
+        $this->assertDatabaseCount('agent_grade_evaluations', 0);
+        $this->assertDatabaseCount('settlement_grade_suggestions', 0);
     }
 
-    public function test_disabled_grade_evaluation_keeps_commission_generation_but_creates_no_grade_side_effects(): void
+    public function test_settlement_generation_keeps_commission_calculation_separate_from_manual_grade_configuration(): void
     {
-        config(['settlements.agent_grade_evaluation_enabled' => false]);
         $this->createCompletedOrder(10000);
 
         $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
         $settlement = Settlement::query()->where('settlement_run_id', $run->id)->firstOrFail();
 
         $this->assertSame(1000, (int) $settlement->total_commission_krw);
-        $this->assertSame(0, AgentGradeEvaluation::query()->count());
-        $this->assertSame(0, SettlementGradeSuggestion::query()->count());
+        $this->assertDatabaseCount('agent_grade_evaluations', 0);
+        $this->assertDatabaseCount('settlement_grade_suggestions', 0);
     }
 
     public function test_period_history_keeps_legacy_boundaries_before_natural_month_transition(): void
@@ -350,33 +342,15 @@ class PhaseFiveSettlementTest extends TestCase
         }
     }
 
-    public function test_refresh_is_blocked_after_grade_suggestion_was_accepted(): void
+    public function test_refresh_is_not_blocked_by_removed_grade_suggestion_workflow(): void
     {
-        $higher = PolicyGrade::query()->create([
-            'policy_system_id' => $this->grade->policy_system_id,
-            'name' => '升级级',
-            'monthly_threshold_krw' => 500,
-            'sort_order' => 20,
-            'is_active' => true,
-        ]);
         $this->createCompletedOrder(10000);
         $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
         $settlement = Settlement::query()->where('settlement_run_id', $run->id)->firstOrFail();
-        $suggestion = SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->firstOrFail();
-        $this->assertSame($higher->id, (int) $suggestion->recommended_grade_id);
-
-        app(SettlementWorkflow::class)->reviewSuggestion($suggestion->id, true, '人工确认升级', $this->admin->id);
         $this->createCompletedOrder(20000);
 
-        try {
-            app(SettlementWorkflow::class)->refreshSettlement($settlement->id, '补录订单', $this->admin->id, null);
-            $this->fail('An accepted grade suggestion must block refresh.');
-        } catch (DomainException) {
-            $this->assertDatabaseHas('settlement_grade_suggestions', [
-                'id' => $suggestion->id,
-                'status' => 'accepted',
-            ]);
-        }
+        app(SettlementWorkflow::class)->refreshSettlement($settlement->id, '补录订单', $this->admin->id, null);
+        $this->assertSame(3000, (int) $settlement->fresh()->total_commission_krw);
     }
 
     public function test_settlement_refresh_only_allows_pending_review_or_rejected(): void
@@ -2144,27 +2118,32 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertEqualsCanonicalizing($references, $loggedReferences);
     }
 
-    public function test_grade_suggestion_requires_manual_review_and_starts_next_month(): void
+    public function test_policy_grade_is_changed_only_by_an_explicit_manual_schedule(): void
     {
         $higher = PolicyGrade::query()->create([
             'policy_system_id' => $this->grade->policy_system_id,
             'name' => '升级级',
-            'monthly_threshold_krw' => 500,
             'sort_order' => 20,
             'is_active' => true,
         ]);
         $this->createCompletedOrder(10000);
         $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
         $settlement = Settlement::query()->where('settlement_run_id', $run->id)->firstOrFail();
-        $suggestion = SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->firstOrFail();
-        $this->assertSame($higher->id, (int) $suggestion->recommended_grade_id);
         $this->assertDatabaseMissing('agent_grade_assignments', ['agent_id' => $this->agent->id, 'policy_grade_id' => $higher->id]);
+        $this->assertDatabaseCount('agent_grade_evaluations', 0);
+        $this->assertDatabaseCount('settlement_grade_suggestions', 0);
 
-        app(SettlementWorkflow::class)->reviewSuggestion($suggestion->id, true, '人工确认升级', $this->admin->id);
+        app(SettlementAgentGateway::class)->scheduleGrade(
+            $this->agent->id,
+            $higher->id,
+            CarbonImmutable::parse('2026-09-01'),
+            $this->admin->id,
+            '人工确认升级',
+        );
         $this->assertDatabaseHas('agent_grade_assignments', [
             'agent_id' => $this->agent->id,
             'policy_grade_id' => $higher->id,
-            'effective_month' => '2026-08-01',
+            'effective_month' => '2026-09-01',
         ]);
     }
 
@@ -2184,96 +2163,14 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame('approved', $settlement->status);
     }
 
-    public function test_downgrade_suggestion_requires_two_consecutive_failed_evaluations_and_is_idempotent(): void
+    public function test_settlement_generation_never_creates_automatic_grade_evaluations_or_suggestions(): void
     {
-        $higher = PolicyGrade::query()->create([
-            'policy_system_id' => $this->grade->policy_system_id,
-            'name' => '高等级',
-            'monthly_threshold_krw' => 500,
-            'sort_order' => 20,
-            'is_active' => true,
-        ]);
-        AgentGradeAssignment::query()->create([
-            'agent_id' => $this->agent->id,
-            'policy_grade_id' => $higher->id,
-            'effective_month' => '2026-06-01',
-            'approved_by' => $this->admin->id,
-            'reason' => '测试连续未达标',
-        ]);
-        $gateway = app(SettlementAgentGateway::class);
-        $current = $gateway->forMonth($this->agent->id, CarbonImmutable::parse('2026-06-30'));
-        $recommended = $gateway->recommendation($this->agent->id, CarbonImmutable::parse('2026-06-30'), 0);
-        $first = Settlement::query()->create([
-            'agent_id' => $this->agent->id,
-            'period_start' => '2026-06-01',
-            'period_end' => '2026-06-30',
-            'settlement_currency' => 'KRW',
-            'status' => 'pending_review',
-            'generation_status' => 'generated',
-        ]);
-        $second = Settlement::query()->create([
-            'agent_id' => $this->agent->id,
-            'period_start' => '2026-07-01',
-            'period_end' => '2026-07-31',
-            'settlement_currency' => 'KRW',
-            'status' => 'pending_review',
-            'generation_status' => 'generated',
-        ]);
+        $this->createCompletedOrder(10000);
+        $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
+        Settlement::query()->where('settlement_run_id', $run->id)->firstOrFail();
 
-        $evaluator = app(SettlementGradeEvaluator::class);
-        $evaluator->evaluate($first, $current, $recommended, 0);
-        $this->assertDatabaseHas('agent_grade_evaluations', ['settlement_id' => $first->id, 'result' => 'downgrade_failure', 'consecutive_failure_count' => 1]);
-        $this->assertDatabaseMissing('settlement_grade_suggestions', ['settlement_id' => $first->id]);
-
-        $evaluator->evaluate($second, $current, $recommended, 0);
-        $evaluator->evaluate($second, $current, $recommended, 0);
-        $this->assertDatabaseHas('agent_grade_evaluations', ['settlement_id' => $second->id, 'result' => 'downgrade_failure', 'consecutive_failure_count' => 2]);
-        $this->assertDatabaseHas('settlement_grade_suggestions', ['settlement_id' => $second->id, 'recommended_grade_id' => $recommended->currentGradeId]);
-        $this->assertSame(1, AgentGradeEvaluation::query()->where('settlement_id', $second->id)->count());
-    }
-
-    public function test_downgrade_failure_does_not_cross_a_missing_settlement_period(): void
-    {
-        $higher = PolicyGrade::query()->create([
-            'policy_system_id' => $this->grade->policy_system_id,
-            'name' => '高等级断档测试',
-            'monthly_threshold_krw' => 500,
-            'sort_order' => 20,
-            'is_active' => true,
-        ]);
-        AgentGradeAssignment::query()->create([
-            'agent_id' => $this->agent->id,
-            'policy_grade_id' => $higher->id,
-            'effective_month' => '2026-06-01',
-            'approved_by' => $this->admin->id,
-            'reason' => '测试缺失周期不连续',
-        ]);
-        $gateway = app(SettlementAgentGateway::class);
-        $current = $gateway->forMonth($this->agent->id, CarbonImmutable::parse('2026-06-30'));
-        $recommended = $gateway->recommendation($this->agent->id, CarbonImmutable::parse('2026-06-30'), 0);
-        $first = Settlement::query()->create([
-            'agent_id' => $this->agent->id,
-            'period_start' => '2026-06-01',
-            'period_end' => '2026-06-30',
-            'settlement_currency' => 'KRW',
-            'status' => 'pending_review',
-            'generation_status' => 'generated',
-        ]);
-        $gap = Settlement::query()->create([
-            'agent_id' => $this->agent->id,
-            'period_start' => '2026-08-01',
-            'period_end' => '2026-08-31',
-            'settlement_currency' => 'KRW',
-            'status' => 'pending_review',
-            'generation_status' => 'generated',
-        ]);
-
-        $evaluator = app(SettlementGradeEvaluator::class);
-        $evaluator->evaluate($first, $current, $recommended, 0);
-        $evaluation = $evaluator->evaluate($gap, $current, $recommended, 0);
-
-        $this->assertSame(1, $evaluation->consecutive_failure_count);
-        $this->assertDatabaseMissing('settlement_grade_suggestions', ['settlement_id' => $gap->id]);
+        $this->assertDatabaseCount('agent_grade_evaluations', 0);
+        $this->assertDatabaseCount('settlement_grade_suggestions', 0);
     }
 
     public function test_one_thousand_items_complete_within_five_minutes(): void

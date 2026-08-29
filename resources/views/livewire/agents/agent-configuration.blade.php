@@ -50,25 +50,22 @@
                 <flux:select wire:model.live="gradeListSort" :label="__('config.agent.view_sort')" :title="__('config.agent.view_grade_sort_title')" class="min-w-48">
                     <flux:select.option value="configured">{{ __('config.agent.sort_options.configured') }}</flux:select.option>
                     <flux:select.option value="sort_desc">{{ __('config.agent.sort_options.sort_desc') }}</flux:select.option>
-                    <flux:select.option value="threshold_asc">{{ __('config.agent.sort_options.threshold_asc') }}</flux:select.option>
-                    <flux:select.option value="threshold_desc">{{ __('config.agent.sort_options.threshold_desc') }}</flux:select.option>
                     <flux:select.option value="name_asc">{{ __('config.agent.sort_options.name_asc') }}</flux:select.option>
                     <flux:select.option value="name_desc">{{ __('config.agent.sort_options.name_desc') }}</flux:select.option>
                 </flux:select>
             </div>
-            <form wire:submit="saveGrade" class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <form wire:submit="saveGrade" class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <flux:select wire:model="gradePolicySystemId" :label="__('config.agent.system')" :title="__('config.agent.grade_system_title')" required><flux:select.option value="">{{ __('config.agent.select') }}</flux:select.option>@foreach ($state['systems'] as $system)<flux:select.option value="{{ $system['id'] }}">{{ $system['name'] }}</flux:select.option>@endforeach</flux:select>
                 <flux:input wire:model="gradeName" :label="__('config.agent.grade')" :title="__('config.agent.grade_name_title')" required />
-                <flux:input wire:model="gradeThresholdKrw" type="number" min="0" :label="__('config.agent.monthly_threshold')" :title="__('config.agent.grade_threshold_title')" required />
                 <flux:input wire:model="gradeSortOrder" type="number" min="0" :label="__('config.agent.sort_order')" :title="__('config.agent.sort_order_title')" required />
                 <div class="flex items-end gap-2"><flux:button type="submit" class="flex-1">{{ $editingGradeId ? __('config.agent.actions.save_changes') : __('config.agent.actions.create_grade') }}</flux:button>@if ($editingGradeId)<flux:button wire:click="cancelGradeEdit" type="button" variant="ghost">{{ __('config.agent.actions.cancel') }}</flux:button>@endif</div>
             </form>
             <div class="crm-table-wrap mt-5"><table class="crm-table">
-                <thead><tr><th>{{ __('config.agent.system') }}</th><th>{{ __('config.agent.grade') }}</th><th>{{ __('config.agent.monthly_threshold') }}</th><th title="{{ __('config.agent.table_sort_title') }}">{{ __('config.agent.sort_order') }}</th><th>{{ __('config.agent.status') }}</th><th></th></tr></thead>
+                <thead><tr><th>{{ __('config.agent.system') }}</th><th>{{ __('config.agent.grade') }}</th><th title="{{ __('config.agent.table_sort_title') }}">{{ __('config.agent.sort_order') }}</th><th>{{ __('config.agent.status') }}</th><th></th></tr></thead>
                 <tbody>@forelse ($state['grades'] as $grade)
                     @php($system = collect($state['systems'])->firstWhere('id', $grade['policy_system_id']))
-                    <tr><td>{{ $system['name'] ?? __('config.agent.unknown') }}</td><td class="font-semibold">{{ $grade['name'] }}</td><td>₩ {{ number_format($grade['monthly_threshold_krw']) }}</td><td>{{ $grade['sort_order'] }}</td><td>{{ $grade['is_active'] ? __('config.agent.actions.enable') : __('config.agent.actions.disable') }}</td><td><div class="flex gap-1"><flux:button wire:click="editGrade({{ $grade['id'] }})" size="sm" variant="ghost">{{ __('config.agent.actions.edit') }}</flux:button><flux:button wire:click="toggleGrade({{ $grade['id'] }})" size="sm" variant="ghost">{{ $grade['is_active'] ? __('config.agent.actions.disable') : __('config.agent.actions.enable') }}</flux:button></div></td></tr>
-                @empty<tr><td colspan="6" class="py-8 text-center text-zinc-500">{{ __('config.agent.empty.grades') }}</td></tr>@endforelse</tbody>
+                    <tr><td>{{ $system['name'] ?? __('config.agent.unknown') }}</td><td class="font-semibold">{{ $grade['name'] }}</td><td>{{ $grade['sort_order'] }}</td><td>{{ $grade['is_active'] ? __('config.agent.actions.enable') : __('config.agent.actions.disable') }}</td><td><div class="flex gap-1"><flux:button wire:click="editGrade({{ $grade['id'] }})" size="sm" variant="ghost">{{ __('config.agent.actions.edit') }}</flux:button><flux:button wire:click="toggleGrade({{ $grade['id'] }})" size="sm" variant="ghost">{{ $grade['is_active'] ? __('config.agent.actions.disable') : __('config.agent.actions.enable') }}</flux:button></div></td></tr>
+                @empty<tr><td colspan="5" class="py-8 text-center text-zinc-500">{{ __('config.agent.empty.grades') }}</td></tr>@endforelse</tbody>
             </table></div>
         </section>
 

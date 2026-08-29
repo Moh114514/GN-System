@@ -16,6 +16,20 @@ interface BusinessGroupManagementGateway extends BusinessGroupReferenceReader
     /** @return array{id: int, code: string, name: string, is_active: bool} */
     public function create(string $code, string $name, int $actorId, ?string $ipAddress): array;
 
+    /** @return array{id: int, code: string, name: string, is_active: bool} */
+    public function updateName(int $businessGroupId, string $name, int $actorId, ?string $ipAddress): array;
+
+    public function replaceBd(
+        int $businessGroupId,
+        int $newBdUserId,
+        string $effectiveFrom,
+        string $reason,
+        int $actorId,
+        ?string $ipAddress,
+    ): void;
+
+    public function deactivate(int $businessGroupId, string $reason, int $actorId, ?string $ipAddress): void;
+
     public function assignMember(
         int $businessGroupId,
         int $userId,

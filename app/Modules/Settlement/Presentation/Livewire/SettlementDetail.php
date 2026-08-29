@@ -11,7 +11,6 @@ use App\Modules\Settlement\Application\Services\SettlementReadScope;
 use App\Modules\Settlement\Application\Services\SettlementWorkflow;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
-use App\Modules\Settlement\Infrastructure\Models\SettlementGradeSuggestion;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRunMember;
 use DomainException;
 use Flux\Flux;
@@ -33,8 +32,6 @@ class SettlementDetail extends Component
     public string $settlementCurrency = 'KRW';
 
     public string $rejectionReason = '';
-
-    public string $suggestionReason = '';
 
     public string $correctionTarget = '';
 
@@ -188,11 +185,6 @@ class SettlementDetail extends Component
         );
     }
 
-    public function reviewSuggestion(int $id, bool $accept, SettlementWorkflow $workflow): void
-    {
-        $this->run(fn () => $workflow->reviewSuggestion($id, $accept, $this->suggestionReason, (int) Auth::id()), $accept ? __('settlements.toasts.suggestion_approved') : __('settlements.toasts.suggestion_rejected'));
-    }
-
     public function render(SettlementDisplayReader $display, SettlementFreshnessChecker $freshnessChecker, SettlementOrderLinkReader $orders, SettlementReadScope $scope): View
     {
         $settlement = $scope->visibleQuery()->findOrFail($this->settlementId);
@@ -236,9 +228,6 @@ class SettlementDetail extends Component
             'agentDisplay' => $display->agent($settlement),
             'items' => $items,
             'documents' => SettlementDocument::query()->where('settlement_id', $settlement->id)->get(),
-            'suggestion' => (bool) config('settlements.agent_grade_evaluation_enabled', false)
-                ? SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->first()
-                : null,
             'previousSettlement' => $previousSettlement,
             'nextSettlement' => $nextSettlement,
             'freshness' => $settlement->generation_status === 'generated' ? $freshnessChecker->check($settlement) : null,

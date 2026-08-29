@@ -31,28 +31,6 @@ final readonly class DatabaseSettlementAgentGateway implements SettlementAgentGa
             ->all();
     }
 
-    public function recommendation(int $agentId, CarbonImmutable $month, int $commissionKrw): SettlementAgentData
-    {
-        $current = $this->contexts->forMonth($agentId, $month);
-        $grade = PolicyGrade::query()
-            ->where('policy_system_id', $current->policySystemId)
-            ->where('is_active', true)
-            ->where('monthly_threshold_krw', '<=', $commissionKrw)
-            ->orderByDesc('monthly_threshold_krw')
-            ->orderByDesc('sort_order')
-            ->first() ?? PolicyGrade::query()->findOrFail($current->policyGradeId);
-
-        return new SettlementAgentData(
-            id: $current->agentId,
-            code: $current->agentCode,
-            name: $current->agentName,
-            policySystemId: $current->policySystemId,
-            currentGradeId: (int) $grade->id,
-            currentGradeName: (string) $grade->name,
-            currentGradeThresholdKrw: (int) $grade->monthly_threshold_krw,
-        );
-    }
-
     public function forMonth(int $agentId, CarbonImmutable $month): SettlementAgentData
     {
         return $this->data($agentId, $month);
@@ -86,7 +64,6 @@ final readonly class DatabaseSettlementAgentGateway implements SettlementAgentGa
             policySystemId: $context->policySystemId,
             currentGradeId: $context->policyGradeId,
             currentGradeName: $context->policyGradeName,
-            currentGradeThresholdKrw: (int) PolicyGrade::query()->findOrFail($context->policyGradeId)->monthly_threshold_krw,
         );
     }
 }

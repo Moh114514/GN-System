@@ -69,7 +69,6 @@ final readonly class DatabaseReferenceConfigurationImportGateway implements Refe
                 'name' => $row['name'],
             ]);
             $grade->fill([
-                'monthly_threshold_krw' => $row['monthly_threshold_krw'],
                 'sort_order' => $row['sort_order'],
                 'is_active' => $row['is_active'],
             ]);

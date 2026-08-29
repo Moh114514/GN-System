@@ -4,10 +4,8 @@ namespace App\Modules\Settlement\Application\Services;
 
 use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
-use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
-use App\Modules\Settlement\Infrastructure\Models\SettlementGradeSuggestion;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRunMember;
 use Brick\Math\BigDecimal;
@@ -28,13 +26,11 @@ final readonly class SettlementWorkflow
 
     public function __construct(
         private SettlementDocumentGenerator $documents,
-        private SettlementAgentGateway $agents,
         private AuditRecorder $audit,
         private SettlementGenerator $generator,
         private SettlementCalculationService $calculation,
         private SettlementRunSummaryUpdater $summary,
         private SettlementFreshnessChecker $freshness,
-        private SettlementGradeEvaluator $gradeEvaluator,
         private BusinessClock $clock,
     ) {}
 
@@ -168,12 +164,8 @@ final readonly class SettlementWorkflow
             $itemsRemoved = 0;
             $documentsRemoved = 0;
             if ($targetStatus === 'pending_review') {
-                if (SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->where('status', 'accepted')->exists()) {
-                    throw new DomainException(__('settlements.errors.accepted_grade_blocks_correction'));
-                }
                 $itemsRemoved = DB::table('settlement_items')->where('settlement_id', $settlement->id)->delete();
                 $documentsRemoved = $this->documents->discard((int) $settlement->id);
-                SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->delete();
                 SettlementRunMember::query()
                     ->where('settlement_id', $settlement->id)
                     ->where('outcome', 'generated')
@@ -265,10 +257,6 @@ final readonly class SettlementWorkflow
             if ($settlement->generation_status !== 'generated' || $settlement->settlement_run_id === null) {
                 throw new DomainException(__('settlements.refresh.errors.generation_required'));
             }
-            if (SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->where('status', 'accepted')->exists()) {
-                throw new DomainException(__('settlements.errors.accepted_grade_blocks_correction'));
-            }
-
             $before = [
                 'item_count' => (int) $settlement->item_count,
                 'total_consumption' => (int) $settlement->total_consumption_krw,
@@ -327,12 +315,6 @@ final readonly class SettlementWorkflow
                     'created_at' => $now,
                     'updated_at' => $now,
                 ]);
-            }
-
-            if ((bool) config('settlements.agent_grade_evaluation_enabled', false)) {
-                $agent = $this->agents->forMonth((int) $settlement->agent_id, $periodEnd);
-                $recommended = $this->agents->recommendation((int) $settlement->agent_id, $periodEnd, $totalCommission);
-                $this->gradeEvaluator->evaluate($settlement, $agent, $recommended, $totalCommission);
             }
 
             $newOrderIds = array_values(array_map(static fn ($order): int => $order->orderId, $orders));
@@ -452,35 +434,6 @@ final readonly class SettlementWorkflow
                 ipAddress: $ipAddress,
                 messageKey: 'settlements.audit.recovery_batch_created',
             );
-        });
-    }
-
-    public function reviewSuggestion(int $suggestionId, bool $accept, string $reason, int $actorId): void
-    {
-        if (! (bool) config('settlements.agent_grade_evaluation_enabled', false)) {
-            throw new DomainException(__('settlements.errors.grade_evaluation_disabled'));
-        }
-        DB::transaction(function () use ($suggestionId, $accept, $reason, $actorId): void {
-            $suggestion = SettlementGradeSuggestion::query()->lockForUpdate()->findOrFail($suggestionId);
-            if ($suggestion->status !== 'pending') {
-                throw new DomainException(__('settlements.errors.grade_suggestion_processed'));
-            }
-            if ($accept) {
-                $settlement = Settlement::query()->findOrFail($suggestion->settlement_id);
-                $this->agents->scheduleGrade(
-                    (int) $suggestion->agent_id,
-                    (int) $suggestion->recommended_grade_id,
-                    CarbonImmutable::parse($settlement->period_end)->addMonthNoOverflow()->startOfMonth(),
-                    $actorId,
-                    trim($reason) === '' ? '月结等级建议人工批准' : trim($reason),
-                );
-            }
-            $suggestion->update([
-                'status' => $accept ? 'accepted' : 'rejected',
-                'reviewed_by' => $actorId,
-                'reviewed_at' => now(),
-                'review_reason' => trim($reason) ?: null,
-            ]);
         });
     }
 

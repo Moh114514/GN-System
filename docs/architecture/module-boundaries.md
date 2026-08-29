@@ -136,8 +136,9 @@ Order may consume Agent's `AgentBusinessAttributionReader` contract and Settleme
 commission contracts; it does not write Settlement models directly. Settlement consumes Order's
 `SettlementOrderReader` and Agent's `SettlementAgentGateway`, while its pure calculation service
 is shared by preview and formal generation. Settlement preview has no persistence side effects.
-The grade pause is configuration-driven and does not remove policy, grade, assignment, commission,
-or historical settlement capabilities.
+Agent grades remain policy and assignment attributes, but settlement generation does not evaluate
+monthly thresholds, create grade suggestions, or send grade-adjustment notifications. Existing
+historical grade-related rows remain readable for migration and audit purposes.
 
 ## PR7 发布边界
 

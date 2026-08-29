@@ -447,7 +447,7 @@ class OrderManagementTest extends TestCase
         $system = PolicySystem::query()->firstOrCreate(['name' => '测试政策'], ['is_active' => true]);
         $grade = PolicyGrade::query()->firstOrCreate(
             ['policy_system_id' => $system->id, 'name' => '测试等级'],
-            ['monthly_threshold_krw' => 0, 'sort_order' => 10, 'is_active' => true],
+            ['sort_order' => 10, 'is_active' => true],
         );
         AgentGradeAssignment::query()->firstOrCreate(
             ['agent_id' => $agent->id, 'policy_grade_id' => $grade->id, 'effective_month' => now()->startOfMonth()],

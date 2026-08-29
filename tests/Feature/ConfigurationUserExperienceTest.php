@@ -70,21 +70,19 @@ class ConfigurationUserExperienceTest extends TestCase
         $this->assertSame(2, DB::table('customer_status_transitions')->count());
     }
 
-    public function test_agent_configuration_explains_fields_and_supports_view_sorting(): void
+    public function test_agent_configuration_explains_manual_grade_fields_and_supports_view_sorting(): void
     {
         $admin = User::factory()->superAdmin()->withTwoFactor()->create();
         $policy = PolicySystem::query()->create(['name' => 'UAT 政策', 'is_active' => true]);
         $lowerGrade = PolicyGrade::query()->create([
             'policy_system_id' => $policy->id,
             'name' => '低门槛等级',
-            'monthly_threshold_krw' => 100_000,
             'sort_order' => 20,
             'is_active' => true,
         ]);
         $higherGrade = PolicyGrade::query()->create([
             'policy_system_id' => $policy->id,
             'name' => '高门槛等级',
-            'monthly_threshold_krw' => 500_000,
             'sort_order' => 10,
             'is_active' => true,
         ]);
@@ -113,16 +111,15 @@ class ConfigurationUserExperienceTest extends TestCase
             ->assertOk()
             ->assertSee('查看排序')
             ->assertSee('数字越小，在所属体系和默认列表中越靠前')
-            ->assertSee('月门槛：高到低')
             ->assertSee('费率：高到低')
             ->assertSee('只改变当前列表的查看顺序')
             ->assertSee('<th title="数字越小，默认显示顺序越靠前。">排序</th>', false);
 
         $coordinator = app(AgentConfigurationCoordinator::class);
-        $thresholdDescending = $coordinator->state(gradeSort: 'threshold_desc');
+        $sortDescending = $coordinator->state(gradeSort: 'sort_desc');
         $this->assertSame(
-            ['高门槛等级', '低门槛等级'],
-            array_column($thresholdDescending['grades'], 'name'),
+            ['低门槛等级', '高门槛等级'],
+            array_column($sortDescending['grades'], 'name'),
         );
 
         $rateDescending = $coordinator->state(ruleSort: 'rate_desc');

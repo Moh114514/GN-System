@@ -166,6 +166,7 @@ app/Modules/
 复制 `.env.example` 后只在本地修改 `.env`。不得提交密码、令牌、证书、真实
 Sentry DSN、钉钉 Webhook/Secret 或云存储凭据。模板已包含 PostgreSQL、Redis、
 日志邮件、备份、Sentry、可选钉钉机器人和可选 S3 配置。
+本地和 UAT 模板默认开启 `APP_IMPERSONATION_ENABLED`，允许超级管理员在网页中以启用且已接受邀请的 BD/客服用户身份测试权限；Production 模板明确关闭，代码还会按 `APP_DEPLOYMENT_ENV=production` 硬关闭。该功能只保存会话中的真实账号和目标账号 ID，不修改任何用户角色或权限数据。
 
 ## 分支规范
 

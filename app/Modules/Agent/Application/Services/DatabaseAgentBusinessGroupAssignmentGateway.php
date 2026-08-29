@@ -41,6 +41,7 @@ final readonly class DatabaseAgentBusinessGroupAssignmentGateway implements Agen
     public function assignments(): array
     {
         $groups = collect($this->groups->businessGroups())->keyBy('id');
+        $date = $this->clock->now();
 
         return AgentBusinessGroupAssignment::query()
             ->with('agent')
@@ -58,6 +59,8 @@ final readonly class DatabaseAgentBusinessGroupAssignmentGateway implements Agen
                 'effective_from' => $assignment->effective_from->format('Y-m-d'),
                 'effective_until' => $assignment->effective_until?->format('Y-m-d'),
                 'reason' => (string) $assignment->reason,
+                'is_current' => $assignment->effective_from->lte($date)
+                    && ($assignment->effective_until === null || $assignment->effective_until->gte($date)),
             ])
             ->all();
     }

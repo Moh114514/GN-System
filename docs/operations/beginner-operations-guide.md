@@ -223,6 +223,18 @@ Get-Content $env:USERPROFILE\.ssh\id_ed25519.pub
 请同时查看页面结果和队列状态。不要在正式生产尝试设置，也不要通过清空 PostgreSQL/Redis
 来处理状态；状态由 PostgreSQL 的 `business_clock_states` 表保存。
 
+### 2.5 用户身份模拟（仅开发环境和 UAT）
+
+为了检查 BD 经理和客服看到的数据、菜单以及可执行操作，开发环境和 UAT 的超级管理员登录后，
+可以在页面顶部的“测试身份”菜单选择一个已启用且已接受邀请的真实内部用户。模拟后，系统会按该用户的
+角色、业务组和代理商范围运行；顶部红色提示会一直显示当前测试身份。
+
+模拟不会修改超级管理员或目标用户的数据库角色。测试完成后点击“退出模拟”，系统立即恢复超级管理员。
+如果账号被停用、环境开关关闭或正式环境误留了旧会话，系统会清除模拟状态。Production 的
+`APP_IMPERSONATION_ENABLED` 必须保持 `false`，并且代码会按 `APP_DEPLOYMENT_ENV=production` 再次阻断该功能。
+启动和退出模拟会写入 `auth-impersonation` 审计记录，记录真实操作者和目标用户。UAT 发布后应分别验收
+BD、客服、跨业务组访问、配置中心隐藏和退出恢复；本机自动化测试不能代替 UAT/Production 人工验收。
+
 ## 3. 使用命令行连接
 
 ### 3.1 已经配置过 `gn-server`
@@ -923,13 +935,13 @@ There is no PR2 database migration. This is a local feature-branch result only: 
 PR5 is currently local branch work only. It adds scoped order editing, a new migration
 `2026_08_24_000300_add_pr5_settlement_generation_day.php`, settlement preview without database
 writes, and the default generation day 5. Grade evaluation is off by default with
-`AGENT_GRADE_EVALUATION_ENABLED=false`; commission generation still runs.
+代理商等级由配置中心人工维护；月结仍正常生成佣金，但不会自动评估等级、生成升降级建议或发送等级通知。
 
 Before release, take the normal backup and let the RC deployment process run the migration. Do not
 edit production tables manually. In UAT, check that BD sees and edits only assigned-agent orders,
 settled orders cannot be edited, preview totals equal formal totals, the scheduler waits for the
-day-5 window, old effective configurations still use their historical day, and no grade records or
-notifications are created while commission records are created. UAT and Production are not
+day-5 window, old effective configurations still use their historical day, and no automatic grade
+records or notifications are created while commission records are created. UAT and Production are not
 verified from this computer.
 
 ## PR3 客户负责人移交与状态回退（2026-08-24）

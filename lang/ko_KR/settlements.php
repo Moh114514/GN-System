@@ -6,7 +6,7 @@ return [
         'description' => '주문 발생일과 불변 업무 귀속 스냅샷으로 분기 인센티브를 집계합니다. 현재 기본값은 주문 금액 KRW와 버전별 기준점 요율입니다.',
         'quarter' => '분기 시작일', 'preview' => '분기 미리보기', 'generate' => '정식 생성', 'preview_title' => '분기 미리보기',
         'item_count' => '주문 수', 'basis' => '산정 기준액', 'adjustment' => '수동 조정', 'total' => '인센티브 합계',
-        'periods' => '분기 기록', 'status' => '상태', 'actions' => '작업', 'view' => '보기', 'empty' => '분기 인센티브 기록이 없습니다.',
+        'periods' => '분기 기록', 'status' => '상태', 'actions' => '작업', 'view' => '보기', 'collapse' => '접기', 'empty' => '분기 인센티브 기록이 없습니다.',
         'detail' => '분기 상세', 'order' => '주문', 'bd' => 'BD', 'occurred_on' => '발생일', 'rate' => '요율',
         'commission' => '인센티브', 'empty_items' => '표시할 상세가 없습니다.', 'allocation' => 'BD 미지정', 'adjustment_amount' => '조정 금액 KRW',
         'reason' => '사유', 'add_adjustment' => '수동 조정 추가', 'review' => '검토 제출', 'confirm' => '분기 확정',

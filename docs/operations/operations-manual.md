@@ -281,7 +281,26 @@ Production 发布前都必须确认该 migration 已由标准发布流程执行�
 验收结束前应确认状态已恢复为“真实时间”；若非生产环境发现遗留模拟状态，优先通过页面
 恢复；不要清空 PostgreSQL/Redis 或修改生产数据来处理状态。
 
-### 3.4 月结自动汇率
+### 3.4 开发和 UAT 用户身份模拟
+
+用户身份模拟是 Auth 模块的请求级测试能力，只允许部署角色为 `local`、`development`、`testing`
+或 `uat` 且 `APP_IMPERSONATION_ENABLED=true` 时使用。UAT 保持 `APP_ENV=production` 的强化运行模式，
+必须依赖 `APP_DEPLOYMENT_ENV=uat` 判断可用性；Production 即使误把开关设为 `true`，代码仍按
+`APP_DEPLOYMENT_ENV=production` 硬关闭。三套环境的模板值分别由 `.env.example`、`.env.uat.example`
+和 `.env.production.example` 提供，服务器环境文件仍只能按发布手册在目标目录维护。
+
+超级管理员从顶部“测试身份”菜单选择启用且已接受邀请的 BD/客服用户后，系统在当前请求中用
+`Auth::setUser()` 设置有效身份；浏览器会话仍保留真实超级管理员，业务范围继续由目标用户的
+`UserRole`、业务组成员关系和代理商归属解析。页面顶部持续显示红色模拟告警，退出模拟会清除会话键并恢复
+真实账号。目标账号停用、邀请未完成、目标为超级管理员、真实管理员失效或登出时，模拟状态不能继续使用。
+
+开始和结束模拟会写入 `auth-impersonation` 审计记录，其中 `causer_id` 和 `real_user_id` 是真实管理员，
+`target_user_id`/`target_role` 是有效测试身份。该功能不修改 `users.role`、`users.is_super_admin` 或业务组
+数据，也不需要 migration。发布到 UAT 后，需人工核验 BD/客服菜单、业务组数据范围、配置中心拒绝访问、退出
+恢复和登出清理；本机测试结果不能表述为 UAT 或 Production 已验证。发生异常时先退出模拟或重新登录，
+不要直接修改用户表或清空 Session/数据库。
+
+### 3.5 月结自动汇率
 
 月结详情页会按 `SETTLEMENT_EXCHANGE_RATE_PROVIDER` 调用接口盒子汇率服务，成功后预填六位
 小数的 CNY → KRW 汇率；审核人仍可手工覆盖。该服务按文章说明每日更新，并非严格实时，页面
@@ -369,7 +388,7 @@ select count(*) from orders where agent_id is null;
 模板和报表看板；该迁移的 `down()` 明确不可用，若新版本已执行且必须恢复，只能停止写入并按第 13.3 节
 从发布前备份恢复，不能只切回旧镜像。
 
-### 3.5 密钥与外部服务
+### 3.6 密钥与外部服务
 
 以下值必须在两套环境分别生成，不能从 UAT 复制到 Production：
 
@@ -1426,8 +1445,8 @@ never delete `institution_return_files`, `order_items`, or order fact columns ma
 ## PR5 order editing and settlement status (2026-08-24)
 
 The local feature branch now contains scoped order editing, occurred-date commission snapshot
-rebuilds, read-only settlement preview, the default monthly generation day 5, and a disabled-by-
-default grade-evaluation switch (`AGENT_GRADE_EVALUATION_ENABLED=false`). It adds
+rebuilds, read-only settlement preview, the default monthly generation day 5, and manual agent
+grade configuration without automatic monthly grade evaluation or grade notifications. It adds
 `2026_08_24_000300_add_pr5_settlement_generation_day.php`; the migration preserves historical
 effective configuration and must be run only by the immutable RC release process after the normal
 environment-specific backup and preflight.
@@ -1435,7 +1454,7 @@ environment-specific backup and preflight.
 No UAT or Production migration, restart, preview, generation, or business acceptance was run from
 this workstation. Before release, verify BD agent scope, optimistic-lock and settled-order locks,
 preview/formal amount equality, the monthly day-5 scheduler window, historical configuration
-boundaries, and the absence of grade side effects while commission generation remains active.
+boundaries, and that commission generation creates no automatic grade records or notifications.
 Upgrade app, queue, and scheduler together, clear configuration cache, and use the normal rollback
 procedure with a verified backup if the release is rejected.
 # PR6 BD季度提成运行说明

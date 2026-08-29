@@ -34,6 +34,15 @@ return [
     */
     'deployment_environment' => env('APP_DEPLOYMENT_ENV', env('APP_ENV', 'production')),
 
+    'impersonation_enabled' => in_array(
+        (string) env('APP_DEPLOYMENT_ENV', env('APP_ENV', 'production')),
+        ['local', 'development', 'testing', 'uat'],
+        true,
+    ) && filter_var(
+        env('APP_IMPERSONATION_ENABLED', false),
+        FILTER_VALIDATE_BOOL,
+    ),
+
     'time_travel_enabled' => in_array(
         (string) env('APP_DEPLOYMENT_ENV', env('APP_ENV', 'production')),
         ['local', 'development', 'testing', 'uat'],

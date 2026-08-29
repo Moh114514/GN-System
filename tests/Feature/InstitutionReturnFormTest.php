@@ -295,7 +295,6 @@ class InstitutionReturnFormTest extends TestCase
         $grade = PolicyGrade::query()->create([
             'policy_system_id' => $system->id,
             'name' => 'PR4 测试等级',
-            'monthly_threshold_krw' => 0,
             'sort_order' => 1,
             'is_active' => true,
         ]);

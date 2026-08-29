@@ -6,7 +6,7 @@ return [
         'description' => '按订单发生日期和不可变业务归属快照汇总季度提成。当前版本默认以订单金额 KRW 为基数，按版本化基点费率计算。',
         'quarter' => '季度起始日', 'preview' => '季度预览', 'generate' => '正式生成', 'preview_title' => '季度预览',
         'item_count' => '订单数', 'basis' => '提成基数', 'adjustment' => '人工调整', 'total' => '提成合计',
-        'periods' => '季度记录', 'status' => '状态', 'actions' => '操作', 'view' => '查看', 'empty' => '暂无季度提成记录。',
+        'periods' => '季度记录', 'status' => '状态', 'actions' => '操作', 'view' => '查看', 'collapse' => '收起', 'empty' => '暂无季度提成记录。',
         'detail' => '季度明细', 'order' => '订单', 'bd' => 'BD', 'occurred_on' => '发生日期', 'rate' => '费率',
         'commission' => '提成', 'empty_items' => '暂无可见明细。', 'allocation' => '不指定BD', 'adjustment_amount' => '调整金额 KRW',
         'reason' => '原因', 'add_adjustment' => '添加人工调整', 'review' => '提交审核', 'confirm' => '确认季度',

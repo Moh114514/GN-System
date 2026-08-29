@@ -14,6 +14,7 @@ use App\Modules\Auth\Application\Contracts\BusinessGroupMembershipReader;
 use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
 use App\Modules\Auth\Domain\UserRole;
 use App\Modules\Auth\Infrastructure\Models\BusinessGroupMembership;
+use App\Modules\Config\Application\Services\ConfigurationUserCoordinator;
 use App\Modules\Config\Presentation\Livewire\UserManagement;
 use Carbon\CarbonImmutable;
 use DomainException;
@@ -38,7 +39,7 @@ class BusinessGroupsAndRolesTest extends TestCase
 
     public function test_business_group_memberships_enforce_one_bd_per_group_and_one_group_per_user(): void
     {
-        $admin = User::factory()->superAdmin()->create();
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
         $firstBd = User::factory()->create(['role' => UserRole::BdManager]);
         $secondBd = User::factory()->create(['role' => UserRole::BdManager]);
         $group = app(BusinessGroupManagementGateway::class)->create('NORTH', '北区业务组', $admin->id, null);
@@ -249,6 +250,68 @@ class BusinessGroupsAndRolesTest extends TestCase
         $this->expectException(DomainException::class);
         $this->expectExceptionMessage('同一代理商的有效业务组归属期间不能重叠。');
         $gateway->assign($agent->id, $group['id'], '2026-08-15', null, '重复配置', $admin->id, null);
+    }
+
+    public function test_business_group_can_be_renamed_viewed_and_have_bd_replaced_without_moving_other_members(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $oldBd = User::factory()->create(['name' => '原BD', 'role' => UserRole::BdManager]);
+        $newBd = User::factory()->create(['name' => '新BD', 'role' => UserRole::BdManager]);
+        $customerService = User::factory()->create(['name' => '组内客服', 'role' => UserRole::CustomerService]);
+        $group = app(BusinessGroupManagementGateway::class)->create('NORTH', '北区业务组', $admin->id, null);
+        $groups = app(BusinessGroupManagementGateway::class);
+        $groups->assignMember($group['id'], $oldBd->id, '2026-08-01', null, '初始BD', $admin->id, null);
+        $groups->assignMember($group['id'], $customerService->id, '2026-08-01', null, '初始客服', $admin->id, null);
+
+        app(ConfigurationUserCoordinator::class)
+            ->updateBusinessGroupName($group['id'], '北区重点业务组', $admin->id, null);
+        $groups->replaceBd($group['id'], $newBd->id, '2026-09-01', '人员调整', $admin->id, null);
+
+        $this->assertDatabaseHas('business_groups', ['id' => $group['id'], 'code' => 'NORTH', 'name' => '北区重点业务组']);
+        $this->assertDatabaseHas('business_group_memberships', ['business_group_id' => $group['id'], 'user_id' => $oldBd->id, 'effective_until' => '2026-08-31']);
+        $this->assertDatabaseHas('business_group_memberships', ['business_group_id' => $group['id'], 'user_id' => $newBd->id, 'effective_from' => '2026-09-01', 'member_role' => 'bd_manager']);
+        $this->assertDatabaseHas('business_group_memberships', ['business_group_id' => $group['id'], 'user_id' => $customerService->id, 'effective_until' => null]);
+
+        $details = app(ConfigurationUserCoordinator::class)->businessGroupDetails($group['id']);
+        $this->assertSame('北区重点业务组', $details['group']['name']);
+        $this->assertCount(3, $details['memberships']);
+
+        $this->actingAs($admin)
+            ->get(route('configuration.users-and-notifications'))
+            ->assertOk()
+            ->assertSee('查看')
+            ->assertSee('编辑名称')
+            ->assertSee('更换BD')
+            ->assertSee('停用/解散');
+    }
+
+    public function test_business_group_deactivation_requires_agents_to_be_handled_and_preserves_history(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $group = app(BusinessGroupManagementGateway::class)->create('CLOSE', '待停用业务组', $admin->id, null);
+        $customerService = User::factory()->create(['role' => UserRole::CustomerService]);
+        app(BusinessGroupManagementGateway::class)->assignMember($group['id'], $customerService->id, '2026-08-01', null, '初始客服', $admin->id, null);
+        $type = AgentTypeCode::query()->create(['code' => 'CLS', 'name' => '停用测试代理', 'is_system' => false, 'is_active' => true]);
+        $agent = Agent::query()->create(['agent_type_code_id' => $type->id, 'code' => 'CLS-001', 'name' => '待处理代理商', 'cooperation_status' => 'active']);
+        $assignmentGateway = app(AgentBusinessGroupAssignmentGateway::class);
+        $assignmentGateway->assign($agent->id, $group['id'], '2026-08-01', null, '初始归属', $admin->id, null);
+
+        $coordinator = app(ConfigurationUserCoordinator::class);
+        try {
+            $coordinator->deactivateBusinessGroup($group['id'], '业务终止', $admin->id, null);
+            $this->fail('A group with a current agent assignment must not be deactivated.');
+        } catch (DomainException $exception) {
+            $this->assertSame('该业务组仍有当前代理商归属，请先结束或转移代理商归属。', $exception->getMessage());
+        }
+
+        $assignment = AgentBusinessGroupAssignment::query()->where('agent_id', $agent->id)->firstOrFail();
+        $endDate = CarbonImmutable::now()->subDay()->toDateString();
+        $assignmentGateway->endAssignment($assignment->id, $endDate, '业务终止', $admin->id, null);
+        $coordinator->deactivateBusinessGroup($group['id'], '业务终止', $admin->id, null);
+
+        $this->assertDatabaseHas('business_groups', ['id' => $group['id'], 'is_active' => false]);
+        $this->assertDatabaseHas('agent_business_group_assignments', ['id' => $assignment->id, 'effective_until' => $endDate]);
+        $this->assertDatabaseHas('business_group_memberships', ['business_group_id' => $group['id'], 'user_id' => $customerService->id, 'effective_until' => CarbonImmutable::now()->toDateString()]);
     }
 
     public function test_user_and_permission_page_renders_role_group_and_agent_mapping_controls_in_korean(): void
