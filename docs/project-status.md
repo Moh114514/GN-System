@@ -238,3 +238,9 @@ UAT/Production 使用 `queue:work`。本地开发与 UAT/Production 操作手册
 - `feature/business-groups-and-roles` 完成客户管理列表的第一层视角优化：新增按当前 `AccessContext` 可见客服负责人筛选，筛选值通过 `ownerId` 保留在 URL；服务端查询继续先执行客户访问范围，再应用负责人条件，跨业务组负责人 ID 不会扩大结果集。
 - 客服列表使用 SQL 本人优先排序，其次按建档时间倒序；BD 和超级管理员保留原有顺序。负责人筛选项复用有效且已接受邀请的当前业务范围客服候选人。
 - 本轮不新增 migration、依赖或服务器配置。已完成 CustomerLifecycle 和 AccessScope 直接相关测试；仍未合入 `develop`，未部署或在 UAT/Production 做人工验收。
+
+## 2026-08-29 团队管理 PR2 落地
+
+- `feature/business-groups-and-roles` 增加 Report 一级“团队管理”页面：BD 只能查看当前有效业务组，超级管理员可查看全局业务组并下钻到组详情；客服不显示入口且直接访问返回 403。
+- 页面通过 Customer、Reminder、Order 的只读 Application Contract 组合客服人数、客户/新增客户、代理商、待跟进/逾期提醒、月度成交及负责人工作量，并复用客户列表、提醒中心和业务组详情入口；未新增数据库表、migration、依赖或环境配置。
+- 已完成 AccessScope、ConfigurationNavigation 直接测试；当前仅在本地 feature 分支验证，未合入 `develop`，未部署或在 UAT/Production 做人工验收。

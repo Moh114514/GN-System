@@ -37,6 +37,10 @@ class AccessScopeTest extends TestCase
 
     private User $peer;
 
+    private BusinessGroup $groupA;
+
+    private BusinessGroup $groupB;
+
     private Customer $groupACustomer;
 
     private Customer $groupBCustomer;
@@ -51,11 +55,11 @@ class AccessScopeTest extends TestCase
         $this->owner = User::factory()->create(['name' => '组内负责人客服']);
         $this->peer = User::factory()->create(['name' => '组内非负责人客服']);
 
-        $groupA = BusinessGroup::query()->create(['code' => 'SCOPE-A', 'name' => '范围 A', 'is_active' => true, 'created_by' => $this->admin->id]);
-        $groupB = BusinessGroup::query()->create(['code' => 'SCOPE-B', 'name' => '范围 B', 'is_active' => true, 'created_by' => $this->admin->id]);
+        $this->groupA = BusinessGroup::query()->create(['code' => 'SCOPE-A', 'name' => '范围 A', 'is_active' => true, 'created_by' => $this->admin->id]);
+        $this->groupB = BusinessGroup::query()->create(['code' => 'SCOPE-B', 'name' => '范围 B', 'is_active' => true, 'created_by' => $this->admin->id]);
         foreach ([[$this->bd, 'bd_manager'], [$this->owner, 'customer_service'], [$this->peer, 'customer_service']] as [$user, $role]) {
             BusinessGroupMembership::query()->create([
-                'business_group_id' => $groupA->id,
+                'business_group_id' => $this->groupA->id,
                 'user_id' => $user->id,
                 'member_role' => $role,
                 'effective_from' => '2026-01-01',
@@ -68,7 +72,7 @@ class AccessScopeTest extends TestCase
         $typeId = AgentTypeCode::query()->value('id');
         $agentA = Agent::query()->create(['agent_type_code_id' => $typeId, 'code' => 'SCOPE-A', 'name' => '代理商 A', 'cooperation_status' => 'active']);
         $agentB = Agent::query()->create(['agent_type_code_id' => $typeId, 'code' => 'SCOPE-B', 'name' => '代理商 B', 'cooperation_status' => 'active']);
-        foreach ([[$agentA, $groupA], [$agentB, $groupB]] as [$agent, $group]) {
+        foreach ([[$agentA, $this->groupA], [$agentB, $this->groupB]] as [$agent, $group]) {
             AgentBusinessGroupAssignment::query()->create([
                 'agent_id' => $agent->id,
                 'business_group_id' => $group->id,
@@ -160,6 +164,42 @@ class AccessScopeTest extends TestCase
             ->assertOk()
             ->assertSee('SCOPE-CUSTOMER-A-PEER')
             ->assertDontSee('SCOPE-CUSTOMER-A</div>', false);
+    }
+
+    public function test_team_overview_is_scoped_for_bd_and_drills_down_for_super_admin(): void
+    {
+        $bdContent = $this->actingAs($this->bd)->get(route('team-overview.index'))
+            ->assertOk()
+            ->assertSee('团队管理')
+            ->assertSee('范围 A')
+            ->assertSee('组内负责人客服')
+            ->assertDontSee('范围 B')
+            ->assertSee(route('customers.index', ['ownerId' => $this->owner->id]), false)
+            ->getContent();
+
+        $this->assertStringNotContainsString('客户 B', $bdContent);
+
+        $this->actingAs($this->owner)->get(route('team-overview.index'))->assertForbidden();
+
+        $adminContent = $this->actingAs($this->admin)->get(route('team-overview.index'))
+            ->assertOk()
+            ->assertSee('范围 A')
+            ->assertSee('范围 B')
+            ->getContent();
+
+        $this->assertStringContainsString(
+            route('team-overview.index', ['groupId' => $this->groupA->id]),
+            $adminContent,
+        );
+
+        $this->actingAs($this->admin)->get(route('team-overview.index', ['groupId' => $this->groupA->id]))
+            ->assertOk()
+            ->assertSee(__('team.group_detail'))
+            ->assertSee(__('team.workload'))
+            ->assertSee('组内负责人客服');
+
+        $this->actingAs($this->bd)->get(route('team-overview.index', ['groupId' => $this->groupB->id]))
+            ->assertNotFound();
     }
 
     public function test_access_fingerprint_and_dashboard_cache_differ_by_identity(): void

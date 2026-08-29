@@ -66,6 +66,41 @@ final class DatabaseReportReminderReader implements ReportReminderReader
         ];
     }
 
+    public function teamOverview(array $ownerIds, CarbonImmutable $now): array
+    {
+        $ownerIds = array_values(array_unique(array_filter(array_map('intval', $ownerIds), fn (int $id): bool => $id > 0)));
+        if ($ownerIds === []) {
+            return ['pending' => 0, 'overdue' => 0, 'owners' => []];
+        }
+
+        $pending = $this->scopedReminders()
+            ->whereIn('assigned_to', $ownerIds)
+            ->whereIn('status', ['pending', 'snoozed', 'transferred']);
+        $rows = (clone $pending)
+            ->selectRaw('assigned_to::int as owner_id, COUNT(*)::int as pending, COUNT(*) FILTER (WHERE due_at < ?)::int as overdue', [$now])
+            ->groupBy('assigned_to')
+            ->get();
+        $owners = [];
+        foreach ($ownerIds as $ownerId) {
+            $owners[$ownerId] = ['pending' => 0, 'overdue' => 0];
+        }
+        foreach ($rows as $row) {
+            $ownerId = (int) $row->getAttribute('owner_id');
+            if (isset($owners[$ownerId])) {
+                $owners[$ownerId] = [
+                    'pending' => (int) $row->getAttribute('pending'),
+                    'overdue' => (int) $row->getAttribute('overdue'),
+                ];
+            }
+        }
+
+        return [
+            'pending' => (clone $pending)->count(),
+            'overdue' => (clone $pending)->where('due_at', '<', $now)->count(),
+            'owners' => $owners,
+        ];
+    }
+
     /** @return Builder<Reminder> */
     private function scopedReminders(): Builder
     {

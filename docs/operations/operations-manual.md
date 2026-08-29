@@ -1412,6 +1412,12 @@ The current `feature/business-groups-and-roles` worktree also contains the first
 
 This increment adds no migration, dependency, worker, or environment variable. It is locally tested only and is not merged or deployed. Before UAT/Production acceptance, use the normal immutable RC process and verify owner-filter URL persistence, scoped candidate options, own-first ordering, BD/admin visibility, cross-group URL attempts, and no-scope Customer Service behavior. Local tests do not replace target-environment acceptance.
 
+## Team management PR2 (2026-08-29)
+
+The current feature worktree also contains the Team Overview page at `/team-overview`. BD sees only active business groups in its effective membership scope; super administrators see the global group table and can drill into a selected group. Customer Service users do not receive the navigation entry and direct access is denied. The page composes read-only Customer, Reminder, and Order contracts for group totals, customer-service workload, lifecycle counts, reminders, and monthly completed-order totals, then links back to existing customer/reminder/group pages.
+
+This increment adds no migration, dependency, worker, or environment variable. It is locally tested only and is not merged or deployed. Before UAT/Production acceptance, use the immutable RC process and verify BD versus super-admin visibility, cross-group URL rejection, group selector drill-down, workload/lifecycle totals, and the existing-page links. Local tests do not replace target-environment acceptance.
+
 ## PR3 customer transfer and rollback status (2026-08-24)
 
 The current feature worktree contains the PR3 Customer transfer and lifecycle approval implementation and the later PR6 BD quarterly commission implementation. It adds the `2026_08_24_000100_add_customer_transfer_and_status_approval.php` and `2026_08_24_000400_create_bd_quarterly_commission_tables.php` migrations, so any UAT/Production release must take the normal pre-migration backup, run migrations through the release process, and verify the schema before opening business pages. No UAT/Production migration or business acceptance was run from this workstation.

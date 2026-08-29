@@ -232,6 +232,7 @@ return [
     'fallback' => [
         'unset' => '未设置',
         'unknown_agent' => '未知代理商',
+        'unknown_owner' => '未知负责人',
         'unknown_status' => '未知状态',
     ],
     'timeline' => [

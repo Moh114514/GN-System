@@ -232,6 +232,7 @@ return [
     'fallback' => [
         'unset' => '미설정',
         'unknown_agent' => '알 수 없는 에이전트',
+        'unknown_owner' => '알 수 없는 담당자',
         'unknown_status' => '알 수 없는 상태',
     ],
     'timeline' => [

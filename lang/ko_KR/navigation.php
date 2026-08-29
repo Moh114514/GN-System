@@ -9,6 +9,7 @@ return [
     'customers' => '고객 관리',
     'orders' => '주문',
     'reports' => '다차원 조회',
+    'team_overview' => '팀 관리',
     'agents' => '에이전시',
     'settlements' => '월 정산 센터',
     'configuration' => '설정 센터',

@@ -49,6 +49,13 @@
                 </a>
 
                 @if (auth()->user()->is_super_admin || auth()->user()->isBdManager())
+                    <a href="{{ route('team-overview.index') }}" class="crm-nav-item {{ request()->routeIs('team-overview.*') ? 'is-active' : '' }}" wire:navigate>
+                        <flux:icon.user-group aria-hidden="true" />
+                        <span>{{ __('navigation.team_overview') }}</span>
+                    </a>
+                @endif
+
+                @if (auth()->user()->is_super_admin || auth()->user()->isBdManager())
                     <a href="{{ route('bd-commissions.index') }}" class="crm-nav-item {{ request()->routeIs('bd-commissions.*') ? 'is-active' : '' }}" wire:navigate>
                         <flux:icon.chart-pie aria-hidden="true" />
                         <span>{{ __('navigation.bd_commissions') }}</span>

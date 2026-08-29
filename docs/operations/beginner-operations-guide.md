@@ -936,6 +936,12 @@ There is no PR2 database migration. This is a local feature-branch result only: 
 
 这次没有新增 migration、依赖或服务器配置，只在本机 feature 分支完成自动化测试，尚未合入、部署或完成 UAT/Production 验收。正式发布时按正常 RC 流程，在 UAT 用客服、BD、超级管理员分别检查负责人下拉框、URL 保留、客服本人优先、跨业务组 URL 和无业务组客服的空结果；不要在服务器手工改代码或数据库。
 
+## 团队管理 PR2（2026-08-29）
+
+当前本地 feature 分支新增 `/team-overview`“团队管理”一级页面。BD 只能看到自己有效业务组的数据；超级管理员可以看到全局业务组并点击进入某个组的详情；客服不显示侧栏入口，直接输入地址也会被拒绝。页面展示客服、客户、代理商、待跟进/逾期提醒、月度成交和负责人工作量，并跳回已有客户管理、提醒中心和业务组页面。
+
+本次没有新增 migration、依赖或服务器配置，只完成本机自动化测试，尚未合入、部署或完成 UAT/Production 验收。正式发布时按 RC 流程，在 UAT 用 BD、超级管理员和客服分别检查业务组隔离、组选择下钻、工作量/生命周期数字和链接；不要在服务器手工改代码或数据库。
+
 ## PR5 order and settlement status (2026-08-24)
 
 PR5 is currently local branch work only. It adds scoped order editing, a new migration

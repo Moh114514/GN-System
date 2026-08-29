@@ -9,6 +9,7 @@ use App\Modules\Customer\Domain\CustomerLabelLocalizer;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerContact;
 use App\Modules\Customer\Infrastructure\Models\CustomerIdentityDocument;
+use App\Modules\Customer\Infrastructure\Models\CustomerTransferRequest;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\DB;
@@ -186,6 +187,68 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
             'status_counts' => $statusCounts,
             'source_distribution' => $sourceDistribution,
             'recent_customers' => $recentCustomers,
+        ];
+    }
+
+    public function teamOverview(array $ownerIds, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $ownerIds = array_values(array_unique(array_filter(array_map('intval', $ownerIds), fn (int $id): bool => $id > 0)));
+        $base = $this->scoped(Customer::query())->where('customers.created_at', '<=', $to);
+        $total = (clone $base)->count('customers.id');
+        $new = (clone $base)->whereBetween('customers.created_at', [$from, $to])->count('customers.id');
+        $unassigned = (clone $base)->whereNull('customers.owner_id')->count('customers.id');
+        $owners = [];
+
+        if ($ownerIds !== []) {
+            $statusRows = (clone $base)
+                ->whereIn('customers.owner_id', $ownerIds)
+                ->leftJoin('customer_statuses as status', 'status.id', '=', 'customers.current_status_id')
+                ->selectRaw("customers.owner_id::int as owner_id, COALESCE(status.key, 'booked') as status_key, COUNT(*)::int as value")
+                ->groupBy('customers.owner_id')
+                ->groupByRaw("COALESCE(status.key, 'booked')")
+                ->get();
+            $newRows = (clone $base)
+                ->whereIn('customers.owner_id', $ownerIds)
+                ->whereBetween('customers.created_at', [$from, $to])
+                ->selectRaw('customers.owner_id::int as owner_id, COUNT(*)::int as value')
+                ->groupBy('customers.owner_id')
+                ->get();
+            $newByOwner = $newRows->mapWithKeys(fn ($row): array => [
+                (int) $row->getAttribute('owner_id') => (int) $row->getAttribute('value'),
+            ])->all();
+
+            foreach ($ownerIds as $ownerId) {
+                $owners[$ownerId] = [
+                    'customers' => 0,
+                    'new_customers' => $newByOwner[$ownerId] ?? 0,
+                    'booked' => 0,
+                    'arrived' => 0,
+                    'treatment_completed' => 0,
+                ];
+            }
+            foreach ($statusRows as $row) {
+                $ownerId = (int) $row->owner_id;
+                $status = (string) $row->getAttribute('status_key');
+                if (! isset($owners[$ownerId])) {
+                    continue;
+                }
+                $owners[$ownerId]['customers'] += (int) $row->getAttribute('value');
+                if (array_key_exists($status, $owners[$ownerId])) {
+                    $owners[$ownerId][$status] = (int) $row->getAttribute('value');
+                }
+            }
+        }
+
+        $pendingTransfers = $ownerIds === []
+            ? 0
+            : CustomerTransferRequest::query()->where('status', 'pending')->whereIn('to_owner_id', $ownerIds)->count();
+
+        return [
+            'total_customers' => $total,
+            'new_customers' => $new,
+            'unassigned_customers' => $unassigned,
+            'pending_transfer_requests' => $pendingTransfers,
+            'owners' => $owners,
         ];
     }
 

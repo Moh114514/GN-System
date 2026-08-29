@@ -115,7 +115,7 @@ class ConfigurationNavigationTest extends TestCase
         $adminNavigation = $adminMatches['navigation'] ?? '';
 
         $this->assertMatchesRegularExpression(
-            '/<nav class="crm-nav">.*?<span>总览<\/span>.*?<span>主动提醒<\/span>.*?<span>客户管理<\/span>.*?<span>订单<\/span>.*?<span>多维查询<\/span>.*?<span>代理商<\/span>.*?<span>月结中心<\/span>.*?<span>配置中心<\/span>.*?<\/nav>/s',
+            '/<nav class="crm-nav">.*?<span>总览<\/span>.*?<span>主动提醒<\/span>.*?<span>客户管理<\/span>.*?<span>订单<\/span>.*?<span>多维查询<\/span>.*?<span>团队管理<\/span>.*?<span>代理商<\/span>.*?<span>月结中心<\/span>.*?<span>配置中心<\/span>.*?<\/nav>/s',
             $adminContent,
         );
         $this->assertStringNotContainsString('数据迁移', $adminNavigation);
@@ -130,6 +130,7 @@ class ConfigurationNavigationTest extends TestCase
             $userContent,
         );
         $this->assertStringNotContainsString('代理商', $userNavigation);
+        $this->assertStringNotContainsString('团队管理', $userNavigation);
         $this->assertStringNotContainsString('月结中心', $userNavigation);
         $this->assertStringNotContainsString('配置中心', $userNavigation);
     }

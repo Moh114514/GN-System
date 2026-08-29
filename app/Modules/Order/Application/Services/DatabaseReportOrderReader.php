@@ -114,6 +114,43 @@ final class DatabaseReportOrderReader implements ReportOrderReader
         ];
     }
 
+    public function teamOverview(array $ownerIds, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $ownerIds = array_values(array_unique(array_filter(array_map('intval', $ownerIds), fn (int $id): bool => $id > 0)));
+        if ($ownerIds === []) {
+            return ['orders' => 0, 'amount_krw' => 0, 'owners' => []];
+        }
+
+        $base = Order::query()
+            ->where('status', 'completed')
+            ->whereBetween('completed_at', [$from, $to])
+            ->whereIn('owner_id', $ownerIds);
+        $this->applyScope($base);
+        $rows = (clone $base)
+            ->selectRaw('owner_id::int as owner_id, COUNT(*)::int as orders, SUM(amount_krw)::bigint as amount_krw')
+            ->groupBy('owner_id')
+            ->get();
+        $owners = [];
+        foreach ($ownerIds as $ownerId) {
+            $owners[$ownerId] = ['orders' => 0, 'amount_krw' => 0];
+        }
+        foreach ($rows as $row) {
+            $ownerId = (int) $row->owner_id;
+            if (isset($owners[$ownerId])) {
+                $owners[$ownerId] = [
+                    'orders' => (int) $row->getAttribute('orders'),
+                    'amount_krw' => (int) $row->amount_krw,
+                ];
+            }
+        }
+
+        return [
+            'orders' => (clone $base)->count(),
+            'amount_krw' => (int) (clone $base)->sum('amount_krw'),
+            'owners' => $owners,
+        ];
+    }
+
     /**
      * @return array{appointed_customers: int, repeat_customers: int}
      */
