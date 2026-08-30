@@ -258,22 +258,27 @@ final readonly class BdQuarterlyCommissionService implements BdCommissionCorrect
     /**
      * @return array{
      *     period: BdQuarterlyCommission,
-     *     items: list<array{order_id: int, bd_user_id: int|null, bd_name: string, occurred_on: string, basis_krw: int, rate_bps: int, commission_krw: int}>,
+     *     items: list<array{order_id: int, bd_user_id: int|null, bd_name: string, occurred_on: string, business_group_id: int|null, agent_name: string, basis_krw: int, rate_bps: int, commission_krw: int}>,
      *     adjustments: list<array{bd_user_id: int|null, bd_name: string, amount_krw: int, source: string, reason: string}>
      * }
      */
-    public function visibleDetail(int $periodId): array
+    public function visibleDetail(int $periodId, ?int $bdUserId = null): array
     {
-        $this->assertReadAccess();
+        $this->assertExportOrReadAccess($bdUserId !== null);
         $period = BdQuarterlyCommission::query()->with(['items', 'adjustments'])->findOrFail($periodId);
         $context = $this->access->current();
+        $targetBdUserId = $bdUserId;
         if (! $context->isSuperAdmin()) {
-            $period->setRelation('items', $period->items->where('bd_user_id', $context->userId)->values());
-            $period->setRelation('adjustments', $period->adjustments->where('bd_user_id', $context->userId)->values());
-            abort_if($period->items->isEmpty() && $period->adjustments->isEmpty(), 403);
-            if ($context->userId !== null) {
-                $this->scopePeriodTotals($period, $context->userId);
+            if ($targetBdUserId !== null && $targetBdUserId !== $context->userId) {
+                abort(403);
             }
+            $targetBdUserId = $context->userId;
+        }
+        if ($targetBdUserId !== null) {
+            $period->setRelation('items', $period->items->where('bd_user_id', $targetBdUserId)->values());
+            $period->setRelation('adjustments', $period->adjustments->where('bd_user_id', $targetBdUserId)->values());
+            abort_if($period->items->isEmpty() && $period->adjustments->isEmpty(), 403);
+            $this->scopePeriodTotals($period, $targetBdUserId);
         }
         $names = collect($this->users->eligibleUsers())->keyBy('id');
 
@@ -282,8 +287,11 @@ final readonly class BdQuarterlyCommissionService implements BdCommissionCorrect
             'items' => $period->items->map(fn (BdQuarterlyCommissionItem $item): array => [
                 'order_id' => (int) $item->order_id,
                 'bd_user_id' => $item->bd_user_id === null ? null : (int) $item->bd_user_id,
-                'bd_name' => $names->get((int) $item->bd_user_id)['name'] ?? __('settlements.bd_commission.unknown_bd'),
+                'bd_name' => $names->get((int) $item->bd_user_id)['name']
+                    ?? data_get($item->attribution_snapshot, 'business_group.bd_manager.user_name', __('settlements.bd_commission.unknown_bd')),
                 'occurred_on' => $item->occurred_on->format('Y-m-d'),
+                'business_group_id' => data_get($item->attribution_snapshot, 'business_group.business_group_id'),
+                'agent_name' => (string) data_get($item->attribution_snapshot, 'agent.name', '—'),
                 'basis_krw' => (int) $item->basis_krw,
                 'rate_bps' => (int) $item->rate_bps,
                 'commission_krw' => (int) $item->commission_krw,
@@ -615,6 +623,18 @@ final readonly class BdQuarterlyCommissionService implements BdCommissionCorrect
     {
         $context = $this->access->current();
         abort_unless($context->isSuperAdmin() || $context->isBdManager(), 403);
+    }
+
+    private function assertExportOrReadAccess(bool $export): void
+    {
+        if ($export) {
+            $context = $this->access->current();
+            abort_unless($context->isSuperAdmin() || $context->isBdManager(), 403);
+
+            return;
+        }
+
+        $this->assertReadAccess();
     }
 
     private function assertAdmin(): void

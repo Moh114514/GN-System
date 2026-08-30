@@ -45,7 +45,37 @@
 
     @if ($detail)
         <section class="rounded-xl border bg-white p-5">
-            <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="text-lg font-semibold">{{ __('settlements.bd_commission.detail') }}</h2><div class="flex items-center gap-2"><span class="rounded-full bg-zinc-100 px-3 py-1 text-sm">{{ __('settlements.bd_commission.statuses.'.$detail['period']->status) }}</span><flux:button size="sm" variant="ghost" wire:click="$set('selectedPeriodId', null)">{{ __('settlements.bd_commission.collapse') }}</flux:button></div></div>
+            <div class="flex flex-wrap items-center justify-between gap-3">
+                <h2 class="text-lg font-semibold">{{ __('settlements.bd_commission.detail') }}</h2>
+                <div class="flex flex-wrap items-center gap-2">
+                    @if (auth()->user()->is_super_admin && count($availableBdUsers) > 0)
+                        <flux:select wire:model.live="selectedBdUserId" aria-label="{{ __('settlements.bd_commission.bd') }}">
+                            <flux:select.option value="">{{ __('settlements.bd_commission.allocation') }}</flux:select.option>
+                            @foreach ($availableBdUsers as $bd)
+                                <flux:select.option value="{{ $bd['id'] }}">{{ $bd['name'] }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
+                    @endif
+                    @if ($detail['period']->items->isNotEmpty() || $detail['period']->adjustments->isNotEmpty())
+                        @php
+                            $exportBdId = auth()->user()->is_super_admin
+                                ? ($selectedBdUserId === '' ? null : (int) $selectedBdUserId)
+                                : ($detail['items'][0]['bd_user_id'] ?? $detail['adjustments'][0]['bd_user_id'] ?? null);
+                        @endphp
+                        @if ($exportBdId !== null)
+                            <details class="relative">
+                                <summary class="cursor-pointer list-none rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-semibold text-teal-700">{{ __('settlements.detail.export') }}</summary>
+                                <div class="absolute right-0 z-10 mt-2 flex min-w-28 flex-col rounded-lg border border-zinc-200 bg-white p-1 shadow-lg">
+                                    <a class="rounded px-2 py-1.5 text-sm font-semibold text-teal-700 hover:bg-zinc-50" href="{{ route('bd-commissions.documents.download', ['period' => $detail['period']->id, 'bdUserId' => $exportBdId, 'format' => 'xlsx']) }}">Excel</a>
+                                    <a class="rounded px-2 py-1.5 text-sm font-semibold text-teal-700 hover:bg-zinc-50" href="{{ route('bd-commissions.documents.download', ['period' => $detail['period']->id, 'bdUserId' => $exportBdId, 'format' => 'pdf']) }}">PDF</a>
+                                </div>
+                            </details>
+                        @endif
+                    @endif
+                    <span class="rounded-full bg-zinc-100 px-3 py-1 text-sm">{{ __('settlements.bd_commission.statuses.'.$detail['period']->status) }}</span>
+                    <flux:button size="sm" variant="ghost" wire:click="$set('selectedPeriodId', null)">{{ __('settlements.bd_commission.collapse') }}</flux:button>
+                </div>
+            </div>
             <div class="mt-4 overflow-x-auto"><table class="min-w-full text-left text-sm"><thead><tr class="border-b text-zinc-500"><th class="p-2">{{ __('settlements.bd_commission.order') }}</th><th class="p-2">{{ __('settlements.bd_commission.bd') }}</th><th class="p-2">{{ __('settlements.bd_commission.occurred_on') }}</th><th class="p-2">{{ __('settlements.bd_commission.basis') }}</th><th class="p-2">{{ __('settlements.bd_commission.rate') }}</th><th class="p-2">{{ __('settlements.bd_commission.commission') }}</th></tr></thead><tbody>
                 @forelse ($detail['items'] as $item)<tr class="border-b"><td class="p-2">#{{ $item['order_id'] }}</td><td class="p-2">{{ $item['bd_name'] }}</td><td class="p-2">{{ $item['occurred_on'] }}</td><td class="p-2">₩ {{ number_format($item['basis_krw']) }}</td><td class="p-2">{{ number_format($item['rate_bps'] / 100, 2) }}%</td><td class="p-2">₩ {{ number_format($item['commission_krw']) }}</td></tr>@empty<tr><td colspan="6" class="p-4 text-center text-zinc-500">{{ __('settlements.bd_commission.empty_items') }}</td></tr>@endforelse
             </tbody></table></div>

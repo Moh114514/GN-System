@@ -11,6 +11,7 @@ use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Order\Application\Contracts\BdCommissionOrderReader;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Settlement\Application\Data\BdCommissionOrderData;
+use App\Modules\Settlement\Application\Services\BdQuarterlyCommissionDocumentGenerator;
 use App\Modules\Settlement\Application\Services\BdQuarterlyCommissionService;
 use App\Modules\Settlement\Infrastructure\Models\BdCommissionRule;
 use App\Modules\Settlement\Infrastructure\Models\BdQuarterlyCommission;
@@ -219,6 +220,41 @@ final class BdQuarterlyCommissionTest extends TestCase
             ->get(route('bd-commissions.index'))
             ->assertOk()
             ->assertSee('BD季度提成');
+    }
+
+    public function test_bd_can_download_own_formal_documents_but_not_another_bd_document(): void
+    {
+        $this->reader->orders = [
+            $this->order(7001, 10000, '2026-07-15', $this->firstBd->id),
+            $this->order(7002, 20000, '2026-07-16', $this->secondBd->id),
+        ];
+        $period = $this->service()->generate(CarbonImmutable::parse('2026-07-01'), $this->admin->id, null);
+        $route = fn (User $viewer, int $bdUserId, string $format) => $this->actingAs($viewer)
+            ->get(route('bd-commissions.documents.download', ['period' => $period->id, 'bdUserId' => $bdUserId, 'format' => $format]));
+
+        $route($this->firstBd, $this->firstBd->id, 'xlsx')
+            ->assertOk()
+            ->assertHeader('content-type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            ->assertHeader('content-disposition');
+        $route($this->firstBd, $this->secondBd->id, 'pdf')->assertForbidden();
+        $route(User::factory()->create(), $this->firstBd->id, 'xlsx')->assertForbidden();
+        $route($this->admin, $this->secondBd->id, 'pdf')
+            ->assertOk()
+            ->assertHeader('content-type', 'application/pdf')
+            ->assertHeader('content-disposition');
+    }
+
+    public function test_bd_document_generator_uses_visible_detail_amounts_without_recalculation(): void
+    {
+        $this->reader->orders = [$this->order(7003, 12345, '2026-07-15', $this->firstBd->id)];
+        $period = $this->service()->generate(CarbonImmutable::parse('2026-07-01'), $this->admin->id, null);
+        $detail = $this->service()->visibleDetail((int) $period->id, $this->firstBd->id);
+        $document = app(BdQuarterlyCommissionDocumentGenerator::class)->data($detail, $this->firstBd->id);
+
+        $this->assertSame(1235, $document->primaryAmount);
+        $this->assertSame(12345, $document->rows[0]['basis_krw']);
+        $this->assertSame(1235, $document->rows[0]['commission_krw']);
+        $this->assertSame(1235, $document->summaryRows[2]['value']);
     }
 
     private function service(): BdQuarterlyCommissionService

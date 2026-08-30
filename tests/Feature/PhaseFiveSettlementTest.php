@@ -483,7 +483,7 @@ class PhaseFiveSettlementTest extends TestCase
             ->call('regenerateDocuments', $settlement->id);
 
         $documents = SettlementDocument::query()->where('settlement_id', $settlement->id)->pluck('id', 'format');
-        $this->assertCount(2, $documents);
+        $this->assertCount(3, $documents);
         $component->assertSee(route('settlements.documents.download', $documents['pdf']), false)
             ->assertSee(route('settlements.documents.download', $documents['docx']), false)
             ->assertDontSee(__('settlements.detail.documents_regenerate'));
@@ -1033,11 +1033,19 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame('approved', $settlement->status);
         $this->assertSame(500, (int) $settlement->payout_amount_cny_fen);
         $documents = SettlementDocument::query()->where('settlement_id', $settlement->id)->orderBy('format')->get();
-        $this->assertCount(2, $documents);
+        $this->assertCount(3, $documents);
         $this->assertEquals($documents[0]->content_snapshot, $documents[1]->content_snapshot);
         foreach ($documents as $document) {
             Storage::disk('local')->assertExists($document->path);
         }
+        $xlsx = $documents->firstWhere('format', 'xlsx');
+        $this->assertNotNull($xlsx);
+        $workbook = IOFactory::load(Storage::disk('local')->path($xlsx->path));
+        $sheet = $workbook->getActiveSheet();
+        $this->assertSame(__('settlements.documents.title'), $sheet->getCell('A1')->getValue());
+        $this->assertSame(__('settlements.documents.headers.order'), $sheet->getCell('A9')->getValue());
+        $this->assertEquals(10000, $sheet->getCell('D10')->getValue());
+        $workbook->disconnectWorksheets();
         $pdf = $documents->firstWhere('format', 'pdf');
         $this->assertNotNull($pdf);
         $this->assertStringStartsWith('%PDF-', Storage::disk('local')->get($pdf->path));
@@ -1104,7 +1112,7 @@ class PhaseFiveSettlementTest extends TestCase
             app(SettlementWorkflow::class)->regenerateDocuments($settlement->id);
 
             $documents = SettlementDocument::query()->where('settlement_id', $settlement->id)->orderBy('format')->get();
-            $this->assertCount(2, $documents);
+            $this->assertCount(3, $documents);
             $this->assertCount(1, data_get($documents->firstWhere('format', 'pdf')->content_snapshot, 'items', []));
             $this->assertSame($status, $settlement->refresh()->status);
             $this->assertSame('not_applicable', $settlement->generation_status);

@@ -1,6 +1,6 @@
 # 模块边界
 
-> 最后核验：2026-08-24
+> 最后核验：2026-08-30
 > 决策依据：[ADR-0002](../adr/0002-module-boundaries-and-data-ownership.md)、
 > [ADR-0004](../adr/0004-application-import-contracts.md)、
 > [ADR-0005](../adr/0005-daily-application-contracts.md)、
@@ -145,3 +145,7 @@ historical grade-related rows remain readable for migration and audit purposes.
 PR1–PR6 的边界实现仍属于当前 feature worktree，未改变服务器上的已发布版本。迁移、备份、
 角色与业务组映射、订单历史快照抽样和恢复方案由发布收尾手册管理；不能通过直接 SQL 写入跨模块
 表来完成 UAT 准备。长期决策见 [ADR-0010](../adr/0010-formal-order-facts-and-bd-commission-history.md)。
+
+正式财务导出模板位于 `app/Support/Exports`，只负责文档布局、格式化和文件输出，不持有业务模型、
+不计算提成或月结金额。Settlement Application 服务先按既有权限范围取得已保存结果，再将 DTO 交给
+该共享技术能力；因此不会形成跨业务模块的 Model、Service 或表引用。

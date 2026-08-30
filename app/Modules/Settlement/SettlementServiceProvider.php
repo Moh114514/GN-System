@@ -20,6 +20,7 @@ use App\Modules\Settlement\Application\Services\DatabaseInstitutionUsageReader;
 use App\Modules\Settlement\Application\Services\DatabaseOrderFinancialReader;
 use App\Modules\Settlement\Application\Services\DatabaseReportSettlementReader;
 use App\Modules\Settlement\Application\Services\DatabaseSettlementImportGateway;
+use App\Modules\Settlement\Presentation\Http\BdQuarterlyCommissionDocumentController;
 use App\Modules\Settlement\Presentation\Http\SettlementDocumentController;
 use App\Modules\Settlement\Presentation\Http\SettlementRunFailureController;
 use App\Modules\Settlement\Presentation\Livewire\BdQuarterlyCommissionCenter;
@@ -59,6 +60,9 @@ class SettlementServiceProvider extends ServiceProvider
             Route::get('/settlements/{settlement}', SettlementDetail::class)->whereNumber('settlement')->name('settlements.show');
             Route::get('/settlement-documents/{document}', [SettlementDocumentController::class, 'document'])
                 ->whereNumber('document')->name('settlements.documents.download');
+            Route::get('/bd-commissions/{period}/users/{bdUserId}/document/{format}', [BdQuarterlyCommissionDocumentController::class, 'download'])
+                ->whereNumber('period')->whereNumber('bdUserId')->whereIn('format', ['xlsx', 'pdf'])
+                ->name('bd-commissions.documents.download');
         });
         Route::middleware(['web', 'auth', 'verified', 'super-admin', 'super-admin.2fa'])->group(function (): void {
             Route::get('/settlements/history', SettlementHistory::class)->name('settlements.history');

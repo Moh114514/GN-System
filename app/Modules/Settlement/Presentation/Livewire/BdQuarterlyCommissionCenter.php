@@ -18,6 +18,8 @@ class BdQuarterlyCommissionCenter extends Component
 
     public ?int $selectedPeriodId = null;
 
+    public string $selectedBdUserId = '';
+
     public string $ruleEffectiveFrom = '';
 
     public string $ruleRateBps = '';
@@ -54,6 +56,7 @@ class BdQuarterlyCommissionCenter extends Component
         $this->run(function () use ($service): void {
             $period = $service->generate($this->date($this->quarterStart), $this->user()->id, request()->ip());
             $this->selectedPeriodId = (int) $period->id;
+            $this->selectedBdUserId = '';
             $this->previewData = $service->preview($this->date($this->quarterStart));
         });
     }
@@ -107,13 +110,24 @@ class BdQuarterlyCommissionCenter extends Component
     public function render(BdQuarterlyCommissionService $service): View
     {
         $periods = $service->visiblePeriods();
-        $detail = $this->selectedPeriodId === null ? null : $service->visibleDetail($this->selectedPeriodId);
+        $fullDetail = $this->selectedPeriodId === null ? null : $service->visibleDetail($this->selectedPeriodId);
+        $detail = $fullDetail;
+        $selectedBdUserId = $this->selectedBdUserId === '' ? null : (int) $this->selectedBdUserId;
+        if ($fullDetail !== null && $selectedBdUserId !== null && auth()->user()?->is_super_admin) {
+            $detail = $service->visibleDetail($this->selectedPeriodId, $selectedBdUserId);
+        }
+        $availableBdUsers = $fullDetail === null ? [] : collect($fullDetail['items'])
+            ->concat($fullDetail['adjustments'])
+            ->filter(fn (array $item): bool => isset($item['bd_user_id']))
+            ->map(fn (array $item): array => ['id' => (int) $item['bd_user_id'], 'name' => (string) $item['bd_name']])
+            ->unique('id')->values()->all();
 
         return view('livewire.settlements.bd-quarterly-commission-center', [
             'periods' => $periods,
             'detail' => $detail,
             'rules' => auth()->user()?->isSuperAdmin() ? $service->rules() : collect(),
             'users' => auth()->user()?->isSuperAdmin() ? $service->eligibleBdUsers() : [],
+            'availableBdUsers' => $availableBdUsers,
         ])->title(__('settlements.bd_commission.title'));
     }
 
