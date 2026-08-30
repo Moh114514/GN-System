@@ -118,6 +118,7 @@ GitHub CI 和 GHCR 是发布基础设施，不是可登录的业务环境。
 | 2026-08-14，当前 `develop` | 工作区未发布 | PR1 收敛客户与订单为代理商归属，移除直销来源、渠道分支及七工作表以外的直销配置内容 | 包含不可逆的 `2026_08_14_000100_remove_direct_sales_business` forward migration；UAT/Production 发布前必须备份，并只读核对直销记录和缺少代理商归属的记录均为 0；迁移发现异常会中止，不能用旧镜像回退替代数据恢复 |
 | 2026-08-14，当前 `develop` | 工作区未发布 | PR1–PR6 已加入：客户/订单归属收敛、客户状态树、提醒 UI 紧凑化、指定节假日客服提醒、Dashboard 数据下钻及自然月月结生成 | PR1 含不可逆 migration，PR6 新增 `2026_08_14_000200_add_generation_day_to_settlement_configurations`；发布前按完整门禁执行，备份并核对 PR1/PR6 数据前置条件；UAT/Production 需人工验收状态树、提醒页面、指定日期规则、Dashboard 日期范围跳转和月结生成时间 |
 | 2026-08-17，当前 `develop` | 工作区未发布 | PR7 让月结中心默认展示最新已生成周期并支持周期切换，历史归档改用业务日期重叠查询；已结清详情保留文档下载，历史 `paid`/`reconciled` 月结可在只读详情按需生成并下载 Word/PDF | 不新增 migration；UAT 需核对周期下拉、业务日期边界、已结清详情文档下载及历史文档生成后状态不变；本机结果不能替代目标环境验证 |
+| 2026-08-30，`feature/business-groups-and-roles` 工作区 | 工作区未发布 | 修复财务单据 BD 调整金额重复计算；PDF 改用构建时合并的 CJK TrueType 字体、`truetype` 声明和 table 布局；规则配置 UI 改为响应式 12 栏；新增金额回归与 `pdftotext` 文本 smoke test | 不新增 migration、Composer 依赖或环境变量；Docker app 镜像新增字体构建包和 `poppler-utils`，UAT/Production 发布前必须重建并核对镜像中的字体路径、字符 smoke test 及月结/BD 中韩文输出；本机结果不能替代目标环境验证 |
 | 2026-08-24，`feature/business-groups-and-roles` | 工作区未发布 | 新规划 PR1 增加用户角色兼容回填、业务组/成员有效期历史、代理商业务组有效期历史及配置管理；新增 `2026_08_21_000100_add_roles_business_groups_and_agent_assignments` migration；2026-08-26 补齐开放式成员/代理商归属结束操作、未来转组候选、BusinessClock 统一和排他约束冲突业务化 | 仅完成本地开发和自动化验证，未合入 `develop`，未部署 UAT/Production。正式发布前必须备份数据库，按 RC 流程运行 migration，并人工核对角色、业务组成员、归属结束/未来转组、代理商归属和未归属完整性；本机结果不能替代目标环境验收 |
 | 2026-08-24，`feature/business-groups-and-roles` | 工作区未发布 | 新规划 PR7 完成 README、架构/模块文档、替代 ADR、UAT 角色映射、只读预检、备份迁移、抽样及回退/恢复手册；建议 `v0.6.0-rc.1` | 未处理 `develop`/`main` 分叉，未创建 RC，未推送、部署或执行 UAT/Production migration；发布前必须按 PR7 手册完成完整门禁、备份、映射、迁移和人工验收 |
 
@@ -1266,14 +1267,19 @@ mountpoint /mnt/gn-system-offsite
 
 ### 14.10 PDF 中文字体或私有目录权限
 
-生产镜像应包含已在 CI 验证的独立 Noto Sans CJK PDF 字体。字体由 Docker 构建阶段从
-Debian 字体集合提取，不能只安装 TTC 集合后直接交给 Dompdf。若导出失败：
+生产镜像应包含已在 CI 验证的独立 `GNSystemCJK.ttf` PDF 字体（构建阶段由两份真正的
+TrueType CJK 字体合并，并校验 `简体中文`、`한글`、`₩` 和数字字符及 `glyf` 表）。不能
+只安装 TTC 集合后直接交给 Dompdf。若导出失败：
 
 ```bash
 sudo docker compose --env-file .env.uat \
   -f compose.production.yaml logs --tail 200 app queue
 namei -l /srv/gn-system/data/private
 ```
+
+同时确认 app 镜像内存在 `/usr/local/share/fonts/gn-system/GNSystemCJK.ttf`，并在验收
+环境抽取一份测试 PDF 的文本，确认中韩文、`₩` 和带逗号数字均可读；`pdftotext` 由
+app 镜像提供。只重启旧容器不会更新字体，必须按发布流程使用包含新字体的镜像。
 
 确认 app、queue、scheduler 对 `PRIVATE_DATA_PATH` 可读写；不要把私有目录改为
 `0777`，也不要挂载到 Nginx 公开目录。

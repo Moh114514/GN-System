@@ -115,6 +115,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                     ? $order->business_attribution_snapshot
                     : [
                         ...((array) $order->business_attribution_snapshot),
+                        'agent' => $this->agents->agentById($data->agentId),
                         'business_group' => $this->attributions->forAgentOnDate($data->agentId, $occurredOn),
                         'occurred_on' => $occurredOn->toDateString(),
                     ],

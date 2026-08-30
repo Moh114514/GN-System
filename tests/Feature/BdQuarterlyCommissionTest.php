@@ -15,10 +15,13 @@ use App\Modules\Settlement\Application\Services\BdQuarterlyCommissionDocumentGen
 use App\Modules\Settlement\Application\Services\BdQuarterlyCommissionService;
 use App\Modules\Settlement\Infrastructure\Models\BdCommissionRule;
 use App\Modules\Settlement\Infrastructure\Models\BdQuarterlyCommission;
+use App\Support\Exports\DTO\FinancialDocumentData;
+use App\Support\Exports\FinancialWorkbookTemplate;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\Process\Process;
 use Tests\TestCase;
 
 final class BdQuarterlyCommissionTest extends TestCase
@@ -255,6 +258,59 @@ final class BdQuarterlyCommissionTest extends TestCase
         $this->assertSame(12345, $document->rows[0]['basis_krw']);
         $this->assertSame(1235, $document->rows[0]['commission_krw']);
         $this->assertSame(1235, $document->summaryRows[2]['value']);
+        $this->assertSame('测试代理商', $document->rows[0]['customer_agent']);
+        $this->assertSame('测试业务组', $document->metadata[1]['value']);
+    }
+
+    public function test_bd_document_generator_does_not_apply_adjustment_twice(): void
+    {
+        $this->reader->orders = [$this->order(7004, 10000, '2026-07-15', $this->firstBd->id)];
+        $period = $this->service()->generate(CarbonImmutable::parse('2026-07-01'), $this->admin->id, null);
+        $this->service()->addAdjustment((int) $period->id, $this->firstBd->id, -200, '人工复核差额', $this->admin->id, null);
+
+        $detail = $this->service()->visibleDetail((int) $period->id, $this->firstBd->id);
+        $document = app(BdQuarterlyCommissionDocumentGenerator::class)->data($detail, $this->firstBd->id);
+
+        $this->assertSame(1000, $document->summaryRows[2]['value']);
+        $this->assertSame(-200, $document->summaryRows[3]['value']);
+        $this->assertSame(800, $document->primaryAmount);
+        $this->assertSame(800, $document->summaryRows[4]['value']);
+    }
+
+    public function test_financial_pdf_smoke_contains_chinese_korean_won_and_numbers(): void
+    {
+        $path = tempnam(sys_get_temp_dir(), 'gn-financial-pdf-');
+        $this->assertNotFalse($path);
+
+        try {
+            $pdf = app(FinancialWorkbookTemplate::class)->renderPdf(new FinancialDocumentData(
+                title: '简体中文 한글 ₩ 123,456',
+                documentNumber: 'PDF-SMOKE-123',
+                documentDate: '2026-08-30',
+                subject: '简体中文 한글',
+                period: '2026-07-01 — 2026-07-31',
+                primaryAmount: 123456,
+                currency: 'KRW',
+                metadata: [['label' => '测试字段', 'value' => '한글 ₩ 123,456']],
+                columns: [['key' => 'value', 'label' => '金额', 'type' => 'amount']],
+                rows: [['value' => 123456]],
+                summaryRows: [['label' => '应付金额', 'value' => 123456, 'type' => 'amount']],
+            ));
+            file_put_contents($path, $pdf);
+
+            $process = new Process(['pdftotext', $path, '-']);
+            $process->run();
+            $this->assertTrue($process->isSuccessful(), $process->getErrorOutput());
+            $text = $process->getOutput();
+            $this->assertStringContainsString('简体中文', $text);
+            $this->assertStringContainsString('한글', $text);
+            $this->assertStringContainsString('₩', $text);
+            $this->assertStringContainsString('123,456', $text);
+        } finally {
+            if (is_string($path) && is_file($path)) {
+                unlink($path);
+            }
+        }
     }
 
     private function service(): BdQuarterlyCommissionService
@@ -285,8 +341,11 @@ final class BdQuarterlyCommissionTest extends TestCase
             amountKrw: $amount,
             occurredOn: CarbonImmutable::parse($date),
             attributionSnapshot: [
+                'agent' => ['id' => $this->agent->id, 'code' => $this->agent->code, 'name' => '测试代理商'],
                 'business_group' => [
                     'business_group_id' => $groupId,
+                    'business_group_name' => '测试业务组',
+                    'agent_id' => $this->agent->id,
                     'bd_manager' => ['user_id' => $bdUserId, 'user_name' => '测试BD'],
                 ],
                 'occurred_on' => $date,

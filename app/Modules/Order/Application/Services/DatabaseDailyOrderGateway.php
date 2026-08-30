@@ -65,6 +65,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
                 'business_attribution_snapshot' => $data->status === 'completed' && $data->completedOn !== null
                     ? [
                         'source' => 'daily_order',
+                        'agent' => $this->agents->agentById($data->agentId),
                         'business_group' => $this->attributions->forAgentOnDate($data->agentId, $data->completedOn),
                         'occurred_on' => $data->completedOn->toDateString(),
                     ]
@@ -113,6 +114,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
                 'business_attribution_snapshot' => [
                     ...((array) $order->business_attribution_snapshot),
                     'source' => 'daily_order',
+                    'agent' => $this->agents->agentById((int) $order->agent_id),
                     'business_group' => $this->attributions->forAgentOnDate((int) $order->agent_id, $completedOn),
                     'occurred_on' => $completedOn->toDateString(),
                 ],

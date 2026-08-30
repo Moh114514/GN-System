@@ -2,6 +2,7 @@
 
 namespace App\Modules\Settlement\Application\Services;
 
+use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
@@ -26,6 +27,7 @@ final readonly class BdQuarterlyCommissionService implements BdCommissionCorrect
         private AccessContextResolver $access,
         private InternalUserReferenceReader $users,
         private AuditRecorder $audit,
+        private AgentReferenceReader $agents,
     ) {}
 
     /** @return array{start: CarbonImmutable, end: CarbonImmutable} */
@@ -258,7 +260,7 @@ final readonly class BdQuarterlyCommissionService implements BdCommissionCorrect
     /**
      * @return array{
      *     period: BdQuarterlyCommission,
-     *     items: list<array{order_id: int, bd_user_id: int|null, bd_name: string, occurred_on: string, business_group_id: int|null, agent_name: string, basis_krw: int, rate_bps: int, commission_krw: int}>,
+     *     items: list<array{order_id: int, bd_user_id: int|null, bd_name: string, occurred_on: string, business_group_id: int|null, business_group_name: string, agent_name: string, basis_krw: int, rate_bps: int, commission_krw: int}>,
      *     adjustments: list<array{bd_user_id: int|null, bd_name: string, amount_krw: int, source: string, reason: string}>
      * }
      */
@@ -281,6 +283,14 @@ final readonly class BdQuarterlyCommissionService implements BdCommissionCorrect
             $this->scopePeriodTotals($period, $targetBdUserId);
         }
         $names = collect($this->users->eligibleUsers())->keyBy('id');
+        $agentIds = $period->items
+            ->map(fn (BdQuarterlyCommissionItem $item): mixed => data_get($item->attribution_snapshot, 'business_group.agent_id'))
+            ->filter(fn (mixed $id): bool => is_numeric($id) && (int) $id > 0)
+            ->map(fn (mixed $id): int => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+        $agentReferences = $agentIds === [] ? [] : $this->agents->agentsByIds($agentIds);
 
         return [
             'period' => $period,
@@ -290,8 +300,14 @@ final readonly class BdQuarterlyCommissionService implements BdCommissionCorrect
                 'bd_name' => $names->get((int) $item->bd_user_id)['name']
                     ?? data_get($item->attribution_snapshot, 'business_group.bd_manager.user_name', __('settlements.bd_commission.unknown_bd')),
                 'occurred_on' => $item->occurred_on->format('Y-m-d'),
-                'business_group_id' => data_get($item->attribution_snapshot, 'business_group.business_group_id'),
-                'agent_name' => (string) data_get($item->attribution_snapshot, 'agent.name', '—'),
+                'business_group_id' => $groupId = data_get($item->attribution_snapshot, 'business_group.business_group_id'),
+                'business_group_name' => (string) (data_get($item->attribution_snapshot, 'business_group.business_group_name')
+                    ?: ($groupId === null ? __('settlements.bd_commission.unknown_group') : __('settlements.bd_commission.business_group_id', ['id' => $groupId]))),
+                'agent_name' => (string) (data_get($item->attribution_snapshot, 'agent.name')
+                    ?: ($agentReferences[(int) data_get($item->attribution_snapshot, 'business_group.agent_id')]['name']
+                        ?? (data_get($item->attribution_snapshot, 'business_group.agent_id') !== null
+                            ? __('settlements.bd_commission.agent_id', ['id' => data_get($item->attribution_snapshot, 'business_group.agent_id')])
+                            : __('settlements.bd_commission.unknown_agent')))),
                 'basis_krw' => (int) $item->basis_krw,
                 'rate_bps' => (int) $item->rate_bps,
                 'commission_krw' => (int) $item->commission_krw,

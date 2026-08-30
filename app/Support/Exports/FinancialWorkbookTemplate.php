@@ -185,7 +185,7 @@ final class FinancialWorkbookTemplate
 
     public function html(FinancialDocumentData $document, string $pdfFontPath): string
     {
-        $metadata = '';
+        $metadataRows = '';
         $metadataItems = [
             ['label' => __('exports.formal_document.subject'), 'value' => $document->subject],
             ['label' => __('exports.formal_document.period'), 'value' => $document->period],
@@ -193,8 +193,14 @@ final class FinancialWorkbookTemplate
             ['label' => __('exports.formal_document.document_number'), 'value' => $document->documentNumber],
             ...$document->metadata,
         ];
-        foreach ($metadataItems as $item) {
-            $metadata .= '<div class="meta"><span>'.e((string) $item['label']).'</span><strong>'.e((string) $item['value']).'</strong></div>';
+        for ($index = 0; $index < count($metadataItems); $index += 2) {
+            $left = $metadataItems[$index];
+            $right = $metadataItems[$index + 1] ?? null;
+            $metadataRows .= '<tr><td class="meta"><span>'.e((string) $left['label']).'</span><strong>'.e((string) $left['value']).'</strong></td>';
+            $metadataRows .= $right === null
+                ? '<td class="meta"></td>'
+                : '<td class="meta"><span>'.e((string) $right['label']).'</span><strong>'.e((string) $right['value']).'</strong></td>';
+            $metadataRows .= '</tr>';
         }
         $headers = '';
         foreach ($document->columns as $column) {
@@ -211,20 +217,27 @@ final class FinancialWorkbookTemplate
         if ($rows === '') {
             $rows = '<tr><td class="empty" colspan="'.max(1, count($document->columns)).'">'.e(__('exports.formal_document.no_items')).'</td></tr>';
         }
-        $summary = '';
+        $summary = '<table class="summary"><tbody>';
         foreach ($document->summaryRows as $item) {
             $currency = (string) ($item['currency'] ?? $document->currency);
             $type = (string) ($item['type'] ?? 'amount');
-            $summary .= '<div class="summary '.(! empty($item['emphasis']) ? 'emphasis' : '').'"><span>'.e((string) $item['label']).'</span><strong>'.$this->htmlValue($item['value'] ?? null, $type, $currency, $document->currencyDecimals).'</strong></div>';
+            $summary .= '<tr class="'.(! empty($item['emphasis']) ? 'emphasis' : '').'"><td class="summary-label">'.e((string) $item['label']).'</td><td class="summary-value">'.$this->htmlValue($item['value'] ?? null, $type, $currency, $document->currencyDecimals).'</td></tr>';
         }
+        $summary .= '</tbody></table>';
         $remarks = $document->remarks === [] ? '' : '<div class="remarks"><h3>'.e(__('exports.formal_document.remarks')).'</h3>'.implode('', array_map(fn (string $remark): string => '<p>'.e($remark).'</p>', $document->remarks)).'</div>';
         $primary = $this->htmlValue($document->primaryAmount, 'amount', $document->currency, $document->currencyDecimals);
+        $css = '@font-face{font-family:"GN CJK";font-style:normal;font-weight:400;src:url("file://'.e($pdfFontPath).'") format("truetype");}'
+            .'@font-face{font-family:"GN CJK";font-style:normal;font-weight:700;src:url("file://'.e($pdfFontPath).'") format("truetype");}'
+            .'@page{margin:14mm 12mm 14mm 12mm;}body{font-family:"GN CJK",Arial,sans-serif;color:#'.FinancialWorkbookStyle::TEXT.';font-size:10px;}h1{color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-size:22px;text-align:center;margin:0 0 16px;}'
+            .'table{width:100%;border-collapse:collapse;margin-bottom:12px;page-break-inside:auto}thead{display:table-header-group}tr{page-break-inside:avoid}'
+            .'.meta-grid{table-layout:fixed;border:1px solid #'.FinancialWorkbookStyle::BORDER.';margin-bottom:14px}.meta-grid td{width:50%;box-sizing:border-box}.meta{padding:7px 9px;border-bottom:1px solid #'.FinancialWorkbookStyle::BORDER.'}.meta:first-child{border-right:1px solid #'.FinancialWorkbookStyle::BORDER.'}.meta span{display:block;color:#'.FinancialWorkbookStyle::MUTED.';font-size:9px;margin-bottom:2px}.meta strong{font-size:10px}'
+            .'.primary{background:#'.FinancialWorkbookStyle::PALE_CYAN.';border:2px solid #'.FinancialWorkbookStyle::ACCENT.';padding:11px;margin-bottom:16px;text-align:center}.primary span{display:block;color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-weight:bold;font-size:11px}.primary strong{display:block;color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-size:19px;margin-top:3px}'
+            .'h2{font-size:12px;color:#'.FinancialWorkbookStyle::ACCENT_DARK.';border-bottom:2px solid #'.FinancialWorkbookStyle::ACCENT.';padding-bottom:5px;margin:0 0 6px;}th{background:#'.FinancialWorkbookStyle::ACCENT.';color:#fff;font-weight:bold;padding:6px;border:1px solid #'.FinancialWorkbookStyle::BORDER.'}td{padding:5px;border:1px solid #'.FinancialWorkbookStyle::BORDER.';vertical-align:top}td.amount,td.percent{text-align:right;white-space:nowrap}td.empty{text-align:center;color:#'.FinancialWorkbookStyle::MUTED.'}'
+            .'.summary{margin-top:10px;background:#'.FinancialWorkbookStyle::PALE_CYAN.';border:1px solid #'.FinancialWorkbookStyle::BORDER.'}.summary td{padding:6px 9px}.summary-label{width:70%}.summary-value{text-align:right;white-space:nowrap}.summary tr.emphasis td{border:2px solid #'.FinancialWorkbookStyle::ACCENT.';color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-size:12px;font-weight:bold}'
+            .'.remarks{margin-top:14px;border-top:1px solid #'.FinancialWorkbookStyle::BORDER.';padding-top:8px}.remarks h3{color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-size:11px}.remarks p{margin:4px 0;color:#'.FinancialWorkbookStyle::MUTED.'}';
 
-        return '<!doctype html><html lang="'.e(str_replace('_', '-', app()->getLocale())).'"><head><meta charset="UTF-8"><style>'
-            .'@font-face{font-family:"GN CJK";font-style:normal;font-weight:400;src:url("file://'.e($pdfFontPath).'" ) format("opentype");}'
-            .'@font-face{font-family:"GN CJK";font-style:normal;font-weight:700;src:url("file://'.e($pdfFontPath).'" ) format("opentype");}'
-            .'@page{margin:14mm 12mm 14mm 12mm;}body{font-family:"GN CJK",Arial,sans-serif;color:#'.FinancialWorkbookStyle::TEXT.';font-size:10px;}h1{color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-size:22px;text-align:center;margin:0 0 16px;} .meta-grid{display:grid;grid-template-columns:1fr 1fr;border:1px solid #'.FinancialWorkbookStyle::BORDER.';margin-bottom:14px}.meta{padding:7px 9px;border-bottom:1px solid #'.FinancialWorkbookStyle::BORDER.'}.meta:nth-child(odd){border-right:1px solid #'.FinancialWorkbookStyle::BORDER.'}.meta span{display:block;color:#'.FinancialWorkbookStyle::MUTED.';font-size:9px;margin-bottom:2px}.meta strong{font-size:10px}.primary{background:#'.FinancialWorkbookStyle::PALE_CYAN.';border:2px solid #'.FinancialWorkbookStyle::ACCENT.';padding:11px;margin-bottom:16px;text-align:center}.primary span{display:block;color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-weight:bold;font-size:11px}.primary strong{display:block;color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-size:19px;margin-top:3px}h2{font-size:12px;color:#'.FinancialWorkbookStyle::ACCENT_DARK.';border-bottom:2px solid #'.FinancialWorkbookStyle::ACCENT.';padding-bottom:5px;margin:0 0 6px;}table{width:100%;border-collapse:collapse;margin-bottom:12px;page-break-inside:auto}thead{display:table-header-group}tr{page-break-inside:avoid}th{background:#'.FinancialWorkbookStyle::ACCENT.';color:#fff;font-weight:bold;padding:6px;border:1px solid #'.FinancialWorkbookStyle::BORDER.'}td{padding:5px;border:1px solid #'.FinancialWorkbookStyle::BORDER.';vertical-align:top}td.amount,td.percent{text-align:right;white-space:nowrap}td.empty{text-align:center;color:#'.FinancialWorkbookStyle::MUTED.'}.summary{display:flex;justify-content:space-between;background:#'.FinancialWorkbookStyle::PALE_CYAN.';border:1px solid #'.FinancialWorkbookStyle::BORDER.';padding:6px 9px}.summary strong{white-space:nowrap}.summary.emphasis{border:2px solid #'.FinancialWorkbookStyle::ACCENT.';color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-size:12px;font-weight:bold}.remarks{margin-top:14px;border-top:1px solid #'.FinancialWorkbookStyle::BORDER.';padding-top:8px}.remarks h3{color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-size:11px}.remarks p{margin:4px 0;color:#'.FinancialWorkbookStyle::MUTED.'}'
-            .'</style></head><body><h1>'.e($document->title).'</h1><div class="meta-grid">'.$metadata.'</div><div class="primary"><span>'.e($document->primaryAmountLabel ?? __('exports.formal_document.primary_amount')).'</span><strong>'.$primary.'</strong></div><h2>'.e(__('exports.formal_document.details')).'</h2><table><thead><tr>'.$headers.'</tr></thead><tbody>'.$rows.'</tbody></table>'.$summary.$remarks.'</body></html>';
+        return '<!doctype html><html lang="'.e(str_replace('_', '-', app()->getLocale())).'"><head><meta charset="UTF-8"><style>'.$css
+            .'</style></head><body><h1>'.e($document->title).'</h1><table class="meta-grid"><tbody>'.$metadataRows.'</tbody></table><div class="primary"><span>'.e($document->primaryAmountLabel ?? __('exports.formal_document.primary_amount')).'</span><strong>'.$primary.'</strong></div><h2>'.e(__('exports.formal_document.details')).'</h2><table><thead><tr>'.$headers.'</tr></thead><tbody>'.$rows.'</tbody></table>'.$summary.$remarks.'</body></html>';
     }
 
     /**

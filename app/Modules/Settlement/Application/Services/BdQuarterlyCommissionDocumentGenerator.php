@@ -17,8 +17,8 @@ final readonly class BdQuarterlyCommissionDocumentGenerator
         $items = $detail['items'];
         $adjustments = $detail['adjustments'];
         $bdName = (string) ($items[0]['bd_name'] ?? $adjustments[0]['bd_name'] ?? __('settlements.bd_commission.unknown_bd'));
-        $groupIds = collect($items)->pluck('business_group_id')->filter()->unique()->values()->all();
-        $groupName = $groupIds === [] ? __('settlements.bd_commission.unknown_group') : implode(', ', array_map(static fn (mixed $id): string => (string) $id, $groupIds));
+        $groupNames = collect($items)->pluck('business_group_name')->filter()->unique()->values()->all();
+        $groupName = $groupNames === [] ? __('settlements.bd_commission.unknown_group') : implode(', ', $groupNames);
         $rows = array_map(static function (array $item): array {
             return [
                 'order_id' => '#'.(int) $item['order_id'],
@@ -42,8 +42,9 @@ final readonly class BdQuarterlyCommissionDocumentGenerator
             ];
         }
         $basis = (int) ($period->total_basis_krw ?? array_sum(array_column($items, 'basis_krw')));
-        $commission = (int) ($period->total_commission_krw ?? array_sum(array_column($items, 'commission_krw')));
+        $baseCommission = array_sum(array_column($items, 'commission_krw'));
         $adjustment = (int) ($period->total_adjustment_krw ?? array_sum(array_column($adjustments, 'amount_krw')));
+        $payable = (int) ($period->total_commission_krw ?? ($baseCommission + $adjustment));
 
         return new FinancialDocumentData(
             title: __('settlements.bd_commission.documents.title'),
@@ -51,7 +52,7 @@ final readonly class BdQuarterlyCommissionDocumentGenerator
             documentDate: CarbonImmutable::now('Asia/Shanghai')->toDateString(),
             subject: $bdName,
             period: $period->quarter_start->format('Y-m-d').' — '.$period->quarter_end->format('Y-m-d'),
-            primaryAmount: $commission,
+            primaryAmount: $payable,
             currency: 'KRW',
             metadata: [
                 ['label' => __('settlements.bd_commission.documents.bd'), 'value' => $bdName],
@@ -72,9 +73,9 @@ final readonly class BdQuarterlyCommissionDocumentGenerator
             summaryRows: [
                 ['label' => __('settlements.bd_commission.documents.sales_total'), 'value' => $basis, 'type' => 'amount'],
                 ['label' => __('settlements.bd_commission.documents.basis_total'), 'value' => $basis, 'type' => 'amount'],
-                ['label' => __('settlements.bd_commission.documents.commission_total'), 'value' => $commission, 'type' => 'amount'],
+                ['label' => __('settlements.bd_commission.documents.commission_total'), 'value' => $baseCommission, 'type' => 'amount'],
                 ['label' => __('settlements.bd_commission.documents.adjustment_total'), 'value' => $adjustment, 'type' => 'amount'],
-                ['label' => __('settlements.bd_commission.documents.payable'), 'value' => $commission + $adjustment, 'type' => 'amount', 'emphasis' => true],
+                ['label' => __('settlements.bd_commission.documents.payable'), 'value' => $payable, 'type' => 'amount', 'emphasis' => true],
             ],
             remarks: [__('settlements.bd_commission.documents.remark', ['status' => __('settlements.bd_commission.statuses.'.$period->status)])],
             primaryAmountLabel: __('settlements.bd_commission.documents.primary_amount'),

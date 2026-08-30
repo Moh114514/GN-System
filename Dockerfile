@@ -3,10 +3,10 @@ FROM postgres:16-bookworm AS postgres-client
 FROM debian:bookworm-slim AS cjk-font
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends fonts-noto-cjk python3-fonttools \
-    && python3 -c "from fontTools.ttLib import TTCollection; font = TTCollection('/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc').fonts[0]; assert all(ord(char) in font.getBestCmap() for char in '中한가123GN-System'); font.save('/tmp/NotoSansCJK-Regular.otf')" \
+    && apt-get install -y --no-install-recommends fonts-arphic-gbsn00lp fonts-unfonts-core python3-fonttools \
+    && python3 -c "from fontTools.merge import Merger; from fontTools.ttLib import TTFont; from fontTools.ttLib.scaleUpem import scale_upem; paths = ['/usr/share/fonts/truetype/arphic-gbsn00lp/gbsn00lp.ttf', '/usr/share/fonts/truetype/unfonts-core/UnBatang.ttf']; fonts = [TTFont(path) for path in paths]; target_upem = fonts[0]['head'].unitsPerEm; [scale_upem(font, target_upem) for font in fonts[1:]]; normalized = ['/tmp/gn-cjk-chinese.ttf', '/tmp/gn-cjk-korean.ttf']; [font.save(path) for font, path in zip(fonts, normalized)]; font = Merger().merge(normalized); cmap = font.getBestCmap(); assert all(ord(char) in cmap for char in '简体中文한글₩123,456GN-System'); assert 'glyf' in font and 'CFF ' not in font; font.save('/tmp/GNSystemCJK.ttf')" \
     && mkdir -p /usr/local/share/fonts/gn-system \
-    && cp /tmp/NotoSansCJK-Regular.otf /usr/local/share/fonts/gn-system/NotoSansCJK-Regular.otf \
+    && cp /tmp/GNSystemCJK.ttf /usr/local/share/fonts/gn-system/GNSystemCJK.ttf \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -25,6 +25,7 @@ RUN apt-get -o Acquire::Retries=5 update \
         libpq-dev \
         libzip-dev \
         postgresql-client \
+        poppler-utils \
         unzip \
     && docker-php-ext-configure gd --with-jpeg \
     && docker-php-ext-install -j"$(nproc)" bcmath gd intl pcntl pdo_pgsql zip \
@@ -35,7 +36,7 @@ RUN apt-get -o Acquire::Retries=5 update \
 
 COPY --from=postgres-client /usr/lib/postgresql/16/bin/pg_dump /usr/local/bin/pg_dump
 COPY --from=postgres-client /usr/lib/postgresql/16/bin/pg_restore /usr/local/bin/pg_restore
-COPY --from=cjk-font /usr/local/share/fonts/gn-system/NotoSansCJK-Regular.otf /usr/local/share/fonts/gn-system/NotoSansCJK-Regular.otf
+COPY --from=cjk-font /usr/local/share/fonts/gn-system/GNSystemCJK.ttf /usr/local/share/fonts/gn-system/GNSystemCJK.ttf
 
 RUN groupmod -o -g "${APP_GID}" www-data \
     && usermod -o -u "${APP_UID}" -g www-data www-data

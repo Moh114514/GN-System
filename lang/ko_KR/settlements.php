@@ -11,7 +11,7 @@ return [
         'commission' => '인센티브', 'empty_items' => '표시할 상세가 없습니다.', 'allocation' => 'BD 미지정', 'adjustment_amount' => '조정 금액 KRW',
         'reason' => '사유', 'add_adjustment' => '수동 조정 추가', 'review' => '검토 제출', 'confirm' => '분기 확정',
         'rules' => '인센티브 규칙 버전', 'rule_assumption' => '현재 기본값: 주문 금액 KRW × 기준점 요율, 반올림; 제품 확정 후 새 적용 버전을 추가하고 과거 규칙은 변경하지 않습니다.',
-        'effective_from' => '적용일', 'rate_bps' => '요율 기준점(100점=1%)', 'save_rule' => '규칙 버전 저장', 'unknown_bd' => '알 수 없는 BD', 'unknown_group' => '기록된 업무 그룹 없음',
+        'effective_from' => '적용일', 'rate_bps' => '요율 기준점(100점=1%)', 'save_rule' => '규칙 버전 저장', 'unknown_bd' => '알 수 없는 BD', 'unknown_group' => '기록된 업무 그룹 없음', 'unknown_agent' => '알 수 없는 에이전시', 'agent_id' => '에이전시 ID: :id', 'business_group_id' => '업무 그룹 ID: :id',
         'documents' => [
             'title' => 'BD 관리자 분기 수수료 정산서', 'primary_amount' => '지급 수수료', 'bd' => 'BD 관리자', 'business_group' => '업무 그룹',
             'status' => '상태', 'item_count' => '주문 수', 'sales_total' => '매출 합계', 'basis_total' => '수수료 기준 합계',

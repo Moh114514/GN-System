@@ -10,8 +10,8 @@ return [
         'detail' => '季度明细', 'order' => '订单', 'bd' => 'BD', 'occurred_on' => '发生日期', 'rate' => '费率',
         'commission' => '提成', 'empty_items' => '暂无可见明细。', 'allocation' => '不指定BD', 'adjustment_amount' => '调整金额 KRW',
         'reason' => '原因', 'add_adjustment' => '添加人工调整', 'review' => '提交审核', 'confirm' => '确认季度',
-        'rules' => '提成规则版本', 'rule_assumption' => '当前明确默认：订单金额 KRW × 基点费率，半入取整；产品确认后应新增下一生效版本，不修改历史规则。',
-        'effective_from' => '生效日期', 'rate_bps' => '费率基点（100点=1%）', 'save_rule' => '保存规则版本', 'unknown_bd' => '未知BD', 'unknown_group' => '未记录业务组',
+        'rules' => '提成规则版本', 'rule_assumption' => '当前明确默认：订单金额 KRW × 基点费率，四舍五入取整；产品确认后应新增下一生效版本，不修改历史规则。',
+        'effective_from' => '生效日期', 'rate_bps' => '费率基点（100点=1%）', 'save_rule' => '保存规则版本', 'unknown_bd' => '未知BD', 'unknown_group' => '未记录业务组', 'unknown_agent' => '未知代理商', 'agent_id' => '代理商 ID：:id', 'business_group_id' => '业务组 ID：:id',
         'documents' => [
             'title' => 'BD经理季度提成结算单', 'primary_amount' => '应发提成', 'bd' => 'BD经理', 'business_group' => '业务组',
             'status' => '状态', 'item_count' => '订单数', 'sales_total' => '销售额合计', 'basis_total' => '提成基数合计',

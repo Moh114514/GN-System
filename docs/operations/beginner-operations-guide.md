@@ -65,7 +65,7 @@ GN-System 当前有两套服务器环境，不能混用：
 | `develop`（2026-08-14 工作区） | 国际化基础设施、PR-B/PR-C/PR-D 及规划 PR1–PR6 已加入；PR4 增加指定节假日客服提醒，PR5 增加 Dashboard 数据下钻，PR6 增加自然月月结生成 | 尚未发布；PR1 包含不可逆 `2026_08_14_000100_remove_direct_sales_business` migration，PR6 新增 `2026_08_14_000200_add_generation_day_to_settlement_configurations`。发布前备份数据库，核对 PR1/PR6 数据前置条件，并人工检查客户状态树、提醒文案、指定日期规则、Dashboard 日期范围跳转和月结生成时间 |
 | `develop`（2026-08-17 工作区） | PR7 让月结中心默认展示最新已生成周期，支持周期切换；历史月结改用业务日期重叠查询；已结清详情保留下载，历史 `paid`/`reconciled` 月结支持只读详情按需生成并下载 Word/PDF | 尚未发布；不新增 migration。UAT 需核对周期下拉、业务日期起止边界、已结清详情下载，以及历史文档生成后状态不变 |
 | `feature/business-groups-and-roles`（2026-08-26 本地工作区） | 新规划 PR1 增加角色、业务组、成员有效期历史和代理商业务组有效期历史；配置中心支持结束开放式归属、提前配置未来转组、按 BusinessClock 显示当前归属并检查未归属；新增 `2026_08_21_000100_add_roles_business_groups_and_agent_assignments` migration | 只在本地开发 Compose 测试数据库验证，尚未发布。以后发布前要备份数据库，并人工检查角色、成员结束归属、未来转组、代理商归属及未归属列表；不要在服务器手工建表 |
-| `feature/business-groups-and-roles`（2026-08-24 本地工作区） | 同一工作区继续完成 PR4：版本化机构固定模板、隐藏元数据签名、加密原始回传、订单明细和业务发生日期；人工新建/完成入口移除 | 只在本地测试数据库验证，未运行 UAT/Production migration。发布前必须先备份并执行历史订单阻断预检，确认私有存储和原始文件授权下载，再按 RC 流程人工验收 |
+| `feature/business-groups-and-roles`（2026-08-30 本地工作区） | 财务单据导出审查修复：BD 调整金额只计入一次，PDF 使用合并的 CJK TrueType 字体和 table 布局，规则配置 UI 调整为 12 栏响应式布局，并增加金额/PDF 文本测试 | 未处理 `develop`/`main` 分叉，未创建 RC，未推送、部署或执行 UAT/Production migration；Docker app 镜像需重建，UAT/Production 需核对字体、`pdftotext` smoke test、月结/BD 中文韩文及金额；本机结果不替代目标环境验收 |
 | `feature/customer-status-tree`（历史工作分支） | PR2 客户详情状态流转可视化及 Agent 详情“关联客户”中韩文案 | 内容已合入 `develop`，不作为当前发布目标 |
 
 服务器实际版本以 `/srv/gn-system/releases/current` 和
@@ -99,7 +99,7 @@ PR7 的月结中心默认只展示最新已生成周期，可从顶部下拉切�
 
 上一轮月结修复本身没有新增 migration、依赖或服务器命令；本轮韩文化收尾新增 `000400`、`000500` migration，并把 `league/commonmark` 安全升级到锁文件允许的修复版本。PR4 复用现有提醒表和 Scheduler，不新增 migration 或第三方节假日服务。部署 UAT 前仍需按完整手册执行门禁、数据库备份和 migration，并人工复验失败详情、报告下载、系统提醒、指定日期规则和韩文提示行为。
 
-PDF 字体修复需要使用包含独立 Noto Sans CJK 字体的新版 app 镜像；只重启旧容器不会更新字体。日期控件已统一为由系统语言控制的日期选择器，仍提交 `Y-m-d` 日期值。
+PDF 字体修复需要使用包含 `/usr/local/share/fonts/gn-system/GNSystemCJK.ttf` 和 `pdftotext` 的新版 app 镜像；只重启旧容器不会更新字体。UAT/Production 需要抽取测试 PDF 文本，确认简体中文、한글、₩ 和 `123,456` 可读。日期控件已统一为由系统语言控制的日期选择器，仍提交 `Y-m-d` 日期值。
 
 国际化 PR-A、PR-B、PR-C 及 PR-D 当前批次只在 `develop` 本机工作区完成，不能据此认为 UAT 或 Production 已支持韩文。
 发布时要先备份数据库，再按 RC 流程执行 migration；既有用户默认保持 `zh_CN`。业务页面、导出
