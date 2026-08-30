@@ -12,13 +12,16 @@ use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Auth\Domain\UserRole;
 use App\Modules\Auth\Infrastructure\Models\BusinessGroup;
 use App\Modules\Auth\Infrastructure\Models\BusinessGroupMembership;
+use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Application\Services\CustomerDirectory;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
+use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Reminder\Application\Services\ReminderWorkspace;
 use App\Modules\Report\Application\Services\DashboardRangeFactory;
 use App\Modules\Report\Application\Services\DashboardService;
 use App\Modules\Report\Application\Services\ReportExportManager;
+use App\Modules\Report\Application\Services\TeamOverviewService;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -200,6 +203,75 @@ class AccessScopeTest extends TestCase
 
         $this->actingAs($this->bd)->get(route('team-overview.index', ['groupId' => $this->groupB->id]))
             ->assertNotFound();
+    }
+
+    public function test_team_overview_uses_historical_order_facts_and_keeps_unset_status(): void
+    {
+        $institutionId = Institution::query()->value('id');
+        $movedAgent = Agent::query()->create([
+            'agent_type_code_id' => AgentTypeCode::query()->value('id'),
+            'code' => 'SCOPE-MOVED',
+            'name' => '迁移代理商',
+            'cooperation_status' => 'active',
+        ]);
+        AgentBusinessGroupAssignment::query()->create([
+            'agent_id' => $movedAgent->id,
+            'business_group_id' => $this->groupA->id,
+            'effective_from' => '2026-01-01',
+            'effective_until' => '2026-08-15',
+            'assigned_by' => $this->admin->id,
+            'reason' => '历史订单口径测试',
+        ]);
+
+        $this->groupACustomer->update(['current_status_id' => null]);
+        $snapshot = [
+            'business_group' => ['business_group_id' => $this->groupA->id],
+            'occurred_on' => '2026-08-10',
+        ];
+        foreach ([
+            ['amount_krw' => 1_000_000, 'owner_id' => $this->peer->id, 'occurred_on' => '2026-08-10', 'record_status' => 'active'],
+            ['amount_krw' => 2_000_000, 'owner_id' => null, 'occurred_on' => '2026-08-11', 'record_status' => 'active'],
+            ['amount_krw' => 9_000_000, 'owner_id' => $this->owner->id, 'occurred_on' => '2026-07-31', 'record_status' => 'active'],
+            ['amount_krw' => 7_000_000, 'owner_id' => $this->owner->id, 'occurred_on' => '2026-08-12', 'record_status' => 'voided'],
+        ] as $order) {
+            Order::query()->create([
+                'customer_id' => $this->groupACustomer->id,
+                'institution_id' => $institutionId,
+                'agent_id' => $movedAgent->id,
+                'project_name' => '历史口径测试项目',
+                'amount_krw' => $order['amount_krw'],
+                'completed_on' => $order['occurred_on'],
+                'occurred_on' => $order['occurred_on'],
+                'completed_at' => '2026-08-29 09:00:00',
+                'completion_precision' => 'date',
+                'status' => 'completed',
+                'record_status' => $order['record_status'],
+                'owner_id' => $order['owner_id'],
+                'business_attribution_snapshot' => $snapshot,
+            ]);
+        }
+        AgentBusinessGroupAssignment::query()->create([
+            'agent_id' => $movedAgent->id,
+            'business_group_id' => $this->groupB->id,
+            'effective_from' => '2026-08-16',
+            'effective_until' => null,
+            'assigned_by' => $this->admin->id,
+            'reason' => '历史订单口径测试',
+        ]);
+        BusinessGroupMembership::query()
+            ->where('business_group_id', $this->groupA->id)
+            ->where('user_id', $this->peer->id)
+            ->update(['effective_until' => '2026-08-15']);
+
+        $this->actingAs($this->admin);
+        $team = app(TeamOverviewService::class)->snapshot($this->groupA->id);
+        $selected = $team['selected_group'];
+
+        $this->assertSame(3_000_000, $selected['amount_krw']);
+        $this->assertSame(2, $selected['orders']);
+        $this->assertSame(3_000_000, $team['overview']['amount_krw']);
+        $this->assertSame(1, $selected['customer_service_count']);
+        $this->assertSame(1, $selected['owners'][0]['unset']);
     }
 
     public function test_access_fingerprint_and_dashboard_cache_differ_by_identity(): void

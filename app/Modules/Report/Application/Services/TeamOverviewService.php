@@ -8,6 +8,7 @@ use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Auth\Application\Contracts\BusinessGroupManagementGateway;
 use App\Modules\Auth\Application\Contracts\BusinessGroupMembershipReader;
+use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
 use App\Modules\Auth\Application\Contracts\ReportUserReader;
 use App\Modules\Auth\Application\Data\AccessContext;
 use App\Modules\Customer\Application\Contracts\ReportCustomerReader;
@@ -21,6 +22,7 @@ final readonly class TeamOverviewService
         private AccessContextResolver $access,
         private BusinessGroupManagementGateway $groups,
         private BusinessGroupMembershipReader $memberships,
+        private InternalUserReferenceReader $userReferences,
         private AgentAccessScopeReader $agents,
         private AgentReferenceReader $agentReferences,
         private ReportUserReader $users,
@@ -49,9 +51,17 @@ final readonly class TeamOverviewService
         }
 
         $currentMemberships = $this->groups->memberships($date);
+        $eligibleUserIds = array_map(
+            fn (array $user): int => (int) $user['id'],
+            $this->userReferences->eligibleUsers(),
+        );
+        $activeAgentIds = array_map(
+            fn (array $agent): int => (int) $agent['id'],
+            $this->agentReferences->activeAgents(),
+        );
         $from = $now->startOfMonth();
         $groupSummaries = array_map(
-            fn (array $group): array => $this->groupSummary($group, $currentMemberships, $context, $from, $now),
+            fn (array $group): array => $this->groupSummary($group, $currentMemberships, $context, $from, $now, $eligibleUserIds, $activeAgentIds),
             $groups,
         );
         $selectedGroupId = $requestedGroupId;
@@ -67,7 +77,7 @@ final readonly class TeamOverviewService
             'groups' => $groupSummaries,
             'selected_group_id' => $selectedGroupId,
             'selected_group' => $selectedGroup,
-            'overview' => $this->overview($groupSummaries),
+            'overview' => $selectedGroup === null ? $this->overview($groupSummaries) : $this->groupKpis($selectedGroup),
             'generated_at' => $now->format('Y-m-d H:i:s'),
         ];
     }
@@ -75,10 +85,19 @@ final readonly class TeamOverviewService
     /**
      * @param  array<string, mixed>  $group
      * @param  array<int, array<string, mixed>>  $memberships
+     * @param  list<int>  $eligibleUserIds
+     * @param  list<int>  $activeAgentIds
      * @return array<string, mixed>
      */
-    private function groupSummary(array $group, array $memberships, AccessContext $viewer, CarbonImmutable $from, CarbonImmutable $to): array
-    {
+    private function groupSummary(
+        array $group,
+        array $memberships,
+        AccessContext $viewer,
+        CarbonImmutable $from,
+        CarbonImmutable $to,
+        array $eligibleUserIds,
+        array $activeAgentIds,
+    ): array {
         $groupId = (int) $group['id'];
         $currentMembers = array_values(array_filter(
             $memberships,
@@ -91,17 +110,18 @@ final readonly class TeamOverviewService
             $currentMembers,
         )));
         $agentIds = $this->agents->agentIdsForBusinessGroups([$groupId], $to->toDateString());
-        $activeAgents = $this->agentReferences->activeAgents();
-        $activeAgentIds = array_map(fn (array $agent): int => (int) $agent['id'], $activeAgents);
         $agentIds = array_values(array_intersect($agentIds, $activeAgentIds));
         $names = $this->users->namesByIds($memberIds);
-        $bdMembership = collect($currentMembers)->firstWhere('member_role', 'bd_manager');
+        $bdMembership = collect($currentMembers)->first(
+            fn (array $membership): bool => ($membership['member_role'] ?? null) === 'bd_manager'
+                && in_array((int) ($membership['user_id'] ?? 0), $eligibleUserIds, true),
+        );
         $teamContext = $this->teamContext($viewer, $groupId, $memberIds, $agentIds);
-        $stats = $this->access->using($teamContext, function () use ($ownerIds, $from, $to): array {
+        $stats = $this->access->using($teamContext, function () use ($ownerIds, $groupId, $from, $to): array {
             return [
                 'customers' => $this->customers->teamOverview($ownerIds, $from, $to),
                 'reminders' => $this->reminders->teamOverview($ownerIds, $to),
-                'orders' => $this->orders->teamOverview($ownerIds, $from, $to),
+                'orders' => $this->orders->teamOverview($ownerIds, $groupId, $from, $to),
             ];
         });
         $customerStats = $stats['customers'];
@@ -112,6 +132,7 @@ final readonly class TeamOverviewService
             $customer = $customerStats['owners'][$ownerId] ?? [
                 'customers' => 0,
                 'new_customers' => 0,
+                'unset' => 0,
                 'booked' => 0,
                 'arrived' => 0,
                 'treatment_completed' => 0,
@@ -146,10 +167,37 @@ final readonly class TeamOverviewService
             'pending_transfer_requests' => (int) $customerStats['pending_transfer_requests'],
             'owners' => $owners,
             'attention' => [
+                'missing_bd' => $bdMembership === null,
+                'missing_customer_service' => $ownerIds === [],
                 'overdue_reminders' => (int) $reminderStats['overdue'],
                 'unassigned_customers' => (int) $customerStats['unassigned_customers'],
                 'pending_transfer_requests' => (int) $customerStats['pending_transfer_requests'],
             ],
+            'has_attention' => $bdMembership === null
+                || $ownerIds === []
+                || (int) $reminderStats['overdue'] > 0
+                || (int) $customerStats['unassigned_customers'] > 0
+                || (int) $customerStats['pending_transfer_requests'] > 0,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $group
+     * @return array<string, int>
+     */
+    private function groupKpis(array $group): array
+    {
+        return [
+            'groups' => 1,
+            'agents' => (int) $group['agent_count'],
+            'customer_service' => (int) $group['customer_service_count'],
+            'customers' => (int) $group['customer_count'],
+            'new_customers' => (int) $group['new_customers'],
+            'pending_reminders' => (int) $group['pending_reminders'],
+            'overdue_reminders' => (int) $group['overdue_reminders'],
+            'amount_krw' => (int) $group['amount_krw'],
+            'unassigned_customers' => (int) $group['unassigned_customers'],
+            'pending_transfer_requests' => (int) $group['pending_transfer_requests'],
         ];
     }
 

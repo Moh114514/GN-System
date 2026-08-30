@@ -35,5 +35,5 @@ interface ReportOrderReader
      * @param  list<int>  $ownerIds
      * @return array{orders: int, amount_krw: int, owners: array<int, array{orders: int, amount_krw: int}>}
      */
-    public function teamOverview(array $ownerIds, CarbonImmutable $from, CarbonImmutable $to): array;
+    public function teamOverview(array $ownerIds, int $businessGroupId, CarbonImmutable $from, CarbonImmutable $to): array;
 }

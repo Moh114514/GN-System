@@ -20,9 +20,12 @@ class ReminderCenter extends Component
 
     public string $type = '';
 
-    /** @var array<string, array<string, string>> */
+    public bool $overdue = false;
+
+    /** @var array<string, array<string, bool|string>> */
     protected array $queryString = [
         'type' => ['except' => ''],
+        'overdue' => ['except' => false],
     ];
 
     public string $actionNotes = '';
@@ -90,7 +93,7 @@ class ReminderCenter extends Component
     public function render(ReminderWorkspace $workspace): View
     {
         return view('livewire.reminders.reminder-center', [
-            'reminders' => $workspace->paginate(Auth::user(), false, $this->type),
+            'reminders' => $workspace->paginate(Auth::user(), false, $this->type, $this->overdue),
             'users' => $workspace->assigneeCandidates(),
             'stats' => Auth::user()->isSuperAdmin() || Auth::user()->isBdManager()
                 ? $workspace->completionStats(Auth::user())

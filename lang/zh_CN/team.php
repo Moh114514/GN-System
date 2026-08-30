@@ -44,6 +44,7 @@ return [
         'pending_transfers' => '待处理移交申请',
     ],
     'status' => [
+        'unset' => '未设置',
         'booked' => '预约',
         'arrived' => '到院',
         'treated' => '施术结束',

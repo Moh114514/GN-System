@@ -59,7 +59,7 @@ interface ReportCustomerReader
      *   new_customers: int,
      *   unassigned_customers: int,
      *   pending_transfer_requests: int,
-     *   owners: array<int, array{customers: int, new_customers: int, booked: int, arrived: int, treatment_completed: int}>
+     *   owners: array<int, array{customers: int, new_customers: int, unset: int, booked: int, arrived: int, treatment_completed: int}>
      * }
      */
     public function teamOverview(array $ownerIds, CarbonImmutable $from, CarbonImmutable $to): array;

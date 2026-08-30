@@ -44,6 +44,7 @@ return [
         'pending_transfers' => '처리 대기 인계 신청',
     ],
     'status' => [
+        'unset' => '미설정',
         'booked' => '예약',
         'arrived' => '방문',
         'treated' => '시술 완료',

@@ -27,7 +27,7 @@ Route::middleware(['auth', 'verified', 'super-admin.2fa'])->group(function () {
     Route::get('dashboard', Dashboard::class)->name('dashboard');
 });
 
-Route::middleware(['auth', 'verified'])->prefix('_test')->group(function (): void {
+Route::middleware(['auth', 'verified', 'super-admin.2fa'])->prefix('_test')->group(function (): void {
     Route::post('impersonation', [UserImpersonationController::class, 'store'])
         ->name('test.impersonation.store');
     Route::delete('impersonation', [UserImpersonationController::class, 'destroy'])

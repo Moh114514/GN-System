@@ -244,3 +244,9 @@ UAT/Production 使用 `queue:work`。本地开发与 UAT/Production 操作手册
 - `feature/business-groups-and-roles` 增加 Report 一级“团队管理”页面：BD 只能查看当前有效业务组，超级管理员可查看全局业务组并下钻到组详情；客服不显示入口且直接访问返回 403。
 - 页面通过 Customer、Reminder、Order 的只读 Application Contract 组合客服人数、客户/新增客户、代理商、待跟进/逾期提醒、月度成交及负责人工作量，并复用客户列表、提醒中心和业务组详情入口；未新增数据库表、migration、依赖或环境配置。
 - 已完成 AccessScope、ConfigurationNavigation 直接测试；当前仅在本地 feature 分支验证，未合入 `develop`，未部署或在 UAT/Production 做人工验收。
+
+## 2026-08-30 团队管理 PR2 审查修复
+
+- 团队成交总额现在按 `occurred_on`、`record_status=active` 和订单保存时的业务组归属快照统计；当前客服/代理商后续转组或离组不会改写历史团队口径，负责人拆分仍按 `owner_id` 展示。
+- 超级管理员选择业务组后顶部 KPI 与组详情一致；无有效 BD、无有效客服、逾期提醒、无负责人客户或待处理移交任一存在时标记“需关注”，三个卡片分别带逾期/未分配/待移交筛选下钻。
+- 团队生命周期将空状态显示为“未设置”，客户列表分页增加 `created_at` 后的 `id` 倒序稳定键；测试身份模拟启动路由要求超级管理员已完成 2FA。上述修改已补充本地回归测试，仍未合入或在 UAT/Production 验收。

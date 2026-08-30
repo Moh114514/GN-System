@@ -116,6 +116,19 @@ class UserImpersonationTest extends TestCase
         $this->delete(route('test.impersonation.destroy'))->assertForbidden();
     }
 
+    public function test_unconfirmed_super_admin_cannot_start_impersonation(): void
+    {
+        $this->enableImpersonation('testing');
+        $admin = User::factory()->superAdmin()->create();
+        $target = User::factory()->create(['role' => UserRole::BdManager]);
+
+        $this->actingAs($admin)
+            ->post(route('test.impersonation.store'), ['user_id' => $target->id])
+            ->assertRedirect(route('security.edit', absolute: false));
+
+        $this->get('/')->assertSessionMissing('auth.impersonation.owner_user_id');
+    }
+
     public function test_disabled_or_super_admin_targets_cannot_be_impersonated(): void
     {
         $this->enableImpersonation('testing');

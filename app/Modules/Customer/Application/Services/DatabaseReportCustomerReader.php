@@ -122,8 +122,8 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
             ->leftJoin('customer_statuses as status', 'status.id', '=', 'customers.current_status_id')
             ->where('customers.created_at', '<=', $to)
             ->whereIn('customers.id', $this->scopedCustomerIds())
-            ->selectRaw("COALESCE(status.key, 'booked') as status_key, COUNT(*)::int as value")
-            ->groupByRaw("COALESCE(status.key, 'booked')")
+            ->selectRaw("COALESCE(status.key, 'unset') as status_key, COUNT(*)::int as value")
+            ->groupByRaw("COALESCE(status.key, 'unset')")
             ->pluck('value', 'status_key')
             ->map(fn ($value): int => (int) $value)
             ->all();
@@ -203,9 +203,9 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
             $statusRows = (clone $base)
                 ->whereIn('customers.owner_id', $ownerIds)
                 ->leftJoin('customer_statuses as status', 'status.id', '=', 'customers.current_status_id')
-                ->selectRaw("customers.owner_id::int as owner_id, COALESCE(status.key, 'booked') as status_key, COUNT(*)::int as value")
+                ->selectRaw("customers.owner_id::int as owner_id, COALESCE(status.key, 'unset') as status_key, COUNT(*)::int as value")
                 ->groupBy('customers.owner_id')
-                ->groupByRaw("COALESCE(status.key, 'booked')")
+                ->groupByRaw("COALESCE(status.key, 'unset')")
                 ->get();
             $newRows = (clone $base)
                 ->whereIn('customers.owner_id', $ownerIds)
@@ -221,6 +221,7 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
                 $owners[$ownerId] = [
                     'customers' => 0,
                     'new_customers' => $newByOwner[$ownerId] ?? 0,
+                    'unset' => 0,
                     'booked' => 0,
                     'arrived' => 0,
                     'treatment_completed' => 0,

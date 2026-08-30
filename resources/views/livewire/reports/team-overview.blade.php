@@ -60,15 +60,15 @@
             </div>
 
             <div class="mt-5 grid gap-3 sm:grid-cols-3">
-                <a href="{{ route('reminders.index') }}" wire:navigate class="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/20">
+                <a href="{{ route('reminders.index', ['overdue' => 1]) }}" wire:navigate class="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/20">
                     <span class="text-sm text-amber-800 dark:text-amber-200">{{ __('team.attention.overdue') }}</span>
                     <strong class="mt-1 block text-2xl text-amber-900 dark:text-amber-100">{{ number_format($selectedGroup['overdue_reminders']) }}</strong>
                 </a>
-                <a href="{{ route('customers.index') }}" wire:navigate class="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/20">
+                <a href="{{ route('customers.index', ['ownerState' => 'unassigned']) }}" wire:navigate class="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/20">
                     <span class="text-sm text-red-800 dark:text-red-200">{{ __('team.attention.unassigned') }}</span>
                     <strong class="mt-1 block text-2xl text-red-900 dark:text-red-100">{{ number_format($selectedGroup['unassigned_customers']) }}</strong>
                 </a>
-                <a href="{{ route('customers.index') }}" wire:navigate class="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/20">
+                <a href="{{ route('customers.index', ['transferStatus' => 'pending']) }}" wire:navigate class="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/20">
                     <span class="text-sm text-blue-800 dark:text-blue-200">{{ __('team.attention.pending_transfers') }}</span>
                     <strong class="mt-1 block text-2xl text-blue-900 dark:text-blue-100">{{ number_format($selectedGroup['pending_transfer_requests']) }}</strong>
                 </a>
@@ -109,10 +109,10 @@
             <div class="mt-6 overflow-x-auto">
                 <h4 class="mb-3 text-base font-semibold">{{ __('team.lifecycle') }}</h4>
                 <table class="crm-table min-w-[620px]">
-                    <thead><tr><th>{{ __('team.owner') }}</th><th>{{ __('team.status.booked') }}</th><th>{{ __('team.status.arrived') }}</th><th>{{ __('team.status.treated') }}</th></tr></thead>
+                    <thead><tr><th>{{ __('team.owner') }}</th><th>{{ __('team.status.unset') }}</th><th>{{ __('team.status.booked') }}</th><th>{{ __('team.status.arrived') }}</th><th>{{ __('team.status.treated') }}</th></tr></thead>
                     <tbody>
                         @foreach ($selectedGroup['owners'] as $owner)
-                            <tr wire:key="team-lifecycle-{{ $owner['id'] }}"><td class="font-semibold">{{ $owner['name'] }}</td><td>{{ number_format($owner['booked']) }}</td><td>{{ number_format($owner['arrived']) }}</td><td>{{ number_format($owner['treatment_completed']) }}</td></tr>
+                            <tr wire:key="team-lifecycle-{{ $owner['id'] }}"><td class="font-semibold">{{ $owner['name'] }}</td><td>{{ number_format($owner['unset']) }}</td><td>{{ number_format($owner['booked']) }}</td><td>{{ number_format($owner['arrived']) }}</td><td>{{ number_format($owner['treatment_completed']) }}</td></tr>
                         @endforeach
                     </tbody>
                 </table>
@@ -141,7 +141,7 @@
                                 <td>{{ number_format($group['customer_count']) }}</td>
                                 <td>{{ number_format($group['pending_reminders']) }}</td>
                                 <td><span class="crm-pill {{ $group['overdue_reminders'] > 0 ? 'tone-red' : 'tone-blue' }}">{{ number_format($group['overdue_reminders']) }}</span></td>
-                                <td>{{ $group['overdue_reminders'] > 0 || $group['unassigned_customers'] > 0 ? __('team.needs_attention') : __('team.normal') }}</td>
+                                <td>{{ $group['has_attention'] ? __('team.needs_attention') : __('team.normal') }}</td>
                                 <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('team-overview.index', ['groupId' => $group['id']]) }}" wire:navigate>{{ __('team.view_group') }} →</a></td>
                             </tr>
                         @empty

@@ -61,13 +61,14 @@ final readonly class ReminderWorkspace
     }
 
     /** @return LengthAwarePaginator<int, Reminder> */
-    public function paginate(User $user, bool $history, ?string $type = null): LengthAwarePaginator
+    public function paginate(User $user, bool $history, ?string $type = null, bool $overdueOnly = false): LengthAwarePaginator
     {
         /** @var LengthAwarePaginator<int, Reminder> $page */
         $page = $this->visible(Reminder::query(), $user)
             ->when($history, fn (Builder $query) => $query->whereIn('status', ['completed', 'cancelled']))
             ->when(! $history, fn (Builder $query) => $query->whereIn('status', ['pending', 'snoozed', 'transferred']))
             ->when($type !== null && $type !== '', fn (Builder $query) => $query->where('reminder_type', $type))
+            ->when($overdueOnly && ! $history, fn (Builder $query) => $query->where('due_at', '<', $this->clock->now()))
             ->orderBy('due_at')
             ->orderBy('priority')
             ->orderBy('id')

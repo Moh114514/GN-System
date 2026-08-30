@@ -18,7 +18,7 @@
             $selectedAgent = collect($options['agents'])->firstWhere('id', (int) $agentId);
             $selectedInstitution = collect($options['institutions'])->firstWhere('id', (int) $institutionId);
             $selectedOwner = collect($ownerCandidates)->firstWhere('id', (int) $ownerId);
-            $hasFilters = $search !== '' || $statusId !== '' || $agentId !== '' || $institutionId !== '' || $ownerId !== '' || $createdFrom !== '' || $createdTo !== '' || $perPage !== 20;
+            $hasFilters = $search !== '' || $statusId !== '' || $agentId !== '' || $institutionId !== '' || $ownerId !== '' || $ownerState !== '' || $transferStatus !== '' || $createdFrom !== '' || $createdTo !== '' || $perPage !== 20;
         @endphp
 
         <div class="space-y-4">
@@ -40,6 +40,26 @@
                     @foreach ($options['statuses'] as $status)
                         <flux:menu.item wire:click="$set('statusId', '{{ $status['id'] }}')">{{ $status['name'] }}</flux:menu.item>
                     @endforeach
+                </flux:menu>
+            </flux:dropdown>
+
+            <flux:dropdown>
+                <flux:button class="w-36 rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
+                    {{ $ownerState === 'unassigned' ? __('customers.list.unassigned_owners') : __('customers.list.all_owner_states') }}
+                </flux:button>
+                <flux:menu>
+                    <flux:menu.item wire:click="$set('ownerState', '')">{{ __('customers.list.all_owner_states') }}</flux:menu.item>
+                    <flux:menu.item wire:click="$set('ownerState', 'unassigned')">{{ __('customers.list.unassigned_owners') }}</flux:menu.item>
+                </flux:menu>
+            </flux:dropdown>
+
+            <flux:dropdown>
+                <flux:button class="w-36 rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
+                    {{ $transferStatus === 'pending' ? __('customers.list.pending_transfers') : __('customers.list.all_transfer_statuses') }}
+                </flux:button>
+                <flux:menu>
+                    <flux:menu.item wire:click="$set('transferStatus', '')">{{ __('customers.list.all_transfer_statuses') }}</flux:menu.item>
+                    <flux:menu.item wire:click="$set('transferStatus', 'pending')">{{ __('customers.list.pending_transfers') }}</flux:menu.item>
                 </flux:menu>
             </flux:dropdown>
 

@@ -10,7 +10,10 @@
 
     <div class="space-y-4">
         <section class="rounded-xl border border-zinc-200 bg-white p-4 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-            <div class="w-full max-w-xs"><flux:select wire:model.live="type" :label="__('reminders.center.type')"><flux:select.option value="">{{ __('reminders.center.all_types') }}</flux:select.option><flux:select.option value="appointment">{{ __('reminders.center.appointment') }}</flux:select.option><flux:select.option value="post_treatment">{{ __('reminders.center.post_treatment') }}</flux:select.option><flux:select.option value="date_offset">{{ __('reminders.center.date_offset') }}</flux:select.option><flux:select.option value="fixed_cycle">{{ __('reminders.center.fixed_cycle') }}</flux:select.option><flux:select.option value="holiday_date">{{ __('reminders.center.holiday_date') }}</flux:select.option><flux:select.option value="custom">{{ __('reminders.center.custom') }}</flux:select></flux:select></div>
+            <div class="grid w-full max-w-xl gap-3 sm:grid-cols-2">
+                <flux:select wire:model.live="type" :label="__('reminders.center.type')"><flux:select.option value="">{{ __('reminders.center.all_types') }}</flux:select.option><flux:select.option value="appointment">{{ __('reminders.center.appointment') }}</flux:select.option><flux:select.option value="post_treatment">{{ __('reminders.center.post_treatment') }}</flux:select.option><flux:select.option value="date_offset">{{ __('reminders.center.date_offset') }}</flux:select.option><flux:select.option value="fixed_cycle">{{ __('reminders.center.fixed_cycle') }}</flux:select.option><flux:select.option value="holiday_date">{{ __('reminders.center.holiday_date') }}</flux:select.option><flux:select.option value="custom">{{ __('reminders.center.custom') }}</flux:select.option></flux:select>
+                <flux:select wire:model.live="overdue" :label="__('reminders.center.due_filter')"><flux:select.option value="0">{{ __('reminders.center.all_due') }}</flux:select.option><flux:select.option value="1">{{ __('reminders.center.overdue_only') }}</flux:select.option></flux:select>
+            </div>
         </section>
 
         <section data-test="reminder-list" class="grid items-start gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
