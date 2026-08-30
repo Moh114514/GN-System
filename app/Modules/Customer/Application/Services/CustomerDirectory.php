@@ -3,12 +3,15 @@
 namespace App\Modules\Customer\Application\Services;
 
 use App\Infrastructure\Time\BusinessClock;
+use App\Modules\Agent\Application\Contracts\AgentAccessScopeReader;
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Auth\Application\Contracts\BusinessGroupMembershipReader;
+use App\Modules\Auth\Application\Contracts\BusinessGroupReferenceReader;
 use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
 use App\Modules\Auth\Application\Contracts\ReportUserReader;
+use App\Modules\Auth\Application\Data\AccessContext;
 use App\Modules\Config\Application\Contracts\InstitutionReferenceReader;
 use App\Modules\Customer\Domain\BlindIndex;
 use App\Modules\Customer\Domain\CustomerLabelLocalizer;
@@ -34,6 +37,7 @@ final readonly class CustomerDirectory
         private CustomerLabelLocalizer $labels,
         private SensitiveValueMasker $masker,
         private AgentReferenceReader $agents,
+        private AgentAccessScopeReader $agentScope,
         private InternalUserReferenceReader $assignableUsers,
         private ReportUserReader $userNames,
         private InstitutionReferenceReader $institutions,
@@ -42,11 +46,12 @@ final readonly class CustomerDirectory
         private AuditRecorder $audit,
         private AccessContextResolver $access,
         private BusinessGroupMembershipReader $memberships,
+        private BusinessGroupReferenceReader $groups,
         private BusinessClock $clock,
     ) {}
 
     /**
-     * @param  array{search?: string, status_id?: int|null, agent_id?: int|null, institution_id?: int|null, owner_id?: int|null, owner_state?: string, transfer_status?: string, created_from?: string, created_to?: string}  $filters
+     * @param  array{search?: string, status_id?: int|null, agent_id?: int|null, institution_id?: int|null, owner_id?: int|null, owner_state?: string, transfer_status?: string, business_group_id?: int|null, created_from?: string, created_to?: string}  $filters
      * @return LengthAwarePaginator<int, array{id: int, code: string, name: string, contact_masked: string, document_masked: string, status: string, source: string, owner_id: int|null, owner: string|null, created_at: string|null}>
      */
     public function paginate(array $filters, int $perPage): LengthAwarePaginator
@@ -80,8 +85,30 @@ final readonly class CustomerDirectory
         if (($filters['owner_id'] ?? null) !== null) {
             $query->where('owner_id', (int) $filters['owner_id']);
         }
+        $businessGroupId = ($filters['business_group_id'] ?? null) === null ? null : (int) $filters['business_group_id'];
+        if ($businessGroupId !== null) {
+            $this->assertBusinessGroupVisible($businessGroupId, $context);
+            $agentIds = $this->agentScope->agentIdsForBusinessGroups([$businessGroupId], $this->clock->now()->toDateString());
+            if ($agentIds === []) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereIn('source_agent_id', $agentIds);
+            }
+        }
         if (($filters['owner_state'] ?? null) === 'unassigned') {
             $query->whereNull('owner_id');
+        }
+        if (($filters['owner_state'] ?? null) === 'invalid') {
+            $validOwnerIds = $this->memberships->activeCustomerServiceUserIds(
+                $businessGroupId !== null
+                    ? [$businessGroupId]
+                    : ($context->isSuperAdmin() ? null : $context->businessGroupIds),
+                $this->clock->now()->toDateString(),
+            );
+            $query->whereNotNull('owner_id');
+            if ($validOwnerIds !== []) {
+                $query->whereNotIn('owner_id', $validOwnerIds);
+            }
         }
         if (($filters['transfer_status'] ?? null) === 'pending') {
             $query->whereExists(function ($transferQuery): void {
@@ -133,6 +160,16 @@ final readonly class CustomerDirectory
             $page->perPage(),
             $page->currentPage(),
             ['path' => request()->url(), 'query' => request()->query()],
+        );
+    }
+
+    private function assertBusinessGroupVisible(int $businessGroupId, AccessContext $context): void
+    {
+        abort_unless(
+            $context->isSuperAdmin()
+                ? $this->groups->exists($businessGroupId, true)
+                : in_array($businessGroupId, $context->businessGroupIds, true),
+            404,
         );
     }
 

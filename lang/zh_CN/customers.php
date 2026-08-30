@@ -15,7 +15,7 @@ return [
         'all_agents' => '全部代理商',
         'all_institutions' => '全部机构',
         'all_owners' => '全部负责人',
-        'all_owner_states' => '全部负责人状态',
+        'all_owner_states' => '全部负责人状态', 'invalid_owners' => '负责人异常',
         'unassigned_owners' => '暂无负责人',
         'all_transfer_statuses' => '全部移交状态',
         'pending_transfers' => '待处理移交',

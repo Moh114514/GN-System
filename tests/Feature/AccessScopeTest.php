@@ -274,6 +274,91 @@ class AccessScopeTest extends TestCase
         $this->assertSame(1, $selected['owners'][0]['unset']);
     }
 
+    public function test_team_overview_includes_paused_agents_and_marks_invalid_owners(): void
+    {
+        $pausedAgent = Agent::query()->create([
+            'agent_type_code_id' => AgentTypeCode::query()->value('id'),
+            'code' => 'SCOPE-PAUSED',
+            'name' => '暂停代理商',
+            'cooperation_status' => 'paused',
+        ]);
+        AgentBusinessGroupAssignment::query()->create([
+            'agent_id' => $pausedAgent->id,
+            'business_group_id' => $this->groupA->id,
+            'effective_from' => '2026-01-01',
+            'effective_until' => null,
+            'assigned_by' => $this->admin->id,
+            'reason' => '暂停代理商范围测试',
+        ]);
+        Customer::query()->create([
+            'code' => 'SCOPE-PAUSED-CUSTOMER',
+            'name' => '暂停代理商客户',
+            'source_agent_id' => $pausedAgent->id,
+            'current_status_id' => $this->groupACustomer->current_status_id,
+            'owner_id' => $this->peer->id,
+        ]);
+
+        $this->actingAs($this->admin);
+        $before = app(TeamOverviewService::class)->snapshot($this->groupA->id)['selected_group'];
+        $this->assertSame(2, $before['customer_count']);
+        $this->assertSame(1, $before['agent_count']);
+
+        $this->owner->update(['is_active' => false]);
+        BusinessGroupMembership::query()
+            ->where('business_group_id', $this->groupA->id)
+            ->where('user_id', $this->owner->id)
+            ->update(['effective_until' => '2026-08-15']);
+        $after = app(TeamOverviewService::class)->snapshot($this->groupA->id)['selected_group'];
+
+        $this->assertSame(2, $after['customer_count']);
+        $this->assertSame(1, $after['owner_exception_customers']);
+        $this->assertSame(0, $after['unassigned_customers']);
+        $this->assertTrue($after['has_attention']);
+        $this->assertSame(1, app(CustomerDirectory::class)->paginate([
+            'business_group_id' => $this->groupA->id,
+            'owner_state' => 'invalid',
+        ], 20)->total());
+    }
+
+    public function test_historical_order_attribution_backfill_is_previewable_audited_and_explicit(): void
+    {
+        $order = Order::query()->create([
+            'customer_id' => $this->groupACustomer->id,
+            'institution_id' => Institution::query()->value('id'),
+            'agent_id' => $this->groupACustomer->source_agent_id,
+            'project_name' => '历史快照回填测试',
+            'amount_krw' => 100000,
+            'completed_on' => '2026-08-10',
+            'occurred_on' => '2026-08-10',
+            'completed_at' => '2026-08-10 10:00:00',
+            'completion_precision' => 'date',
+            'status' => 'completed',
+            'record_status' => 'active',
+            'owner_id' => $this->owner->id,
+            'business_attribution_snapshot' => null,
+        ]);
+
+        $this->artisan('app:backfill-order-attribution-snapshots')
+            ->assertExitCode(0)
+            ->expectsOutputToContain('Preview only');
+        $this->assertNull($order->refresh()->business_attribution_snapshot);
+
+        $this->artisan('app:backfill-order-attribution-snapshots', [
+            '--apply' => true,
+            '--actor' => $this->admin->id,
+            '--reason' => '补齐历史订单归属事实',
+        ])->assertExitCode(0);
+        $snapshot = $order->refresh()->business_attribution_snapshot;
+
+        $this->assertIsArray($snapshot);
+        $this->assertSame($this->groupA->id, $snapshot['business_group']['business_group_id']);
+        $this->assertDatabaseHas('activity_log', [
+            'subject_type' => $order->getMorphClass(),
+            'subject_id' => $order->id,
+            'event' => 'attribution_snapshot_backfilled',
+        ]);
+    }
+
     public function test_access_fingerprint_and_dashboard_cache_differ_by_identity(): void
     {
         $resolver = app(AccessContextResolver::class);

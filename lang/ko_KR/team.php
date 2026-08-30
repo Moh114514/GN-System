@@ -18,6 +18,7 @@ return [
         'pending_reminders' => '후속 알림',
         'overdue_reminders' => '기한 초과 알림',
         'monthly_sales' => '이번 달 거래',
+        'owner_exception_customers' => '담당자 이상 고객',
     ],
     'workload' => 'CS 업무량',
     'lifecycle' => '고객 상태 분포',
@@ -42,6 +43,7 @@ return [
         'overdue' => '기한 초과 알림',
         'unassigned' => '담당자 미지정 고객',
         'pending_transfers' => '처리 대기 인계 신청',
+        'owner_exception' => '담당자 이상 고객',
     ],
     'status' => [
         'unset' => '미설정',

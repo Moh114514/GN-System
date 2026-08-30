@@ -110,7 +110,7 @@ final readonly class TeamOverviewService
             $currentMembers,
         )));
         $agentIds = $this->agents->agentIdsForBusinessGroups([$groupId], $to->toDateString());
-        $agentIds = array_values(array_intersect($agentIds, $activeAgentIds));
+        $activeGroupAgentIds = array_values(array_intersect($agentIds, $activeAgentIds));
         $names = $this->users->namesByIds($memberIds);
         $bdMembership = collect($currentMembers)->first(
             fn (array $membership): bool => ($membership['member_role'] ?? null) === 'bd_manager'
@@ -155,7 +155,7 @@ final readonly class TeamOverviewService
             'code' => (string) $group['code'],
             'name' => (string) $group['name'],
             'bd_name' => $bdMembership === null ? __('customers.fallback.unset') : ($names[(int) $bdMembership['user_id']] ?? __('customers.fallback.unknown_owner')),
-            'agent_count' => count($agentIds),
+            'agent_count' => count($activeGroupAgentIds),
             'customer_service_count' => count($ownerIds),
             'customer_count' => (int) $customerStats['total_customers'],
             'new_customers' => (int) $customerStats['new_customers'],
@@ -164,6 +164,7 @@ final readonly class TeamOverviewService
             'amount_krw' => (int) $orderStats['amount_krw'],
             'orders' => (int) $orderStats['orders'],
             'unassigned_customers' => (int) $customerStats['unassigned_customers'],
+            'owner_exception_customers' => (int) $customerStats['owner_exception_customers'],
             'pending_transfer_requests' => (int) $customerStats['pending_transfer_requests'],
             'owners' => $owners,
             'attention' => [
@@ -171,12 +172,14 @@ final readonly class TeamOverviewService
                 'missing_customer_service' => $ownerIds === [],
                 'overdue_reminders' => (int) $reminderStats['overdue'],
                 'unassigned_customers' => (int) $customerStats['unassigned_customers'],
+                'owner_exception_customers' => (int) $customerStats['owner_exception_customers'],
                 'pending_transfer_requests' => (int) $customerStats['pending_transfer_requests'],
             ],
             'has_attention' => $bdMembership === null
                 || $ownerIds === []
                 || (int) $reminderStats['overdue'] > 0
                 || (int) $customerStats['unassigned_customers'] > 0
+                || (int) $customerStats['owner_exception_customers'] > 0
                 || (int) $customerStats['pending_transfer_requests'] > 0,
         ];
     }
@@ -197,6 +200,7 @@ final readonly class TeamOverviewService
             'overdue_reminders' => (int) $group['overdue_reminders'],
             'amount_krw' => (int) $group['amount_krw'],
             'unassigned_customers' => (int) $group['unassigned_customers'],
+            'owner_exception_customers' => (int) $group['owner_exception_customers'],
             'pending_transfer_requests' => (int) $group['pending_transfer_requests'],
         ];
     }
@@ -217,6 +221,7 @@ final readonly class TeamOverviewService
             'overdue_reminders' => array_sum(array_column($groups, 'overdue_reminders')),
             'amount_krw' => array_sum(array_column($groups, 'amount_krw')),
             'unassigned_customers' => array_sum(array_column($groups, 'unassigned_customers')),
+            'owner_exception_customers' => array_sum(array_column($groups, 'owner_exception_customers')),
             'pending_transfer_requests' => array_sum(array_column($groups, 'pending_transfer_requests')),
         ];
     }

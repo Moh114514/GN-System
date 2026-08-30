@@ -10,6 +10,7 @@
             ['pending_reminders', __('team.metrics.pending_reminders'), 'bell-alert', 'amber'],
             ['overdue_reminders', __('team.metrics.overdue_reminders'), 'exclamation-triangle', 'red'],
             ['amount_krw', __('team.metrics.monthly_sales'), 'banknotes', 'teal'],
+            ['owner_exception_customers', __('team.metrics.owner_exception_customers'), 'user-minus', 'red'],
         ];
     @endphp
 
@@ -59,16 +60,20 @@
                 <div class="text-sm text-zinc-500">{{ __('team.generated_at') }}：{{ $snapshot['generated_at'] }}</div>
             </div>
 
-            <div class="mt-5 grid gap-3 sm:grid-cols-3">
-                <a href="{{ route('reminders.index', ['overdue' => 1]) }}" wire:navigate class="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/20">
+            <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <a href="{{ route('reminders.index', ['businessGroupId' => $selectedGroup['id'], 'overdue' => 1]) }}" wire:navigate class="rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/20">
                     <span class="text-sm text-amber-800 dark:text-amber-200">{{ __('team.attention.overdue') }}</span>
                     <strong class="mt-1 block text-2xl text-amber-900 dark:text-amber-100">{{ number_format($selectedGroup['overdue_reminders']) }}</strong>
                 </a>
-                <a href="{{ route('customers.index', ['ownerState' => 'unassigned']) }}" wire:navigate class="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/20">
+                <a href="{{ route('customers.index', ['businessGroupId' => $selectedGroup['id'], 'ownerState' => 'unassigned']) }}" wire:navigate class="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/20">
                     <span class="text-sm text-red-800 dark:text-red-200">{{ __('team.attention.unassigned') }}</span>
                     <strong class="mt-1 block text-2xl text-red-900 dark:text-red-100">{{ number_format($selectedGroup['unassigned_customers']) }}</strong>
                 </a>
-                <a href="{{ route('customers.index', ['transferStatus' => 'pending']) }}" wire:navigate class="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/20">
+                <a href="{{ route('customers.index', ['businessGroupId' => $selectedGroup['id'], 'ownerState' => 'invalid']) }}" wire:navigate class="rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-900 dark:bg-red-950/20">
+                    <span class="text-sm text-red-800 dark:text-red-200">{{ __('team.attention.owner_exception') }}</span>
+                    <strong class="mt-1 block text-2xl text-red-900 dark:text-red-100">{{ number_format($selectedGroup['owner_exception_customers']) }}</strong>
+                </a>
+                <a href="{{ route('customers.index', ['businessGroupId' => $selectedGroup['id'], 'transferStatus' => 'pending']) }}" wire:navigate class="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950/20">
                     <span class="text-sm text-blue-800 dark:text-blue-200">{{ __('team.attention.pending_transfers') }}</span>
                     <strong class="mt-1 block text-2xl text-blue-900 dark:text-blue-100">{{ number_format($selectedGroup['pending_transfer_requests']) }}</strong>
                 </a>

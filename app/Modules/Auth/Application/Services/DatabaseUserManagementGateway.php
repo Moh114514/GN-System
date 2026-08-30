@@ -3,6 +3,7 @@
 namespace App\Modules\Auth\Application\Services;
 
 use App\Infrastructure\Localization\SupportedLocale;
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Auth\Application\Contracts\UserManagementGateway;
@@ -17,7 +18,10 @@ use Throwable;
 
 final readonly class DatabaseUserManagementGateway implements UserManagementGateway
 {
-    public function __construct(private AuditRecorder $audit) {}
+    public function __construct(
+        private AuditRecorder $audit,
+        private BusinessClock $clock,
+    ) {}
 
     public function users(): array
     {
@@ -154,7 +158,7 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
             if ($currentRole !== $newRole && DB::table('business_group_memberships')
                 ->where('user_id', $user->id)
                 ->where(function ($query): void {
-                    $query->whereNull('effective_until')->orWhereDate('effective_until', '>=', now()->toDateString());
+                    $query->whereNull('effective_until')->orWhereDate('effective_until', '>=', $this->clock->now()->toDateString());
                 })
                 ->exists()) {
                 throw new DomainException(__('auth.errors.user_role_has_active_membership'));

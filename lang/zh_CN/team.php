@@ -18,6 +18,7 @@ return [
         'pending_reminders' => '待跟进提醒',
         'overdue_reminders' => '逾期提醒',
         'monthly_sales' => '本月成交',
+        'owner_exception_customers' => '负责人异常客户',
     ],
     'workload' => '客服工作负载',
     'lifecycle' => '客户状态分布',
@@ -42,6 +43,7 @@ return [
         'overdue' => '逾期提醒',
         'unassigned' => '暂无负责人客户',
         'pending_transfers' => '待处理移交申请',
+        'owner_exception' => '负责人异常客户',
     ],
     'status' => [
         'unset' => '未设置',

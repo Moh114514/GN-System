@@ -23,7 +23,7 @@
                         <div class="min-w-0">
                             <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
                                 <h3 class="text-base font-semibold leading-6">{{ $reminder->title }}</h3>
-                                <span class="crm-pill {{ $reminder->due_at->isPast() ? 'tone-red' : 'tone-amber' }}">{{ $reminder->due_at->isPast() ? __('reminders.center.due') : __('reminders.center.pending') }}</span>
+                                <span class="crm-pill {{ $reminder->due_at->lt($businessNow) ? 'tone-red' : 'tone-amber' }}">{{ $reminder->due_at->lt($businessNow) ? __('reminders.center.due') : __('reminders.center.pending') }}</span>
                             </div>
                             <p class="mt-2 flex flex-wrap items-center gap-x-2 text-sm text-zinc-600 dark:text-zinc-300">
                                 @if (isset($customerNames[$reminder->customer_id]))

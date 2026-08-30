@@ -45,11 +45,12 @@
 
             <flux:dropdown>
                 <flux:button class="w-36 rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
-                    {{ $ownerState === 'unassigned' ? __('customers.list.unassigned_owners') : __('customers.list.all_owner_states') }}
+                    {{ $ownerState === 'unassigned' ? __('customers.list.unassigned_owners') : ($ownerState === 'invalid' ? __('customers.list.invalid_owners') : __('customers.list.all_owner_states')) }}
                 </flux:button>
                 <flux:menu>
                     <flux:menu.item wire:click="$set('ownerState', '')">{{ __('customers.list.all_owner_states') }}</flux:menu.item>
                     <flux:menu.item wire:click="$set('ownerState', 'unassigned')">{{ __('customers.list.unassigned_owners') }}</flux:menu.item>
+                    <flux:menu.item wire:click="$set('ownerState', 'invalid')">{{ __('customers.list.invalid_owners') }}</flux:menu.item>
                 </flux:menu>
             </flux:dropdown>
 

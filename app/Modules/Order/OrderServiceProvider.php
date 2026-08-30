@@ -20,6 +20,7 @@ use App\Modules\Order\Application\Services\DatabaseOrderLifecycleGateway;
 use App\Modules\Order\Application\Services\DatabaseReminderSourceReader;
 use App\Modules\Order\Application\Services\DatabaseReportOrderReader;
 use App\Modules\Order\Application\Services\DatabaseSettlementOrderReader;
+use App\Modules\Order\Console\BackfillOrderAttributionSnapshotsCommand;
 use App\Modules\Order\Presentation\Http\InstitutionReturnFileController;
 use App\Modules\Order\Presentation\Livewire\CustomerOrders;
 use App\Modules\Order\Presentation\Livewire\InstitutionReturnCenter;
@@ -47,6 +48,10 @@ class OrderServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        if ($this->app->runningInConsole()) {
+            $this->commands([BackfillOrderAttributionSnapshotsCommand::class]);
+        }
+
         Route::middleware(['web', 'auth', 'verified', 'super-admin.2fa'])
             ->group(function (): void {
                 Route::get('/orders', OrderCenter::class)->name('orders.index');

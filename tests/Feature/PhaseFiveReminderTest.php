@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\User;
 use App\Modules\Agent\Application\Contracts\AgentBusinessGroupAssignmentGateway;
 use App\Modules\Agent\Infrastructure\Models\Agent;
+use App\Modules\Agent\Infrastructure\Models\AgentBusinessGroupAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Auth\Application\Contracts\BusinessGroupManagementGateway;
 use App\Modules\Config\Infrastructure\Models\Institution;
@@ -498,6 +499,58 @@ class PhaseFiveReminderTest extends TestCase
         $page = app(ReminderWorkspace::class)->paginate($this->user, false);
 
         $this->assertSame([$earlier->id, $later->id], $page->getCollection()->pluck('id')->all());
+    }
+
+    public function test_reminder_center_can_filter_overdue_reminders_by_business_group(): void
+    {
+        $groupId = (int) AgentBusinessGroupAssignment::query()->where('agent_id', $this->agent->id)->value('business_group_id');
+        $otherGroupId = app(BusinessGroupManagementGateway::class)->create('REMINDER-OTHER', 'Other reminder group', $this->admin->id, null)['id'];
+        $otherAgent = Agent::query()->create([
+            'agent_type_code_id' => AgentTypeCode::query()->where('code', 'JG')->value('id'),
+            'code' => 'REM-OTHER',
+            'name' => '其他提醒代理商',
+            'cooperation_status' => 'active',
+        ]);
+        app(AgentBusinessGroupAssignmentGateway::class)->assign($otherAgent->id, $otherGroupId, '2026-01-01', null, 'Reminder group filter test', $this->admin->id, null);
+        $otherCustomer = Customer::query()->create([
+            'code' => 'REMIND-OTHER',
+            'name' => '其他提醒客户',
+            'source_agent_id' => $otherAgent->id,
+            'owner_id' => $this->admin->id,
+        ]);
+        $groupReminder = Reminder::query()->create([
+            'customer_id' => $this->customer->id,
+            'assigned_to' => $this->user->id,
+            'created_by' => $this->user->id,
+            'source_type' => 'custom',
+            'reminder_type' => 'custom',
+            'title' => '业务组逾期提醒',
+            'due_at' => now()->subHour(),
+            'status' => 'pending',
+            'notification_status' => 'pending',
+            'dedupe_key' => hash('sha256', 'group-overdue'),
+        ]);
+        Reminder::query()->create([
+            'customer_id' => $otherCustomer->id,
+            'assigned_to' => $this->admin->id,
+            'created_by' => $this->admin->id,
+            'source_type' => 'custom',
+            'reminder_type' => 'custom',
+            'title' => '其他业务组逾期提醒',
+            'due_at' => now()->subHour(),
+            'status' => 'pending',
+            'notification_status' => 'pending',
+            'dedupe_key' => hash('sha256', 'other-group-overdue'),
+        ]);
+
+        $page = app(ReminderWorkspace::class)->paginate($this->admin, false, null, true, $groupId);
+        $this->assertSame([$groupReminder->id], $page->getCollection()->pluck('id')->all());
+        Livewire::actingAs($this->admin)->test(ReminderCenter::class)
+            ->assertSet('businessGroupId', '')
+            ->set('businessGroupId', (string) $groupId)
+            ->set('overdue', true)
+            ->assertSee('业务组逾期提醒')
+            ->assertDontSee('其他业务组逾期提醒');
     }
 
     public function test_korean_user_sees_localized_reminder_pages(): void

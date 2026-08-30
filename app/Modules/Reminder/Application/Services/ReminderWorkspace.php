@@ -4,7 +4,9 @@ namespace App\Modules\Reminder\Application\Services;
 
 use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
+use App\Modules\Agent\Application\Contracts\AgentAccessScopeReader;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
+use App\Modules\Auth\Application\Contracts\BusinessGroupReferenceReader;
 use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
 use App\Modules\Customer\Application\Contracts\ReminderCustomerReader;
 use App\Modules\Customer\Application\Data\ReminderCustomerData;
@@ -25,6 +27,8 @@ final readonly class ReminderWorkspace
         private ReminderContentPresenter $content,
         private BusinessClock $clock,
         private AccessContextResolver $access,
+        private AgentAccessScopeReader $agentScope,
+        private BusinessGroupReferenceReader $groups,
     ) {}
 
     /** @return array<int, ReminderCustomerData> */
@@ -61,14 +65,17 @@ final readonly class ReminderWorkspace
     }
 
     /** @return LengthAwarePaginator<int, Reminder> */
-    public function paginate(User $user, bool $history, ?string $type = null, bool $overdueOnly = false): LengthAwarePaginator
+    public function paginate(User $user, bool $history, ?string $type = null, bool $overdueOnly = false, ?int $businessGroupId = null): LengthAwarePaginator
     {
+        $customerIds = $businessGroupId === null ? null : $this->customerIdsForBusinessGroup($businessGroupId);
         /** @var LengthAwarePaginator<int, Reminder> $page */
         $page = $this->visible(Reminder::query(), $user)
             ->when($history, fn (Builder $query) => $query->whereIn('status', ['completed', 'cancelled']))
             ->when(! $history, fn (Builder $query) => $query->whereIn('status', ['pending', 'snoozed', 'transferred']))
             ->when($type !== null && $type !== '', fn (Builder $query) => $query->where('reminder_type', $type))
             ->when($overdueOnly && ! $history, fn (Builder $query) => $query->where('due_at', '<', $this->clock->now()))
+            ->when($customerIds !== null && $customerIds === [], fn (Builder $query) => $query->whereRaw('1 = 0'))
+            ->when($customerIds !== null && $customerIds !== [], fn (Builder $query) => $query->whereIn('customer_id', $customerIds))
             ->orderBy('due_at')
             ->orderBy('priority')
             ->orderBy('id')
@@ -78,6 +85,29 @@ final readonly class ReminderWorkspace
         ));
 
         return $page;
+    }
+
+    /** @return list<int> */
+    private function customerIdsForBusinessGroup(int $businessGroupId): array
+    {
+        $context = $this->access->current();
+        abort_unless(
+            $context->isSuperAdmin()
+                ? $this->groups->exists($businessGroupId, true)
+                : in_array($businessGroupId, $context->businessGroupIds, true),
+            404,
+        );
+        $agentIds = $this->agentScope->agentIdsForBusinessGroups([$businessGroupId], $this->clock->now()->toDateString());
+        if ($agentIds === []) {
+            return [];
+        }
+
+        return collect($this->customers->candidates())
+            ->filter(fn (ReminderCustomerData $customer): bool => $customer->sourceAgentId !== null && in_array($customer->sourceAgentId, $agentIds, true))
+            ->pluck('id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->values()
+            ->all();
     }
 
     /** @param array<string, mixed>|null $recurrence */

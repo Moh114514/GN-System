@@ -33,6 +33,8 @@ class CustomerList extends Component
 
     public string $transferStatus = '';
 
+    public string $businessGroupId = '';
+
     public string $createdFrom = '';
 
     public string $createdTo = '';
@@ -58,6 +60,7 @@ class CustomerList extends Component
         'ownerId' => ['except' => ''],
         'ownerState' => ['except' => ''],
         'transferStatus' => ['except' => ''],
+        'businessGroupId' => ['except' => ''],
         'createdFrom' => ['except' => ''],
         'createdTo' => ['except' => ''],
         'perPage' => ['except' => 20],
@@ -70,14 +73,20 @@ class CustomerList extends Component
 
     public function updated(string $property): void
     {
-        if (in_array($property, ['search', 'statusId', 'agentId', 'institutionId', 'ownerId', 'ownerState', 'transferStatus', 'createdFrom', 'createdTo', 'perPage'], true)) {
+        if ($property === 'ownerId' && $this->ownerId !== '') {
+            $this->ownerState = '';
+        }
+        if ($property === 'ownerState' && $this->ownerState !== '') {
+            $this->ownerId = '';
+        }
+        if (in_array($property, ['search', 'statusId', 'agentId', 'institutionId', 'ownerId', 'ownerState', 'transferStatus', 'businessGroupId', 'createdFrom', 'createdTo', 'perPage'], true)) {
             $this->resetPage();
         }
     }
 
     public function clearFilters(): void
     {
-        $this->reset('search', 'statusId', 'agentId', 'institutionId', 'ownerId', 'ownerState', 'transferStatus', 'createdFrom', 'createdTo');
+        $this->reset('search', 'statusId', 'agentId', 'institutionId', 'ownerId', 'ownerState', 'transferStatus', 'businessGroupId', 'createdFrom', 'createdTo');
         $this->perPage = 20;
         $this->resetPage();
     }
@@ -149,6 +158,7 @@ class CustomerList extends Component
                 'owner_id' => $this->ownerId === '' ? null : (int) $this->ownerId,
                 'owner_state' => $this->ownerState,
                 'transfer_status' => $this->transferStatus,
+                'business_group_id' => $this->businessGroupId === '' ? null : (int) $this->businessGroupId,
                 'created_from' => $this->createdFrom,
                 'created_to' => $this->createdTo,
             ], $perPage);

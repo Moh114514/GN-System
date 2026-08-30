@@ -127,6 +127,21 @@ where o.status = 'completed'
 后的角色、未归属、负责人、跨组、日期/归属/推广费快照阻塞项必须为零，或有经过批准并记录的
 映射方案；不满足时停止开放业务页面，不修改默认负责人、不删除历史记录。
 
+对于 `completed_orders_without_attribution_snapshot`，先在目标 RC 的 app 容器执行只读预览：
+
+```bash
+docker compose exec app php artisan app:backfill-order-attribution-snapshots
+```
+
+预览必须显示全部待处理订单，并且没有异常匹配后，使用已批准的超级管理员用户 ID、工单原因显式应用：
+
+```bash
+docker compose exec app php artisan app:backfill-order-attribution-snapshots \
+  --apply --actor=<super_admin_user_id> --reason="<approved ticket or reason>"
+```
+
+该命令只处理唯一匹配的历史归属，逐单写入审计；任何缺少发生日、代理商或唯一业务组/BD 匹配的订单都会阻止整批写入，必须人工裁决后以新 RC 重试。不要用当前代理商归属手工猜测历史快照。
+
 ## 3. 角色、业务组和代理商映射
 
 PR1 migration 创建角色、业务组和有效期表后，超级管理员在新 RC 的配置中心完成以下顺序，

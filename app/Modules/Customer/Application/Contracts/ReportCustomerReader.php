@@ -59,6 +59,7 @@ interface ReportCustomerReader
      *   new_customers: int,
      *   unassigned_customers: int,
      *   pending_transfer_requests: int,
+     *   owner_exception_customers: int,
      *   owners: array<int, array{customers: int, new_customers: int, unset: int, booked: int, arrived: int, treatment_completed: int}>
      * }
      */

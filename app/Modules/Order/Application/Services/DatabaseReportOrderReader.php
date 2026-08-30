@@ -116,6 +116,12 @@ final class DatabaseReportOrderReader implements ReportOrderReader
 
     public function teamOverview(array $ownerIds, int $businessGroupId, CarbonImmutable $from, CarbonImmutable $to): array
     {
+        $context = $this->access->current();
+        abort_unless(
+            $context->isSuperAdmin()
+                || ($context->isBdManager() && $context->hasEffectiveBusinessScope() && in_array($businessGroupId, $context->businessGroupIds, true)),
+            403,
+        );
         $ownerIds = array_values(array_unique(array_filter(array_map('intval', $ownerIds), fn (int $id): bool => $id > 0)));
 
         $base = Order::query()

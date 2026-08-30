@@ -2,6 +2,7 @@
 
 namespace App\Modules\Reminder\Presentation\Livewire;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Reminder\Application\Services\ReminderNotificationDispatcher;
 use App\Modules\Reminder\Application\Services\ReminderWorkspace;
 use Carbon\CarbonImmutable;
@@ -22,10 +23,13 @@ class ReminderCenter extends Component
 
     public bool $overdue = false;
 
+    public string $businessGroupId = '';
+
     /** @var array<string, array<string, bool|string>> */
     protected array $queryString = [
         'type' => ['except' => ''],
         'overdue' => ['except' => false],
+        'businessGroupId' => ['except' => ''],
     ];
 
     public string $actionNotes = '';
@@ -93,12 +97,13 @@ class ReminderCenter extends Component
     public function render(ReminderWorkspace $workspace): View
     {
         return view('livewire.reminders.reminder-center', [
-            'reminders' => $workspace->paginate(Auth::user(), false, $this->type, $this->overdue),
+            'reminders' => $workspace->paginate(Auth::user(), false, $this->type, $this->overdue, $this->businessGroupId === '' ? null : (int) $this->businessGroupId),
             'users' => $workspace->assigneeCandidates(),
             'stats' => Auth::user()->isSuperAdmin() || Auth::user()->isBdManager()
                 ? $workspace->completionStats(Auth::user())
                 : null,
             'customerNames' => $workspace->customerNames(),
+            'businessNow' => app(BusinessClock::class)->now(),
         ])->title(__('reminders.titles.center'));
     }
 

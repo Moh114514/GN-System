@@ -197,6 +197,11 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
         $total = (clone $base)->count('customers.id');
         $new = (clone $base)->whereBetween('customers.created_at', [$from, $to])->count('customers.id');
         $unassigned = (clone $base)->whereNull('customers.owner_id')->count('customers.id');
+        $ownerException = (clone $base)->whereNotNull('customers.owner_id');
+        if ($ownerIds !== []) {
+            $ownerException->whereNotIn('customers.owner_id', $ownerIds);
+        }
+        $ownerExceptionCount = $ownerException->count('customers.id');
         $owners = [];
 
         if ($ownerIds !== []) {
@@ -249,6 +254,7 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
             'new_customers' => $new,
             'unassigned_customers' => $unassigned,
             'pending_transfer_requests' => $pendingTransfers,
+            'owner_exception_customers' => $ownerExceptionCount,
             'owners' => $owners,
         ];
     }
