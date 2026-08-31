@@ -36,4 +36,21 @@ class UploadLimitConfigurationTest extends TestCase
             file_get_contents(base_path('docker/nginx/production.conf')),
         );
     }
+
+    public function test_nginx_resolves_the_php_fpm_service_dynamically(): void
+    {
+        foreach (['default.conf', 'production.conf'] as $configuration) {
+            $contents = file_get_contents(base_path('docker/nginx/'.$configuration));
+
+            $this->assertStringContainsString(
+                'resolver 127.0.0.11 valid=10s ipv6=off;',
+                $contents,
+                $configuration,
+            );
+            $this->assertStringContainsString("upstream php_fpm {\n    zone php_fpm 64k;", $contents);
+            $this->assertStringContainsString('server app:9000 resolve;', $contents);
+            $this->assertStringContainsString('fastcgi_pass php_fpm;', $contents);
+            $this->assertStringNotContainsString('fastcgi_pass app:9000;', $contents);
+        }
+    }
 }
