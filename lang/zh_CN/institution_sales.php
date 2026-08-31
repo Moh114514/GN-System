@@ -11,8 +11,9 @@ return [
         'institution_search_placeholder' => '输入机构名称',
     ],
     'table' => [
-        'title' => '机构月度销售额总览',
-        'summary' => '共 :count 家机构',
+        'metrics' => '月度销售额指标',
+        'title' => '机构月度销售额',
+        'summary' => ':count 家机构',
         'number' => '序号',
         'institution' => '机构',
         'customers' => '客户数',

@@ -11,8 +11,9 @@ return [
         'institution_search_placeholder' => '기관명을 입력하세요',
     ],
     'table' => [
-        'title' => '기관 월별 매출 개요',
-        'summary' => '총 :count개 기관',
+        'metrics' => '월별 매출 지표',
+        'title' => '기관 월별 매출',
+        'summary' => ':count개 기관',
         'number' => '번호',
         'institution' => '기관',
         'customers' => '고객 수',

@@ -1538,6 +1538,35 @@ select:focus[data-flux-control] {
     border-bottom: 0;
 }
 
+.institution-sales-table th,
+.institution-sales-table td {
+    padding-block: 13px;
+}
+
+.institution-sales-table th:first-child,
+.institution-sales-table td:first-child {
+    text-align: center;
+}
+
+.institution-sales-table th:nth-child(n+3),
+.institution-sales-table td:nth-child(n+3) {
+    text-align: right;
+}
+
+.institution-sales-table tbody td:nth-child(2) {
+    font-weight: 600;
+}
+
+.institution-sales-table tbody tr:last-child {
+    background: var(--crm-bg);
+}
+
+.institution-sales-table tbody tr:last-child td {
+    border-top: 2px solid var(--crm-line);
+    border-bottom: 0;
+    font-weight: 600;
+}
+
 .crm-table td.crm-table-empty {
     padding: 34px 8px;
     color: var(--crm-muted);
