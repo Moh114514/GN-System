@@ -205,6 +205,21 @@ class AccessScopeTest extends TestCase
             ->assertNotFound();
     }
 
+    public function test_team_overview_does_not_reject_a_group_without_agent_assignments(): void
+    {
+        $emptyGroup = BusinessGroup::query()->create([
+            'code' => 'SCOPE-EMPTY',
+            'name' => '范围空组',
+            'is_active' => true,
+            'created_by' => $this->admin->id,
+        ]);
+
+        $this->actingAs($this->admin)->get(route('team-overview.index'))
+            ->assertOk()
+            ->assertSee($emptyGroup->code)
+            ->assertSee($emptyGroup->name);
+    }
+
     public function test_team_overview_uses_historical_order_facts_and_keeps_unset_status(): void
     {
         $institutionId = Institution::query()->value('id');

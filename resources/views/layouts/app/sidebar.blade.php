@@ -48,21 +48,21 @@
                     <span>{{ __('navigation.reports') }}</span>
                 </a>
 
-                @if (auth()->user()->is_super_admin || auth()->user()->isBdManager())
+                @if (auth()->user()->isSuperAdmin() || auth()->user()->isBdManager())
                     <a href="{{ route('team-overview.index') }}" class="crm-nav-item {{ request()->routeIs('team-overview.*') ? 'is-active' : '' }}" wire:navigate>
                         <flux:icon.user-group aria-hidden="true" />
                         <span>{{ __('navigation.team_overview') }}</span>
                     </a>
                 @endif
 
-                @if (auth()->user()->is_super_admin || auth()->user()->isBdManager())
+                @if (auth()->user()->isSuperAdmin() || auth()->user()->isBdManager())
                     <a href="{{ route('bd-commissions.index') }}" class="crm-nav-item {{ request()->routeIs('bd-commissions.*') ? 'is-active' : '' }}" wire:navigate>
                         <flux:icon.chart-pie aria-hidden="true" />
                         <span>{{ __('navigation.bd_commissions') }}</span>
                     </a>
                 @endif
 
-                @if (auth()->user()->is_super_admin)
+                @if (auth()->user()->isSuperAdmin())
                     <a href="{{ route('agents.index') }}" class="crm-nav-item {{ request()->routeIs('agents.*') ? 'is-active' : '' }}" wire:navigate>
                         <flux:icon.building-office aria-hidden="true" />
                         <span>{{ __('navigation.agents') }}</span>
@@ -363,7 +363,7 @@
                             <flux:icon.clipboard-document-list aria-hidden="true" />
                             <span>{{ __('navigation.search_order') }}<strong x-text="query ? `“${query}”` : ''"></strong></span>
                         </a>
-                        @if (auth()->user()->is_super_admin)
+                        @if (auth()->user()->isSuperAdmin())
                             <a
                                 x-bind:href="'{{ route('agents.index') }}?search=' + encodeURIComponent(query)"
                                 @click="open = false"
@@ -441,7 +441,7 @@
                         <span class="crm-avatar">{{ auth()->user()->initials() }}</span>
                         <span class="crm-user-copy">
                             <strong>{{ auth()->user()->name }}</strong>
-                            <small>{{ auth()->user()->is_super_admin ? __('navigation.super_admin') : __('navigation.internal_user') }}</small>
+                            <small>{{ auth()->user()->isSuperAdmin() ? __('navigation.super_admin') : __('navigation.internal_user') }}</small>
                         </span>
                         <flux:icon.chevron-down aria-hidden="true" />
                     </button>
