@@ -284,14 +284,14 @@ final class BdQuarterlyCommissionTest extends TestCase
 
         try {
             $pdf = app(FinancialWorkbookTemplate::class)->renderPdf(new FinancialDocumentData(
-                title: '简体中文 한글 ₩ 123,456',
+                title: '简体中文 한글 ₩ ¥ % 123,456.78',
                 documentNumber: 'PDF-SMOKE-123',
                 documentDate: '2026-08-30',
                 subject: '简体中文 한글',
                 period: '2026-07-01 — 2026-07-31',
                 primaryAmount: 123456,
                 currency: 'KRW',
-                metadata: [['label' => '测试字段', 'value' => '한글 ₩ 123,456']],
+                metadata: [['label' => '测试字段', 'value' => '한글 ₩ ¥ % 123,456.78']],
                 columns: [['key' => 'value', 'label' => '金额', 'type' => 'amount']],
                 rows: [['value' => 123456]],
                 summaryRows: [['label' => '应付金额', 'value' => 123456, 'type' => 'amount']],
@@ -305,7 +305,10 @@ final class BdQuarterlyCommissionTest extends TestCase
             $this->assertStringContainsString('简体中文', $text);
             $this->assertStringContainsString('한글', $text);
             $this->assertStringContainsString('₩', $text);
+            $this->assertStringContainsString('¥', $text);
+            $this->assertStringContainsString('%', $text);
             $this->assertStringContainsString('123,456', $text);
+            $this->assertStringContainsString('123,456.78', $text);
         } finally {
             if (is_string($path) && is_file($path)) {
                 unlink($path);

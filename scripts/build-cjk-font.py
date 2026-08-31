@@ -13,7 +13,7 @@ SOURCE_FONTS = (
     Path("/usr/share/fonts/truetype/arphic-gbsn00lp/gbsn00lp.ttf"),
     Path("/usr/share/fonts/truetype/unfonts-core/UnBatang.ttf"),
 )
-REQUIRED_CHARACTERS = "简体中文한글₩123,456GN-System"
+REQUIRED_CHARACTERS = "简体中文业务组客户代理商结算提成한글견적서정산수수료₩¥$%123,456.78GN-System"
 
 
 def main() -> None:
