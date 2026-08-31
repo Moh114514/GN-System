@@ -2,9 +2,11 @@ FROM postgres:16-bookworm AS postgres-client
 
 FROM debian:bookworm-slim AS cjk-font
 
+COPY scripts/build-cjk-font.py /tmp/build-cjk-font.py
+
 RUN apt-get update \
     && apt-get install -y --no-install-recommends fonts-arphic-gbsn00lp fonts-unfonts-core python3-fonttools \
-    && python3 -c "from fontTools.merge import Merger; from fontTools.ttLib import TTFont; from fontTools.ttLib.scaleUpem import scale_upem; paths = ['/usr/share/fonts/truetype/arphic-gbsn00lp/gbsn00lp.ttf', '/usr/share/fonts/truetype/unfonts-core/UnBatang.ttf']; fonts = [TTFont(path) for path in paths]; target_upem = fonts[0]['head'].unitsPerEm; [scale_upem(font, target_upem) for font in fonts[1:]]; normalized = ['/tmp/gn-cjk-chinese.ttf', '/tmp/gn-cjk-korean.ttf']; [font.save(path) for font, path in zip(fonts, normalized)]; font = Merger().merge(normalized); cmap = font.getBestCmap(); assert all(ord(char) in cmap for char in '简体中文한글₩123,456GN-System'); assert 'glyf' in font and 'CFF ' not in font; font.save('/tmp/GNSystemCJK.ttf')" \
+    && python3 /tmp/build-cjk-font.py /tmp/GNSystemCJK.ttf \
     && mkdir -p /usr/local/share/fonts/gn-system \
     && cp /tmp/GNSystemCJK.ttf /usr/local/share/fonts/gn-system/GNSystemCJK.ttf \
     && apt-get clean \
