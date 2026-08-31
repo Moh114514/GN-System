@@ -15,6 +15,8 @@ final readonly class ReportExportManager
     public function __construct(
         private ReportSearch $search,
         private ReportSearchExportGenerator $generator,
+        private InstitutionMonthlySalesService $institutionSales,
+        private InstitutionMonthlySalesExportGenerator $institutionSalesGenerator,
         private AccessContextResolver $access,
     ) {}
 
@@ -87,6 +89,43 @@ final readonly class ReportExportManager
             'generated_at' => null,
         ]);
         GenerateReportExport::dispatch($export->id);
+    }
+
+    public function startInstitutionMonthlySales(User $user, string $month, string $institutionSearch = ''): ReportExport
+    {
+        $this->assertCanExport();
+        $context = $this->access->forUser($user);
+        $summary = $this->access->using(
+            $context,
+            fn () => $this->institutionSales->summary($month, $institutionSearch),
+        );
+        $export = ReportExport::query()->create([
+            'created_by' => $user->id,
+            'kind' => 'institution_sales',
+            'format' => 'xlsx',
+            'status' => 'generating',
+            'criteria_snapshot' => [
+                'month' => $summary->month,
+                'institution_search' => trim($institutionSearch),
+                '_locale' => (SupportedLocale::fromCandidate(app()->getLocale()) ?? SupportedLocale::default())->value,
+                '_access' => $context->toSnapshot(),
+            ],
+            'data_snapshot' => $summary->toArray(),
+            'expires_at' => now()->addHours(24),
+        ]);
+
+        try {
+            return $this->institutionSalesGenerator->generate($export, $summary);
+        } catch (Throwable $exception) {
+            report($exception);
+            $export->update([
+                'status' => 'failed',
+                'failure_reason_key' => 'institution_sales.errors.generation_failed',
+                'failure_reason_parameters' => [],
+            ]);
+        }
+
+        return $export->refresh();
     }
 
     /** @return Collection<int, ReportExport> */

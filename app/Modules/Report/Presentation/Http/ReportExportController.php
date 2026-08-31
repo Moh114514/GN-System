@@ -22,8 +22,14 @@ final class ReportExportController
             404,
         );
 
-        $prefix = $export->kind === 'dashboard' ? 'dashboard' : 'orders';
+        if ($export->kind === 'institution_sales') {
+            $month = (string) ($export->criteria_snapshot['month'] ?? 'unknown');
+            $filename = __('institution_sales.export.filename', ['month' => $month]).'.xlsx';
+        } else {
+            $prefix = $export->kind === 'dashboard' ? 'dashboard' : 'orders';
+            $filename = "{$prefix}-{$export->id}.{$export->format}";
+        }
 
-        return Storage::disk('local')->download($export->path, "{$prefix}-{$export->id}.{$export->format}");
+        return Storage::disk('local')->download($export->path, $filename);
     }
 }

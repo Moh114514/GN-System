@@ -49,6 +49,13 @@
                 </a>
 
                 @if (auth()->user()->isSuperAdmin() || auth()->user()->isBdManager())
+                    <a href="{{ route('reports.institution-sales') }}" class="crm-nav-item {{ request()->routeIs('reports.institution-sales') ? 'is-active' : '' }}" wire:navigate>
+                        <flux:icon.chart-bar aria-hidden="true" />
+                        <span>{{ __('navigation.institution_sales') }}</span>
+                    </a>
+                @endif
+
+                @if (auth()->user()->isSuperAdmin() || auth()->user()->isBdManager())
                     <a href="{{ route('team-overview.index') }}" class="crm-nav-item {{ request()->routeIs('team-overview.*') ? 'is-active' : '' }}" wire:navigate>
                         <flux:icon.user-group aria-hidden="true" />
                         <span>{{ __('navigation.team_overview') }}</span>

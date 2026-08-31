@@ -57,6 +57,11 @@ Phase 2 采用 PostgreSQL 关系模型保存机构、代理商、客户、预约
 Application Contract 在单一事务内提交和回滚。私有源文件应用层加密，客户联系方式
 和证件使用加密列与不可逆盲索引。
 
+Report 的机构月度销售额页面通过 Order 的只读报表契约按机构聚合订单，固定使用
+`occurred_on`、`status=completed`、`record_status=active` 和 `amount_krw`，并由
+Auth 的当前有效业务范围在 Order 查询边界执行隔离。页面与私有 XLSX 导出复用同一份
+汇总结果，不新增持久化汇总表。
+
 ## 代理商订单与推广费
 
 Agent 保存代理商、类型、政策等级及月度生效历史；Settlement 保存等级机构固定

@@ -6,6 +6,7 @@ use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Order\Application\Contracts\ReportOrderReader;
 use App\Modules\Order\Infrastructure\Models\Appointment;
 use App\Modules\Order\Infrastructure\Models\Order;
+use App\Modules\Report\Application\Data\InstitutionMonthlySalesAggregateData;
 use App\Modules\Report\Application\Data\ReportOrderData;
 use App\Modules\Report\Application\Data\ReportPageData;
 use App\Modules\Report\Application\Data\ReportQueryData;
@@ -155,6 +156,33 @@ final class DatabaseReportOrderReader implements ReportOrderReader
             'amount_krw' => (int) (clone $base)->sum('amount_krw'),
             'owners' => $owners,
         ];
+    }
+
+    /** @return list<InstitutionMonthlySalesAggregateData> */
+    public function institutionMonthlySales(CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $query = Order::query()
+            ->where('status', 'completed')
+            ->where('record_status', 'active')
+            ->whereNotNull('occurred_on')
+            ->whereBetween('occurred_on', [$from->toDateString(), $to->toDateString()]);
+        $this->applyScope($query);
+
+        return $query
+            ->select('institution_id')
+            ->selectRaw('COUNT(DISTINCT customer_id)::int AS customer_count')
+            ->selectRaw('COUNT(*)::int AS order_count')
+            ->selectRaw('COALESCE(SUM(amount_krw), 0)::bigint AS amount_krw')
+            ->groupBy('institution_id')
+            ->get()
+            ->map(static fn (Order $row): InstitutionMonthlySalesAggregateData => new InstitutionMonthlySalesAggregateData(
+                institutionId: (int) $row->institution_id,
+                customerCount: (int) $row->getAttribute('customer_count'),
+                orderCount: (int) $row->getAttribute('order_count'),
+                amountKrw: (int) $row->getAttribute('amount_krw'),
+            ))
+            ->values()
+            ->all();
     }
 
     /**

@@ -9,6 +9,7 @@ return [
     'customers' => '客户管理',
     'orders' => '订单',
     'reports' => '多维查询',
+    'institution_sales' => '机构销售额',
     'team_overview' => '团队管理',
     'agents' => '代理商',
     'settlements' => '月结中心',
