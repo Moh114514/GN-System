@@ -16,12 +16,12 @@ return new class extends Migration
         $reminders = DB::table('reminders')
             ->where('reminder_type', 'appointment')
             ->whereIn('status', ['pending', 'snoozed', 'transferred'])
-            ->get(['id', 'status', 'appointment_id']);
+            ->get(['id', 'status', 'notification_status', 'appointment_id']);
 
         foreach ($reminders as $reminder) {
             DB::table('reminders')->where('id', $reminder->id)->update([
                 'status' => 'cancelled',
-                'notification_status' => 'cancelled',
+                'notification_status' => $reminder->notification_status === 'sent' ? 'sent' : 'cancelled',
                 'updated_at' => $now,
             ]);
             DB::table('reminder_events')->insert([

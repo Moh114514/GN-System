@@ -29,7 +29,7 @@ final class DatabaseCustomerOrderGateway implements CustomerOrderGateway
     {
         $appointment = Appointment::query()
             ->where('customer_id', $customerId)
-            ->whereIn('status', ['scheduled', 'arrived'])
+            ->whereIn('status', ['scheduled', 'arrived', 'completed'])
             ->orderByRaw('scheduled_at IS NULL')
             ->orderByDesc('scheduled_at')
             ->orderByDesc('id')
@@ -50,13 +50,27 @@ final class DatabaseCustomerOrderGateway implements CustomerOrderGateway
         ];
     }
 
+    /** @return array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string}|null */
+    public function currentAppointmentForRegistration(int $customerId): ?array
+    {
+        $appointment = Appointment::query()
+            ->where('customer_id', $customerId)
+            ->whereIn('status', ['scheduled', 'arrived'])
+            ->orderByRaw('scheduled_at IS NULL')
+            ->orderByDesc('scheduled_at')
+            ->orderByDesc('id')
+            ->first();
+
+        return $appointment === null ? null : $this->serializeAppointment($appointment);
+    }
+
     /** @return array{previous: array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string}, current: array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string}}|null */
     public function rescheduleAppointment(int $customerId, int $appointmentId, CarbonImmutable $scheduledAt): ?array
     {
         $appointment = Appointment::query()
             ->whereKey($appointmentId)
             ->where('customer_id', $customerId)
-            ->where('status', 'scheduled')
+            ->whereIn('status', ['scheduled', 'arrived', 'completed'])
             ->lockForUpdate()
             ->first();
 
@@ -74,7 +88,7 @@ final class DatabaseCustomerOrderGateway implements CustomerOrderGateway
     {
         $appointment = Appointment::query()
             ->where('customer_id', $customerId)
-            ->where('status', 'scheduled')
+            ->whereIn('status', ['scheduled', 'completed'])
             ->orderByRaw('scheduled_at IS NULL')
             ->orderByDesc('scheduled_at')
             ->orderByDesc('id')
@@ -88,6 +102,27 @@ final class DatabaseCustomerOrderGateway implements CustomerOrderGateway
         $appointment->update(['status' => 'arrived']);
 
         return (int) $appointment->id;
+    }
+
+    /** @return array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string}|null */
+    public function markAppointmentScheduled(int $customerId): ?array
+    {
+        $appointment = Appointment::query()
+            ->where('customer_id', $customerId)
+            ->whereIn('status', ['arrived', 'completed'])
+            ->orderByRaw('scheduled_at IS NULL')
+            ->orderByDesc('scheduled_at')
+            ->orderByDesc('id')
+            ->lockForUpdate()
+            ->first();
+
+        if ($appointment === null) {
+            return null;
+        }
+
+        $appointment->update(['status' => 'scheduled']);
+
+        return $this->serializeAppointment($appointment->refresh());
     }
 
     public function completeAppointmentForCustomer(int $customerId, int $institutionId): ?int

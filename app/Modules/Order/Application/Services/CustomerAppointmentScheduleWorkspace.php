@@ -37,7 +37,6 @@ final readonly class CustomerAppointmentScheduleWorkspace
             'appointment' => $appointment,
             'institution' => $institution,
             'can_edit' => $appointment !== null
-                && $appointment['status'] === 'scheduled'
                 && $this->canEdit((int) ($customer['owner_id'] ?? 0)),
         ];
     }
@@ -54,12 +53,16 @@ final readonly class CustomerAppointmentScheduleWorkspace
             if ($changed === null) {
                 throw new DomainException(__('orders.errors.appointment_not_editable'));
             }
-            $this->reminders->syncForAppointment(
-                appointmentId: $appointmentId,
-                customerId: $customerId,
-                assignedTo: $changed['current']['owner_id'],
-                scheduledAt: $scheduledAt,
-            );
+            if ($changed['current']['status'] === 'scheduled') {
+                $this->reminders->syncForAppointment(
+                    appointmentId: $appointmentId,
+                    customerId: $customerId,
+                    assignedTo: $changed['current']['owner_id'],
+                    scheduledAt: $scheduledAt,
+                );
+            } else {
+                $this->reminders->cancelForAppointment($appointmentId, $actorId, 'appointment_not_pending');
+            }
             $this->audit->record(
                 description: '更新客户预计到院时间',
                 properties: [

@@ -16,6 +16,7 @@ use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
 use App\Modules\Reminder\Application\Contracts\AppointmentReminderGateway;
 use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
 use App\Modules\Reminder\Application\Data\CustomerTreatmentCompletedData;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -75,6 +76,9 @@ final readonly class CustomerStatusManager
                 ->exists()) {
                 throw ValidationException::withMessages(['targetStatusId' => __('customers.form.validation.invalid_transition')]);
             }
+            if ($target->key === 'treatment_completed') {
+                throw ValidationException::withMessages(['targetStatusId' => __('customers.form.validation.treatment_completed_requires_order')]);
+            }
             if (trim($reason) === '') {
                 throw ValidationException::withMessages(['statusReason' => __('customers.form.validation.status_reason_required')]);
             }
@@ -125,6 +129,21 @@ final readonly class CustomerStatusManager
                 $appointmentId = $this->orders->markAppointmentArrived($customer->id);
                 if ($appointmentId !== null) {
                     $this->appointmentReminders->cancelForAppointment($appointmentId, $actor->id, 'customer_arrived');
+                }
+            }
+            if ($target->key === 'booked') {
+                $appointment = $this->orders->markAppointmentScheduled($customer->id);
+                if ($appointment !== null) {
+                    if ($appointment['scheduled_at'] === null) {
+                        $this->appointmentReminders->cancelForAppointment($appointment['id'], $actor->id, 'customer_status_rolled_back');
+                    } else {
+                        $this->appointmentReminders->syncForAppointment(
+                            appointmentId: $appointment['id'],
+                            customerId: $customer->id,
+                            assignedTo: $appointment['owner_id'],
+                            scheduledAt: CarbonImmutable::parse($appointment['scheduled_at']),
+                        );
+                    }
                 }
             }
         }, 3);

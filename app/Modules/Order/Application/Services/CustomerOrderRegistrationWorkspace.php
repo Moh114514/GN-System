@@ -25,7 +25,7 @@ final readonly class CustomerOrderRegistrationWorkspace
     {
         $customer = $this->customers->customerForOrder($customerId);
         $agent = $this->agents->agentsByIds([(int) $customer['source_agent_id']])[(int) $customer['source_agent_id']] ?? null;
-        $appointment = $this->appointments->latestAppointmentForCustomer($customerId);
+        $appointment = $this->appointments->currentAppointmentForRegistration($customerId);
         $activeInstitutions = array_values($this->institutions->activeInstitutions());
         $activeById = [];
         foreach ($activeInstitutions as $institution) {

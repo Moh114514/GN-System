@@ -12,10 +12,16 @@ interface CustomerOrderGateway
     /** @return array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string}|null */
     public function latestAppointmentForCustomer(int $customerId): ?array;
 
+    /** @return array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string}|null */
+    public function currentAppointmentForRegistration(int $customerId): ?array;
+
     /** @return array{previous: array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string}, current: array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string}}|null */
     public function rescheduleAppointment(int $customerId, int $appointmentId, CarbonImmutable $scheduledAt): ?array;
 
     public function markAppointmentArrived(int $customerId): ?int;
+
+    /** @return array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string}|null */
+    public function markAppointmentScheduled(int $customerId): ?array;
 
     public function completeAppointmentForCustomer(int $customerId, int $institutionId): ?int;
 

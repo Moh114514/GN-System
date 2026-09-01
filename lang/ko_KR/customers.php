@@ -112,6 +112,7 @@ return [
             'order_exists_rollback_forbidden' => '주문이 있는 고객의 라이프사이클 상태는 되돌릴 수 없습니다.',
             'invalid_transition' => '단계를 건너뛰거나 비활성 상태 전환을 사용할 수 없습니다.',
             'status_reason_required' => '상태 변경 사유를 입력하세요.',
+            'treatment_completed_requires_order' => '시술 종료는 유효한 기관 회송 주문 등록을 통해서만 완료할 수 있습니다.',
             'default_status_cannot_be_disabled' => '기본 상태 “예약 완료”는 비활성화할 수 없습니다.',
             'lifecycle_structure_locked' => '고객 라이프사이클 구조는 고정되어 단계와 상태의 표시 이름만 수정할 수 있습니다.',
         ],

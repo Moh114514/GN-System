@@ -171,6 +171,63 @@ class PhaseFiveReminderTest extends TestCase
         $this->assertSame(1, Reminder::query()->count());
     }
 
+    public function test_scheduler_creates_one_idempotent_compensation_reminder_after_the_previous_day_cutoff(): void
+    {
+        $institution = Institution::query()->firstOrFail();
+        Appointment::query()->create([
+            'customer_id' => $this->customer->id,
+            'institution_id' => $institution->id,
+            'scheduled_at' => '2026-08-02 10:00:00',
+            'owner_id' => $this->user->id,
+            'status' => 'scheduled',
+        ]);
+        CarbonImmutable::setTestNow('2026-08-01 20:00:00');
+
+        $scheduler = app(ReminderScheduler::class);
+        $this->assertSame(1, $scheduler->materialize());
+        $this->assertSame(0, $scheduler->materialize());
+        $this->assertDatabaseCount('reminders', 1);
+        $this->assertDatabaseHas('reminders', [
+            'appointment_id' => Appointment::query()->firstOrFail()->id,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_arrived_and_completed_appointments_can_be_corrected_without_recreating_arrival_reminders(): void
+    {
+        $institution = Institution::query()->firstOrFail();
+        $appointment = Appointment::query()->create([
+            'customer_id' => $this->customer->id,
+            'institution_id' => $institution->id,
+            'scheduled_at' => '2026-08-04 10:00:00',
+            'owner_id' => $this->user->id,
+            'status' => 'arrived',
+        ]);
+
+        app(CustomerAppointmentScheduleWorkspace::class)->reschedule(
+            customerId: $this->customer->id,
+            appointmentId: $appointment->id,
+            scheduledAt: CarbonImmutable::parse('2026-08-05 11:00:00'),
+            actorId: $this->user->id,
+            ipAddress: null,
+        );
+
+        $this->assertSame('2026-08-05 11:00', $appointment->refresh()->scheduled_at->format('Y-m-d H:i'));
+        $this->assertDatabaseCount('reminders', 0);
+
+        $appointment->update(['status' => 'completed']);
+        app(CustomerAppointmentScheduleWorkspace::class)->reschedule(
+            customerId: $this->customer->id,
+            appointmentId: $appointment->id,
+            scheduledAt: CarbonImmutable::parse('2026-08-06 12:00:00'),
+            actorId: $this->user->id,
+            ipAddress: null,
+        );
+
+        $this->assertSame('2026-08-06 12:00', $appointment->refresh()->scheduled_at->format('Y-m-d H:i'));
+        $this->assertDatabaseCount('reminders', 0);
+    }
+
     public function test_rescheduling_an_appointment_replaces_unsent_reminder_and_preserves_sent_history(): void
     {
         $institution = Institution::query()->firstOrFail();
@@ -238,6 +295,25 @@ class PhaseFiveReminderTest extends TestCase
         $this->assertDatabaseHas('reminder_events', [
             'reminder_id' => $reminder->id,
             'event' => 'cancelled',
+        ]);
+
+        $sent = Reminder::query()->create([
+            'customer_id' => $this->customer->id,
+            'assigned_to' => $this->user->id,
+            'source_type' => 'system',
+            'reminder_type' => 'appointment',
+            'title' => '旧已发送到院提醒',
+            'due_at' => '2026-08-02 10:00:00',
+            'status' => 'pending',
+            'notification_status' => 'sent',
+            'dedupe_key' => hash('sha256', 'legacy-sent-appointment-reminder'),
+        ]);
+        $migration->up();
+
+        $this->assertDatabaseHas('reminders', [
+            'id' => $sent->id,
+            'status' => 'cancelled',
+            'notification_status' => 'sent',
         ]);
     }
 

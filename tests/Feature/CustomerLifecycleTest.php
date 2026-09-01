@@ -296,28 +296,41 @@ class CustomerLifecycleTest extends TestCase
             ->assertDontSee('href="'.route('customers.orders', $customerId).'"', false);
     }
 
-    public function test_treatment_completed_creates_only_two_idempotent_passive_reminders(): void
+    public function test_customer_detail_keeps_completed_appointment_history_visible(): void
+    {
+        $customerId = $this->createCustomer();
+        Appointment::query()->where('customer_id', $customerId)->update(['status' => 'completed']);
+
+        $this->actingAs($this->user)->get(route('customers.show', $customerId))
+            ->assertOk()
+            ->assertSee(__('orders.appointment_schedule.title'))
+            ->assertSee('2026-08-01 00:00');
+    }
+
+    public function test_treatment_completed_cannot_be_set_from_the_manual_status_form(): void
     {
         $customerId = $this->createCustomer();
         $manager = app(CustomerStatusManager::class);
         $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
         $completed = CustomerStatus::query()->where('key', 'treatment_completed')->firstOrFail();
-        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
 
         $manager->change($customerId, $arrived->id, '客户已到院', $this->user, null);
-        $manager->change($customerId, $completed->id, '施术完成', $this->user, null);
-        $manager->change($customerId, $arrived->id, '管理员回退到院', $admin, null);
-        $manager->change($customerId, $completed->id, '再次确认施术完成', $admin, null);
 
-        $this->assertSame(2, Reminder::query()->where('customer_id', $customerId)->count());
-        $completedAt = Customer::query()->findOrFail($customerId)->treatment_completed_at;
-        $this->assertNotNull($completedAt);
-        $this->assertSame(
-            [$completedAt->addDays(7)->setTime(9, 0)->toDateTimeString(), $completedAt->addDays(30)->setTime(9, 0)->toDateTimeString()],
-            Reminder::query()->where('customer_id', $customerId)->orderBy('due_at')->pluck('due_at')->map(
-                fn ($dueAt): string => CarbonImmutable::parse($dueAt)->toDateTimeString(),
-            )->all(),
-        );
+        try {
+            $manager->change($customerId, $completed->id, '施术完成', $this->user, null);
+            $this->fail('Expected manual treatment completion to be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                __('customers.form.validation.treatment_completed_requires_order'),
+                $exception->errors()['targetStatusId'][0],
+            );
+        }
+
+        $this->assertDatabaseHas('customers', [
+            'id' => $customerId,
+            'current_status_id' => $arrived->id,
+        ]);
+        $this->assertDatabaseCount('reminders', 0);
     }
 
     public function test_status_flow_marks_current_completed_and_available_nodes_without_edit_controls(): void
@@ -397,7 +410,10 @@ class CustomerLifecycleTest extends TestCase
         $admin = User::factory()->superAdmin()->withTwoFactor()->create();
 
         $manager->change($customerId, $arrived->id, '客户已到院', $this->user, null);
+        $appointment = Appointment::query()->where('customer_id', $customerId)->firstOrFail();
+        $this->assertSame('arrived', $appointment->refresh()->status);
         $manager->change($customerId, $booked->id, '主管确认退回已预约', $admin, null);
+        $this->assertSame('scheduled', $appointment->refresh()->status);
         $this->assertDatabaseHas('customer_status_histories', [
             'customer_id' => $customerId,
             'from_status_id' => $arrived->id,
@@ -699,7 +715,7 @@ class CustomerLifecycleTest extends TestCase
             'title' => '到院前一天联系客户',
             'due_at' => '2026-08-01 18:00:00',
             'status' => 'pending',
-            'notification_status' => 'pending',
+            'notification_status' => 'sent',
             'dedupe_key' => hash('sha256', 'arrival-reminder-test'),
         ]);
         $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
@@ -710,7 +726,7 @@ class CustomerLifecycleTest extends TestCase
         $this->assertDatabaseHas('reminders', [
             'appointment_id' => $appointment->id,
             'status' => 'cancelled',
-            'notification_status' => 'cancelled',
+            'notification_status' => 'sent',
         ]);
     }
 

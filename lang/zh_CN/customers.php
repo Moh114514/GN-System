@@ -112,6 +112,7 @@ return [
             'order_exists_rollback_forbidden' => '客户已有订单，不能回退生命周期状态。',
             'invalid_transition' => '不能越级或使用未启用的状态流转。',
             'status_reason_required' => '请填写状态变更原因。',
+            'treatment_completed_requires_order' => '施术结束必须通过有效的机构回传订单登记完成。',
             'default_status_cannot_be_disabled' => '默认状态“已预约”不能停用。',
             'lifecycle_structure_locked' => '客户生命周期结构已固定，只能修改阶段和状态的显示名称。',
         ],

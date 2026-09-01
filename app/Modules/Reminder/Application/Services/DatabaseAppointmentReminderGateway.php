@@ -18,7 +18,11 @@ final readonly class DatabaseAppointmentReminderGateway implements AppointmentRe
         ?int $assignedTo,
         CarbonImmutable $scheduledAt,
     ): int {
-        $dueAt = $scheduledAt->startOfDay()->subDay()->setTime(18, 0);
+        $now = $this->clock->now();
+        $plannedDueAt = $scheduledAt->startOfDay()->subDay()->setTime(18, 0);
+        $isFutureAppointment = $scheduledAt->isAfter($now);
+        $isCompensation = $isFutureAppointment && $plannedDueAt->isBefore($now);
+        $dueAt = $isCompensation ? $now : $plannedDueAt;
         $contentKey = 'reminders.system_reminders.arrival_previous_day';
         $localizedContent = [
             'title' => ['key' => $contentKey.'.title', 'parameters' => []],
@@ -26,12 +30,12 @@ final readonly class DatabaseAppointmentReminderGateway implements AppointmentRe
             'notes' => [['key' => $contentKey.'.expected_arrival', 'parameters' => ['scheduled_at' => $scheduledAt->format('Y-m-d H:i')]]],
         ];
 
-        $this->cancelStalePending($appointmentId, $dueAt);
-        if ($dueAt->isBefore($this->clock->now())) {
+        $dueKey = $isCompensation ? 'compensation' : $dueAt->toIso8601String();
+        $dedupeKey = hash('sha256', "appointment:{$appointmentId}:arrival_previous_day:{$dueKey}");
+        $this->cancelStalePending($appointmentId, $dueAt, $dedupeKey);
+        if (! $isFutureAppointment) {
             return 0;
         }
-
-        $dedupeKey = hash('sha256', "appointment:{$appointmentId}:arrival_previous_day:{$dueAt->toIso8601String()}");
         $reminder = Reminder::query()->where('dedupe_key', $dedupeKey)->first();
         $attributes = [
             'customer_id' => $customerId,
@@ -82,25 +86,32 @@ final readonly class DatabaseAppointmentReminderGateway implements AppointmentRe
             ->get();
         foreach ($reminders as $reminder) {
             $before = $reminder->status;
-            $reminder->update(['status' => 'cancelled', 'notification_status' => 'cancelled']);
+            $reminder->update([
+                'status' => 'cancelled',
+                'notification_status' => $reminder->notification_status === 'sent' ? 'sent' : 'cancelled',
+            ]);
             $this->event($reminder, 'cancelled', ['reason' => $reason, 'before' => $before, 'after' => 'cancelled'], $actorId);
         }
 
         return $reminders->count();
     }
 
-    private function cancelStalePending(int $appointmentId, CarbonImmutable $dueAt): void
+    private function cancelStalePending(int $appointmentId, CarbonImmutable $dueAt, string $keepDedupeKey): void
     {
         Reminder::query()
             ->where('appointment_id', $appointmentId)
             ->whereIn('status', ['pending', 'snoozed', 'transferred'])
             ->where('notification_status', '!=', 'sent')
             ->where('due_at', '!=', $dueAt)
+            ->where('dedupe_key', '!=', $keepDedupeKey)
             ->lockForUpdate()
             ->get()
             ->each(function (Reminder $reminder) use ($dueAt): void {
                 $before = $reminder->due_at->toIso8601String();
-                $reminder->update(['status' => 'cancelled', 'notification_status' => 'cancelled']);
+                $reminder->update([
+                    'status' => 'cancelled',
+                    'notification_status' => $reminder->notification_status === 'sent' ? 'sent' : 'cancelled',
+                ]);
                 $this->event($reminder, 'cancelled', ['reason' => 'appointment_rescheduled', 'before_due_at' => $before, 'new_due_at' => $dueAt->toIso8601String()]);
             });
     }

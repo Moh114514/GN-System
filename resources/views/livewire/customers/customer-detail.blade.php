@@ -153,7 +153,9 @@
                         <flux:select wire:model="targetStatusId" :label="__('customers.detail.status.target')" required>
                             <flux:select.option value="">{{ __('customers.form.select') }}</flux:select.option>
                             @foreach ($options['statuses'] as $status)
-                                <flux:select.option value="{{ $status['id'] }}">{{ $status['name'] }}</flux:select.option>
+                                @if ($status['key'] !== 'treatment_completed')
+                                    <flux:select.option value="{{ $status['id'] }}">{{ $status['name'] }}</flux:select.option>
+                                @endif
                             @endforeach
                         </flux:select>
                         <flux:textarea wire:model="statusReason" :label="__('customers.detail.status.reason')" rows="3" required />
