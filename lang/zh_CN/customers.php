@@ -183,7 +183,7 @@ return [
         ],
         'status_flow' => [
             'heading' => '客户流转进度',
-            'description' => '用紧凑的三步进度条展示客户当前生命周期和下一步；状态修改请使用右侧表单。',
+            'description' => '展示客户当前生命周期和下一步；状态修改请使用右侧表单。',
             'current' => '当前',
             'legend' => '客户状态流转图例',
             'transitions' => '其他允许流转',
