@@ -84,7 +84,7 @@ final class DashboardExportGenerator
             $options = new Options;
             $options->setIsRemoteEnabled(false);
             $options->setChroot([base_path(), dirname((string) $pdfRegularFontPath), dirname((string) $pdfBoldFontPath)]);
-            $options->setDefaultFont('GN CJK');
+            $options->setDefaultFont('GN System Sans');
             $options->setIsFontSubsettingEnabled(false);
             $options->setFontDir($fontCachePath);
             $options->setFontCache($fontCachePath);

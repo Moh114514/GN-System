@@ -171,7 +171,7 @@ final class FinancialWorkbookTemplate
         $options = new Options;
         $options->setIsRemoteEnabled(false);
         $options->setChroot([base_path(), dirname($pdfRegularFontPath), dirname($pdfBoldFontPath)]);
-        $options->setDefaultFont('GN CJK');
+        $options->setDefaultFont('GN System Sans');
         $options->setIsFontSubsettingEnabled(false);
         $options->setFontDir($fontCachePath);
         $options->setFontCache($fontCachePath);
@@ -227,9 +227,9 @@ final class FinancialWorkbookTemplate
         $summary .= '</tbody></table>';
         $remarks = $document->remarks === [] ? '' : '<div class="remarks"><h3>'.e(__('exports.formal_document.remarks')).'</h3>'.implode('', array_map(fn (string $remark): string => '<p>'.e($remark).'</p>', $document->remarks)).'</div>';
         $primary = $this->htmlValue($document->primaryAmount, 'amount', $document->currency, $document->currencyDecimals);
-        $css = '@font-face{font-family:"GN CJK";font-style:normal;font-weight:400;src:url("file://'.e($pdfRegularFontPath).'") format("truetype");}'
-            .'@font-face{font-family:"GN CJK";font-style:normal;font-weight:700;src:url("file://'.e($pdfBoldFontPath).'") format("truetype");}'
-            .'@page{margin:14mm 12mm 14mm 12mm;}body{font-family:"GN CJK",Arial,sans-serif;color:#'.FinancialWorkbookStyle::TEXT.';font-size:10.5px;font-weight:400;line-height:1.35;}h1{color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-size:24px;font-weight:700;line-height:1.2;text-align:center;margin:0 0 18px;}'
+        $css = '@font-face{font-family:"GN System Sans";font-style:normal;font-weight:400;src:url("file://'.e($pdfRegularFontPath).'") format("truetype");}'
+            .'@font-face{font-family:"GN System Sans";font-style:normal;font-weight:700;src:url("file://'.e($pdfBoldFontPath).'") format("truetype");}'
+            .'@page{margin:14mm 12mm 14mm 12mm;}body{font-family:"GN System Sans";color:#'.FinancialWorkbookStyle::TEXT.';font-size:10.5px;font-weight:400;line-height:1.35;}h1{color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-size:24px;font-weight:700;line-height:1.2;text-align:center;margin:0 0 18px;}'
             .'table{width:100%;border-collapse:collapse;margin-bottom:12px;page-break-inside:auto}thead{display:table-header-group}tr{page-break-inside:avoid}'
             .'.meta-grid{table-layout:fixed;border:1px solid #'.FinancialWorkbookStyle::BORDER.';margin-bottom:14px}.meta-grid td{width:50%;box-sizing:border-box}.meta{padding:7px 9px;border-bottom:1px solid #'.FinancialWorkbookStyle::BORDER.'}.meta:first-child{border-right:1px solid #'.FinancialWorkbookStyle::BORDER.'}.meta span{display:block;color:#'.FinancialWorkbookStyle::MUTED.';font-size:9.5px;font-weight:400;line-height:1.25;margin-bottom:2px}.meta strong{font-size:11px;font-weight:700;line-height:1.3}'
             .'.primary{background:#'.FinancialWorkbookStyle::PALE_CYAN.';border:2px solid #'.FinancialWorkbookStyle::ACCENT.';padding:12px 14px;margin-bottom:16px;text-align:center}.primary span{display:block;color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-weight:700;font-size:11px}.primary strong{display:block;color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-size:22px;font-weight:700;line-height:1.2;margin-top:4px}'

@@ -6,31 +6,31 @@
     <style>
         @if ($pdfRegularFontPath !== null)
             @font-face {
-                font-family: "GN CJK";
+                font-family: "GN System Sans";
                 font-style: normal;
                 font-weight: 400;
                 src: url("file://{{ $pdfRegularFontPath }}") format("truetype");
             }
             @font-face {
-                font-family: "GN CJK";
+                font-family: "GN System Sans";
                 font-style: normal;
                 font-weight: 700;
                 src: url("file://{{ $pdfBoldFontPath }}") format("truetype");
             }
         @endif
         body {
-            font-family: "GN CJK", "Microsoft YaHei", "PingFang SC", "Noto Sans CJK SC", DejaVu Sans, sans-serif;
+            font-family: "GN System Sans";
             color: #18181b;
             font-size: 12px;
         }
-        h1 { margin-bottom: 4px; font-weight: normal; } .meta { color: #71717a; margin-bottom: 18px; }
+        h1 { margin-bottom: 4px; font-weight: 700; } .meta { color: #71717a; margin-bottom: 18px; font-weight: 400; }
         .metrics { width: 100%; border-collapse: collapse; margin-bottom: 18px; }
         .metrics td { border: 1px solid #d4d4d8; padding: 10px; width: 33%; }
-        .label { color: #71717a; } .value { font-size: 18px; font-weight: normal; margin-top: 4px; }
+        .label { color: #71717a; font-weight: 400; } .value { font-size: 18px; font-weight: 700; margin-top: 4px; }
         .charts { width: 100%; border-collapse: collapse; }
-        .charts th, .charts td { border: 1px solid #d4d4d8; padding: 6px; text-align: left; }
-        .charts th { font-weight: normal; }
-        .chart-title { margin-top: 14px; font-size: 14px; font-weight: normal; }
+        .charts th, .charts td { border: 1px solid #d4d4d8; padding: 6px; text-align: left; font-weight: 400; }
+        .charts th { font-weight: 700; }
+        .chart-title { margin-top: 14px; font-size: 14px; font-weight: 700; }
         .bar { fill: #0f766e; } .bar-bg { fill: #f4f4f5; }
     </style>
 </head>

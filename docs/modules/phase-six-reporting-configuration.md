@@ -56,7 +56,7 @@ Phase 6 提供以已完成订单为事实的固定 9 维 AND 查询、最近导�
 SVG/表格快照，并保留相同区间、指标和快照生成时间。
 缓存快照中的客户状态、提醒类型和其他系统标签只保存语言无关标识，页面与导出在请求 Locale 下投影文案，避免中文请求生成的缓存污染韩文输出。报表导出失败保存稳定消息键和命名参数，最近导出列表按当前 Locale 渲染；未知异常仅返回安全通用信息，不展示原始异常正文。
 应用镜像在构建阶段从 Debian 的中文、韩文 TrueType 字体合并出独立的
-`GNSystemCJK-Regular.ttf` 和 `GNSystemCJK-Bold.ttf` 供 Dompdf 使用，并在镜像构建与 CI
+`GNSystemSans-Regular.ttf` 和 `GNSystemSans-Bold.ttf` 供 Dompdf 使用，并在镜像构建与 CI
 中校验中文、韩文、`₩`、数字和英文 glyph 以及 Regular/Bold 字形差异；升级已有开发、UAT
 或生产实例时必须重建或拉取包含这两份字体的新 app 镜像，
 仅重启旧容器不能修复字形缺失。

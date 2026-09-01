@@ -1267,8 +1267,9 @@ mountpoint /mnt/gn-system-offsite
 
 ### 14.10 PDF 中文字体或私有目录权限
 
-生产镜像应包含已在 CI 验证的独立 `GNSystemCJK-Regular.ttf` 和
-`GNSystemCJK-Bold.ttf` PDF 字体（构建阶段由两份真正的 TrueType CJK 字体合并，并校验
+生产镜像应包含已在 CI 验证的独立 `GNSystemSans-Regular.ttf` 和
+`GNSystemSans-Bold.ttf` PDF 字体（构建阶段由 Noto Sans CJK SC/KR 的 Regular/Bold 字体面合并为
+两份真正的 TrueType 字体，并校验
 `简体中文`、`한글`、`₩` 和数字字符及 `glyf` 表，同时确认 Regular/Bold 字重与字形不同）。不能
 只安装 TTC 集合后直接交给 Dompdf。若导出失败：
 
@@ -1278,8 +1279,8 @@ sudo docker compose --env-file .env.uat \
 namei -l /srv/gn-system/data/private
 ```
 
-同时确认 app 镜像内存在 `/usr/local/share/fonts/gn-system/GNSystemCJK-Regular.ttf` 和
-`/usr/local/share/fonts/gn-system/GNSystemCJK-Bold.ttf`，并在验收环境抽取一份测试 PDF
+同时确认 app 镜像内存在 `/usr/local/share/fonts/gn-system/GNSystemSans-Regular.ttf` 和
+`/usr/local/share/fonts/gn-system/GNSystemSans-Bold.ttf`，并在验收环境抽取一份测试 PDF
 的文本，确认中韩文、`₩` 和带逗号数字均可读；`pdftotext` 由 app 镜像提供。只重启旧
 容器不会更新字体，必须按发布流程使用包含新字体的镜像。
 

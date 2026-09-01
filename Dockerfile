@@ -2,16 +2,18 @@ FROM postgres:16-bookworm AS postgres-client
 
 FROM debian:bookworm-slim AS cjk-font
 
-COPY scripts/build-cjk-font.py /tmp/build-cjk-font.py
-
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends fonts-arphic-gbsn00lp fonts-unfonts-core python3-fonttools \
-    && python3 /tmp/build-cjk-font.py /tmp/GNSystemCJK-Regular.ttf /tmp/GNSystemCJK-Bold.ttf \
-    && mkdir -p /usr/local/share/fonts/gn-system \
-    && cp /tmp/GNSystemCJK-Regular.ttf /usr/local/share/fonts/gn-system/GNSystemCJK-Regular.ttf \
-    && cp /tmp/GNSystemCJK-Bold.ttf /usr/local/share/fonts/gn-system/GNSystemCJK-Bold.ttf \
+RUN apt-get -o Acquire::Retries=5 update \
+    && apt-get -o Acquire::Retries=5 install -y --no-install-recommends fonts-noto-cjk python3-fonttools \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+COPY scripts/build-cjk-font.py /tmp/build-cjk-font.py
+
+RUN python3 /tmp/build-cjk-font.py /tmp/GNSystemSans-Regular.ttf /tmp/GNSystemSans-Bold.ttf \
+    && mkdir -p /usr/local/share/fonts/gn-system \
+    && cp /tmp/GNSystemSans-Regular.ttf /usr/local/share/fonts/gn-system/GNSystemSans-Regular.ttf \
+    && cp /tmp/GNSystemSans-Bold.ttf /usr/local/share/fonts/gn-system/GNSystemSans-Bold.ttf
+
 
 FROM php:8.3-fpm-bookworm AS php-base
 
@@ -39,8 +41,8 @@ RUN apt-get -o Acquire::Retries=5 update \
 
 COPY --from=postgres-client /usr/lib/postgresql/16/bin/pg_dump /usr/local/bin/pg_dump
 COPY --from=postgres-client /usr/lib/postgresql/16/bin/pg_restore /usr/local/bin/pg_restore
-COPY --from=cjk-font /usr/local/share/fonts/gn-system/GNSystemCJK-Regular.ttf /usr/local/share/fonts/gn-system/GNSystemCJK-Regular.ttf
-COPY --from=cjk-font /usr/local/share/fonts/gn-system/GNSystemCJK-Bold.ttf /usr/local/share/fonts/gn-system/GNSystemCJK-Bold.ttf
+COPY --from=cjk-font /usr/local/share/fonts/gn-system/GNSystemSans-Regular.ttf /usr/local/share/fonts/gn-system/GNSystemSans-Regular.ttf
+COPY --from=cjk-font /usr/local/share/fonts/gn-system/GNSystemSans-Bold.ttf /usr/local/share/fonts/gn-system/GNSystemSans-Bold.ttf
 
 RUN groupmod -o -g "${APP_GID}" www-data \
     && usermod -o -u "${APP_UID}" -g www-data www-data

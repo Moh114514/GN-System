@@ -309,6 +309,14 @@ final class BdQuarterlyCommissionTest extends TestCase
             $this->assertStringContainsString('%', $text);
             $this->assertStringContainsString('123,456', $text);
             $this->assertStringContainsString('123,456.78', $text);
+
+            $fonts = new Process(['pdffonts', $path]);
+            $fonts->run();
+            $this->assertTrue($fonts->isSuccessful(), $fonts->getErrorOutput());
+            $fontTable = $fonts->getOutput();
+            $this->assertStringContainsString('GNSystemSans-Regular', $fontTable);
+            $this->assertStringContainsString('GNSystemSans-Bold', $fontTable);
+            $this->assertDoesNotMatchRegularExpression('/(?m)^\s*(Arial|Helvetica|DejaVu|Times)/', $fontTable);
         } finally {
             if (is_string($path) && is_file($path)) {
                 unlink($path);
