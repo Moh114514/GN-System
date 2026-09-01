@@ -107,6 +107,8 @@
                 @endif
             </section>
 
+            @livewire(\App\Modules\Order\Presentation\Livewire\CustomerAppointmentSchedule::class, ['customerId' => $customer['id']])
+
             <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h3 class="text-lg font-semibold">{{ __('customers.detail.timeline.heading') }}</h3>

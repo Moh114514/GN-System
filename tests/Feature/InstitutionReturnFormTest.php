@@ -19,6 +19,7 @@ use App\Modules\Order\Application\Data\InstitutionReturnUploadData;
 use App\Modules\Order\Application\Services\InstitutionFormTemplateService;
 use App\Modules\Order\Application\Services\InstitutionReturnParser;
 use App\Modules\Order\Application\Services\InstitutionReturnProcessor;
+use App\Modules\Order\Infrastructure\Models\Appointment;
 use App\Modules\Order\Infrastructure\Models\InstitutionReturnFile;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Order\Infrastructure\Models\OrderItem;
@@ -55,6 +56,13 @@ class InstitutionReturnFormTest extends TestCase
         $institution = Institution::query()->firstOrFail();
         $agent = $this->agent($institution);
         $customer = $this->customer($agent, $user);
+        $appointment = Appointment::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'scheduled_at' => '2026-09-01 10:00:00',
+            'owner_id' => $user->id,
+            'status' => 'arrived',
+        ]);
         $contents = $this->workbook($institution->id, $customer->id, '2026-09-01', 2, 150000, 300000);
 
         $orderId = app(InstitutionReturnProcessor::class)->upload(new InstitutionReturnUploadData(
@@ -85,6 +93,7 @@ class InstitutionReturnFormTest extends TestCase
         $this->assertDatabaseHas('customer_statuses', ['key' => 'treatment_completed']);
         $this->assertSame('treatment_completed', $customer->refresh()->currentStatus?->key);
         $this->assertNotNull($customer->treatment_completed_at);
+        $this->assertSame('completed', $appointment->refresh()->status);
     }
 
     public function test_customer_registration_upload_shows_success_and_dispatches_refresh_event(): void

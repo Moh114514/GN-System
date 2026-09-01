@@ -49,7 +49,7 @@ return [
     ],
     'system_reminders' => [
         'pre_visit_3_days' => ['title' => '시술 3일 전 확인', 'suggestion' => '방문 준비와 시술 전 주의사항을 확인합니다'],
-        'arrival_previous_day' => ['title' => '방문 하루 전 고객 연락', 'suggestion' => '고객에게 연락하여 방문 시간, 교통 및 숙박 일정을 확인합니다'],
+        'arrival_previous_day' => ['title' => '방문 하루 전 고객 연락', 'suggestion' => '고객에게 연락하여 예정 방문 시간, 교통 및 숙박 일정을 확인합니다', 'expected_arrival' => '예정 방문 시각: :scheduled_at'],
         'arrival_today' => ['title' => '오늘 고객 연락 및 방문 확인', 'suggestion' => '고객에게 연락하여 방문 후 응대 절차를 확인합니다'],
         'post_treatment' => [
             'title' => '시술 후 :days일차 후속 관리',

@@ -56,7 +56,7 @@ return [
     ],
     'system_reminders' => [
         'pre_visit_3_days' => ['title' => '术前 3 天确认', 'suggestion' => '确认客户到店准备和术前注意事项'],
-        'arrival_previous_day' => ['title' => '到店前一天客服联系客户', 'suggestion' => '客服联系客户确认到店时间、交通与住宿安排'],
+        'arrival_previous_day' => ['title' => '到院前一天联系客户', 'suggestion' => '客服联系客户确认预计到院时间、交通与住宿安排', 'expected_arrival' => '预计到院时间：:scheduled_at'],
         'arrival_today' => ['title' => '今日客服联系客户并确认到店', 'suggestion' => '客服联系客户确认到店后的接待流程'],
         'post_treatment' => [
             'title' => '术后第 :days 天跟进',

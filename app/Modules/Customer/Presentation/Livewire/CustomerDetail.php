@@ -67,6 +67,7 @@ class CustomerDetail extends Component
             ipAddress: request()->ip(),
         );
         $this->reset('targetStatusId', 'statusReason');
+        $this->dispatch('customer-status-updated', customerId: $this->customerId);
         Flux::toast(variant: 'success', text: __('customers.toasts.status_updated'));
     }
 

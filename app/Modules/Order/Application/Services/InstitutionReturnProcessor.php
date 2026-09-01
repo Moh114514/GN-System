@@ -9,12 +9,14 @@ use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Config\Application\Contracts\InstitutionReferenceReader;
 use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
 use App\Modules\Customer\Application\Contracts\CustomerTreatmentCompletionGateway;
+use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
 use App\Modules\Order\Application\Data\InstitutionReturnUploadData;
 use App\Modules\Order\Infrastructure\InstitutionReturnStorage;
 use App\Modules\Order\Infrastructure\Models\InstitutionFormTemplate;
 use App\Modules\Order\Infrastructure\Models\InstitutionReturnFile;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Order\Infrastructure\Models\OrderItem;
+use App\Modules\Reminder\Application\Contracts\AppointmentReminderGateway;
 use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
 use App\Modules\Reminder\Application\Data\CompletedTreatmentData;
 use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
@@ -37,6 +39,8 @@ final readonly class InstitutionReturnProcessor
         private CustomerTreatmentCompletionGateway $customerCompletion,
         private DailyCommissionGateway $commissions,
         private TreatmentReminderGateway $reminders,
+        private CustomerOrderGateway $appointments,
+        private AppointmentReminderGateway $appointmentReminders,
         private AuditRecorder $audit,
         private BusinessClock $clock,
     ) {}
@@ -171,6 +175,10 @@ final readonly class InstitutionReturnProcessor
                     actorId: $data->actorId,
                     ipAddress: $data->ipAddress,
                 );
+                $appointmentId = $this->appointments->completeAppointmentForCustomer($data->customerId, $data->institutionId);
+                if ($appointmentId !== null) {
+                    $this->appointmentReminders->cancelForAppointment($appointmentId, $data->actorId, 'institution_return_completed');
+                }
                 $this->reminders->schedule(new CompletedTreatmentData(
                     orderId: (int) $order->id,
                     customerId: $data->customerId,

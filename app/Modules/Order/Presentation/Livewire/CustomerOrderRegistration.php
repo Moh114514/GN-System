@@ -123,6 +123,17 @@ class CustomerOrderRegistration extends Component
         $this->status = 'ready';
     }
 
+    #[On('customer-status-updated')]
+    public function refreshAfterStatusChange(int $customerId, CustomerOrderRegistrationWorkspace $workspace): void
+    {
+        if ($customerId !== $this->customerId) {
+            return;
+        }
+
+        $this->setDefaultInstitution($workspace->context($this->customerId));
+        $this->resetValidation();
+    }
+
     public function render(CustomerOrderRegistrationWorkspace $workspace): View
     {
         return view('livewire.orders.customer-order-registration', [

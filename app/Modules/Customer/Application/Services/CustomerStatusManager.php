@@ -13,6 +13,7 @@ use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusTransition;
 use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
+use App\Modules\Reminder\Application\Contracts\AppointmentReminderGateway;
 use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
 use App\Modules\Reminder\Application\Data\CustomerTreatmentCompletedData;
 use Illuminate\Support\Facades\DB;
@@ -27,6 +28,7 @@ final readonly class CustomerStatusManager
         private BusinessClock $clock,
         private AccessContextResolver $access,
         private CustomerOrderGateway $orders,
+        private AppointmentReminderGateway $appointmentReminders,
     ) {}
 
     public function change(
@@ -118,6 +120,12 @@ final readonly class CustomerStatusManager
                     ownerId: $customer->owner_id === null ? null : (int) $customer->owner_id,
                     actorId: (int) $actor->id,
                 ));
+            }
+            if ($target->key === 'arrived') {
+                $appointmentId = $this->orders->markAppointmentArrived($customer->id);
+                if ($appointmentId !== null) {
+                    $this->appointmentReminders->cancelForAppointment($appointmentId, $actor->id, 'customer_arrived');
+                }
             }
         }, 3);
     }

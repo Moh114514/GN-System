@@ -25,6 +25,8 @@ use App\Modules\Customer\Infrastructure\Models\CustomerStatusTransition;
 use App\Modules\Customer\Presentation\Livewire\CustomerDetail;
 use App\Modules\Customer\Presentation\Livewire\CustomerForm;
 use App\Modules\Customer\Presentation\Livewire\CustomerList;
+use App\Modules\Order\Infrastructure\Models\Appointment;
+use App\Modules\Order\Presentation\Livewire\CustomerOrderRegistration;
 use App\Modules\Reminder\Infrastructure\Models\Reminder;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
@@ -684,6 +686,48 @@ class CustomerLifecycleTest extends TestCase
             ->assertDontSee('客户状态配置');
     }
 
+    public function test_arrival_updates_appointment_and_cancels_pending_arrival_reminder(): void
+    {
+        $customerId = $this->createCustomer();
+        $appointment = Appointment::query()->where('customer_id', $customerId)->firstOrFail();
+        Reminder::query()->create([
+            'customer_id' => $customerId,
+            'appointment_id' => $appointment->id,
+            'assigned_to' => $this->user->id,
+            'source_type' => 'system',
+            'reminder_type' => 'appointment',
+            'title' => '到院前一天联系客户',
+            'due_at' => '2026-08-01 18:00:00',
+            'status' => 'pending',
+            'notification_status' => 'pending',
+            'dedupe_key' => hash('sha256', 'arrival-reminder-test'),
+        ]);
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+
+        app(CustomerStatusManager::class)->change($customerId, $arrived->id, '客户已到院', $this->user, null);
+
+        $this->assertSame('arrived', $appointment->refresh()->status);
+        $this->assertDatabaseHas('reminders', [
+            'appointment_id' => $appointment->id,
+            'status' => 'cancelled',
+            'notification_status' => 'cancelled',
+        ]);
+    }
+
+    public function test_order_registration_refreshes_when_customer_arrives_without_a_full_page_reload(): void
+    {
+        $customerId = $this->createCustomer();
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+        $component = Livewire::actingAs($this->user)
+            ->test(CustomerOrderRegistration::class, ['customerId' => $customerId])
+            ->assertSee(__('orders.errors.customer_not_arrived'));
+
+        app(CustomerStatusManager::class)->change($customerId, $arrived->id, '客户已到院', $this->user, null);
+
+        $component->dispatch('customer-status-updated', customerId: $customerId)
+            ->assertDontSee(__('orders.errors.customer_not_arrived'));
+    }
+
     public function test_customer_form_defaults_owner_and_only_lists_eligible_internal_users(): void
     {
         $eligible = User::factory()->create(['name' => '可选负责人']);
@@ -701,6 +745,7 @@ class CustomerLifecycleTest extends TestCase
         Livewire::actingAs($this->user)
             ->test(CustomerForm::class)
             ->assertSet('ownerId', (string) $this->user->id)
+            ->assertSet('arrivalAt', '')
             ->assertSee($this->user->name)
             ->assertSee($eligible->name)
             ->assertDontSee($inactive->name)
