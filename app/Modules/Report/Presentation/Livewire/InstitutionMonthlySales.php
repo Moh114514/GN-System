@@ -52,9 +52,9 @@ class InstitutionMonthlySales extends Component
         $this->refreshSnapshot($sales);
     }
 
-    public function downloadExport(ReportExportManager $exports): void
+    public function downloadExport(ReportExportManager $exports, string $format = 'xlsx'): void
     {
-        $export = $exports->startInstitutionMonthlySales($this->user(), $this->month, $this->institutionSearch);
+        $export = $exports->startInstitutionMonthlySales($this->user(), $this->month, $this->institutionSearch, $format);
         if ($export->status !== 'completed') {
             Flux::toast(
                 variant: 'danger',

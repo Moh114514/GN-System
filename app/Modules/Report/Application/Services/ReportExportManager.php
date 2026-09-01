@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Report\Infrastructure\Models\ReportExport;
 use App\Modules\Report\Jobs\GenerateReportExport;
+use DomainException;
 use Illuminate\Database\Eloquent\Collection;
 use Throwable;
 
@@ -91,9 +92,12 @@ final readonly class ReportExportManager
         GenerateReportExport::dispatch($export->id);
     }
 
-    public function startInstitutionMonthlySales(User $user, string $month, string $institutionSearch = ''): ReportExport
+    public function startInstitutionMonthlySales(User $user, string $month, string $institutionSearch = '', string $format = 'xlsx'): ReportExport
     {
         $this->assertCanExport();
+        if (! in_array($format, ['xlsx', 'pdf'], true)) {
+            throw new DomainException(__('institution_sales.errors.export_format'));
+        }
         $context = $this->access->forUser($user);
         $summary = $this->access->using(
             $context,
@@ -102,7 +106,7 @@ final readonly class ReportExportManager
         $export = ReportExport::query()->create([
             'created_by' => $user->id,
             'kind' => 'institution_sales',
-            'format' => 'xlsx',
+            'format' => $format,
             'status' => 'generating',
             'criteria_snapshot' => [
                 'month' => $summary->month,

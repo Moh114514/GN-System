@@ -24,7 +24,7 @@ final class ReportExportController
 
         if ($export->kind === 'institution_sales') {
             $month = (string) ($export->criteria_snapshot['month'] ?? 'unknown');
-            $filename = __('institution_sales.export.filename', ['month' => $month]).'.xlsx';
+            $filename = __('institution_sales.export.filename', ['month' => $month]).'.'.$export->format;
         } else {
             $prefix = $export->kind === 'dashboard' ? 'dashboard' : 'orders';
             $filename = "{$prefix}-{$export->id}.{$export->format}";

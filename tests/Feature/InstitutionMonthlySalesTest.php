@@ -24,6 +24,7 @@ use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use Symfony\Component\Process\Process;
 use Tests\TestCase;
 
 class InstitutionMonthlySalesTest extends TestCase
@@ -179,7 +180,31 @@ class InstitutionMonthlySalesTest extends TestCase
         $this->assertSame(1_200_000, $sheet->getCell('E6')->getValue());
         $workbook->disconnectWorksheets();
 
+        $pdfExport = app(ReportExportManager::class)->startInstitutionMonthlySales($this->admin, '2026-08', 'dod 皮肤科', 'pdf');
+        $this->assertSame('pdf', $pdfExport->format);
+        $this->assertSame($export->data_snapshot, $pdfExport->data_snapshot);
+        $this->assertStringEndsWith('.pdf', (string) $pdfExport->path);
+        $this->assertStringStartsWith('%PDF-', Storage::disk('local')->get($pdfExport->path));
+
+        $pdfPath = tempnam(sys_get_temp_dir(), 'gn-institution-sales-pdf-');
+        $this->assertNotFalse($pdfPath);
+        try {
+            file_put_contents($pdfPath, Storage::disk('local')->get($pdfExport->path));
+            $process = new Process(['pdftotext', $pdfPath, '-']);
+            $process->run();
+            $this->assertTrue($process->isSuccessful(), $process->getErrorOutput());
+            $this->assertStringContainsString('机构销售额', $process->getOutput());
+            $this->assertStringContainsString('1,200,000', $process->getOutput());
+        } finally {
+            if (is_string($pdfPath) && is_file($pdfPath)) {
+                unlink($pdfPath);
+            }
+        }
+
         $this->get(route('reports.exports.download', ['export' => $export]))
+            ->assertOk()
+            ->assertHeader('content-disposition');
+        $this->get(route('reports.exports.download', ['export' => $pdfExport]))
             ->assertOk()
             ->assertHeader('content-disposition');
     }

@@ -93,9 +93,9 @@
             <h2 class="text-lg font-semibold">{{ __('settlements.bd_commission.rules') }}</h2>
             <p class="mt-1 text-sm text-zinc-600">{{ __('settlements.bd_commission.rule_assumption') }}</p>
             <div class="mt-4 grid gap-3 md:grid-cols-12 md:items-end">
-                <flux:input class="md:col-span-3" type="date" wire:model="ruleEffectiveFrom" label="{{ __('settlements.bd_commission.effective_from') }}" />
-                <flux:input class="md:col-span-2" type="number" wire:model="ruleRateBps" label="{{ __('settlements.bd_commission.rate_bps') }}" />
-                <flux:input class="md:col-span-5" wire:model="ruleReason" label="{{ __('settlements.bd_commission.reason') }}" />
+                <div class="md:col-span-3"><flux:input class="w-full" type="date" wire:model="ruleEffectiveFrom" label="{{ __('settlements.bd_commission.effective_from') }}" /></div>
+                <div class="md:col-span-3"><flux:input class="w-full" type="number" wire:model="ruleRateBps" label="{{ __('settlements.bd_commission.rate_bps') }}" /></div>
+                <div class="md:col-span-4"><flux:input class="w-full" wire:model="ruleReason" label="{{ __('settlements.bd_commission.reason') }}" /></div>
                 <div class="flex items-end md:col-span-2"><flux:button class="w-auto whitespace-nowrap" wire:click="saveRule" variant="primary">{{ __('settlements.bd_commission.save_rule') }}</flux:button></div>
             </div>
             <ul class="mt-4 space-y-1 text-sm">@foreach ($rules as $rule)<li>{{ $rule->effective_from->format('Y-m-d') }} · {{ number_format($rule->rate_bps / 100, 2) }}% · {{ $rule->reason }}</li>@endforeach</ul>

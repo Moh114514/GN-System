@@ -1049,7 +1049,8 @@ class PhaseFiveSettlementTest extends TestCase
         $pdf = $documents->firstWhere('format', 'pdf');
         $this->assertNotNull($pdf);
         $this->assertStringStartsWith('%PDF-', Storage::disk('local')->get($pdf->path));
-        $this->assertFileIsReadable((string) config('reporting.pdf.font_path'));
+        $this->assertFileIsReadable((string) config('reporting.pdf.font_regular_path'));
+        $this->assertFileIsReadable((string) config('reporting.pdf.font_bold_path'));
         $this->assertGreaterThan(0, Storage::disk('local')->size($pdf->path));
         $workflow->settle($settlement->id, $this->admin->id, null);
         $this->assertDatabaseHas('settlements', ['id' => $settlement->id, 'status' => 'settled']);

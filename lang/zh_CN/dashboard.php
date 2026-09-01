@@ -49,7 +49,7 @@ return [
         'conversion' => '建档至复购转化率',
     ],
     'panels' => [
-        'trend' => '月度营收与订单趋势',
+        'trend' => '营收与订单趋势',
         'period' => '统计周期',
         'monthly' => '月度',
         'revenue_krw' => '营收（KRW）',

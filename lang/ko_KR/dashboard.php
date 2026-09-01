@@ -49,7 +49,7 @@ return [
         'conversion' => '등록에서 재구매까지 전환율',
     ],
     'panels' => [
-        'trend' => '월별 매출 및 주문 추이',
+        'trend' => '매출 및 주문 추이',
         'period' => '통계 주기',
         'monthly' => '월별',
         'revenue_krw' => '매출（KRW）',

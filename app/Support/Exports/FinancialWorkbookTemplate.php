@@ -155,8 +155,9 @@ final class FinancialWorkbookTemplate
 
     public function renderPdf(FinancialDocumentData $document): string
     {
-        $pdfFontPath = (string) config('reporting.pdf.font_path');
-        if (! is_readable($pdfFontPath)) {
+        $pdfRegularFontPath = (string) config('reporting.pdf.font_regular_path');
+        $pdfBoldFontPath = (string) config('reporting.pdf.font_bold_path');
+        if (! is_readable($pdfRegularFontPath) || ! is_readable($pdfBoldFontPath)) {
             throw new RuntimeException(__('settlements.errors.document_pdf_font_missing'));
         }
 
@@ -169,21 +170,21 @@ final class FinancialWorkbookTemplate
         }
         $options = new Options;
         $options->setIsRemoteEnabled(false);
-        $options->setChroot([base_path(), dirname($pdfFontPath)]);
+        $options->setChroot([base_path(), dirname($pdfRegularFontPath), dirname($pdfBoldFontPath)]);
         $options->setDefaultFont('GN CJK');
         $options->setIsFontSubsettingEnabled(false);
         $options->setFontDir($fontCachePath);
         $options->setFontCache($fontCachePath);
         $options->setTempDir($tempPath);
         $dompdf = new Dompdf($options);
-        $dompdf->loadHtml($this->html($document, $pdfFontPath), 'UTF-8');
+        $dompdf->loadHtml($this->html($document, $pdfRegularFontPath, $pdfBoldFontPath), 'UTF-8');
         $dompdf->setPaper('A4', count($document->columns) >= 7 ? 'landscape' : 'portrait');
         $dompdf->render();
 
         return $dompdf->output();
     }
 
-    public function html(FinancialDocumentData $document, string $pdfFontPath): string
+    public function html(FinancialDocumentData $document, string $pdfRegularFontPath, string $pdfBoldFontPath): string
     {
         $metadataRows = '';
         $metadataItems = [
@@ -226,13 +227,13 @@ final class FinancialWorkbookTemplate
         $summary .= '</tbody></table>';
         $remarks = $document->remarks === [] ? '' : '<div class="remarks"><h3>'.e(__('exports.formal_document.remarks')).'</h3>'.implode('', array_map(fn (string $remark): string => '<p>'.e($remark).'</p>', $document->remarks)).'</div>';
         $primary = $this->htmlValue($document->primaryAmount, 'amount', $document->currency, $document->currencyDecimals);
-        $css = '@font-face{font-family:"GN CJK";font-style:normal;font-weight:400;src:url("file://'.e($pdfFontPath).'") format("truetype");}'
-            .'@font-face{font-family:"GN CJK";font-style:normal;font-weight:700;src:url("file://'.e($pdfFontPath).'") format("truetype");}'
-            .'@page{margin:14mm 12mm 14mm 12mm;}body{font-family:"GN CJK",Arial,sans-serif;color:#'.FinancialWorkbookStyle::TEXT.';font-size:10.5px;line-height:1.35;}h1{color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-size:24px;font-weight:700;line-height:1.2;text-align:center;margin:0 0 18px;}'
+        $css = '@font-face{font-family:"GN CJK";font-style:normal;font-weight:400;src:url("file://'.e($pdfRegularFontPath).'") format("truetype");}'
+            .'@font-face{font-family:"GN CJK";font-style:normal;font-weight:700;src:url("file://'.e($pdfBoldFontPath).'") format("truetype");}'
+            .'@page{margin:14mm 12mm 14mm 12mm;}body{font-family:"GN CJK",Arial,sans-serif;color:#'.FinancialWorkbookStyle::TEXT.';font-size:10.5px;font-weight:400;line-height:1.35;}h1{color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-size:24px;font-weight:700;line-height:1.2;text-align:center;margin:0 0 18px;}'
             .'table{width:100%;border-collapse:collapse;margin-bottom:12px;page-break-inside:auto}thead{display:table-header-group}tr{page-break-inside:avoid}'
-            .'.meta-grid{table-layout:fixed;border:1px solid #'.FinancialWorkbookStyle::BORDER.';margin-bottom:14px}.meta-grid td{width:50%;box-sizing:border-box}.meta{padding:7px 9px;border-bottom:1px solid #'.FinancialWorkbookStyle::BORDER.'}.meta:first-child{border-right:1px solid #'.FinancialWorkbookStyle::BORDER.'}.meta span{display:block;color:#'.FinancialWorkbookStyle::MUTED.';font-size:9.5px;font-weight:400;line-height:1.25;margin-bottom:2px}.meta strong{font-size:11px;font-weight:600;line-height:1.3}'
-            .'.primary{background:#'.FinancialWorkbookStyle::PALE_CYAN.';border:2px solid #'.FinancialWorkbookStyle::ACCENT.';padding:12px 14px;margin-bottom:16px;text-align:center}.primary span{display:block;color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-weight:600;font-size:11px}.primary strong{display:block;color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-size:22px;font-weight:700;line-height:1.2;margin-top:4px}'
-            .'h2{font-size:13px;font-weight:700;color:#'.FinancialWorkbookStyle::ACCENT_DARK.';border-bottom:2px solid #'.FinancialWorkbookStyle::ACCENT.';padding-bottom:5px;margin:0 0 7px;}th{background:#'.FinancialWorkbookStyle::ACCENT.';color:#fff;font-size:10.5px;font-weight:700;line-height:1.25;padding:7px 6px;border:1px solid #'.FinancialWorkbookStyle::BORDER.'}td{font-size:10.25px;line-height:1.3;padding:5.5px 6px;border:1px solid #'.FinancialWorkbookStyle::BORDER.';vertical-align:top}td.amount,td.percent{text-align:right;white-space:nowrap;font-weight:500}td.empty{text-align:center;color:#'.FinancialWorkbookStyle::MUTED.'}'
+            .'.meta-grid{table-layout:fixed;border:1px solid #'.FinancialWorkbookStyle::BORDER.';margin-bottom:14px}.meta-grid td{width:50%;box-sizing:border-box}.meta{padding:7px 9px;border-bottom:1px solid #'.FinancialWorkbookStyle::BORDER.'}.meta:first-child{border-right:1px solid #'.FinancialWorkbookStyle::BORDER.'}.meta span{display:block;color:#'.FinancialWorkbookStyle::MUTED.';font-size:9.5px;font-weight:400;line-height:1.25;margin-bottom:2px}.meta strong{font-size:11px;font-weight:700;line-height:1.3}'
+            .'.primary{background:#'.FinancialWorkbookStyle::PALE_CYAN.';border:2px solid #'.FinancialWorkbookStyle::ACCENT.';padding:12px 14px;margin-bottom:16px;text-align:center}.primary span{display:block;color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-weight:700;font-size:11px}.primary strong{display:block;color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-size:22px;font-weight:700;line-height:1.2;margin-top:4px}'
+            .'h2{font-size:13px;font-weight:700;color:#'.FinancialWorkbookStyle::ACCENT_DARK.';border-bottom:2px solid #'.FinancialWorkbookStyle::ACCENT.';padding-bottom:5px;margin:0 0 7px;}th{background:#'.FinancialWorkbookStyle::ACCENT.';color:#fff;font-size:10.5px;font-weight:700;line-height:1.25;padding:7px 6px;border:1px solid #'.FinancialWorkbookStyle::BORDER.'}td{font-size:10.25px;font-weight:400;line-height:1.3;padding:5.5px 6px;border:1px solid #'.FinancialWorkbookStyle::BORDER.';vertical-align:top}td.amount,td.percent{text-align:right;white-space:nowrap;font-weight:700}td.empty{text-align:center;color:#'.FinancialWorkbookStyle::MUTED.'}'
             .'.summary{margin-top:10px;background:#'.FinancialWorkbookStyle::PALE_CYAN.';border:1px solid #'.FinancialWorkbookStyle::BORDER.'}.summary td{font-size:10.5px;padding:7px 9px}.summary-label{width:70%}.summary-value{text-align:right;white-space:nowrap}.summary tr.emphasis td{border:2px solid #'.FinancialWorkbookStyle::ACCENT.';color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-size:12.5px;font-weight:700;padding-top:8px;padding-bottom:8px}'
             .'.remarks{margin-top:14px;border-top:1px solid #'.FinancialWorkbookStyle::BORDER.';padding-top:8px}.remarks h3{color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-size:11px}.remarks p{margin:4px 0;color:#'.FinancialWorkbookStyle::MUTED.'}';
 

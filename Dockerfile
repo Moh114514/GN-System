@@ -6,9 +6,10 @@ COPY scripts/build-cjk-font.py /tmp/build-cjk-font.py
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends fonts-arphic-gbsn00lp fonts-unfonts-core python3-fonttools \
-    && python3 /tmp/build-cjk-font.py /tmp/GNSystemCJK.ttf \
+    && python3 /tmp/build-cjk-font.py /tmp/GNSystemCJK-Regular.ttf /tmp/GNSystemCJK-Bold.ttf \
     && mkdir -p /usr/local/share/fonts/gn-system \
-    && cp /tmp/GNSystemCJK.ttf /usr/local/share/fonts/gn-system/GNSystemCJK.ttf \
+    && cp /tmp/GNSystemCJK-Regular.ttf /usr/local/share/fonts/gn-system/GNSystemCJK-Regular.ttf \
+    && cp /tmp/GNSystemCJK-Bold.ttf /usr/local/share/fonts/gn-system/GNSystemCJK-Bold.ttf \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -38,7 +39,8 @@ RUN apt-get -o Acquire::Retries=5 update \
 
 COPY --from=postgres-client /usr/lib/postgresql/16/bin/pg_dump /usr/local/bin/pg_dump
 COPY --from=postgres-client /usr/lib/postgresql/16/bin/pg_restore /usr/local/bin/pg_restore
-COPY --from=cjk-font /usr/local/share/fonts/gn-system/GNSystemCJK.ttf /usr/local/share/fonts/gn-system/GNSystemCJK.ttf
+COPY --from=cjk-font /usr/local/share/fonts/gn-system/GNSystemCJK-Regular.ttf /usr/local/share/fonts/gn-system/GNSystemCJK-Regular.ttf
+COPY --from=cjk-font /usr/local/share/fonts/gn-system/GNSystemCJK-Bold.ttf /usr/local/share/fonts/gn-system/GNSystemCJK-Bold.ttf
 
 RUN groupmod -o -g "${APP_GID}" www-data \
     && usermod -o -u "${APP_UID}" -g www-data www-data

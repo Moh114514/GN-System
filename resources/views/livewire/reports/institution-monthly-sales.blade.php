@@ -4,9 +4,14 @@
             <h2 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ __('institution_sales.title') }}</h2>
             <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ __('institution_sales.description') }}</p>
         </div>
-        <flux:button wire:click="downloadExport" wire:loading.attr="disabled" wire:target="downloadExport" variant="primary" size="sm" class="shrink-0">
-            {{ __('institution_sales.export.button') }}
-        </flux:button>
+        <div class="flex shrink-0 flex-wrap gap-2">
+            <flux:button wire:click="downloadExport('xlsx')" wire:loading.attr="disabled" wire:target="downloadExport" variant="primary" size="sm">
+                {{ __('institution_sales.export.xlsx_button') }}
+            </flux:button>
+            <flux:button wire:click="downloadExport('pdf')" wire:loading.attr="disabled" wire:target="downloadExport" variant="ghost" size="sm">
+                {{ __('institution_sales.export.pdf_button') }}
+            </flux:button>
+        </div>
     </section>
 
     <section class="mb-5 rounded-xl border border-zinc-200 bg-white p-4 shadow-none dark:border-zinc-700 dark:bg-zinc-900">

@@ -370,13 +370,14 @@ class PhaseSixReportingConfigurationTest extends TestCase
         );
         Storage::disk('local')->assertExists($html->path);
         Storage::disk('local')->assertExists($pdf->path);
-        $this->assertFileIsReadable((string) config('reporting.pdf.font_path'));
+        $this->assertFileIsReadable((string) config('reporting.pdf.font_regular_path'));
+        $this->assertFileIsReadable((string) config('reporting.pdf.font_bold_path'));
         $this->assertGreaterThan(0, Storage::disk('local')->size($pdf->path));
 
         $this->actingAs($this->user)->get(route('dashboard'))
             ->assertOk()
             ->assertSee('数据看板')
-            ->assertSee('月度营收与订单趋势')
+            ->assertSee('营收与订单趋势')
             ->assertSee('代理商推广费排行')
             ->assertSee('客户生命周期概览')
             ->assertSee('今日待办提醒')

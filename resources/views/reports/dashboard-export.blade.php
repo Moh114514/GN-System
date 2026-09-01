@@ -4,18 +4,18 @@
     <meta charset="UTF-8">
     <title>GN-System {{ __('dashboard.export.title') }}</title>
     <style>
-        @if ($pdfFontPath !== null)
+        @if ($pdfRegularFontPath !== null)
             @font-face {
                 font-family: "GN CJK";
                 font-style: normal;
                 font-weight: 400;
-                src: url("file://{{ $pdfFontPath }}") format("opentype");
+                src: url("file://{{ $pdfRegularFontPath }}") format("truetype");
             }
             @font-face {
                 font-family: "GN CJK";
                 font-style: normal;
                 font-weight: 700;
-                src: url("file://{{ $pdfFontPath }}") format("opentype");
+                src: url("file://{{ $pdfBoldFontPath }}") format("truetype");
             }
         @endif
         body {

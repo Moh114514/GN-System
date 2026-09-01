@@ -99,7 +99,8 @@ PR7 的月结中心默认只展示最新已生成周期，可从顶部下拉切�
 
 上一轮月结修复本身没有新增 migration、依赖或服务器命令；本轮韩文化收尾新增 `000400`、`000500` migration，并把 `league/commonmark` 安全升级到锁文件允许的修复版本。PR4 复用现有提醒表和 Scheduler，不新增 migration 或第三方节假日服务。部署 UAT 前仍需按完整手册执行门禁、数据库备份和 migration，并人工复验失败详情、报告下载、系统提醒、指定日期规则和韩文提示行为。
 
-PDF 字体修复需要使用包含 `/usr/local/share/fonts/gn-system/GNSystemCJK.ttf` 和 `pdftotext` 的新版 app 镜像；只重启旧容器不会更新字体。UAT/Production 需要抽取测试 PDF 文本，确认简体中文、한글、₩ 和 `123,456` 可读。日期控件已统一为由系统语言控制的日期选择器，仍提交 `Y-m-d` 日期值。
+PDF 字体修复需要使用包含 `/usr/local/share/fonts/gn-system/GNSystemCJK-Regular.ttf`、
+`/usr/local/share/fonts/gn-system/GNSystemCJK-Bold.ttf` 和 `pdftotext` 的新版 app 镜像；只重启旧容器不会更新字体。UAT/Production 需要抽取测试 PDF 文本，确认简体中文、한글、₩ 和 `123,456` 可读。日期控件已统一为由系统语言控制的日期选择器，仍提交 `Y-m-d` 日期值。
 
 国际化 PR-A、PR-B、PR-C 及 PR-D 当前批次只在 `develop` 本机工作区完成，不能据此认为 UAT 或 Production 已支持韩文。
 发布时要先备份数据库，再按 RC 流程执行 migration；既有用户默认保持 `zh_CN`。业务页面、导出

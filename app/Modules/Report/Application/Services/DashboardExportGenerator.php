@@ -43,8 +43,9 @@ final class DashboardExportGenerator
         if ($reusableExport !== null) {
             return $reusableExport;
         }
-        $pdfFontPath = $format === 'pdf' ? (string) config('reporting.pdf.font_path') : null;
-        if ($pdfFontPath !== null && ! is_readable($pdfFontPath)) {
+        $pdfRegularFontPath = $format === 'pdf' ? (string) config('reporting.pdf.font_regular_path') : null;
+        $pdfBoldFontPath = $format === 'pdf' ? (string) config('reporting.pdf.font_bold_path') : null;
+        if ($pdfRegularFontPath !== null && (! is_readable($pdfRegularFontPath) || ! is_readable((string) $pdfBoldFontPath))) {
             throw new RuntimeException(__('dashboard.errors.pdf_font_missing'));
         }
         $export = ReportExport::query()->create([
@@ -61,7 +62,8 @@ final class DashboardExportGenerator
         try {
             $html = view('reports.dashboard-export', [
                 'snapshot' => $snapshot,
-                'pdfFontPath' => $pdfFontPath,
+                'pdfRegularFontPath' => $pdfRegularFontPath,
+                'pdfBoldFontPath' => $pdfBoldFontPath,
             ])->render();
         } finally {
             app()->setLocale($previousLocale);
@@ -81,7 +83,7 @@ final class DashboardExportGenerator
             }
             $options = new Options;
             $options->setIsRemoteEnabled(false);
-            $options->setChroot([base_path(), dirname((string) $pdfFontPath)]);
+            $options->setChroot([base_path(), dirname((string) $pdfRegularFontPath), dirname((string) $pdfBoldFontPath)]);
             $options->setDefaultFont('GN CJK');
             $options->setIsFontSubsettingEnabled(false);
             $options->setFontDir($fontCachePath);
