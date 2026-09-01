@@ -84,6 +84,16 @@ class PhaseFiveSettlementTest extends TestCase
             'services.settlement_exchange_rate.enabled' => false,
         ]);
         $this->seed(PhaseTwoReferenceDataSeeder::class);
+        SettlementConfiguration::query()->updateOrCreate(
+            ['effective_from' => '2026-09-01'],
+            [
+                'boundary_day' => 1,
+                'generation_day' => 5,
+                'trigger_time' => '09:00:00',
+                'timezone' => 'Asia/Shanghai',
+                'created_by' => null,
+            ],
+        );
         $this->user = User::factory()->create();
         $this->admin = User::factory()->superAdmin()->withTwoFactor()->create();
         $system = PolicySystem::query()->create(['name' => '月结政策', 'is_active' => true]);
