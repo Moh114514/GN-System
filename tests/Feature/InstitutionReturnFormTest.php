@@ -12,7 +12,9 @@ use App\Modules\Agent\Infrastructure\Models\PolicySystem;
 use App\Modules\Auth\Infrastructure\Models\BusinessGroup;
 use App\Modules\Auth\Infrastructure\Models\BusinessGroupMembership;
 use App\Modules\Config\Infrastructure\Models\Institution;
+use App\Modules\Customer\Application\Services\CustomerStatusManager;
 use App\Modules\Customer\Infrastructure\Models\Customer;
+use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
 use App\Modules\Order\Application\Data\InstitutionReturnUploadData;
 use App\Modules\Order\Application\Services\InstitutionFormTemplateService;
 use App\Modules\Order\Application\Services\InstitutionReturnParser;
@@ -20,13 +22,16 @@ use App\Modules\Order\Application\Services\InstitutionReturnProcessor;
 use App\Modules\Order\Infrastructure\Models\InstitutionReturnFile;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Order\Infrastructure\Models\OrderItem;
+use App\Modules\Order\Presentation\Livewire\CustomerOrderRegistration;
 use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
 use App\Modules\Settlement\Infrastructure\Models\CommissionRule;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use DateTimeImmutable;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Livewire;
 use Mockery;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
@@ -80,6 +85,29 @@ class InstitutionReturnFormTest extends TestCase
         $this->assertDatabaseHas('customer_statuses', ['key' => 'treatment_completed']);
         $this->assertSame('treatment_completed', $customer->refresh()->currentStatus?->key);
         $this->assertNotNull($customer->treatment_completed_at);
+    }
+
+    public function test_customer_registration_upload_shows_success_and_dispatches_refresh_event(): void
+    {
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent($institution);
+        $customer = $this->customer($agent, $user);
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+        app(CustomerStatusManager::class)->change($customer->id, $arrived->id, '客户已到院', $user, null);
+        $contents = $this->workbook($institution->id, $customer->id, '2026-09-01', 1, 200000, 200000);
+
+        Livewire::actingAs($user)
+            ->test(CustomerOrderRegistration::class, ['customerId' => $customer->id])
+            ->set('institutionId', (string) $institution->id)
+            ->set('upload', UploadedFile::fake()->createWithContent('登记订单.xlsx', $contents))
+            ->call('uploadReturn')
+            ->assertHasNoErrors()
+            ->assertSet('status', 'success')
+            ->assertSet('successResult.project_name', '皮肤管理')
+            ->assertDispatched('customer-order-registered');
+
+        $this->assertDatabaseCount('orders', 1);
     }
 
     public function test_amount_mismatch_is_rejected_without_an_order(): void

@@ -4,16 +4,20 @@ namespace App\Modules\Customer\Application\Services;
 
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
+use App\Modules\Customer\Domain\CustomerLabelLocalizer;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use Illuminate\Database\Eloquent\Builder;
 
 final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferenceReader
 {
-    public function __construct(private readonly AccessContextResolver $access) {}
+    public function __construct(
+        private readonly AccessContextResolver $access,
+        private readonly CustomerLabelLocalizer $labels,
+    ) {}
 
     public function customerForOrder(int $customerId): array
     {
-        $customer = $this->scoped()->findOrFail($customerId);
+        $customer = $this->scoped()->with('currentStatus')->findOrFail($customerId);
 
         return $this->serializeCustomer($customer);
     }
@@ -21,8 +25,9 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
     public function customersForOrders(array $ids): array
     {
         return $this->scoped()
+            ->with('currentStatus')
             ->whereKey(array_values(array_unique($ids)))
-            ->get(['id', 'code', 'name', 'source_agent_id', 'owner_id'])
+            ->get(['id', 'code', 'name', 'source_agent_id', 'owner_id', 'current_status_id', 'arrived_at'])
             ->mapWithKeys(fn (Customer $customer): array => [
                 (int) $customer->id => $this->serializeCustomer($customer),
             ])
@@ -43,7 +48,8 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
         return $query
             ->latest('updated_at')
             ->limit(max(1, min($limit, 50)))
-            ->get(['id', 'code', 'name', 'source_agent_id', 'owner_id'])
+            ->with('currentStatus')
+            ->get(['id', 'code', 'name', 'source_agent_id', 'owner_id', 'current_status_id', 'arrived_at'])
             ->map(fn (Customer $customer): array => $this->serializeCustomer($customer))
             ->all();
     }
@@ -65,7 +71,7 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
             ->all();
     }
 
-    /** @return array{id: int, code: string, name: string, source_agent_id: int, owner_id: int|null} */
+    /** @return array{id: int, code: string, name: string, source_agent_id: int, owner_id: int|null, current_status_key: string|null, current_status: string|null, arrived_at: string|null} */
     private function serializeCustomer(Customer $customer): array
     {
         return [
@@ -74,6 +80,11 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
             'name' => (string) $customer->name,
             'source_agent_id' => (int) $customer->source_agent_id,
             'owner_id' => $customer->owner_id === null ? null : (int) $customer->owner_id,
+            'current_status_key' => $customer->currentStatus?->key,
+            'current_status' => $customer->currentStatus === null
+                ? null
+                : $this->labels->status((string) $customer->currentStatus->key, (string) $customer->currentStatus->name),
+            'arrived_at' => $customer->arrived_at?->format('Y-m-d H:i'),
         ];
     }
 

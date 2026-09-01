@@ -13,6 +13,7 @@ use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\On;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
@@ -195,6 +196,12 @@ class CustomerDetail extends Component
         $manager->reject((int) $pending['id'], $this->rollbackReviewReason, Auth::user());
         $this->reset('rollbackReviewReason');
         Flux::toast(variant: 'success', text: __('customers.toasts.rollback_rejected'));
+    }
+
+    #[On('customer-order-registered')]
+    public function refreshAfterOrderRegistered(): void
+    {
+        // The event intentionally exists as a refresh boundary for the aggregated detail view.
     }
 
     public function render(CustomerDirectory $directory, CustomerTransferManager $transfers, CustomerStatusApprovalManager $approvals): View

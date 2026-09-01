@@ -278,6 +278,22 @@ class CustomerLifecycleTest extends TestCase
         $this->assertSame('补录历史客户状态', $history->reason);
     }
 
+    public function test_customer_detail_uses_an_inline_order_registration_modal_with_the_appointment_institution(): void
+    {
+        $customerId = $this->createCustomer();
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+        app(CustomerStatusManager::class)->change($customerId, $arrived->id, '客户已到院', $this->user, null);
+
+        $response = $this->actingAs($this->user)->get(route('customers.show', $customerId));
+
+        $response->assertOk()
+            ->assertSee(__('customers.detail.actions.register_order'))
+            ->assertSee(__('orders.registration.title'))
+            ->assertSee($this->institution->name)
+            ->assertSee('customer-order-registration', false)
+            ->assertDontSee('href="'.route('customers.orders', $customerId).'"', false);
+    }
+
     public function test_treatment_completed_creates_only_two_idempotent_passive_reminders(): void
     {
         $customerId = $this->createCustomer();
@@ -367,7 +383,7 @@ class CustomerLifecycleTest extends TestCase
             ->assertSee('data-status-key="treatment_completed" data-status-state="available"', false)
             ->assertSee('data-transition-visited="true"', false)
             ->assertDontSee('data-flow-history-transitions', false)
-            ->assertDontSee('wire:click', false);
+            ->assertDontSee('wire:click="changeStatus"', false);
     }
 
     public function test_super_admin_can_rollback_and_configuration_is_protected(): void

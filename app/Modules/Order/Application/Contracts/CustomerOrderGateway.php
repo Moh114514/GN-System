@@ -9,6 +9,9 @@ interface CustomerOrderGateway
 {
     public function createInitialAppointment(CustomerAppointmentData $data): int;
 
+    /** @return array{id: int, institution_id: int, scheduled_at: string|null, status: string}|null */
+    public function latestAppointmentForCustomer(int $customerId): ?array;
+
     /** @return array<int, int> */
     public function customerIdsForInstitution(int $institutionId): array;
 

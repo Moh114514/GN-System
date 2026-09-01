@@ -24,6 +24,31 @@ final class DatabaseCustomerOrderGateway implements CustomerOrderGateway
         ])->id;
     }
 
+    /** @return array{id: int, institution_id: int, scheduled_at: string|null, status: string}|null */
+    public function latestAppointmentForCustomer(int $customerId): ?array
+    {
+        $appointment = Appointment::query()
+            ->where('customer_id', $customerId)
+            ->where('status', 'scheduled')
+            ->orderByRaw('scheduled_at IS NULL')
+            ->orderByDesc('scheduled_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if ($appointment === null) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $appointment->id,
+            'institution_id' => (int) $appointment->institution_id,
+            'scheduled_at' => $appointment->scheduled_at === null
+                ? null
+                : CarbonImmutable::parse($appointment->scheduled_at)->toIso8601String(),
+            'status' => (string) $appointment->status,
+        ];
+    }
+
     public function customerIdsForInstitution(int $institutionId): array
     {
         return array_values(array_unique([

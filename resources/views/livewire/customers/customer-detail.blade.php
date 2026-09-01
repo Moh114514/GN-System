@@ -15,7 +15,9 @@
                         @endphp
                         @if ($canOperateCustomer)
                             <flux:button :href="route('reminders.create', ['customer' => $customer['id']])" size="sm" icon="bell-alert" wire:navigate>{{ __('customers.detail.actions.add_followup_reminder') }}</flux:button>
-                            <flux:button :href="route('customers.orders', $customer['id'])" size="sm" icon="banknotes" wire:navigate>{{ __('customers.detail.actions.register_order') }}</flux:button>
+                            <flux:modal.trigger name="customer-order-registration">
+                                <flux:button type="button" size="sm" icon="banknotes">{{ __('customers.detail.actions.register_order') }}</flux:button>
+                            </flux:modal.trigger>
                             <flux:button :href="route('customers.edit', $customer['id'])" size="sm" icon="pencil-square" wire:navigate>{{ __('customers.detail.actions.edit_profile') }}</flux:button>
                         @endif
                     </div>
@@ -237,4 +239,8 @@
             </section>
         </aside>
     </div>
+
+    @if ($canOperateCustomer)
+        @livewire(\App\Modules\Order\Presentation\Livewire\CustomerOrderRegistration::class, ['customerId' => $customer['id']])
+    @endif
 </div>
