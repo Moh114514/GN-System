@@ -129,8 +129,18 @@ jobs:
           npm ci
           npm run build
           composer validate --strict
-          composer audit
-          npm audit --audit-level=high
+
+      - name: Audit PHP dependencies
+        if: steps.release.outputs.mode == 'rc'
+        run: composer audit
+
+      - name: Audit frontend dependencies
+        if: always() && steps.release.outputs.mode == 'rc'
+        run: npm audit --audit-level=high
+
+      - name: Run application checks
+        if: steps.release.outputs.mode == 'rc'
+        run: |
           php artisan migrate --force
           composer ci:check
 

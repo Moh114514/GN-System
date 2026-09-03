@@ -104,10 +104,12 @@ jobs:
       - name: Validate Composer metadata
         run: composer validate --strict
 
-      - name: Audit dependencies
-        run: |
-          composer audit
-          npm audit --audit-level=high
+      - name: Audit PHP dependencies
+        run: composer audit
+
+      - name: Audit frontend dependencies
+        if: always()
+        run: npm audit --audit-level=high
 
       - name: Run CI Checks
         run: composer ci:check
