@@ -138,10 +138,10 @@ final readonly class InstitutionMonthlySalesExportGenerator
 
     private function document(InstitutionMonthlySalesSummaryData $summary, ReportExport $export): FinancialDocumentData
     {
-        $filter = trim((string) ($export->criteria_snapshot['institution_search'] ?? ''));
-        $metadata = $filter === '' ? [] : [[
+        $institutionName = trim((string) ($export->criteria_snapshot['institution_name'] ?? ''));
+        $metadata = $institutionName === '' ? [] : [[
             'label' => __('institution_sales.export.institution_filter'),
-            'value' => $filter,
+            'value' => $institutionName,
         ]];
         $rows = [];
         foreach ($summary->rows as $index => $row) {
@@ -158,7 +158,7 @@ final readonly class InstitutionMonthlySalesExportGenerator
             title: __('institution_sales.title'),
             documentNumber: 'IMS-'.str_replace('-', '', $summary->month).'-'.$export->id,
             documentDate: now()->toDateString(),
-            subject: $filter === '' ? __('institution_sales.export.all_institutions') : $filter,
+            subject: $institutionName === '' ? __('institution_sales.export.all_institutions') : $institutionName,
             period: $summary->from->toDateString().' — '.$summary->to->toDateString(),
             primaryAmount: $summary->totalAmountKrw,
             currency: 'KRW',

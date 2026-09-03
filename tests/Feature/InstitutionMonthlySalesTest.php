@@ -88,6 +88,11 @@ class InstitutionMonthlySalesTest extends TestCase
         $this->assertSame(3, $summary->rows[0]->orderCount);
         $this->assertSame(2, $summary->rows[0]->customerCount);
         $this->assertSame(4_000_000, $summary->rows[1]->amountKrw);
+
+        $institutionSummary = app(InstitutionMonthlySalesService::class)->summary('2026-08', $this->institutionA->id);
+        $this->assertSame(6_000_000, $institutionSummary->totalAmountKrw);
+        $this->assertCount(1, $institutionSummary->rows);
+        $this->assertSame($this->institutionA->id, $institutionSummary->rows[0]->institutionId);
     }
 
     public function test_order_reader_and_page_respect_effective_business_scope(): void
@@ -132,10 +137,21 @@ class InstitutionMonthlySalesTest extends TestCase
         $this->assertSame(1_000_000, $summary->totalAmountKrw);
         $this->assertSame(1, $summary->totalOrders);
         $this->assertSame(1, $summary->totalCustomers);
+        $this->assertSame([$this->institutionA->id], array_column(
+            app(InstitutionMonthlySalesService::class)->institutionOptions(),
+            'id',
+        ));
         $this->assertNotEmpty(app(ReportOrderReader::class)->institutionMonthlySales(
             CarbonImmutable::parse('2026-08-01'),
             CarbonImmutable::parse('2026-08-31'),
+            $this->institutionA->id,
         ));
+        try {
+            app(InstitutionMonthlySalesService::class)->summary('2026-08', $this->institutionB->id);
+            $this->fail('An institution outside the current business scope must be rejected.');
+        } catch (\DomainException $exception) {
+            $this->assertSame('所选机构不在当前权限范围内或已停用。', $exception->getMessage());
+        }
 
         $this->get(route('reports.institution-sales'))->assertOk()->assertSee('机构销售额');
         $this->get(route('reports.institution-sales'))->assertDontSee('9,000,000');
@@ -162,13 +178,15 @@ class InstitutionMonthlySalesTest extends TestCase
         $this->actingAs($this->admin);
         Livewire::test(InstitutionMonthlySales::class)
             ->set('month', '2026-08')
-            ->set('institutionSearch', 'dod 皮肤科')
+            ->set('institutionId', (string) $this->institutionA->id)
             ->assertSee('1,200,000')
             ->assertDontSee('800,000');
 
         Storage::fake('local');
-        $export = app(ReportExportManager::class)->startInstitutionMonthlySales($this->admin, '2026-08', 'dod 皮肤科');
+        $export = app(ReportExportManager::class)->startInstitutionMonthlySales($this->admin, '2026-08', $this->institutionA->id);
         $this->assertSame('completed', $export->status);
+        $this->assertSame($this->institutionA->id, $export->criteria_snapshot['institution_id']);
+        $this->assertSame($this->institutionA->name, $export->criteria_snapshot['institution_name']);
         $this->assertSame(1_200_000, $export->data_snapshot['total_amount_krw']);
         $this->assertSame(1, count($export->data_snapshot['rows']));
         Storage::disk('local')->assertExists($export->path);
@@ -180,7 +198,7 @@ class InstitutionMonthlySalesTest extends TestCase
         $this->assertSame(1_200_000, $sheet->getCell('E6')->getValue());
         $workbook->disconnectWorksheets();
 
-        $pdfExport = app(ReportExportManager::class)->startInstitutionMonthlySales($this->admin, '2026-08', 'dod 皮肤科', 'pdf');
+        $pdfExport = app(ReportExportManager::class)->startInstitutionMonthlySales($this->admin, '2026-08', $this->institutionA->id, 'pdf');
         $this->assertSame('pdf', $pdfExport->format);
         $this->assertSame($export->data_snapshot, $pdfExport->data_snapshot);
         $this->assertStringEndsWith('.pdf', (string) $pdfExport->path);

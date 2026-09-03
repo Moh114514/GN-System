@@ -302,3 +302,10 @@ UAT/Production 使用 `queue:work`。本地开发与 UAT/Production 操作手册
 - 本 PR 不新增 migration、汇总表、预聚合或索引；新增 Regular/Bold PDF 字体构建产物及其镜像/CI
   配置，不新增 PHP/Composer 依赖；真实量级 UAT 仍需执行查询计划和 PDF 字形检查。当前仅完成本地
   feature 分支验证，未合入 `develop`、部署或在 UAT/Production 人工验收。
+
+## 2026-09-03 报表与订单页面体验优化
+
+- Dashboard 顶部移除 BD 季度提成快捷按钮，侧栏入口、路由、权限和 Settlement 业务逻辑保持不变。
+- 订单中心保留现有筛选、查询和分页，仅将列表改为窄屏单列/宽屏两列响应式卡片，保留订单、客户、机构、代理商、金额、状态、业务日期和详情入口。
+- 机构月度销售额改为按权限范围内的机构 ID 快速筛选；筛选条件下沉到 Order 报表读取器的数据库聚合查询，并由页面 KPI、明细表、Excel 和 PDF 共用同一份汇总结果。BD 的机构选项按当前可见有效订单范围限制，超级管理员可选择启用机构。
+- 本轮不新增 migration、依赖或环境配置。修改仅在本地 feature 分支验证，未合入 `develop`，未部署或在 UAT/Production 做人工验收；两份运维手册已核对，未发现需要同步的环境或发布语义变化。

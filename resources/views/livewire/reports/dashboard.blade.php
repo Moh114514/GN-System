@@ -42,9 +42,6 @@
             @endif
         </div>
         <div class="flex flex-wrap gap-1.5">
-            @if (auth()->user()->is_super_admin || auth()->user()->isBdManager())
-                <a href="{{ route('bd-commissions.index') }}" wire:navigate class="inline-flex items-center rounded-lg border border-blue-200 px-3 py-2 text-sm text-blue-700">{{ __('dashboard.controls.bd_commission') }}</a>
-            @endif
             <flux:button wire:click="refreshDashboard" size="sm" variant="ghost" icon="arrow-path">{{ __('dashboard.controls.refresh') }}</flux:button>
             <flux:button wire:click="export('pdf')" size="sm" variant="ghost">PDF</flux:button>
             <flux:button wire:click="export('html')" size="sm" variant="ghost">HTML</flux:button>

@@ -77,6 +77,10 @@ class DashboardTest extends TestCase
             ->assertSee('data-test="app-logo-light"', false)
             ->assertSee('data-test="app-logo-dark"', false)
             ->assertSee('数据看板');
+
+        $bdCommissionLink = 'href="'.route('bd-commissions.index').'"';
+        $response->assertSee($bdCommissionLink, false);
+        $this->assertSame(1, substr_count($response->getContent(), $bdCommissionLink));
     }
 
     public function test_korean_users_see_translated_dashboard_labels(): void

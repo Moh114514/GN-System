@@ -92,16 +92,23 @@ final readonly class ReportExportManager
         GenerateReportExport::dispatch($export->id);
     }
 
-    public function startInstitutionMonthlySales(User $user, string $month, string $institutionSearch = '', string $format = 'xlsx'): ReportExport
+    public function startInstitutionMonthlySales(User $user, string $month, ?int $institutionId = null, string $format = 'xlsx'): ReportExport
     {
         $this->assertCanExport();
         if (! in_array($format, ['xlsx', 'pdf'], true)) {
             throw new DomainException(__('institution_sales.errors.export_format'));
         }
         $context = $this->access->forUser($user);
-        $summary = $this->access->using(
+        [$summary, $institutionName] = $this->access->using(
             $context,
-            fn () => $this->institutionSales->summary($month, $institutionSearch),
+            function () use ($month, $institutionId): array {
+                $summary = $this->institutionSales->summary($month, $institutionId);
+                $institutionName = $institutionId === null
+                    ? null
+                    : data_get(collect($this->institutionSales->institutionOptions())->firstWhere('id', $institutionId), 'name');
+
+                return [$summary, $institutionName];
+            },
         );
         $export = ReportExport::query()->create([
             'created_by' => $user->id,
@@ -110,7 +117,8 @@ final readonly class ReportExportManager
             'status' => 'generating',
             'criteria_snapshot' => [
                 'month' => $summary->month,
-                'institution_search' => trim($institutionSearch),
+                'institution_id' => $institutionId,
+                'institution_name' => $institutionName,
                 '_locale' => (SupportedLocale::fromCandidate(app()->getLocale()) ?? SupportedLocale::default())->value,
                 '_access' => $context->toSnapshot(),
             ],

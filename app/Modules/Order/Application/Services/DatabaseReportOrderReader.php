@@ -159,7 +159,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
     }
 
     /** @return list<InstitutionMonthlySalesAggregateData> */
-    public function institutionMonthlySales(CarbonImmutable $from, CarbonImmutable $to): array
+    public function institutionMonthlySales(CarbonImmutable $from, CarbonImmutable $to, ?int $institutionId = null): array
     {
         $query = Order::query()
             ->where('status', 'completed')
@@ -167,6 +167,9 @@ final class DatabaseReportOrderReader implements ReportOrderReader
             ->whereNotNull('occurred_on')
             ->whereBetween('occurred_on', [$from->toDateString(), $to->toDateString()]);
         $this->applyScope($query);
+        if ($institutionId !== null) {
+            $query->where('institution_id', $institutionId);
+        }
 
         return $query
             ->select('institution_id')
@@ -181,6 +184,22 @@ final class DatabaseReportOrderReader implements ReportOrderReader
                 orderCount: (int) $row->getAttribute('order_count'),
                 amountKrw: (int) $row->getAttribute('amount_krw'),
             ))
+            ->values()
+            ->all();
+    }
+
+    /** @return list<int> */
+    public function visibleInstitutionIds(): array
+    {
+        $query = Order::query()
+            ->where('status', 'completed')
+            ->where('record_status', 'active')
+            ->whereNotNull('occurred_on');
+        $this->applyScope($query);
+
+        return $query->distinct()
+            ->pluck('institution_id')
+            ->map(fn ($id): int => (int) $id)
             ->values()
             ->all();
     }

@@ -57,25 +57,52 @@
             @endif
         </div>
 
-        <div class="crm-table-wrap mt-5">
-            <table class="crm-table">
-                <thead><tr><th>{{ __('orders.fields.order') }}</th><th>{{ __('orders.fields.customer') }}</th><th>{{ __('orders.fields.institution') }}</th><th>{{ __('orders.fields.transaction_amount') }}</th><th>{{ __('orders.fields.status_label') }}</th><th>{{ __('orders.fields.time') }}</th><th></th></tr></thead>
-                <tbody>
-                    @forelse ($orders as $order)
-                        <tr wire:key="managed-order-{{ $order['id'] }}">
-                            <td class="w-[32rem] max-w-[32rem]"><a class="line-clamp-2 overflow-hidden whitespace-normal break-words font-semibold leading-5 text-teal-700 hover:underline" title="{{ $order['project_name'] }}" href="{{ route('orders.show', $order['id']) }}" wire:navigate>{{ $order['project_name'] }}</a><div class="mt-1 text-xs text-zinc-500">#{{ $order['id'] }}</div></td>
-                            <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('customers.show', $order['customer_id']) }}" wire:navigate>{{ $order['customer_name'] }}</a><div class="text-xs text-zinc-500">{{ $order['customer_code'] }}</div></td>
-                            <td>{{ $order['institution'] }}<div class="text-xs text-zinc-500">{{ __('orders.sources.agent') }} · {{ $order['source'] }}</div></td>
-                            <td>₩ {{ number_format($order['amount_krw']) }}</td>
-                            <td><span class="crm-pill {{ $order['status'] === 'completed' ? 'tone-green' : ($order['status'] === 'cancelled' ? 'tone-red' : 'tone-amber') }}">{{ ['pending' => __('orders.statuses.pending'), 'completed' => __('orders.statuses.completed'), 'cancelled' => __('orders.statuses.cancelled')][$order['status']] ?? $order['status'] }}</span></td>
-                            <td>{{ $order['occurred_on'] ?? $order['completed_at'] ?? $order['created_at'] }}<div class="text-xs text-zinc-500">{{ $order['occurred_on'] ? __('orders.fields.occurred_on') : ($order['completed_at'] ? __('orders.fields.completed_time') : __('orders.fields.created_at')) }}</div></td>
-                            <td><flux:button href="{{ route('orders.show', $order['id']) }}" wire:navigate variant="ghost" size="sm">{{ __('orders.center.view_details') }}</flux:button></td>
-                        </tr>
-                    @empty
-                        <tr><td colspan="7" class="py-10 text-center text-zinc-500">{{ __('orders.center.no_orders') }}</td></tr>
-                    @endforelse
-                </tbody>
-            </table>
+        <div class="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
+            @forelse ($orders as $order)
+                <article wire:key="order-card-{{ $order['id'] }}" class="flex min-w-0 flex-col rounded-xl border border-zinc-200 bg-zinc-50/50 p-5 dark:border-zinc-700 dark:bg-zinc-800/40">
+                    <div class="flex min-w-0 items-start justify-between gap-3">
+                        <div class="min-w-0">
+                            <a class="line-clamp-2 overflow-hidden break-words font-semibold leading-5 text-teal-700 hover:underline" title="{{ $order['project_name'] }}" href="{{ route('orders.show', $order['id']) }}" wire:navigate>{{ $order['project_name'] }}</a>
+                            <div class="mt-1 text-xs text-zinc-500">#{{ $order['id'] }}</div>
+                        </div>
+                        <span class="crm-pill shrink-0 {{ $order['status'] === 'completed' ? 'tone-green' : ($order['status'] === 'cancelled' ? 'tone-red' : 'tone-amber') }}">{{ ['pending' => __('orders.statuses.pending'), 'completed' => __('orders.statuses.completed'), 'cancelled' => __('orders.statuses.cancelled')][$order['status']] ?? $order['status'] }}</span>
+                    </div>
+
+                    <dl class="mt-5 grid gap-3 text-sm">
+                        <div class="min-w-0">
+                            <dt class="text-xs text-zinc-500">{{ __('orders.fields.customer') }}</dt>
+                            <dd class="mt-1 min-w-0">
+                                <a class="line-clamp-2 break-words font-semibold text-teal-700 hover:underline" href="{{ route('customers.show', $order['customer_id']) }}" wire:navigate>{{ $order['customer_name'] }}</a>
+                                <span class="block break-words text-xs text-zinc-500">{{ $order['customer_code'] }}</span>
+                            </dd>
+                        </div>
+                        <div class="min-w-0">
+                            <dt class="text-xs text-zinc-500">{{ __('orders.fields.institution') }}</dt>
+                            <dd class="mt-1 line-clamp-2 break-words font-medium">{{ $order['institution'] }}</dd>
+                        </div>
+                        <div class="min-w-0">
+                            <dt class="text-xs text-zinc-500">{{ __('orders.sources.agent') }}</dt>
+                            <dd class="mt-1 line-clamp-2 break-words font-medium">{{ $order['source'] }}</dd>
+                        </div>
+                    </dl>
+
+                    <div class="mt-5 flex flex-wrap items-end justify-between gap-3 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+                        <div>
+                            <div class="text-xs text-zinc-500">{{ __('orders.fields.transaction_amount') }}</div>
+                            <div class="mt-1 text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">₩ {{ number_format($order['amount_krw']) }}</div>
+                        </div>
+                        <div class="text-right text-sm">
+                            <div class="text-xs text-zinc-500">{{ $order['occurred_on'] ? __('orders.fields.occurred_on') : ($order['completed_at'] ? __('orders.fields.completed_time') : __('orders.fields.created_at')) }}</div>
+                            <div class="mt-1 tabular-nums">{{ $order['occurred_on'] ?? $order['completed_at'] ?? $order['created_at'] }}</div>
+                        </div>
+                    </div>
+                    <div class="mt-4 flex justify-end">
+                        <flux:button href="{{ route('orders.show', $order['id']) }}" wire:navigate variant="ghost" size="sm">{{ __('orders.center.view_details') }} <span aria-hidden="true">→</span></flux:button>
+                    </div>
+                </article>
+            @empty
+                <div class="col-span-full py-10 text-center text-zinc-500">{{ __('orders.center.no_orders') }}</div>
+            @endforelse
         </div>
         <div class="mt-5">{{ $orders->links() }}</div>
     </section>

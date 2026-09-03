@@ -16,7 +16,7 @@ class InstitutionMonthlySales extends Component
 {
     public string $month = '';
 
-    public string $institutionSearch = '';
+    public string $institutionId = '';
 
     /** @var array<string, mixed> */
     public array $snapshot = [];
@@ -24,13 +24,19 @@ class InstitutionMonthlySales extends Component
     /** @var array<string, array<string, string>> */
     protected array $queryString = [
         'month' => ['except' => ''],
-        'institutionSearch' => ['except' => ''],
+        'institutionId' => ['except' => ''],
     ];
 
     public function mount(InstitutionMonthlySalesService $sales): void
     {
         $this->month = $sales->normalizeMonth($this->month !== '' ? $this->month : $sales->currentMonth());
-        $this->refreshSnapshot($sales);
+        try {
+            $this->refreshSnapshot($sales);
+        } catch (\DomainException $exception) {
+            $this->institutionId = '';
+            $this->addError('institutionId', $exception->getMessage());
+            $this->refreshSnapshot($sales);
+        }
     }
 
     public function updatedMonth(InstitutionMonthlySalesService $sales): void
@@ -47,14 +53,22 @@ class InstitutionMonthlySales extends Component
         }
     }
 
-    public function updatedInstitutionSearch(InstitutionMonthlySalesService $sales): void
+    public function updatedInstitutionId(InstitutionMonthlySalesService $sales): void
     {
-        $this->refreshSnapshot($sales);
+        try {
+            $this->resetValidation('institutionId');
+            $this->refreshSnapshot($sales);
+        } catch (\DomainException $exception) {
+            $this->addError('institutionId', $exception->getMessage());
+            $this->institutionId = '';
+            $this->refreshSnapshot($sales);
+        }
     }
 
     public function downloadExport(ReportExportManager $exports, string $format = 'xlsx'): void
     {
-        $export = $exports->startInstitutionMonthlySales($this->user(), $this->month, $this->institutionSearch, $format);
+        $institutionId = $this->institutionId === '' ? null : (int) $this->institutionId;
+        $export = $exports->startInstitutionMonthlySales($this->user(), $this->month, $institutionId, $format);
         if ($export->status !== 'completed') {
             Flux::toast(
                 variant: 'danger',
@@ -67,16 +81,18 @@ class InstitutionMonthlySales extends Component
         $this->redirectRoute('reports.exports.download', ['export' => $export]);
     }
 
-    public function render(): View
+    public function render(InstitutionMonthlySalesService $sales): View
     {
         return view('livewire.reports.institution-monthly-sales', [
             'summary' => $this->snapshot,
+            'institutions' => $sales->institutionOptions(),
         ])->title(__('institution_sales.title'));
     }
 
     private function refreshSnapshot(InstitutionMonthlySalesService $sales): void
     {
-        $this->snapshot = $sales->summary($this->month, $this->institutionSearch)->toArray();
+        $institutionId = $this->institutionId === '' ? null : (int) $this->institutionId;
+        $this->snapshot = $sales->summary($this->month, $institutionId)->toArray();
     }
 
     private function user(): User

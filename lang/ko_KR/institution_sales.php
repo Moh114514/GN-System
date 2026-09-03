@@ -7,8 +7,8 @@ return [
     'period' => '집계 월: :month',
     'fields' => [
         'month' => '집계 월',
-        'institution_search' => '기관 필터 / 검색',
-        'institution_search_placeholder' => '기관명을 입력하세요',
+        'institution' => '기관',
+        'all_institutions' => '전체 기관',
     ],
     'table' => [
         'metrics' => '월별 매출 지표',
@@ -37,6 +37,7 @@ return [
     ],
     'errors' => [
         'invalid_month' => '유효한 집계 월을 입력하세요.',
+        'institution_unavailable' => '선택한 기관은 현재 권한 범위에 없거나 비활성화되었습니다.',
         'export_format' => '지원하지 않는 내보내기 형식입니다.',
         'generation_failed' => '기관 매출 파일을 생성하지 못했습니다. 잠시 후 다시 시도하세요.',
         'directory_unwritable' => '내보내기 디렉터리에 쓸 수 없습니다. 저장소 권한을 확인하세요.',

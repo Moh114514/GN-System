@@ -63,9 +63,10 @@ class OrderManagementTest extends TestCase
 
         Livewire::actingAs($user)->test(OrderCenter::class)
             ->assertSee($projectName)
-            ->assertSee('w-[32rem] max-w-[32rem]', false)
+            ->assertSee('grid grid-cols-1 gap-4 xl:grid-cols-2', false)
             ->assertSee('line-clamp-2', false)
             ->assertSee('title="'.$projectName.'"', false)
+            ->assertDontSee('<table', false)
             ->assertSee('#'.$order->id);
     }
 

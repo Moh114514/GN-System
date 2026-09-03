@@ -39,5 +39,8 @@ interface ReportOrderReader
     public function teamOverview(array $ownerIds, int $businessGroupId, CarbonImmutable $from, CarbonImmutable $to): array;
 
     /** @return list<InstitutionMonthlySalesAggregateData> */
-    public function institutionMonthlySales(CarbonImmutable $from, CarbonImmutable $to): array;
+    public function institutionMonthlySales(CarbonImmutable $from, CarbonImmutable $to, ?int $institutionId = null): array;
+
+    /** @return list<int> */
+    public function visibleInstitutionIds(): array;
 }

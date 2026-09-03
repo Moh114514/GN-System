@@ -3,6 +3,7 @@
 namespace App\Modules\Report\Application\Services;
 
 use App\Infrastructure\Time\BusinessClock;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Config\Application\Contracts\ReportConfigReader;
 use App\Modules\Order\Application\Contracts\ReportOrderReader;
 use App\Modules\Report\Application\Data\InstitutionMonthlySalesRowData;
@@ -16,6 +17,7 @@ final readonly class InstitutionMonthlySalesService
         private ReportOrderReader $orders,
         private ReportConfigReader $config,
         private BusinessClock $clock,
+        private AccessContextResolver $access,
     ) {}
 
     public function currentMonth(): string
@@ -34,23 +36,23 @@ final readonly class InstitutionMonthlySalesService
         return $month;
     }
 
-    public function summary(string $month, string $institutionSearch = ''): InstitutionMonthlySalesSummaryData
+    public function summary(string $month, ?int $institutionId = null): InstitutionMonthlySalesSummaryData
     {
         $month = $this->normalizeMonth($month);
         $from = CarbonImmutable::createFromFormat('!Y-m-d', $month.'-01', (string) config('app.timezone'));
         $to = $from->endOfMonth();
-        $aggregates = $this->orders->institutionMonthlySales($from, $to);
+        $allowedInstitutionIds = array_column($this->institutionOptions(), 'id');
+        if ($institutionId !== null && ! in_array($institutionId, $allowedInstitutionIds, true)) {
+            throw new DomainException(__('institution_sales.errors.institution_unavailable'));
+        }
+        $aggregates = $this->orders->institutionMonthlySales($from, $to, $institutionId);
         $names = $this->config->institutionNamesByIds(array_map(
             static fn ($row): int => $row->institutionId,
             $aggregates,
         ));
-        $search = mb_strtolower(trim($institutionSearch));
         $rows = [];
         foreach ($aggregates as $aggregate) {
             $name = $names[$aggregate->institutionId] ?? __('institution_sales.fallbacks.missing_institution');
-            if ($search !== '' && ! str_contains(mb_strtolower($name), $search)) {
-                continue;
-            }
             $rows[] = new InstitutionMonthlySalesRowData(
                 institutionId: $aggregate->institutionId,
                 institutionName: $name,
@@ -73,5 +75,21 @@ final readonly class InstitutionMonthlySalesService
             totalOrders: array_sum(array_map(static fn (InstitutionMonthlySalesRowData $row): int => $row->orderCount, $rows)),
             totalAmountKrw: array_sum(array_map(static fn (InstitutionMonthlySalesRowData $row): int => $row->amountKrw, $rows)),
         );
+    }
+
+    /** @return list<array{id: int, name: string}> */
+    public function institutionOptions(): array
+    {
+        $institutions = $this->config->activeInstitutions();
+        if ($this->access->current()->isSuperAdmin()) {
+            return $institutions;
+        }
+
+        $visibleIds = $this->orders->visibleInstitutionIds();
+
+        return array_values(array_filter(
+            $institutions,
+            static fn (array $institution): bool => in_array($institution['id'], $visibleIds, true),
+        ));
     }
 }

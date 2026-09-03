@@ -7,8 +7,8 @@ return [
     'period' => '统计月份：:month',
     'fields' => [
         'month' => '统计月份',
-        'institution_search' => '机构筛选 / 搜索',
-        'institution_search_placeholder' => '输入机构名称',
+        'institution' => '机构',
+        'all_institutions' => '全部机构',
     ],
     'table' => [
         'metrics' => '月度销售额指标',
@@ -37,6 +37,7 @@ return [
     ],
     'errors' => [
         'invalid_month' => '请输入有效的统计月份。',
+        'institution_unavailable' => '所选机构不在当前权限范围内或已停用。',
         'export_format' => '不支持的导出格式。',
         'generation_failed' => '机构销售额文件生成失败，请稍后重试。',
         'directory_unwritable' => '导出目录不可写，请检查存储权限。',

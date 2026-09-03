@@ -17,9 +17,17 @@
     <section class="mb-5 rounded-xl border border-zinc-200 bg-white p-4 shadow-none dark:border-zinc-700 dark:bg-zinc-900">
         <div class="grid gap-3 md:grid-cols-2">
             <flux:input wire:model.live="month" type="month" :label="__('institution_sales.fields.month')" />
-            <flux:input wire:model.live.debounce.400ms="institutionSearch" :label="__('institution_sales.fields.institution_search')" :placeholder="__('institution_sales.fields.institution_search_placeholder')" />
+            <flux:select searchable wire:model.live="institutionId" :label="__('institution_sales.fields.institution')">
+                <flux:select.option value="">{{ __('institution_sales.fields.all_institutions') }}</flux:select.option>
+                @foreach ($institutions as $institution)
+                    <flux:select.option value="{{ $institution['id'] }}">{{ $institution['name'] }}</flux:select.option>
+                @endforeach
+            </flux:select>
         </div>
         @error('month')
+            <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
+        @enderror
+        @error('institutionId')
             <p class="mt-2 text-sm text-red-600">{{ $message }}</p>
         @enderror
     </section>
