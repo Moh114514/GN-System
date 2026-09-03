@@ -74,7 +74,12 @@
                     @error('institutionId') <p class="text-sm text-red-600">{{ $message }}</p> @enderror
 
                     <div class="flex flex-wrap items-center gap-3">
-                        <flux:button type="button" wire:click="downloadTemplate" variant="ghost" icon="arrow-down-tray" :disabled="! ($context['can_register'] ?? false)">{{ __('orders.registration.download_template') }}</flux:button>
+                        <span class="{{ ($context['can_register'] ?? false) ? '' : 'cursor-not-allowed opacity-50' }}">
+                            <flux:button type="button" wire:click="downloadTemplate" variant="ghost" icon="arrow-down-tray" :disabled="! ($context['can_register'] ?? false)">{{ __('orders.registration.download_template') }}</flux:button>
+                        </span>
+                        @if (! ($context['can_register'] ?? false))
+                            <span class="text-xs text-zinc-400 dark:text-zinc-500">{{ __('orders.registration.unavailable_hint') }}</span>
+                        @endif
                         <span class="text-xs text-zinc-500">{{ __('orders.registration.download_hint') }}</span>
                     </div>
                 </section>
@@ -102,7 +107,14 @@
                     <flux:modal.close>
                         <flux:button type="button" variant="ghost">{{ __('orders.registration.cancel') }}</flux:button>
                     </flux:modal.close>
-                    <flux:button type="submit" variant="primary" :disabled="! ($context['can_register'] ?? false)" wire:loading.attr="disabled">{{ __('orders.registration.upload_submit') }}</flux:button>
+                    <div class="flex flex-col items-end gap-1">
+                        <span class="{{ ($context['can_register'] ?? false) ? '' : 'cursor-not-allowed opacity-50' }}">
+                            <flux:button type="submit" variant="primary" :disabled="! ($context['can_register'] ?? false)" wire:loading.attr="disabled">{{ __('orders.registration.upload_submit') }}</flux:button>
+                        </span>
+                        @if (! ($context['can_register'] ?? false))
+                            <span class="text-xs text-zinc-400 dark:text-zinc-500">{{ __('orders.registration.unavailable_hint') }}</span>
+                        @endif
+                    </div>
                 </div>
             </form>
         @endif

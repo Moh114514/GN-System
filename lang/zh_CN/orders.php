@@ -261,6 +261,7 @@ return [
         'change_institution' => '更换机构',
         'download_template' => '下载机构表单',
         'download_hint' => '请勿修改隐藏元数据工作表、客户信息和表头。',
+        'unavailable_hint' => '当前用户状态不可采取此操作',
         'upload_title' => '上传机构填写完成的表单',
         'upload_description' => '上传机构填写完成的 Excel，系统会在入库前校验客户、日期、项目、金额和重复文件。',
         'drop_file' => '拖入 Excel 或点击选择文件',

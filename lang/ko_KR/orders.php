@@ -261,6 +261,7 @@ return [
         'change_institution' => '기관 변경',
         'download_template' => '기관 양식 다운로드',
         'download_hint' => '숨겨진 메타데이터 시트, 고객 정보와 헤더를 수정하지 마세요.',
+        'unavailable_hint' => '현재 고객 상태에서는 이 작업을 수행할 수 없습니다.',
         'upload_title' => '작성 완료 기관 양식 업로드',
         'upload_description' => '기관이 작성한 Excel을 업로드하면 고객, 날짜, 프로젝트, 금액 및 중복 파일을 저장 전에 검증합니다.',
         'drop_file' => 'Excel을 끌어 놓거나 클릭하여 파일 선택',

@@ -59,7 +59,7 @@
 
         <div class="mt-5 grid grid-cols-1 gap-4 xl:grid-cols-2">
             @forelse ($orders as $order)
-                <article wire:key="order-card-{{ $order['id'] }}" class="flex min-w-0 flex-col rounded-xl border border-zinc-200 bg-zinc-50/50 p-5 dark:border-zinc-700 dark:bg-zinc-800/40">
+                <article wire:key="order-card-{{ $order['id'] }}" class="flex min-w-0 flex-col rounded-xl border border-zinc-300 bg-zinc-50/50 p-5 shadow-sm dark:border-zinc-600 dark:bg-zinc-800/40">
                     <div class="flex min-w-0 items-start justify-between gap-3">
                         <div class="min-w-0">
                             <a class="line-clamp-2 overflow-hidden break-words font-semibold leading-5 text-teal-700 hover:underline" title="{{ $order['project_name'] }}" href="{{ route('orders.show', $order['id']) }}" wire:navigate>{{ $order['project_name'] }}</a>

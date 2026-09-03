@@ -119,6 +119,24 @@ class InstitutionReturnFormTest extends TestCase
         $this->assertDatabaseCount('orders', 1);
     }
 
+    public function test_unavailable_customer_registration_actions_are_visibly_disabled(): void
+    {
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent($institution);
+        $customer = $this->customer($agent, $user);
+
+        $component = Livewire::actingAs($user)
+            ->test(CustomerOrderRegistration::class, ['customerId' => $customer->id]);
+
+        $component
+            ->assertSee(__('orders.registration.unavailable_hint'))
+            ->assertSee('cursor-not-allowed', false)
+            ->assertSee('opacity-50', false)
+            ->assertSee('disabled', false);
+        $this->assertSame(2, substr_count($component->html(), __('orders.registration.unavailable_hint')));
+    }
+
     public function test_amount_mismatch_is_rejected_without_an_order(): void
     {
         $user = User::factory()->create();
