@@ -38,6 +38,7 @@ final class DatabaseOrderImportGateway implements OrderImportGateway
                 'customer_id' => $data->customerId,
                 'institution_id' => $data->institutionId,
                 'completed_on' => $data->completedOn,
+                'occurred_on' => $data->completedOn,
                 'amount_krw' => $data->amountKrw,
             ],
             [

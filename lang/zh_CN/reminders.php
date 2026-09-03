@@ -3,6 +3,7 @@
 return [
     'titles' => ['center' => '主动提醒', 'create' => '新建提醒', 'history' => '提醒历史', 'configuration' => '主动提醒配置'],
     'center' => [
+        'due_filter' => '到期状态', 'all_due' => '全部提醒', 'overdue_only' => '仅逾期',
         'description' => '集中处理术前、到院、术后、节日及自定义跟进任务；提醒仅发送给内部员工。', 'history' => '提醒历史', 'create' => '新建提醒', 'pending' => '待处理', 'overdue' => '已超期', 'completed' => '累计完成', 'type' => '提醒类型', 'all_types' => '全部类型', 'appointment' => '术前/到院', 'post_treatment' => '术后系列', 'date_offset' => '日期规则', 'fixed_cycle' => '周期规则', 'holiday_date' => '指定节假日', 'custom' => '客服自定义', 'unknown_customer' => '未知客户', 'no_script' => '无固定话术，请员工自行填写。', 'due' => '已到期', 'complete_notes' => '完成/关闭备注', 'snooze_until' => '延期至', 'snooze_reason' => '延期原因', 'transfer_to' => '转交给', 'select' => '请选择', 'mark_complete' => '标记完成', 'snooze' => '延期', 'transfer' => '转交', 'cancel' => '关闭', 'cancel_action' => '取消操作', 'retry_notification' => '重试钉钉', 'dingtalk' => '钉钉：:status', 'empty' => '当前没有待处理提醒。',
     ],
     'statuses' => ['pending' => '待处理', 'completed' => '已完成', 'cancelled' => '已关闭', 'overdue' => '已到期'],
@@ -55,7 +56,7 @@ return [
     ],
     'system_reminders' => [
         'pre_visit_3_days' => ['title' => '术前 3 天确认', 'suggestion' => '确认客户到店准备和术前注意事项'],
-        'arrival_previous_day' => ['title' => '到店前一天客服联系客户', 'suggestion' => '客服联系客户确认到店时间、交通与住宿安排'],
+        'arrival_previous_day' => ['title' => '到院前一天联系客户', 'suggestion' => '客服联系客户确认预计到院时间、交通与住宿安排', 'expected_arrival' => '预计到院时间：:scheduled_at'],
         'arrival_today' => ['title' => '今日客服联系客户并确认到店', 'suggestion' => '客服联系客户确认到店后的接待流程'],
         'post_treatment' => [
             'title' => '术后第 :days 天跟进',

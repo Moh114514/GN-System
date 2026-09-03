@@ -3,6 +3,7 @@
 return [
     'title' => '数据看板',
     'controls' => [
+        'bd_commission' => 'BD季度提成',
         'actions' => '看板操作',
         'range' => '统计区间',
         'custom_range' => '自定义日期区间',
@@ -48,7 +49,7 @@ return [
         'conversion' => '建档至复购转化率',
     ],
     'panels' => [
-        'trend' => '月度营收与订单趋势',
+        'trend' => '营收与订单趋势',
         'period' => '统计周期',
         'monthly' => '月度',
         'revenue_krw' => '营收（KRW）',

@@ -3,7 +3,10 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Agent\Application\Contracts\AgentBusinessGroupAssignmentGateway;
+use App\Modules\Auth\Application\Contracts\BusinessGroupManagementGateway;
 use App\Modules\Auth\Application\Contracts\UserManagementGateway;
+use App\Modules\Auth\Domain\UserRole;
 use App\Modules\Auth\Infrastructure\Notifications\InternalUserInvitationNotification;
 use App\Modules\Config\Application\Services\ConfigurationCatalogManager;
 use App\Modules\Customer\Application\Contracts\ConfigurationHistoryGateway as CustomerConfigurationHistory;
@@ -53,7 +56,10 @@ class PhaseSixReportingConfigurationTest extends TestCase
     {
         parent::setUp();
         $this->seed(PhaseTwoReferenceDataSeeder::class);
-        $this->user = User::factory()->create();
+        $this->user = User::factory()->create(['role' => UserRole::BdManager]);
+        $groups = app(BusinessGroupManagementGateway::class);
+        $groupId = $groups->create('P6-TEST', 'Phase Six test group', $this->user->id, null)['id'];
+        $groups->assignMember($groupId, $this->user->id, '2026-01-01', null, 'Phase Six test scope', $this->user->id, null);
         $this->institutionId = (int) DB::table('institutions')->value('id');
         $this->agentId = (int) DB::table('agents')->insertGetId([
             'agent_type_code_id' => DB::table('agent_type_codes')->value('id'),
@@ -63,6 +69,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
+        app(AgentBusinessGroupAssignmentGateway::class)->assign($this->agentId, $groupId, '2026-01-01', null, 'Phase Six test scope', $this->user->id, null);
         $statusId = (int) CustomerStatus::query()->where('key', 'booked')->value('id');
         $this->customer = Customer::query()->create([
             'code' => 'P6-AGENT-0001',
@@ -174,7 +181,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->assertOk()
             ->assertSee('Phase Six Customer')
             ->assertSee('Phase Six Project')
-            ->assertDontSee('查看全部代理商');
+            ->assertSee('查看全部代理商');
 
         $koUser = User::factory()->create(['preferred_locale' => 'ko_KR']);
         $this->actingAs($koUser)->get(route('global-search', ['q' => 'Phase Six']))
@@ -363,13 +370,16 @@ class PhaseSixReportingConfigurationTest extends TestCase
         );
         Storage::disk('local')->assertExists($html->path);
         Storage::disk('local')->assertExists($pdf->path);
-        $this->assertFileIsReadable((string) config('reporting.pdf.font_path'));
+        $this->assertFileIsReadable((string) config('reporting.pdf.font_regular_path'));
+        $this->assertFileIsReadable((string) config('reporting.pdf.font_bold_path'));
+        $this->assertStringEndsWith('GNSystemSans-Regular.ttf', (string) config('reporting.pdf.font_regular_path'));
+        $this->assertStringEndsWith('GNSystemSans-Bold.ttf', (string) config('reporting.pdf.font_bold_path'));
         $this->assertGreaterThan(0, Storage::disk('local')->size($pdf->path));
 
         $this->actingAs($this->user)->get(route('dashboard'))
             ->assertOk()
             ->assertSee('数据看板')
-            ->assertSee('月度营收与订单趋势')
+            ->assertSee('营收与订单趋势')
             ->assertSee('代理商推广费排行')
             ->assertSee('客户生命周期概览')
             ->assertSee('今日待办提醒')
@@ -543,6 +553,9 @@ class PhaseSixReportingConfigurationTest extends TestCase
             'owner_id' => $this->user->id,
             'status' => 'completed',
         ]);
+        $pr4Migration = require database_path('migrations/2026_08_24_000200_add_institution_return_order_facts.php');
+        $order->update(['occurred_on' => null]);
+        $pr4Migration->down();
         $migration = require database_path('migrations/2026_07_30_030000_add_phase_six_reporting_and_configuration.php');
 
         $migration->down();

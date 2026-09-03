@@ -67,7 +67,7 @@ final class DatabaseSettlementImportGateway implements SettlementImportGateway
                 ->join('orders as order', 'order.id', '=', 'commission.order_id')
                 ->where('commission.import_batch_id', $importBatchId)
                 ->where('commission.agent_id', $settlement->agent_id)
-                ->whereBetween('order.completed_on', [$settlement->period_start, $settlement->period_end])
+                ->whereBetween('order.occurred_on', [$settlement->period_start, $settlement->period_end])
                 ->orderBy('commission.id')
                 ->get([
                     'commission.id as order_commission_id',
@@ -76,7 +76,7 @@ final class DatabaseSettlementImportGateway implements SettlementImportGateway
                     'order.id as order_id',
                     'order.customer_id',
                     'order.project_name',
-                    'order.completed_on',
+                    'order.occurred_on',
                     'order.amount_krw as consumption_krw',
                 ]);
             $consumption = (int) $rows->sum('consumption_krw');
@@ -96,7 +96,7 @@ final class DatabaseSettlementImportGateway implements SettlementImportGateway
                         'rule_snapshot' => json_encode([
                             ...$ruleSnapshot,
                             'source' => 'historical_import',
-                            'order' => ['id' => $row->order_id, 'customer_id' => $row->customer_id, 'project_name' => $row->project_name, 'completed_on' => $row->completed_on],
+                            'order' => ['id' => $row->order_id, 'customer_id' => $row->customer_id, 'project_name' => $row->project_name, 'occurred_on' => $row->occurred_on, 'completed_on' => $row->occurred_on],
                         ], JSON_THROW_ON_ERROR),
                         'import_batch_id' => $importBatchId,
                         'created_at' => now(),

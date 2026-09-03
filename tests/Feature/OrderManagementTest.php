@@ -3,11 +3,14 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Agent\Application\Contracts\AgentBusinessGroupAssignmentGateway;
 use App\Modules\Agent\Infrastructure\Models\Agent;
 use App\Modules\Agent\Infrastructure\Models\AgentGradeAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Agent\Infrastructure\Models\PolicyGrade;
 use App\Modules\Agent\Infrastructure\Models\PolicySystem;
+use App\Modules\Auth\Application\Contracts\BusinessGroupManagementGateway;
+use App\Modules\Auth\Domain\UserRole;
 use App\Modules\Config\Infrastructure\Models\DictionaryItem;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Infrastructure\Models\Customer;
@@ -28,12 +31,14 @@ class OrderManagementTest extends TestCase
 
     public function test_internal_user_can_open_order_center_from_primary_navigation(): void
     {
-        $user = User::factory()->create();
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
 
         $this->actingAs($user)->get(route('orders.index'))
             ->assertOk()
             ->assertSee('订单管理')
-            ->assertSee('新建订单')
+            ->assertSee('机构表单回传')
+            ->assertDontSee('新建订单')
+            ->assertDontSee('标记完成')
             ->assertSee('href="'.route('orders.index').'"', false)
             ->assertDontSee('功能将在后续阶段开放');
     }
@@ -58,9 +63,10 @@ class OrderManagementTest extends TestCase
 
         Livewire::actingAs($user)->test(OrderCenter::class)
             ->assertSee($projectName)
-            ->assertSee('w-[32rem] max-w-[32rem]', false)
+            ->assertSee('grid grid-cols-1 gap-4 xl:grid-cols-2', false)
             ->assertSee('line-clamp-2', false)
             ->assertSee('title="'.$projectName.'"', false)
+            ->assertDontSee('<table', false)
             ->assertSee('#'.$order->id);
     }
 
@@ -71,74 +77,26 @@ class OrderManagementTest extends TestCase
         $this->actingAs($user)->get(route('orders.index'))
             ->assertOk()
             ->assertSee('주문 관리')
-            ->assertSee('새 주문')
+            ->assertSee('기관 양식 회신')
+            ->assertDontSee('새 주문')
+            ->assertDontSee('완료로 표시')
             ->assertSee('주문 번호, 고객 또는 프로젝트 검색');
     }
 
-    public function test_order_center_creates_filters_and_completes_agent_order_with_audit_trail(): void
+    public function test_order_center_routes_formal_orders_through_institution_return_page(): void
     {
-        $this->seed(PhaseTwoReferenceDataSeeder::class);
         $user = User::factory()->create();
-        $institution = Institution::query()->firstOrFail();
-        $agent = $this->agent();
-        $customer = Customer::query()->create([
-            'code' => 'TEST-JG-0002',
-            'name' => '订单中心客户',
-            'source_agent_id' => $agent->id,
-            'owner_id' => $user->id,
-        ]);
-
-        Livewire::actingAs($user)
-            ->test(OrderCenter::class)
-            ->call('openCreate')
-            ->set('customerSearch', '订单中心')
-            ->assertSee('订单中心客户')
-            ->call('selectCustomer', $customer->id)
-            ->set('institutionId', (string) $institution->id)
-            ->set('projectName', '皮肤管理')
-            ->set('amountKrw', '880000')
-            ->call('save')
-            ->assertHasNoErrors()
-            ->assertSee('皮肤管理')
-            ->set('search', '不存在的客户')
-            ->assertDontSee('皮肤管理')
-            ->set('search', '订单中心客户')
-            ->assertSee('皮肤管理')
-            ->set('search', '')
-            ->set('statusFilter', 'completed')
-            ->assertDontSee('皮肤管理')
-            ->set('statusFilter', 'pending')
-            ->assertSee('皮肤管理');
-
-        $order = Order::query()->firstOrFail();
-
-        Livewire::actingAs($user)
-            ->test(OrderCenter::class)
-            ->call('complete', $order->id)
-            ->assertHasNoErrors()
-            ->assertSee('已完成');
-
-        $this->assertDatabaseHas('orders', [
-            'id' => $order->id,
-            'status' => 'completed',
-            'amount_krw' => 880000,
-        ]);
-        $this->assertDatabaseHas('activity_log', [
-            'log_name' => 'order',
-            'subject_id' => $order->id,
-            'event' => 'created',
-        ]);
-        $this->assertDatabaseHas('activity_log', [
-            'log_name' => 'order',
-            'subject_id' => $order->id,
-            'event' => 'completed',
-        ]);
+        $this->actingAs($user)->get(route('institution-returns.index'))
+            ->assertOk()
+            ->assertSee('机构表单回传')
+            ->assertSee('下载固定模板')
+            ->assertSee('校验并生成订单');
     }
 
     public function test_pending_order_can_be_edited_and_detail_page_has_parent_navigation(): void
     {
         $this->seed(PhaseTwoReferenceDataSeeder::class);
-        $user = User::factory()->create();
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
         $institution = Institution::query()->firstOrFail();
         $agent = $this->agent();
         $customer = Customer::query()->create([
@@ -148,16 +106,15 @@ class OrderManagementTest extends TestCase
             'owner_id' => $user->id,
         ]);
 
-        Livewire::actingAs($user)
-            ->test(OrderCenter::class)
-            ->call('openCreate')
-            ->call('selectCustomer', $customer->id)
-            ->set('institutionId', (string) $institution->id)
-            ->set('projectName', '初始项目')
-            ->set('amountKrw', '100000')
-            ->call('save');
-
-        $order = Order::query()->firstOrFail();
+        $order = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'agent_id' => $agent->id,
+            'project_name' => '初始项目',
+            'amount_krw' => 100000,
+            'status' => 'pending',
+            'owner_id' => $user->id,
+        ]);
         $this->actingAs($user)->get(route('orders.show', $order))
             ->assertOk()
             ->assertSee('订单详情')
@@ -173,6 +130,8 @@ class OrderManagementTest extends TestCase
             ->test(OrderEdit::class, ['order' => $order->id])
             ->set('projectName', '更新后的项目')
             ->set('amountKrw', '120000')
+            ->set('unitPriceKrw', '120000')
+            ->set('reason', '修正订单项目和金额')
             ->call('save')
             ->assertHasNoErrors();
 
@@ -194,6 +153,7 @@ class OrderManagementTest extends TestCase
             ->set('treatmentProjectId', (string) $project->id)
             ->set('projectName', '手工篡改名称')
             ->set('translatorLanguageId', (string) $language->id)
+            ->set('reason', '改用标准项目和语种')
             ->call('save')
             ->assertHasNoErrors();
 
@@ -202,6 +162,7 @@ class OrderManagementTest extends TestCase
         Livewire::actingAs($user)
             ->test(OrderEdit::class, ['order' => $order->id])
             ->set('notes', '仅修改备注')
+            ->set('reason', '补充订单备注')
             ->call('save')
             ->assertHasNoErrors();
 
@@ -225,6 +186,77 @@ class OrderManagementTest extends TestCase
         $this->assertStringContainsString('treatment_project_snapshot', (string) $latestAudit);
     }
 
+    public function test_customer_service_cannot_open_order_edit_page(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent();
+        $customer = Customer::query()->create([
+            'code' => 'TEST-JG-CS-EDIT',
+            'name' => '客服编辑权限客户',
+            'source_agent_id' => $agent->id,
+            'owner_id' => $user->id,
+        ]);
+        $order = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'agent_id' => $agent->id,
+            'project_name' => '客服不可编辑订单',
+            'amount_krw' => 10000,
+            'status' => 'pending',
+            'owner_id' => $user->id,
+        ]);
+
+        $this->actingAs($user)->get(route('orders.edit', $order))->assertNotFound();
+    }
+
+    public function test_bd_can_edit_only_orders_for_assigned_agents(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $bd = User::factory()->create(['role' => UserRole::BdManager]);
+        $institution = Institution::query()->firstOrFail();
+        $assignedAgent = $this->agent();
+        $otherAgent = Agent::query()->create([
+            'agent_type_code_id' => $assignedAgent->agent_type_code_id,
+            'code' => 'JG-OUT-OF-SCOPE',
+            'name' => '范围外代理商',
+            'cooperation_status' => 'active',
+        ]);
+        $groups = app(BusinessGroupManagementGateway::class);
+        $groupId = $groups->create('PR5-SCOPE', 'PR5 scope', $admin->id, null)['id'];
+        $groups->assignMember($groupId, $bd->id, '2026-01-01', null, 'PR5 scope', $admin->id, null);
+        app(AgentBusinessGroupAssignmentGateway::class)->assign($assignedAgent->id, $groupId, '2026-01-01', null, 'PR5 scope', $admin->id, null);
+        $customer = Customer::query()->create([
+            'code' => 'PR5-SCOPE-CUSTOMER',
+            'name' => 'PR5 scope customer',
+            'source_agent_id' => $assignedAgent->id,
+            'owner_id' => $bd->id,
+        ]);
+        $assignedOrder = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'agent_id' => $assignedAgent->id,
+            'project_name' => 'assigned order',
+            'amount_krw' => 10000,
+            'status' => 'pending',
+            'owner_id' => $bd->id,
+        ]);
+        $outOfScopeOrder = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'agent_id' => $otherAgent->id,
+            'project_name' => 'out of scope order',
+            'amount_krw' => 10000,
+            'status' => 'pending',
+            'owner_id' => $bd->id,
+        ]);
+
+        $this->actingAs($bd)->get(route('orders.edit', $assignedOrder))->assertOk();
+        $this->actingAs($bd)->get(route('orders.edit', $outOfScopeOrder))->assertNotFound();
+    }
+
     public function test_admin_can_cancel_soft_delete_restore_and_reopen_pending_order(): void
     {
         $this->seed(PhaseTwoReferenceDataSeeder::class);
@@ -232,6 +264,7 @@ class OrderManagementTest extends TestCase
         $admin = User::factory()->create(['is_super_admin' => true, 'two_factor_confirmed_at' => now()]);
         $institution = Institution::query()->firstOrFail();
         $agent = $this->agent();
+        $this->scope($agent, $user->id);
         $customer = Customer::query()->create([
             'code' => 'TEST-JG-0004',
             'name' => '订单生命周期客户',
@@ -415,7 +448,7 @@ class OrderManagementTest extends TestCase
         $system = PolicySystem::query()->firstOrCreate(['name' => '测试政策'], ['is_active' => true]);
         $grade = PolicyGrade::query()->firstOrCreate(
             ['policy_system_id' => $system->id, 'name' => '测试等级'],
-            ['monthly_threshold_krw' => 0, 'sort_order' => 10, 'is_active' => true],
+            ['sort_order' => 10, 'is_active' => true],
         );
         AgentGradeAssignment::query()->firstOrCreate(
             ['agent_id' => $agent->id, 'policy_grade_id' => $grade->id, 'effective_month' => now()->startOfMonth()],
@@ -431,11 +464,21 @@ class OrderManagementTest extends TestCase
 
     private function customer(Agent $agent, int $ownerId): Customer
     {
+        $this->scope($agent, $ownerId);
+
         return Customer::query()->create([
             'code' => 'TEST-JG-0001',
             'name' => '测试订单客户',
             'source_agent_id' => $agent->id,
             'owner_id' => $ownerId,
         ]);
+    }
+
+    private function scope(Agent $agent, int $ownerId): void
+    {
+        $groups = app(BusinessGroupManagementGateway::class);
+        $groupId = $groups->create('ORDER-'.$ownerId.'-'.$agent->id, 'Order test scope', $ownerId, null)['id'];
+        $groups->assignMember($groupId, $ownerId, '2026-01-01', null, 'Order test scope', $ownerId, null);
+        app(AgentBusinessGroupAssignmentGateway::class)->assign($agent->id, $groupId, '2026-01-01', null, 'Order test scope', $ownerId, null);
     }
 }

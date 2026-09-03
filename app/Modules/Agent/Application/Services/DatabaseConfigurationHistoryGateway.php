@@ -49,7 +49,7 @@ final readonly class DatabaseConfigurationHistoryGateway implements Configuratio
             foreach ([
                 'agent_type_codes' => ['code', 'name', 'description', 'is_system', 'is_active', 'created_at', 'updated_at'],
                 'policy_systems' => ['name', 'is_active', 'import_batch_id', 'created_at', 'updated_at'],
-                'policy_grades' => ['policy_system_id', 'name', 'monthly_threshold_krw', 'sort_order', 'is_active', 'import_batch_id', 'created_at', 'updated_at'],
+                'policy_grades' => ['policy_system_id', 'name', 'sort_order', 'is_active', 'import_batch_id', 'created_at', 'updated_at'],
             ] as $table => $columns) {
                 $rows = $target[$table] ?? [];
                 if ($rows !== []) {

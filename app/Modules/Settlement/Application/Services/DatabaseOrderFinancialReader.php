@@ -2,15 +2,21 @@
 
 namespace App\Modules\Settlement\Application\Services;
 
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Settlement\Application\Contracts\OrderFinancialReader;
 use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
 use Illuminate\Support\Facades\DB;
 
 final class DatabaseOrderFinancialReader implements OrderFinancialReader
 {
+    public function __construct(private readonly AccessContextResolver $access) {}
+
     public function forOrder(int $orderId): array
     {
         $commission = OrderCommission::query()->where('order_id', $orderId)->first();
+        if ($commission !== null) {
+            abort_unless($this->access->current()->canViewAgent((int) $commission->agent_id), 404);
+        }
         $item = DB::table('settlement_items')
             ->join('settlements', 'settlements.id', '=', 'settlement_items.settlement_id')
             ->where('settlement_items.order_commission_id', $commission === null ? 0 : $commission->id)

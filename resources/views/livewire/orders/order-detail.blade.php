@@ -33,7 +33,6 @@
                     <flux:select wire:model.live="statusSelection" :label="__('orders.fields.status')" class="min-w-48">
                         @if ($order['status'] === 'pending')
                             <flux:select.option value="pending">{{ __('orders.statuses.pending') }}</flux:select.option>
-                            <flux:select.option value="completed">{{ __('orders.statuses.completed') }}</flux:select.option>
                             @if ($isAdmin)<flux:select.option value="cancelled">{{ __('orders.statuses.cancelled') }}</flux:select.option>@endif
                         @elseif ($order['status'] === 'completed' && $isAdmin)
                             <flux:select.option value="completed">{{ __('orders.statuses.completed') }}</flux:select.option>
@@ -61,9 +60,9 @@
                 <div class="flex flex-wrap items-start justify-between gap-3">
                     <div><h3 class="font-semibold">{{ __('orders.detail.order_info') }}</h3><p class="mt-1 text-sm text-zinc-500">{{ __('orders.detail.order_info_description') }}</p></div>
                     <div class="flex flex-wrap gap-2">
-                        @if (! $deleted && $order['status'] === 'pending')
+                        @if (! $deleted && ($order['can_edit'] ?? false))
                             <flux:button href="{{ route('orders.edit', $order['id']) }}" wire:navigate variant="ghost" size="sm">{{ __('orders.detail.edit') }}</flux:button>
-                            <flux:button wire:click="complete" wire:confirm="{{ __('orders.detail.complete_confirm') }}" size="sm">{{ __('orders.center.mark_complete') }}</flux:button>
+                            @if ($order['status'] === 'pending')<span class="text-xs text-zinc-500">{{ __('orders.detail.awaiting_institution_return') }}</span>@endif
                         @endif
                     </div>
                 </div>
@@ -72,6 +71,7 @@
                     <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.institution') }}</dt><dd class="mt-1 font-medium">{{ $order['institution']['name'] ?? __('orders.values.unknown_institution') }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.agent') }}</dt><dd class="mt-1 font-medium">{{ $order['agent']['name'] ?? __('orders.values.unknown_agent') }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.transaction_amount') }}</dt><dd class="mt-1 font-semibold">₩ {{ number_format($order['amount_krw']) }}</dd></div>
+                    <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.occurred_on') }}</dt><dd class="mt-1">{{ $order['occurred_on'] ?? __('orders.values.empty') }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.completed_time') }}</dt><dd class="mt-1">{{ $order['completed_at'] ?? __('orders.values.empty') }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.created_at') }}</dt><dd class="mt-1">{{ $order['created_at'] ?? __('orders.values.empty') }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.translation') }}</dt><dd class="mt-1">{{ $order['translator_name'] ?: __('orders.values.empty') }}{{ $order['translator_language'] ? ' · '.$order['translator_language'] : '' }}</dd></div>

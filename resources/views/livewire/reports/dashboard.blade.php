@@ -150,9 +150,6 @@
                 <article class="crm-card crm-trend-card">
                     <header class="crm-card-header">
                         <h2>{{ __('dashboard.panels.trend') }}</h2>
-                        <div class="crm-tabs" aria-label="{{ __('dashboard.panels.period') }}">
-                            <button type="button" class="is-active">{{ __('dashboard.panels.monthly') }}</button>
-                        </div>
                     </header>
                     <a class="crm-card-link" href="{{ route('reports.search', $reportRange) }}" wire:navigate>{{ __('dashboard.panels.view_details') }} <span>›</span></a>
                     <div class="crm-chart-legend">

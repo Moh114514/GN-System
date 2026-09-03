@@ -5,14 +5,18 @@ namespace App\Modules\Customer\Application\Services;
 use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Customer\Application\Contracts\ConfigurationHistoryGateway;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerLifecycleStage;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusTransition;
+use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
+use App\Modules\Reminder\Application\Contracts\AppointmentReminderGateway;
 use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
 use App\Modules\Reminder\Application\Data\CustomerTreatmentCompletedData;
+use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -23,6 +27,9 @@ final readonly class CustomerStatusManager
         private ConfigurationHistoryGateway $configurationHistory,
         private TreatmentReminderGateway $reminders,
         private BusinessClock $clock,
+        private AccessContextResolver $access,
+        private CustomerOrderGateway $orders,
+        private AppointmentReminderGateway $appointmentReminders,
     ) {}
 
     public function change(
@@ -31,9 +38,21 @@ final readonly class CustomerStatusManager
         string $reason,
         User $actor,
         ?string $ipAddress,
+        bool $approvedRollback = false,
     ): void {
-        DB::transaction(function () use ($customerId, $targetStatusId, $reason, $actor, $ipAddress): void {
+        DB::transaction(function () use ($customerId, $targetStatusId, $reason, $actor, $ipAddress, $approvedRollback): void {
             $customer = Customer::query()->lockForUpdate()->findOrFail($customerId);
+            $context = $this->access->forUser($actor);
+            abort_unless($context->canViewCustomer(
+                $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
+                $customer->owner_id === null ? null : (int) $customer->owner_id,
+            ), 404);
+            abort_unless(
+                $context->isSuperAdmin()
+                || $context->isBdManager()
+                || ($context->isCustomerService() && (int) $customer->owner_id === (int) $actor->id),
+                403,
+            );
             $current = $customer->current_status_id === null
                 ? null
                 : CustomerStatus::query()->findOrFail($customer->current_status_id);
@@ -44,8 +63,11 @@ final readonly class CustomerStatusManager
             }
 
             $isBackward = $current !== null && $target->sort_order < $current->sort_order;
-            if ($isBackward && ! $actor->is_super_admin) {
-                throw ValidationException::withMessages(['targetStatusId' => __('customers.form.validation.rollback_requires_super_admin')]);
+            if ($isBackward && $this->orders->hasAnyOrder($customer->id) && ! $context->isSuperAdmin()) {
+                throw ValidationException::withMessages(['targetStatusId' => __('customers.form.validation.order_exists_rollback_forbidden')]);
+            }
+            if ($isBackward && ! $context->isSuperAdmin() && ! $approvedRollback) {
+                throw ValidationException::withMessages(['targetStatusId' => __('customers.form.validation.rollback_requires_approval')]);
             }
             if ($current !== null && ! $isBackward && ! CustomerStatusTransition::query()
                 ->where('from_status_id', $current->id)
@@ -53,6 +75,9 @@ final readonly class CustomerStatusManager
                 ->where('is_active', true)
                 ->exists()) {
                 throw ValidationException::withMessages(['targetStatusId' => __('customers.form.validation.invalid_transition')]);
+            }
+            if ($target->key === 'treatment_completed') {
+                throw ValidationException::withMessages(['targetStatusId' => __('customers.form.validation.treatment_completed_requires_order')]);
             }
             if (trim($reason) === '') {
                 throw ValidationException::withMessages(['statusReason' => __('customers.form.validation.status_reason_required')]);
@@ -63,6 +88,7 @@ final readonly class CustomerStatusManager
                 : $customer->treatment_completed_at;
             $customer->update([
                 'current_status_id' => $target->id,
+                'arrived_at' => $target->key === 'arrived' ? $this->clock->now() : $customer->arrived_at,
                 'treatment_completed_at' => $completedAt,
             ]);
             CustomerStatusHistory::query()->create([
@@ -98,6 +124,27 @@ final readonly class CustomerStatusManager
                     ownerId: $customer->owner_id === null ? null : (int) $customer->owner_id,
                     actorId: (int) $actor->id,
                 ));
+            }
+            if ($target->key === 'arrived') {
+                $appointmentId = $this->orders->markAppointmentArrived($customer->id);
+                if ($appointmentId !== null) {
+                    $this->appointmentReminders->cancelForAppointment($appointmentId, $actor->id, 'customer_arrived');
+                }
+            }
+            if ($target->key === 'booked') {
+                $appointment = $this->orders->markAppointmentScheduled($customer->id);
+                if ($appointment !== null) {
+                    if ($appointment['scheduled_at'] === null) {
+                        $this->appointmentReminders->cancelForAppointment($appointment['id'], $actor->id, 'customer_status_rolled_back');
+                    } else {
+                        $this->appointmentReminders->syncForAppointment(
+                            appointmentId: $appointment['id'],
+                            customerId: $customer->id,
+                            assignedTo: $appointment['owner_id'],
+                            scheduledAt: CarbonImmutable::parse($appointment['scheduled_at']),
+                        );
+                    }
+                }
             }
         }, 3);
     }

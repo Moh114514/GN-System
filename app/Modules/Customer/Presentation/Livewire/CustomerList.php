@@ -4,7 +4,9 @@ namespace App\Modules\Customer\Presentation\Livewire;
 
 use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Customer\Application\Services\CustomerDirectory;
+use App\Modules\Customer\Application\Services\CustomerTransferManager;
 use App\Support\DateRange;
+use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Validation\ValidationException;
@@ -25,11 +27,26 @@ class CustomerList extends Component
 
     public string $institutionId = '';
 
+    public string $ownerId = '';
+
+    public string $ownerState = '';
+
+    public string $transferStatus = '';
+
+    public string $businessGroupId = '';
+
     public string $createdFrom = '';
 
     public string $createdTo = '';
 
     public int $perPage = 20;
+
+    /** @var list<int> */
+    public array $selectedCustomerIds = [];
+
+    public string $bulkTransferTargetOwnerId = '';
+
+    public string $bulkTransferReason = '';
 
     /** @var array<string, array<int, array<string, mixed>>> */
     public array $options = [];
@@ -40,6 +57,10 @@ class CustomerList extends Component
         'statusId' => ['except' => ''],
         'agentId' => ['except' => ''],
         'institutionId' => ['except' => ''],
+        'ownerId' => ['except' => ''],
+        'ownerState' => ['except' => ''],
+        'transferStatus' => ['except' => ''],
+        'businessGroupId' => ['except' => ''],
         'createdFrom' => ['except' => ''],
         'createdTo' => ['except' => ''],
         'perPage' => ['except' => 20],
@@ -52,14 +73,20 @@ class CustomerList extends Component
 
     public function updated(string $property): void
     {
-        if (in_array($property, ['search', 'statusId', 'agentId', 'institutionId', 'createdFrom', 'createdTo', 'perPage'], true)) {
+        if ($property === 'ownerId' && $this->ownerId !== '') {
+            $this->ownerState = '';
+        }
+        if ($property === 'ownerState' && $this->ownerState !== '') {
+            $this->ownerId = '';
+        }
+        if (in_array($property, ['search', 'statusId', 'agentId', 'institutionId', 'ownerId', 'ownerState', 'transferStatus', 'businessGroupId', 'createdFrom', 'createdTo', 'perPage'], true)) {
             $this->resetPage();
         }
     }
 
     public function clearFilters(): void
     {
-        $this->reset('search', 'statusId', 'agentId', 'institutionId', 'createdFrom', 'createdTo');
+        $this->reset('search', 'statusId', 'agentId', 'institutionId', 'ownerId', 'ownerState', 'transferStatus', 'businessGroupId', 'createdFrom', 'createdTo');
         $this->perPage = 20;
         $this->resetPage();
     }
@@ -70,6 +97,25 @@ class CustomerList extends Component
         $this->createdFrom = $range->startAt?->toDateString() ?? '';
         $this->createdTo = $range->endExclusive?->subDay()->toDateString() ?? '';
         $this->resetPage();
+    }
+
+    public function bulkTransfer(CustomerTransferManager $manager): void
+    {
+        $this->validate([
+            'selectedCustomerIds' => ['required', 'array', 'min:1'],
+            'selectedCustomerIds.*' => ['integer', 'distinct'],
+            'bulkTransferTargetOwnerId' => ['required', 'integer'],
+            'bulkTransferReason' => ['required', 'string', 'max:1000'],
+        ]);
+        $manager->batch(
+            customerIds: array_map('intval', $this->selectedCustomerIds),
+            toOwnerId: (int) $this->bulkTransferTargetOwnerId,
+            reason: $this->bulkTransferReason,
+            actor: auth()->user(),
+            ipAddress: request()->ip(),
+        );
+        $this->reset('selectedCustomerIds', 'bulkTransferTargetOwnerId', 'bulkTransferReason');
+        Flux::toast(variant: 'success', text: __('customers.toasts.transfer_completed'));
     }
 
     /** @return array<string, array<int, string>> */
@@ -109,11 +155,18 @@ class CustomerList extends Component
                 'status_id' => $this->statusId === '' ? null : (int) $this->statusId,
                 'agent_id' => $this->agentId === '' ? null : (int) $this->agentId,
                 'institution_id' => $this->institutionId === '' ? null : (int) $this->institutionId,
+                'owner_id' => $this->ownerId === '' ? null : (int) $this->ownerId,
+                'owner_state' => $this->ownerState,
+                'transfer_status' => $this->transferStatus,
+                'business_group_id' => $this->businessGroupId === '' ? null : (int) $this->businessGroupId,
                 'created_from' => $this->createdFrom,
                 'created_to' => $this->createdTo,
             ], $perPage);
 
-        return view('livewire.customers.customer-list', compact('customers'))
+        return view('livewire.customers.customer-list', [
+            'customers' => $customers,
+            'ownerCandidates' => $directory->ownerCandidates(),
+        ])
             ->title(__('customers.title.list'));
     }
 }

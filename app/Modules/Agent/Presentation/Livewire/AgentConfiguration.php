@@ -34,8 +34,6 @@ class AgentConfiguration extends Component
 
     public string $gradeName = '';
 
-    public string $gradeThresholdKrw = '0';
-
     public string $gradeSortOrder = '0';
 
     public string $gradeListSort = 'configured';
@@ -124,10 +122,9 @@ class AgentConfiguration extends Component
         $this->validate([
             'gradePolicySystemId' => ['required', 'integer'],
             'gradeName' => ['required', 'string', 'max:255'],
-            'gradeThresholdKrw' => ['required', 'integer', 'min:0'],
             'gradeSortOrder' => ['required', 'integer', 'min:0', 'max:65535'],
         ]);
-        $this->run(fn () => $manager->saveGrade($this->editingGradeId, (int) $this->gradePolicySystemId, $this->gradeName, (int) $this->gradeThresholdKrw, (int) $this->gradeSortOrder, (int) Auth::id(), request()->ip()), __('config.agent.toast.grade_saved'));
+        $this->run(fn () => $manager->saveGrade($this->editingGradeId, (int) $this->gradePolicySystemId, $this->gradeName, (int) $this->gradeSortOrder, (int) Auth::id(), request()->ip()), __('config.agent.toast.grade_saved'));
         $this->cancelGradeEdit();
     }
 
@@ -137,14 +134,12 @@ class AgentConfiguration extends Component
         $this->editingGradeId = $id;
         $this->gradePolicySystemId = (string) $grade['policy_system_id'];
         $this->gradeName = $grade['name'];
-        $this->gradeThresholdKrw = (string) $grade['monthly_threshold_krw'];
         $this->gradeSortOrder = (string) $grade['sort_order'];
     }
 
     public function cancelGradeEdit(): void
     {
         $this->reset('editingGradeId', 'gradePolicySystemId', 'gradeName');
-        $this->gradeThresholdKrw = '0';
         $this->gradeSortOrder = '0';
     }
 

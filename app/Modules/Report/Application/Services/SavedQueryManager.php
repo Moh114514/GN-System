@@ -3,13 +3,14 @@
 namespace App\Modules\Report\Application\Services;
 
 use App\Models\User;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Report\Infrastructure\Models\SavedQuery;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 final readonly class SavedQueryManager
 {
-    public function __construct(private ReportSearch $search) {}
+    public function __construct(private ReportSearch $search, private AccessContextResolver $access) {}
 
     /** @return Collection<int, SavedQuery> */
     public function visibleTo(User $user): Collection
@@ -30,7 +31,7 @@ final readonly class SavedQueryManager
             'created_by' => $user->id,
             'name' => trim($name),
             'scope' => $scope === 'team' ? 'team' : 'personal',
-            'criteria' => $this->search->queryData($criteria)->toArray(),
+            'criteria' => [...$this->search->queryData($criteria)->toArray(), '_access' => $this->access->current()->toSnapshot()],
             'sort_field' => $criteria['sort_field'] ?? 'completed_at',
             'sort_direction' => ($criteria['sort_direction'] ?? null) === 'asc' ? 'asc' : 'desc',
         ]);
@@ -44,7 +45,7 @@ final readonly class SavedQueryManager
         $saved->update([
             'name' => trim($name),
             'scope' => $scope === 'team' ? 'team' : 'personal',
-            'criteria' => $this->search->queryData($criteria)->toArray(),
+            'criteria' => [...$this->search->queryData($criteria)->toArray(), '_access' => $this->access->current()->toSnapshot()],
             'sort_field' => $criteria['sort_field'] ?? 'completed_at',
             'sort_direction' => ($criteria['sort_direction'] ?? null) === 'asc' ? 'asc' : 'desc',
         ]);

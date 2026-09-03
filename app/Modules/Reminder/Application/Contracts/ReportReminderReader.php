@@ -22,4 +22,10 @@ interface ReportReminderReader
      * }
      */
     public function dashboard(CarbonImmutable $from, CarbonImmutable $to): array;
+
+    /**
+     * @param  list<int>  $ownerIds
+     * @return array{pending: int, overdue: int, owners: array<int, array{pending: int, overdue: int}>}
+     */
+    public function teamOverview(array $ownerIds, CarbonImmutable $now): array;
 }

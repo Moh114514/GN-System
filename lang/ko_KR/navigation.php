@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'bd_commissions' => 'BD 분기 인센티브',
     'main' => '주 메뉴',
     'brand_tagline' => '전문적 · 안전 · 효율적',
     'dashboard' => '개요',
@@ -8,6 +9,8 @@ return [
     'customers' => '고객 관리',
     'orders' => '주문',
     'reports' => '다차원 조회',
+    'institution_sales' => '기관 매출',
+    'team_overview' => '팀 관리',
     'agents' => '에이전시',
     'settlements' => '월 정산 센터',
     'configuration' => '설정 센터',
@@ -39,6 +42,16 @@ return [
     'appearance' => '화면 설정',
     'language' => '언어',
     'logout' => '로그아웃',
+    'test_identity' => '테스트 신원',
+    'impersonation_inactive_short' => '사용 안 함',
+    'impersonation_active_short' => ':name',
+    'impersonation_owner' => '실제 계정: :name',
+    'impersonation_active_menu' => '현재 시뮬레이션: :name',
+    'impersonation_choose_target' => '시스템을 실행할 실제 내부 사용자를 선택하세요.',
+    'impersonation_stop' => '시뮬레이션 종료',
+    'impersonation_no_group' => '현재 업무 그룹 없음',
+    'impersonation_no_targets' => '시뮬레이션할 수 있는 내부 사용자가 없습니다.',
+    'impersonation_warning' => '현재 테스트 신원 시뮬레이션 모드입니다: :role · :name',
     'time_travel' => '시스템 테스트: 시간 시뮬레이션',
     'time_travel_warning' => '⚠ 현재 시뮬레이션 시간: :time',
     'restore_real_time' => '실제 시간으로 복원',

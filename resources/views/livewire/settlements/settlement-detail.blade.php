@@ -1,5 +1,6 @@
 <div>
     @php
+        $canManageSettlements = auth()->user()?->isSuperAdmin() ?? false;
         $settlementCenterQuery = request()->filled('selectedPeriodEnd')
             ? ['selectedPeriodEnd' => request()->query('selectedPeriodEnd')]
             : [];
@@ -14,7 +15,7 @@
         $generationRecoveryRequired = $generationUnverified && $settlement->settlement_run_id === null;
         $canRefresh = in_array($settlement->status, ['pending_review', 'rejected'], true) && $settlement->generation_status === 'generated' && $freshness?->isStale();
     @endphp
-    @if ($canRefresh)
+    @if ($canRefresh && $canManageSettlements)
         <section id="settlement-freshness-alert" data-business-alert tabindex="-1" class="scroll-mt-20 mb-5 rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
             <h3 class="font-semibold">{{ __('settlements.detail.freshness_heading') }}</h3>
             <p class="mt-1 text-sm">{{ __('settlements.detail.freshness_description') }}</p>
@@ -37,7 +38,9 @@
         <section id="{{ $needsRegeneration ? 'settlement-generation-alert' : 'settlement-generation-regeneration-note' }}" data-business-alert data-business-alert-key="{{ $settlement->id }}-{{ $settlement->generation_status }}-regeneration" tabindex="-1" class="scroll-mt-20 mb-5 rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">
             <h3 class="font-semibold">{{ __('settlements.detail.generation_pending_heading') }}</h3>
             <p class="mt-1 text-sm">{{ __('settlements.detail.generation_pending_description') }}</p>
-            <flux:button class="mt-3" wire:click="regenerateSettlement" wire:loading.attr="disabled" wire:target="regenerateSettlement" variant="primary">{{ __('settlements.detail.regenerate_settlement') }}</flux:button>
+            @if ($canManageSettlements)
+                <flux:button class="mt-3" wire:click="regenerateSettlement" wire:loading.attr="disabled" wire:target="regenerateSettlement" variant="primary">{{ __('settlements.detail.regenerate_settlement') }}</flux:button>
+            @endif
         </section>
     @endif
     @if ($generationUnverified)
@@ -86,7 +89,7 @@
         <dl class="mt-5 grid gap-4 sm:grid-cols-3"><div><dt class="text-xs text-zinc-500">{{ __('settlements.detail.consumption_total') }}</dt><dd class="font-semibold">₩ {{ number_format($settlement->total_consumption_krw) }}</dd></div><div><dt class="text-xs text-zinc-500">{{ __('settlements.detail.commission_total') }}</dt><dd class="font-semibold">₩ {{ number_format($settlement->total_commission_krw) }}</dd></div><div><dt class="text-xs text-zinc-500">{{ $settlementCurrency === 'KRW' ? __('settlements.detail.payable_krw') : __('settlements.detail.payable_cny') }}</dt><dd class="font-semibold">@if ($settlementCurrency === 'KRW')₩ {{ number_format($settlement->total_commission_krw) }}@elseif ($settlement->exchange_rate_krw_per_cny)¥ {{ number_format($settlement->total_commission_krw / (float) $settlement->exchange_rate_krw_per_cny, 2) }}@else{{ __('settlements.labels.pending') }}@endif</dd></div></dl>
     </section>
 
-    @if (in_array($settlement->status, ['pending_review', 'rejected']) && ! $generationNotApplicable && ! $generationRecoveryRequired)
+    @if ($canManageSettlements && in_array($settlement->status, ['pending_review', 'rejected']) && ! $generationNotApplicable && ! $generationRecoveryRequired)
         <section class="mt-6 grid gap-5 lg:grid-cols-2">
             <form wire:submit="approve" class="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900">
                 <h3 class="font-semibold">{{ __('settlements.detail.approve_heading') }}</h3>
@@ -122,11 +125,11 @@
             </form>
             <form wire:submit="reject" class="rounded-2xl border border-zinc-200 bg-white p-5 dark:border-zinc-700 dark:bg-zinc-900"><h3 class="font-semibold">{{ __('settlements.detail.reject_heading') }}</h3><flux:textarea wire:model="rejectionReason" class="mt-3" :label="__('settlements.detail.rejection_reason')" rows="2" required /><flux:button class="mt-3" type="submit" variant="danger">{{ __('settlements.detail.reject_settlement') }}</flux:button></form>
         </section>
-    @elseif ($settlement->status === 'approved')
+    @elseif ($canManageSettlements && $settlement->status === 'approved')
         <div class="mt-6"><flux:button wire:click="settle" variant="primary">{{ __('settlements.detail.settle') }}</flux:button></div>
     @endif
 
-    @if (in_array($settlement->status, ['approved', 'settled']))
+    @if ($canManageSettlements && in_array($settlement->status, ['approved', 'settled']))
         <section class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900 dark:bg-amber-950/30">
             <h3 class="font-semibold">{{ __('settlements.detail.controlled_correction') }}</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{{ __('settlements.detail.controlled_correction_description') }}</p>
             <form wire:submit="correctStatus" class="mt-3 grid gap-3 sm:grid-cols-2"><flux:select wire:model="correctionTarget" :label="__('settlements.detail.target_status')" required><flux:select.option value="pending_review">{{ __('settlements.settlement_statuses.pending_review') }}</flux:select.option><flux:select.option value="approved">{{ __('settlements.detail.approved_status') }}</flux:select.option><flux:select.option value="settled">{{ __('settlements.settlement_statuses.settled') }}</flux:select.option></flux:select><flux:textarea wire:model="correctionReason" :label="__('settlements.detail.correction_reason')" rows="2" required /><div class="sm:col-span-2"><flux:button type="submit" variant="danger">{{ __('settlements.detail.submit_correction') }}</flux:button></div></form>
@@ -134,7 +137,7 @@
     @endif
 
     <section class="mt-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
-        <div class="flex items-center justify-between"><h3 class="font-semibold">{{ __('settlements.detail.settlement_items') }}</h3><div class="flex gap-2">@if ($needsRegeneration)<flux:button wire:click="regenerateSettlement" size="sm" variant="primary">{{ __('settlements.detail.regenerate_settlement') }}</flux:button>@elseif (in_array($settlement->status, ['approved', 'settled']) || (in_array($settlement->status, ['paid', 'reconciled']) && $settlement->generation_status === 'not_applicable'))<flux:button wire:click="regenerateDocuments" size="sm" variant="ghost">{{ __('settlements.detail.documents_regenerate') }}</flux:button>@endif @foreach ($documents as $document)<a class="text-sm font-semibold text-teal-700" href="{{ route('settlements.documents.download', $document->id) }}">{{ __('settlements.detail.download_document', ['format' => strtoupper($document->format)]) }}</a>@endforeach</div></div>
+        <div class="flex flex-wrap items-center justify-between gap-3"><h3 class="font-semibold">{{ __('settlements.detail.settlement_items') }}</h3><div class="flex flex-wrap items-center gap-2">@if ($canManageSettlements && $needsRegeneration)<flux:button wire:click="regenerateSettlement" size="sm" variant="primary">{{ __('settlements.detail.regenerate_settlement') }}</flux:button>@elseif ($canManageSettlements && (in_array($settlement->status, ['approved', 'settled']) || (in_array($settlement->status, ['paid', 'reconciled']) && $settlement->generation_status === 'not_applicable')))<flux:button wire:click="regenerateDocuments" size="sm" variant="ghost">{{ __('settlements.detail.documents_regenerate') }}</flux:button>@endif @if ($documents->isNotEmpty())<details class="relative"><summary class="cursor-pointer list-none rounded-lg border border-zinc-300 px-3 py-1.5 text-sm font-semibold text-teal-700">{{ __('settlements.detail.export') }}</summary><div class="absolute right-0 z-10 mt-2 flex min-w-36 flex-col rounded-lg border border-zinc-200 bg-white p-1 shadow-lg">@foreach ($documents as $document)<a class="rounded px-2 py-1.5 text-sm font-semibold text-teal-700 hover:bg-zinc-50" href="{{ route('settlements.documents.download', $document->id) }}">{{ __('settlements.detail.download_document', ['format' => strtoupper($document->format)]) }}</a>@endforeach</div></details>@endif</div></div>
         @if ($settlement->generation_status === 'generated' && $items->isEmpty())
             <p class="mt-3 text-sm text-zinc-500">{{ __('settlements.detail.zero_order_hint') }}</p>
         @endif
@@ -166,10 +169,4 @@
         </tbody></table></div>
     </section>
 
-    @if ($suggestion)
-        <section class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900 dark:bg-amber-950/30">
-            <h3 class="font-semibold">{{ __('settlements.detail.grade_suggestion') }}</h3><p class="mt-2 text-sm">{{ __('settlements.detail.grade_suggestion_description', ['amount' => number_format($suggestion->monthly_commission_krw), 'current' => $suggestion->current_grade_id, 'recommended' => $suggestion->recommended_grade_id]) }}</p>
-            @if ($suggestion->status === 'pending')<flux:input wire:model="suggestionReason" class="mt-3" :label="__('settlements.detail.review_note')" /><div class="mt-3 flex gap-2"><flux:button wire:click="reviewSuggestion({{ $suggestion->id }}, true)">{{ __('settlements.detail.approve_suggestion') }}</flux:button><flux:button wire:click="reviewSuggestion({{ $suggestion->id }}, false)" variant="ghost">{{ __('settlements.detail.keep_grade') }}</flux:button></div>@else<p class="mt-2 text-sm">{{ __('settlements.detail.result', ['status' => $suggestion->status]) }}</p>@endif
-        </section>
-    @endif
 </div>

@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Infrastructure\Localization\SupportedLocale;
+use App\Modules\Auth\Domain\UserRole;
+use App\Modules\Auth\Infrastructure\Models\BusinessGroupMembership;
 use App\Modules\Auth\Infrastructure\Notifications\InternalUserInvitationNotification;
 use App\Modules\Auth\Infrastructure\Notifications\UserPasswordResetNotification;
 // use Illuminate\Contracts\Auth\MustVerifyEmail;
@@ -11,6 +13,7 @@ use Illuminate\Contracts\Translation\HasLocalePreference;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -27,6 +30,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $email_verified_at
  * @property string $password
  * @property bool $is_super_admin
+ * @property UserRole $role
  * @property bool $is_active
  * @property int $session_version
  * @property string $invitation_status
@@ -41,7 +45,7 @@ use Laravel\Fortify\TwoFactorAuthenticatable;
  * @property Carbon|null $updated_at
  */
 #[Fillable([
-    'name', 'email', 'dingtalk_mention_type', 'dingtalk_mention_value', 'password', 'preferred_locale', 'is_super_admin', 'is_active', 'invitation_status',
+    'name', 'email', 'dingtalk_mention_type', 'dingtalk_mention_value', 'password', 'preferred_locale', 'is_super_admin', 'role', 'is_active', 'invitation_status',
     'invitation_sent_at', 'disabled_at', 'disabled_by', 'remember_token', 'session_version',
 ])]
 #[Hidden(['password', 'two_factor_secret', 'two_factor_recovery_codes', 'remember_token'])]
@@ -66,12 +70,79 @@ class User extends Authenticatable implements HasLocalePreference
         return [
             'email_verified_at' => 'datetime',
             'is_super_admin' => 'boolean',
+            'role' => UserRole::class,
             'is_active' => 'boolean',
             'session_version' => 'integer',
             'invitation_sent_at' => 'datetime',
             'disabled_at' => 'datetime',
             'password' => 'hashed',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::saving(function (self $user): void {
+            if ($user->isDirty('role')) {
+                $roleAttribute = $user->getAttribute('role');
+                $role = $roleAttribute instanceof UserRole
+                    ? $roleAttribute
+                    : UserRole::tryFrom((string) $roleAttribute);
+
+                if ($role !== null) {
+                    // During the RC compatibility period, an old caller may
+                    // override only is_super_admin while the factory supplies
+                    // the new default role. Let that explicit legacy flag win
+                    // only for the default customer-service value.
+                    if ($user->isDirty('is_super_admin')
+                        && (bool) $user->is_super_admin
+                        && $role === UserRole::CustomerService) {
+                        $user->role = UserRole::SuperAdmin;
+                    } else {
+                        $user->is_super_admin = $role === UserRole::SuperAdmin;
+                    }
+                }
+            } elseif ($user->isDirty('is_super_admin')) {
+                $user->role = (bool) $user->is_super_admin
+                    ? UserRole::SuperAdmin
+                    : UserRole::CustomerService;
+            }
+        });
+    }
+
+    public function roleValue(): UserRole
+    {
+        $role = $this->getAttribute('role');
+
+        return $role instanceof UserRole
+            ? $role
+            : (UserRole::tryFrom((string) $role)
+                ?? ((bool) $this->is_super_admin ? UserRole::SuperAdmin : UserRole::CustomerService));
+    }
+
+    public function isSuperAdmin(): bool
+    {
+        return $this->roleValue() === UserRole::SuperAdmin || (bool) $this->is_super_admin;
+    }
+
+    public function isBdManager(): bool
+    {
+        return $this->roleValue() === UserRole::BdManager && ! $this->isSuperAdmin();
+    }
+
+    public function isCustomerService(): bool
+    {
+        return $this->roleValue() === UserRole::CustomerService && ! $this->isSuperAdmin();
+    }
+
+    public function canManageConfiguration(): bool
+    {
+        return $this->isSuperAdmin();
+    }
+
+    /** @return HasMany<BusinessGroupMembership, $this> */
+    public function businessGroupMemberships(): HasMany
+    {
+        return $this->hasMany(BusinessGroupMembership::class);
     }
 
     /**

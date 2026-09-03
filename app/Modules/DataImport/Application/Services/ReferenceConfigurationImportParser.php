@@ -173,7 +173,6 @@ final readonly class ReferenceConfigurationImportParser
                 ImportProfile::PolicyGrade => [
                     'policy_system' => $this->required($raw['政策体系'], '政策体系'),
                     'name' => $this->required($raw['等级名称'], '等级名称'),
-                    'monthly_threshold_krw' => $this->integer($raw['月业绩门槛KRW'], '月业绩门槛KRW', 0),
                     'sort_order' => $this->integer($raw['排序'], '排序', 0, 65535),
                     'is_active' => $this->boolean($raw['启用'], '启用'),
                 ],

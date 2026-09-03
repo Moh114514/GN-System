@@ -1,6 +1,7 @@
 <?php
 
 return [
+    'bd_commissions' => 'BD季度提成',
     'main' => '主导航',
     'brand_tagline' => '专业 · 安全 · 高效',
     'dashboard' => '总览',
@@ -8,6 +9,8 @@ return [
     'customers' => '客户管理',
     'orders' => '订单',
     'reports' => '多维查询',
+    'institution_sales' => '机构销售额',
+    'team_overview' => '团队管理',
     'agents' => '代理商',
     'settlements' => '月结中心',
     'configuration' => '配置中心',
@@ -39,6 +42,16 @@ return [
     'appearance' => '外观设置',
     'language' => '语言 / 언어',
     'logout' => '退出登录',
+    'test_identity' => '测试身份',
+    'impersonation_inactive_short' => '未启用',
+    'impersonation_active_short' => ':name',
+    'impersonation_owner' => '真实账号：:name',
+    'impersonation_active_menu' => '当前模拟：:name',
+    'impersonation_choose_target' => '选择一个真实内部用户运行系统',
+    'impersonation_stop' => '退出模拟',
+    'impersonation_no_group' => '当前无业务组',
+    'impersonation_no_targets' => '暂无可模拟的内部用户。',
+    'impersonation_warning' => '当前处于测试身份模拟模式：:role · :name',
     'time_travel' => '系统测试：时间模拟',
     'time_travel_warning' => '⚠ 当前为模拟时间：:time',
     'restore_real_time' => '恢复真实时间',

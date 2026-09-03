@@ -249,22 +249,21 @@ final readonly class AgentManager
         $this->recordConfiguration('政策体系状态已变更', 'audit.messages.agent_policy_status_changed', $system, $before, $actorId, $ipAddress);
     }
 
-    public function saveGrade(?int $id, int $policySystemId, string $name, int $thresholdKrw, int $sortOrder, int $actorId, ?string $ipAddress): void
+    public function saveGrade(?int $id, int $policySystemId, string $name, int $sortOrder, int $actorId, ?string $ipAddress): void
     {
         PolicySystem::query()->findOrFail($policySystemId);
         $this->configurationHistory->capture($actorId);
         $grade = $id === null ? new PolicyGrade(['is_active' => true]) : PolicyGrade::query()->findOrFail($id);
-        $before = $grade->exists ? $grade->only(['policy_system_id', 'name', 'monthly_threshold_krw', 'sort_order', 'is_active']) : null;
+        $before = $grade->exists ? $grade->only(['policy_system_id', 'name', 'sort_order', 'is_active']) : null;
         $grade->fill([
             'policy_system_id' => $policySystemId,
             'name' => trim($name),
-            'monthly_threshold_krw' => $thresholdKrw,
             'sort_order' => $sortOrder,
         ])->save();
         $this->recordConfiguration('政策等级已保存', 'audit.messages.agent_grade_saved', $grade, $before, $actorId, $ipAddress);
     }
 
-    /** @return array{id: int, policy_system_id: int, name: string, monthly_threshold_krw: int, sort_order: int} */
+    /** @return array{id: int, policy_system_id: int, name: string, sort_order: int} */
     public function grade(int $id): array
     {
         $grade = PolicyGrade::query()->findOrFail($id);
@@ -273,7 +272,6 @@ final readonly class AgentManager
             'id' => (int) $grade->id,
             'policy_system_id' => (int) $grade->policy_system_id,
             'name' => (string) $grade->name,
-            'monthly_threshold_krw' => (int) $grade->monthly_threshold_krw,
             'sort_order' => (int) $grade->sort_order,
         ];
     }

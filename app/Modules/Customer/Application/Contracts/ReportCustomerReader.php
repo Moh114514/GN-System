@@ -51,4 +51,17 @@ interface ReportCustomerReader
      * }
      */
     public function dashboard(CarbonImmutable $from, CarbonImmutable $to): array;
+
+    /**
+     * @param  list<int>  $ownerIds
+     * @return array{
+     *   total_customers: int,
+     *   new_customers: int,
+     *   unassigned_customers: int,
+     *   pending_transfer_requests: int,
+     *   owner_exception_customers: int,
+     *   owners: array<int, array{customers: int, new_customers: int, unset: int, booked: int, arrived: int, treatment_completed: int}>
+     * }
+     */
+    public function teamOverview(array $ownerIds, CarbonImmutable $from, CarbonImmutable $to): array;
 }

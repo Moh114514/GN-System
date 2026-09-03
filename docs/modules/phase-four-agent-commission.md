@@ -15,11 +15,12 @@ Phase 4 提供代理商列表、建档、编辑、详情，代理商类型、政
 - Order 拥有订单状态和完成日期。
 - Settlement 拥有等级机构费率、代理商特批和订单推广费快照。
 - Customer 与 Config 分别通过只读 Contract 提供客户代理商归属和机构引用。
-- Order 完成订单时，在同一事务中通过 Settlement Contract 核算；Settlement
-  再通过 Agent Contract 读取当月有效政策等级。
+- 机构固定表单回传成功形成正式订单时，Order 在同一事务中通过 Settlement Contract 核算；
+  Settlement 再通过 Agent Contract 读取业务日期对应的有效政策等级。
 
 具体事务和失败语义见
-[ADR-0006](../adr/0006-synchronous-order-commission-contract.md)。
+[ADR-0006](../adr/0006-synchronous-order-commission-contract.md) 和
+[ADR-0010](../adr/0010-formal-order-facts-and-bd-commission-history.md)。
 
 ## 固化业务规则
 
@@ -36,10 +37,22 @@ Phase 4 提供代理商列表、建档、编辑、详情，代理商类型、政
 - 已完成订单每单只有一条推广费，快照不受未来配置调整影响。
 - 配置页可按业务排序、门槛、名称、生效月份、费率、等级、机构或代理商切换查看
   顺序；这些选择只影响当前列表展示，不改变费率优先级、生效规则或历史快照。
-- 配置输入项通过悬停说明展示代码、排序、门槛、基点、生效月份和特批范围的含义。
+- 配置输入项通过悬停说明展示代码、排序、基点、生效月份和特批范围的含义。
 
 ## 当前限制
 
 - 订单首期只有待完成和已完成两种状态；完整状态流转属于后续订单中心。
 - 不实现累计阶梯、政策体系兜底费率、领域事件、缓存或历史推广费重算。
-- 月业绩门槛仅作为等级配置数据保存，本阶段不自动生成升降级建议。
+- 等级是政策体系下的人工配置业务属性；系统不再维护月业绩门槛，也不自动生成升降级建议或等级通知。
+
+## PR1–PR6 业务归属与 BD 季度提成
+
+Agent 维护代理商到业务组的有效期归属；Auth 维护业务组成员、角色和 BD 成员有效期。机构回传
+形成正式订单时，Order 将发生日对应的代理商、业务组和 BD 成员保存为业务归属快照，后续组织
+变更不会重写历史事实。配置中心可结束开放式代理商归属并填写结束日期和原因，以支持不重叠
+的未来转组；归属查询和未归属检查使用 `BusinessClock` 的业务日期。
+
+Settlement 通过 `BdCommissionOrderReader` 读取订单事实并独占 BD 季度规则、季度明细、确认和
+更正差额。Order 只通过 `BdCommissionCorrectionGateway` 通知已确认季度的订单更正，不直接
+写入 Settlement 表。当前跨模块边界和事务约束见
+[ADR-0010](../adr/0010-formal-order-facts-and-bd-commission-history.md)。

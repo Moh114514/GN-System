@@ -48,7 +48,28 @@
                     <span>{{ __('navigation.reports') }}</span>
                 </a>
 
-                @if (auth()->user()->is_super_admin)
+                @if (auth()->user()->isSuperAdmin() || auth()->user()->isBdManager())
+                    <a href="{{ route('reports.institution-sales') }}" class="crm-nav-item {{ request()->routeIs('reports.institution-sales') ? 'is-active' : '' }}" wire:navigate>
+                        <flux:icon.chart-bar aria-hidden="true" />
+                        <span>{{ __('navigation.institution_sales') }}</span>
+                    </a>
+                @endif
+
+                @if (auth()->user()->isSuperAdmin() || auth()->user()->isBdManager())
+                    <a href="{{ route('team-overview.index') }}" class="crm-nav-item {{ request()->routeIs('team-overview.*') ? 'is-active' : '' }}" wire:navigate>
+                        <flux:icon.user-group aria-hidden="true" />
+                        <span>{{ __('navigation.team_overview') }}</span>
+                    </a>
+                @endif
+
+                @if (auth()->user()->isSuperAdmin() || auth()->user()->isBdManager())
+                    <a href="{{ route('bd-commissions.index') }}" class="crm-nav-item {{ request()->routeIs('bd-commissions.*') ? 'is-active' : '' }}" wire:navigate>
+                        <flux:icon.chart-pie aria-hidden="true" />
+                        <span>{{ __('navigation.bd_commissions') }}</span>
+                    </a>
+                @endif
+
+                @if (auth()->user()->isSuperAdmin())
                     <a href="{{ route('agents.index') }}" class="crm-nav-item {{ request()->routeIs('agents.*') ? 'is-active' : '' }}" wire:navigate>
                         <flux:icon.building-office aria-hidden="true" />
                         <span>{{ __('navigation.agents') }}</span>
@@ -226,6 +247,12 @@
             @php
                 $businessClock = app(\App\Infrastructure\Time\BusinessClock::class);
                 $businessClockActive = $businessClock->isActive();
+                $userImpersonation = app(\App\Modules\Auth\Application\Services\UserImpersonationService::class);
+                $impersonationOwner = $userImpersonation->realUser();
+                $canImpersonate = $userImpersonation->canImpersonate();
+                $impersonationActive = $userImpersonation->isActive();
+                $impersonatedUser = $userImpersonation->targetUser();
+                $impersonationTargets = $canImpersonate ? $userImpersonation->availableTargets() : [];
             @endphp
             <header class="crm-topbar">
                 <button
@@ -239,6 +266,63 @@
 
                 <h1>{{ $title ?? __('common.app_name') }}</h1>
                 <div class="crm-topbar-spacer"></div>
+
+                @if ($canImpersonate)
+                    <flux:dropdown position="bottom" align="end">
+                        <button
+                            type="button"
+                            class="crm-language-trigger"
+                            data-test="impersonation-menu-button"
+                            aria-label="{{ __('navigation.test_identity') }}"
+                        >
+                            <span aria-hidden="true">🧪</span>
+                            <span class="crm-language-label">
+                                {{ $impersonationActive && $impersonatedUser instanceof \App\Models\User
+                                    ? __('navigation.impersonation_active_short', ['name' => $impersonatedUser->name])
+                                    : __('navigation.impersonation_inactive_short') }}
+                            </span>
+                            <flux:icon.chevron-down aria-hidden="true" />
+                        </button>
+
+                        <flux:menu class="min-w-72">
+                            <div class="px-2 py-1.5">
+                                <div class="text-sm font-semibold">{{ __('navigation.test_identity') }}</div>
+                                <div class="text-xs text-zinc-500">{{ __('navigation.impersonation_owner', ['name' => $impersonationOwner?->name ?? '']) }}</div>
+                            </div>
+                            <flux:menu.separator />
+
+                            @if ($impersonationActive)
+                                <div class="px-2 py-1 text-xs font-semibold text-amber-700">{{ __('navigation.impersonation_active_menu', ['name' => $impersonatedUser?->name ?? '']) }}</div>
+                                <form method="POST" action="{{ route('test.impersonation.destroy') }}" class="w-full">
+                                    @csrf
+                                    @method('DELETE')
+                                    <button type="submit" class="flex w-full items-center gap-2 rounded-lg px-2 py-2 text-left text-sm font-semibold text-red-700 hover:bg-red-50" data-test="impersonation-stop-button">
+                                        {{ __('navigation.impersonation_stop') }}
+                                    </button>
+                                </form>
+                            @else
+                                <div class="px-2 py-1 text-xs text-zinc-500">{{ __('navigation.impersonation_choose_target') }}</div>
+                                @forelse ($impersonationTargets as $role => $targets)
+                                    <div class="px-2 pt-2 text-xs font-semibold text-zinc-500">{{ __('config.user_management.roles.'.$role) }}</div>
+                                    @foreach ($targets as $target)
+                                        <form method="POST" action="{{ route('test.impersonation.store') }}" class="w-full">
+                                            @csrf
+                                            <input type="hidden" name="user_id" value="{{ $target['id'] }}">
+                                            <button type="submit" class="flex w-full flex-col items-start rounded-lg px-2 py-2 text-left hover:bg-zinc-100" data-test="impersonation-target-{{ $target['id'] }}">
+                                                <span class="text-sm font-semibold">{{ $target['name'] }}</span>
+                                                <span class="text-xs text-zinc-500">
+                                                    {{ $target['groups'] === [] ? __('navigation.impersonation_no_group') : implode(' · ', $target['groups']) }}
+                                                </span>
+                                            </button>
+                                        </form>
+                                    @endforeach
+                                @empty
+                                    <div class="px-2 py-2 text-sm text-zinc-500">{{ __('navigation.impersonation_no_targets') }}</div>
+                                @endforelse
+                            @endif
+                        </flux:menu>
+                    </flux:dropdown>
+                @endif
 
                 @php
                     $topbarSearchQuery = request()->routeIs('global-search')
@@ -286,7 +370,7 @@
                             <flux:icon.clipboard-document-list aria-hidden="true" />
                             <span>{{ __('navigation.search_order') }}<strong x-text="query ? `“${query}”` : ''"></strong></span>
                         </a>
-                        @if (auth()->user()->is_super_admin)
+                        @if (auth()->user()->isSuperAdmin())
                             <a
                                 x-bind:href="'{{ route('agents.index') }}?search=' + encodeURIComponent(query)"
                                 @click="open = false"
@@ -364,7 +448,7 @@
                         <span class="crm-avatar">{{ auth()->user()->initials() }}</span>
                         <span class="crm-user-copy">
                             <strong>{{ auth()->user()->name }}</strong>
-                            <small>{{ auth()->user()->is_super_admin ? __('navigation.super_admin') : __('navigation.internal_user') }}</small>
+                            <small>{{ auth()->user()->isSuperAdmin() ? __('navigation.super_admin') : __('navigation.internal_user') }}</small>
                         </span>
                         <flux:icon.chevron-down aria-hidden="true" />
                     </button>
@@ -402,6 +486,17 @@
                     <form method="POST" action="{{ route('configuration.time-travel.disable') }}">
                         @csrf
                         <button type="submit" class="font-semibold underline underline-offset-2">{{ __('navigation.restore_real_time') }}</button>
+                    </form>
+                </div>
+            @endif
+
+            @if ($impersonationActive && $impersonatedUser instanceof \App\Models\User)
+                <div class="mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-900 shadow-sm dark:border-red-700 dark:bg-red-950/40 dark:text-red-100" role="alert" data-test="impersonation-warning">
+                    <span class="font-semibold">🧪 {{ __('navigation.impersonation_warning', ['role' => __('config.user_management.roles.'.$impersonatedUser->roleValue()->value), 'name' => $impersonatedUser->name]) }}</span>
+                    <form method="POST" action="{{ route('test.impersonation.destroy') }}">
+                        @csrf
+                        @method('DELETE')
+                        <button type="submit" class="font-semibold underline underline-offset-2" data-test="impersonation-warning-stop-button">{{ __('navigation.impersonation_stop') }}</button>
                     </form>
                 </div>
             @endif

@@ -23,7 +23,7 @@ final class SettlementPeriodCalculator
             ->latest('effective_from')
             ->first() ?? SettlementConfiguration::query()->create([
                 'boundary_day' => 1,
-                'generation_day' => 10,
+                'generation_day' => 5,
                 'trigger_time' => '09:00:00',
                 'timezone' => 'Asia/Shanghai',
                 'effective_from' => '1970-01-01',
@@ -218,7 +218,7 @@ final class SettlementPeriodCalculator
         return ! $local->isBefore($dueAt);
     }
 
-    public function nextGenerationBoundary(CarbonImmutable $at, string $triggerTime, int $generationDay = 10): CarbonImmutable
+    public function nextGenerationBoundary(CarbonImmutable $at, string $triggerTime, int $generationDay = 5): CarbonImmutable
     {
         $candidate = $at->startOfMonth()
             ->addDays($generationDay - 1)
@@ -238,7 +238,7 @@ final class SettlementPeriodCalculator
             throw new DomainException(__('settlements.errors.trigger_time_invalid'));
         }
         $activeConfiguration = $this->activeConfiguration($now);
-        $generationDay = 10;
+        $generationDay = 5;
         $effectiveFrom = $this->nextGenerationBoundary($now, $triggerTime, $generationDay)->toDateString();
         $this->configurationHistory->capture($actorId);
 

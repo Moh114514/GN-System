@@ -5,19 +5,18 @@ namespace App\Modules\Settlement\Application\Services;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRunMember;
-use Dompdf\Dompdf;
-use Dompdf\Options;
+use App\Support\Exports\DTO\FinancialDocumentData;
+use App\Support\Exports\FinancialWorkbookStyle;
+use App\Support\Exports\FinancialWorkbookTemplate;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpWord\IOFactory;
 use PhpOffice\PhpWord\PhpWord;
-use RuntimeException;
 use ZipArchive;
 
 final class SettlementDocumentGenerator
 {
-    private const PDF_CACHE_PATH = 'framework/cache/dompdf';
+    public function __construct(private FinancialWorkbookTemplate $template) {}
 
     /** @return array<string, mixed> */
     public function viewModel(Settlement $settlement): array
@@ -33,7 +32,7 @@ final class SettlementDocumentGenerator
 
                 return [
                     'order_id' => data_get($snapshot, 'order.id'),
-                    'completed_on' => data_get($snapshot, 'order.completed_on'),
+                    'completed_on' => data_get($snapshot, 'order.completed_on') ?: data_get($snapshot, 'order.occurred_on'),
                     'project_name' => data_get($snapshot, 'order.project_name'),
                     'rate_bps' => data_get($snapshot, 'rate_bps'),
                     'consumption_krw' => (int) $item->consumption_krw,
@@ -60,49 +59,21 @@ final class SettlementDocumentGenerator
 
     public function generate(Settlement $settlement): void
     {
-        $dompdf = $this->dompdf();
         $data = $this->viewModel($settlement);
+        $document = $this->documentData($settlement, $data);
         $directory = "settlements/{$settlement->id}";
         Storage::disk('local')->makeDirectory($directory);
 
-        $word = new PhpWord;
-        $section = $word->addSection();
-        $section->addTitle(__('settlements.documents.title'), 1);
-        $section->addText(__('settlements.documents.agent', ['name' => $data['agent_name'], 'code' => $data['agent_code']]));
-        $section->addText(__('settlements.documents.period', ['from' => $data['period_start'], 'to' => $data['period_end']]));
-        $table = $section->addTable(['borderSize' => 6, 'cellMargin' => 60]);
-        $table->addRow();
-        foreach (array_values(__('settlements.documents.headers')) as $heading) {
-            $table->addCell()->addText($heading);
-        }
-        foreach ($data['items'] as $item) {
-            $table->addRow();
-            foreach ([
-                $item['order_id'],
-                $item['completed_on'],
-                $item['project_name'],
-                number_format($item['consumption_krw']),
-                number_format(((int) $item['rate_bps']) / 100, 2).'%',
-                number_format($item['commission_krw']),
-            ] as $value) {
-                $table->addCell()->addText((string) $value);
-            }
-        }
-        $section->addText(__('settlements.documents.total_consumption', ['amount' => number_format($data['total_consumption_krw'])]));
-        $section->addText(__('settlements.documents.total_commission', ['amount' => number_format($data['total_commission_krw'])]));
-        $section->addText(__('settlements.documents.exchange_rate', ['rate' => number_format((float) $data['exchange_rate'], 6)]));
-        $section->addText(__('settlements.documents.payable', ['amount' => number_format($data['payout_amount_cny_fen'] / 100, 2)]));
-
         $wordPath = "{$directory}/settlement-{$settlement->id}.docx";
-        $wordAbsolute = Storage::disk('local')->path($wordPath);
-        IOFactory::createWriter($word, 'Word2007')->save($wordAbsolute);
+        IOFactory::createWriter($this->word($document), 'Word2007')->save(Storage::disk('local')->path($wordPath));
         $this->record($settlement, 'docx', $wordPath, $data);
 
-        $dompdf->loadHtml($this->html($data, (string) config('reporting.pdf.font_path')), 'UTF-8');
-        $dompdf->setPaper('A4', 'portrait');
-        $dompdf->render();
+        $xlsxPath = "{$directory}/settlement-{$settlement->id}.xlsx";
+        $this->template->writeXlsx($document, Storage::disk('local')->path($xlsxPath));
+        $this->record($settlement, 'xlsx', $xlsxPath, $data);
+
         $pdfPath = "{$directory}/settlement-{$settlement->id}.pdf";
-        Storage::disk('local')->put($pdfPath, $dompdf->output());
+        Storage::disk('local')->put($pdfPath, $this->template->renderPdf($document));
         $this->record($settlement, 'pdf', $pdfPath, $data);
     }
 
@@ -135,15 +106,98 @@ final class SettlementDocumentGenerator
         $archive->open(Storage::disk('local')->path($path), ZipArchive::CREATE | ZipArchive::OVERWRITE);
         foreach ($documents as $document) {
             if (Storage::disk('local')->exists($document->path)) {
-                $archive->addFile(
-                    Storage::disk('local')->path($document->path),
-                    "settlement-{$document->settlement_id}.{$document->format}",
-                );
+                $archive->addFile(Storage::disk('local')->path($document->path), "settlement-{$document->settlement_id}.{$document->format}");
             }
         }
         $archive->close();
 
         return $path;
+    }
+
+    /** @param array<string, mixed> $data */
+    private function documentData(Settlement $settlement, array $data): FinancialDocumentData
+    {
+        $metadata = [
+            ['label' => __('settlements.documents.agent_label'), 'value' => $data['agent_name'].'（'.$data['agent_code'].'）'],
+            ['label' => __('settlements.documents.status'), 'value' => __('settlements.settlement_statuses.'.$settlement->status)],
+            ['label' => __('settlements.documents.currency'), 'value' => (string) ($settlement->settlement_currency ?: 'KRW')],
+        ];
+        if ($settlement->exchange_rate_krw_per_cny !== null) {
+            $metadata[] = ['label' => __('settlements.documents.exchange_rate_label'), 'value' => (string) $settlement->exchange_rate_krw_per_cny.' KRW/CNY'];
+        }
+
+        $summaryRows = [
+            ['label' => __('settlements.documents.total_consumption_label'), 'value' => $data['total_consumption_krw'], 'type' => 'amount'],
+            ['label' => __('settlements.documents.total_commission_label'), 'value' => $data['total_commission_krw'], 'type' => 'amount', 'emphasis' => true],
+        ];
+        if ((string) ($settlement->settlement_currency ?: 'KRW') === 'CNY') {
+            $summaryRows[] = ['label' => __('settlements.documents.payable_label'), 'value' => $data['payout_amount_cny_fen'] / 100, 'type' => 'amount', 'currency' => 'CNY', 'emphasis' => true];
+        }
+
+        return new FinancialDocumentData(
+            title: __('settlements.documents.title'),
+            documentNumber: 'SET-'.str_replace('-', '', $data['period_start']).'-'.$settlement->id,
+            documentDate: ($settlement->generated_at ?? now())->format('Y-m-d'),
+            subject: $data['agent_name'],
+            period: $data['period_start'].' — '.$data['period_end'],
+            primaryAmount: $data['total_commission_krw'],
+            currency: 'KRW',
+            metadata: $metadata,
+            columns: [
+                ['key' => 'order_id', 'label' => __('settlements.documents.headers.order'), 'type' => 'text', 'width' => 13],
+                ['key' => 'completed_on', 'label' => __('settlements.documents.headers.completed_on'), 'type' => 'date', 'width' => 14],
+                ['key' => 'project_name', 'label' => __('settlements.documents.headers.project'), 'type' => 'text', 'width' => 30],
+                ['key' => 'consumption_krw', 'label' => __('settlements.documents.headers.consumption'), 'type' => 'amount', 'width' => 17],
+                ['key' => 'rate_bps', 'label' => __('settlements.documents.headers.rate'), 'type' => 'percent', 'width' => 12],
+                ['key' => 'commission_krw', 'label' => __('settlements.documents.headers.commission'), 'type' => 'amount', 'width' => 17],
+            ],
+            rows: $data['items'],
+            summaryRows: $summaryRows,
+            remarks: [__('settlements.documents.remark_status', ['status' => __('settlements.settlement_statuses.'.$settlement->status)])],
+            primaryAmountLabel: __('settlements.documents.primary_amount'),
+            currencyDecimals: 0,
+        );
+    }
+
+    private function word(FinancialDocumentData $document): PhpWord
+    {
+        $word = new PhpWord;
+        $section = $word->addSection(['marginTop' => 720, 'marginBottom' => 720, 'marginLeft' => 720, 'marginRight' => 720]);
+        $section->addTitle($document->title, 1);
+        $section->addText($document->primaryAmountLabel.': '.FinancialWorkbookStyle::currencySymbol($document->currency).' '.number_format((float) $document->primaryAmount, FinancialWorkbookStyle::decimals($document->currency, $document->currencyDecimals)));
+        $section->addText(__('exports.formal_document.document_number').': '.$document->documentNumber);
+        $section->addText(__('exports.formal_document.document_date').': '.$document->documentDate);
+        foreach ($document->metadata as $item) {
+            $section->addText($item['label'].': '.$item['value']);
+        }
+        $section->addText(__('exports.formal_document.period').': '.$document->period);
+        $table = $section->addTable(['borderSize' => 6, 'cellMargin' => 60]);
+        $table->addRow();
+        foreach ($document->columns as $column) {
+            $table->addCell()->addText($column['label']);
+        }
+        foreach ($document->rows as $item) {
+            $table->addRow();
+            foreach ($document->columns as $column) {
+                $value = $item[$column['key']] ?? '';
+                if ($column['type'] === 'amount') {
+                    $value = number_format((float) $value, FinancialWorkbookStyle::decimals($document->currency, $document->currencyDecimals));
+                } elseif ($column['type'] === 'percent') {
+                    $value = number_format(((float) $value) / 100, 2).'%';
+                }
+                $table->addCell()->addText((string) $value);
+            }
+        }
+        foreach ($document->summaryRows as $summary) {
+            $currency = (string) ($summary['currency'] ?? $document->currency);
+            $decimals = FinancialWorkbookStyle::decimals($currency, $currency === 'CNY' ? 2 : $document->currencyDecimals);
+            $section->addText($summary['label'].': '.FinancialWorkbookStyle::currencySymbol($currency).' '.number_format((float) $summary['value'], $decimals));
+        }
+        foreach ($document->remarks as $remark) {
+            $section->addText(__('exports.formal_document.remarks').': '.$remark);
+        }
+
+        return $word;
     }
 
     /** @param array<string, mixed> $data */
@@ -158,76 +212,5 @@ final class SettlementDocumentGenerator
                 'generated_at' => now(),
             ],
         );
-    }
-
-    private function dompdf(): Dompdf
-    {
-        $pdfFontPath = (string) config('reporting.pdf.font_path');
-        if (! is_readable($pdfFontPath)) {
-            throw new RuntimeException(__('settlements.errors.document_pdf_font_missing'));
-        }
-
-        $fontCachePath = storage_path(self::PDF_CACHE_PATH.'/fonts');
-        $tempPath = storage_path(self::PDF_CACHE_PATH.'/temp');
-        File::ensureDirectoryExists($fontCachePath);
-        File::ensureDirectoryExists($tempPath);
-        if (! is_writable($fontCachePath) || ! is_writable($tempPath)) {
-            throw new RuntimeException(__('settlements.errors.document_pdf_cache_unwritable'));
-        }
-
-        $options = new Options;
-        $options->setIsRemoteEnabled(false);
-        $options->setChroot([base_path(), dirname($pdfFontPath)]);
-        $options->setDefaultFont('GN CJK');
-        $options->setIsFontSubsettingEnabled(false);
-        $options->setFontDir($fontCachePath);
-        $options->setFontCache($fontCachePath);
-        $options->setTempDir($tempPath);
-
-        return new Dompdf($options);
-    }
-
-    /** @param array<string, mixed> $data */
-    private function html(array $data, string $pdfFontPath): string
-    {
-        $rows = '';
-        foreach ($data['items'] as $item) {
-            $rows .= '<tr><td>'.e((string) $item['order_id']).'</td><td>'.e((string) $item['completed_on'])
-                .'</td><td>'.e((string) $item['project_name']).'</td><td>'.number_format($item['consumption_krw'])
-                .'</td><td>'.number_format(((int) $item['rate_bps']) / 100, 2).'%</td><td>'
-                .number_format($item['commission_krw']).'</td></tr>';
-        }
-
-        $labels = __('settlements.documents');
-        $agent = e(__('settlements.documents.agent', [
-            'name' => $data['agent_name'],
-            'code' => $data['agent_code'],
-        ]));
-        $period = e(__('settlements.documents.period', [
-            'from' => $data['period_start'],
-            'to' => $data['period_end'],
-        ]));
-        $totalConsumption = e(__('settlements.documents.total_consumption', [
-            'amount' => number_format($data['total_consumption_krw']),
-        ]));
-        $totalCommission = e(__('settlements.documents.total_commission', [
-            'amount' => number_format($data['total_commission_krw']),
-        ]));
-        $exchangeRate = e(__('settlements.documents.exchange_rate', [
-            'rate' => number_format((float) $data['exchange_rate'], 6),
-        ]));
-        $payable = e(__('settlements.documents.payable', [
-            'amount' => number_format($data['payout_amount_cny_fen'] / 100, 2),
-        ]));
-
-        return '<!doctype html><html lang="'.str_replace('_', '-', app()->getLocale()).'"><head><meta charset="UTF-8"><style>'
-            .'@font-face{font-family:"GN CJK";font-style:normal;font-weight:400;src:url("file://'.e($pdfFontPath).'") format("opentype");}'
-            .'@font-face{font-family:"GN CJK";font-style:normal;font-weight:700;src:url("file://'.e($pdfFontPath).'") format("opentype");}'
-            .'body{font-family:"GN CJK","Microsoft YaHei","PingFang SC","Noto Sans CJK SC",DejaVu Sans,sans-serif;color:#222}table{width:100%;border-collapse:collapse}th,td{border:1px solid #bbb;padding:6px;text-align:left}'
-            .'</style></head><body><h1>'.e($labels['title']).'</h1><p>'.$agent.'</p>'
-            .'<p>'.$period.'</p><table><thead><tr>'
-            .'<th>'.e($labels['headers']['order']).'</th><th>'.e($labels['headers']['completed_on']).'</th><th>'.e($labels['headers']['project']).'</th><th>'.e($labels['headers']['consumption']).'</th><th>'.e($labels['headers']['rate']).'</th><th>'.e($labels['headers']['commission']).'</th>'
-            .'</tr></thead><tbody>'.$rows.'</tbody></table><p>'.$totalConsumption
-            .'</p><p>'.$totalCommission.'</p><p>'.$exchangeRate.'</p><p>'.$payable.'</p></body></html>';
     }
 }

@@ -3,6 +3,7 @@
 namespace App\Modules\Report\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\ReportAgentReader;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Auth\Application\Contracts\ReportUserReader;
 use App\Modules\Config\Application\Contracts\ReportConfigReader;
 use App\Modules\Customer\Application\Contracts\ReportCustomerReader;
@@ -26,6 +27,7 @@ final readonly class DashboardService
         private ReportSettlementReader $settlements,
         private ReportReminderReader $reminders,
         private ReportUserReader $users,
+        private AccessContextResolver $access,
     ) {}
 
     public function refreshSeconds(): int
@@ -35,7 +37,7 @@ final readonly class DashboardService
 
     public function snapshot(DashboardRangeData $range, bool $force = false): DashboardSnapshotData
     {
-        $key = 'report:dashboard:v3:'.hash('sha256', $range->from->toIso8601String().'|'.$range->to->toIso8601String());
+        $key = 'report:dashboard:v4:'.hash('sha256', $range->from->toIso8601String().'|'.$range->to->toIso8601String().'|'.$this->access->current()->fingerprint);
         if ($force) {
             try {
                 Cache::forget($key);

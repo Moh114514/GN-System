@@ -2,8 +2,6 @@
 
 namespace App\Modules\Order\Presentation\Livewire;
 
-use App\Infrastructure\Time\BusinessClock;
-use App\Modules\Order\Application\Services\DailyOrderWorkspace;
 use App\Modules\Order\Application\Services\OrderManagementWorkspace;
 use DomainException;
 use Flux\Flux;
@@ -28,20 +26,6 @@ class OrderDetail extends Component
     {
         $this->orderId = $order;
         $this->load($workspace);
-    }
-
-    public function complete(DailyOrderWorkspace $workspace, BusinessClock $clock): void
-    {
-        abort_unless($this->orderDetails['status'] === 'pending' && $this->orderDetails['deleted_at'] === null, 403);
-        try {
-            $workspace->complete($this->orderId, $clock->now(), (int) Auth::id(), request()->ip());
-        } catch (DomainException $exception) {
-            Flux::toast(variant: 'danger', text: __('orders.errors.unexpected', ['message' => $exception->getMessage()]));
-
-            return;
-        }
-        Flux::toast(variant: 'success', text: __('orders.messages.completed'));
-        $this->load(app(OrderManagementWorkspace::class));
     }
 
     public function cancel(OrderManagementWorkspace $workspace): void
@@ -76,12 +60,12 @@ class OrderDetail extends Component
         return view('livewire.orders.order-detail', ['order' => $this->orderDetails])->title(__('orders.detail_title'));
     }
 
-    public function changeStatus(DailyOrderWorkspace $dailyOrders, OrderManagementWorkspace $workspace, BusinessClock $clock): void
+    public function changeStatus(OrderManagementWorkspace $workspace): void
     {
         $target = $this->statusSelection;
 
         if ($target === 'completed') {
-            $this->complete($dailyOrders, $clock);
+            $this->addError('statusSelection', __('orders.errors.manual_completion_disabled'));
 
             return;
         }

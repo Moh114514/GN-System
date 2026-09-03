@@ -2,6 +2,7 @@
 
 namespace App\Modules\Order\Application\Contracts;
 
+use App\Modules\Report\Application\Data\InstitutionMonthlySalesAggregateData;
 use App\Modules\Report\Application\Data\ReportOrderData;
 use App\Modules\Report\Application\Data\ReportPageData;
 use App\Modules\Report\Application\Data\ReportQueryData;
@@ -30,4 +31,16 @@ interface ReportOrderReader
      * }
      */
     public function dashboard(CarbonImmutable $from, CarbonImmutable $to): array;
+
+    /**
+     * @param  list<int>  $ownerIds
+     * @return array{orders: int, amount_krw: int, owners: array<int, array{orders: int, amount_krw: int}>}
+     */
+    public function teamOverview(array $ownerIds, int $businessGroupId, CarbonImmutable $from, CarbonImmutable $to): array;
+
+    /** @return list<InstitutionMonthlySalesAggregateData> */
+    public function institutionMonthlySales(CarbonImmutable $from, CarbonImmutable $to, ?int $institutionId = null): array;
+
+    /** @return list<int> */
+    public function visibleInstitutionIds(): array;
 }

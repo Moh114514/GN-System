@@ -1,11 +1,12 @@
 # 模块边界
 
-> 最后核验：2026-07-30
+> 最后核验：2026-08-30
 > 决策依据：[ADR-0002](../adr/0002-module-boundaries-and-data-ownership.md)、
 > [ADR-0004](../adr/0004-application-import-contracts.md)、
 > [ADR-0005](../adr/0005-daily-application-contracts.md)、
 > [ADR-0006](../adr/0006-synchronous-order-commission-contract.md)、
-> [ADR-0007](../adr/0007-phase-five-settlement-reminder-processing.md)
+ > [ADR-0007](../adr/0007-phase-five-settlement-reminder-processing.md)、
+ > [ADR-0010](../adr/0010-formal-order-facts-and-bd-commission-history.md)
 
 ## 当前模块
 
@@ -49,6 +50,11 @@ DataImport 使用同步 Application Contract 协调历史导入和基础配置�
 Phase 4 Agent Application 通过 Customer/Order/Config/Settlement 的最小 Contract
 聚合代理商详情和配置；Order Application 在完成订单的事务中同步调用 Settlement
 核算，Settlement 通过 Agent Contract 读取当月等级。Order 只写订单表，Settlement
+
+PR6 Settlement Application 通过 Order 的 `BdCommissionOrderReader` 获取季度订单事实，
+只使用订单内不可变业务归属快照，不在报表生成时读取 Agent/Auth 的当前归属 Model。Order
+在已完成订单更正事务中只调用 Settlement 的 `BdCommissionCorrectionGateway`；季度规则、
+明细、人工调整和确认事实仍由 Settlement 独占，BD 范围过滤也在 Settlement Application 层执行。
 只写费率、特批和推广费表，Agent 只写代理商及政策等级表。
 
 Phase 5 Settlement Application 通过 Order、Agent 的只读 Contract 获取月结订单、
@@ -64,5 +70,82 @@ Report 不跨模块引用 Model/Builder。
 Config Application 通过 Agent、Customer、Settlement 的配置历史 Contract 和 Auth
 的用户管理 Contract 聚合配置页面；每个数据所有者仍独占实际写入、快照和回滚。
 
+Auth 拥有 `users.role`、`business_groups` 和 `business_group_memberships`，并通过
+`BusinessGroupReferenceReader` 与 `BusinessGroupManagementGateway` 暴露业务组、成员
+有效期和未归属用户查询/写入契约。Agent 拥有
+`agent_business_group_assignments`，通过 `AgentBusinessGroupAssignmentGateway`
+暴露代理商归属有效期和未归属代理商查询/写入契约。Config 只编排这些 Application
+Contract，不直接引用对应 Model 或写入业务表；订单主流程和业务数据范围不由本 PR 改变。
+
 领域事件、通用 Service Bus 和异步跨模块一致性机制尚未形成，不得从同步契约放行
 推断它们可用。
+
+## PR2 access scope boundary
+
+Auth owns the `AccessContext` snapshot and permission fingerprint. Other modules consume it through the Auth application contract; they must not read user roles, memberships, or assignment tables directly across module boundaries. Agent exposes the agent assignment scope through its application contract. Presentation and queued export flows may rehydrate a serialized access snapshot, but must still enforce the current user and current fingerprint before serving a file or mutating data.
+
+Scope enforcement belongs at the module application query/gateway boundary and at every Livewire write action. A route or hidden button is not an authorization boundary. Customer Service response DTOs must remain minimal, and Settlement read-only BD access must not reuse administrator write operations.
+
+## PR3 customer transfer and rollback boundary
+
+Customer owns `customers.arrived_at`, `customer_transfer_requests`,
+`customer_owner_histories`, and `customer_status_change_requests`. Its Application
+services own the transactional transfer and status-approval workflows. Customer may
+consume Auth's `AccessContextResolver`, active Customer Service membership reader and
+user reference contract, Order's future-appointment/order-existence contract, Reminder's
+unfinished-reminder transfer contract, Config's internal-notification contract, and
+Audit's recorder contract. Customer must not read those modules' models or tables
+directly. Follow-up and historical status records remain owned by their existing
+Customer/Reminder contracts, and the transfer workflow changes only the owner of
+future/open work; it does not rewrite historical creators.
+
+The effective-target check is performed inside the locked transaction. A pending
+transfer is applied only after review and is invalidated if the source owner or target
+scope changed. Batch transfers lock customers in deterministic ID order and roll back
+the whole batch on any invalid item. Status rollback requests use the same Customer
+status manager with an explicit approval marker; the manager still enforces the current
+actor's scope and the no-order rollback rule.
+
+## PR4 institution return and order facts boundary
+
+Order owns `institution_form_templates`, `institution_return_files`, `order_items`, and the
+new order fact columns (`occurred_on`, `record_status`, `business_attribution_snapshot`, and
+`source_return_file_id`). Its Application layer owns template generation, hidden metadata
+signing, fixed-form parsing, encrypted private storage, duplicate protection, and the atomic
+institution-return processor. Order may consume only the Config institution reader, Customer
+customer/order reference and treatment-completion contracts, Agent reference contract,
+Settlement daily commission contract, Reminder treatment-reminder contract, and Audit recorder
+contract. It must not import those modules' Models or write their tables directly.
+
+Customer owns the customer status transition performed through
+`CustomerTreatmentCompletionGateway`; it does not create orders or reminders as a side effect.
+The Order processor schedules the two postoperative reminders exactly once after the customer
+completion contract succeeds. Settlement owns the commission snapshot, Reminder owns reminder
+instances, and Audit owns audit records. This remains synchronous application-contract
+coordination; domain events, a general event bus, and asynchronous cross-module consistency are
+not assumed.
+
+The `2026_08_24_000200_add_institution_return_order_facts.php` migration refuses to start when
+legacy orders cannot be mapped safely and refuses rollback after order facts, order items, or
+original return files exist. Private source files are encrypted before being written to the
+configured private disk and are served only after scope checks.
+
+## PR5 order and settlement boundary
+
+Order may consume Agent's `AgentBusinessAttributionReader` contract and Settlement's existing
+commission contracts; it does not write Settlement models directly. Settlement consumes Order's
+`SettlementOrderReader` and Agent's `SettlementAgentGateway`, while its pure calculation service
+is shared by preview and formal generation. Settlement preview has no persistence side effects.
+Agent grades remain policy and assignment attributes, but settlement generation does not evaluate
+monthly thresholds, create grade suggestions, or send grade-adjustment notifications. Existing
+historical grade-related rows remain readable for migration and audit purposes.
+
+## PR7 发布边界
+
+PR1–PR6 的边界实现仍属于当前 feature worktree，未改变服务器上的已发布版本。迁移、备份、
+角色与业务组映射、订单历史快照抽样和恢复方案由发布收尾手册管理；不能通过直接 SQL 写入跨模块
+表来完成 UAT 准备。长期决策见 [ADR-0010](../adr/0010-formal-order-facts-and-bd-commission-history.md)。
+
+正式财务导出模板位于 `app/Support/Exports`，只负责文档布局、格式化和文件输出，不持有业务模型、
+不计算提成或月结金额。Settlement Application 服务先按既有权限范围取得已保存结果，再将 DTO 交给
+该共享技术能力；因此不会形成跨业务模块的 Model、Service 或表引用。

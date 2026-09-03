@@ -9,11 +9,14 @@ use App\Modules\Agent\Application\Services\AgentDirectory;
 use App\Modules\Agent\Application\Services\AgentManager;
 use App\Modules\Agent\Application\Services\DatabaseReferenceConfigurationImportGateway;
 use App\Modules\Agent\Infrastructure\Models\Agent;
+use App\Modules\Agent\Infrastructure\Models\AgentBusinessGroupAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentGradeAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Agent\Infrastructure\Models\PolicyGrade;
 use App\Modules\Agent\Infrastructure\Models\PolicySystem;
 use App\Modules\Agent\Presentation\Livewire\AgentList;
+use App\Modules\Auth\Infrastructure\Models\BusinessGroup;
+use App\Modules\Auth\Infrastructure\Models\BusinessGroupMembership;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Order\Application\Contracts\DailyOrderGateway;
@@ -27,6 +30,7 @@ use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Spatie\Activitylog\Models\Activity;
@@ -35,6 +39,19 @@ use Tests\TestCase;
 class PhaseFourAgentCommissionTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_agent_grade_threshold_migration_removes_legacy_column_and_can_restore_it(): void
+    {
+        $migration = require base_path('database/migrations/2026_08_27_000300_remove_agent_grade_thresholds.php');
+
+        $this->assertFalse(Schema::hasColumn('policy_grades', 'monthly_threshold_krw'));
+
+        $migration->down();
+        $this->assertTrue(Schema::hasColumn('policy_grades', 'monthly_threshold_krw'));
+
+        $migration->up();
+        $this->assertFalse(Schema::hasColumn('policy_grades', 'monthly_threshold_krw'));
+    }
 
     private User $user;
 
@@ -55,11 +72,24 @@ class PhaseFourAgentCommissionTest extends TestCase
         $this->seed(PhaseTwoReferenceDataSeeder::class);
         $this->user = User::factory()->create();
         $this->admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $businessGroup = BusinessGroup::query()->create([
+            'code' => 'TEST-GROUP',
+            'name' => '测试业务组',
+            'is_active' => true,
+            'created_by' => $this->admin->id,
+        ]);
+        BusinessGroupMembership::query()->create([
+            'business_group_id' => $businessGroup->id,
+            'user_id' => $this->user->id,
+            'member_role' => 'customer_service',
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $this->admin->id,
+            'reason' => 'phase four test scope',
+        ]);
         $system = PolicySystem::query()->create(['name' => '代理商计划', 'is_active' => true]);
         $this->grade = PolicyGrade::query()->create([
             'policy_system_id' => $system->id,
             'name' => '黄金',
-            'monthly_threshold_krw' => 0,
             'sort_order' => 10,
             'is_active' => true,
         ]);
@@ -70,6 +100,13 @@ class PhaseFourAgentCommissionTest extends TestCase
             'name' => '测试代理商',
             'cooperation_started_on' => '2026-01-01',
             'cooperation_status' => 'active',
+        ]);
+        AgentBusinessGroupAssignment::query()->create([
+            'agent_id' => $this->agent->id,
+            'business_group_id' => $businessGroup->id,
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $this->admin->id,
+            'reason' => 'phase four test scope',
         ]);
         AgentGradeAssignment::query()->create([
             'agent_id' => $this->agent->id,
@@ -329,7 +366,6 @@ class PhaseFourAgentCommissionTest extends TestCase
         $next = PolicyGrade::query()->create([
             'policy_system_id' => $this->grade->policy_system_id,
             'name' => '白金',
-            'monthly_threshold_krw' => 0,
             'sort_order' => 20,
             'is_active' => true,
         ]);
@@ -359,7 +395,6 @@ class PhaseFourAgentCommissionTest extends TestCase
         $next = PolicyGrade::query()->create([
             'policy_system_id' => $this->grade->policy_system_id,
             'name' => '黑钻',
-            'monthly_threshold_krw' => 0,
             'sort_order' => 20,
             'is_active' => true,
         ]);
@@ -412,7 +447,6 @@ class PhaseFourAgentCommissionTest extends TestCase
         $nextGrade = PolicyGrade::query()->create([
             'policy_system_id' => $this->grade->policy_system_id,
             'name' => '白金',
-            'monthly_threshold_krw' => 0,
             'sort_order' => 20,
             'is_active' => true,
         ]);
@@ -490,7 +524,7 @@ class PhaseFourAgentCommissionTest extends TestCase
             ->assertSee('href="'.route('configuration.index').'"', false);
         $this->actingAs($this->user)->get(route('customers.orders', $this->customer->id))
             ->assertOk()
-            ->assertSee('<span class="font-semibold">订单测试客户</span>', false)
+            ->assertSee('订单测试客户')
             ->assertSee('返回客户详情')
             ->assertSee('href="'.route('customers.show', $this->customer->id).'"', false)
             ->assertDontSee('completionDate')
@@ -525,7 +559,6 @@ class PhaseFourAgentCommissionTest extends TestCase
         $secondGrade = PolicyGrade::query()->create([
             'policy_system_id' => $secondSystem->id,
             'name' => '白金合伙人',
-            'monthly_threshold_krw' => 0,
             'sort_order' => 10,
             'is_active' => true,
         ]);

@@ -76,7 +76,7 @@
                             <flux:select.option value="{{ $institution['id'] }}">{{ $institution['name'] }}</flux:select.option>
                         @endforeach
                     </flux:select>
-                    <x-date-time-picker wire:model="arrivalAt" :value="$arrivalAt" mode="datetime" :label="__('customers.form.fields.arrival_at')" required />
+                    <x-date-time-picker wire:model="arrivalAt" :value="$arrivalAt" mode="datetime" :label="__('customers.form.fields.expected_arrival_at')" required />
                     <flux:input wire:model="translatorName" :label="__('customers.form.fields.translator')" />
                 </div>
             </section>

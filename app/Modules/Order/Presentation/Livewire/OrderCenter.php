@@ -2,15 +2,8 @@
 
 namespace App\Modules\Order\Presentation\Livewire;
 
-use App\Infrastructure\Time\BusinessClock;
-use App\Modules\Order\Application\Data\DailyOrderData;
-use App\Modules\Order\Application\Services\DailyOrderWorkspace;
 use App\Modules\Order\Application\Services\OrderManagementWorkspace;
-use Carbon\CarbonImmutable;
-use DomainException;
-use Flux\Flux;
 use Illuminate\Contracts\View\View;
-use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 use Livewire\WithPagination;
@@ -30,38 +23,6 @@ class OrderCenter extends Component
 
     public int $perPage = 20;
 
-    public bool $showCreate = false;
-
-    public string $customerSearch = '';
-
-    public string $customerId = '';
-
-    /** @var array<string, mixed>|null */
-    public ?array $selectedCustomer = null;
-
-    /** @var array<int, array<string, mixed>> */
-    public array $customerCandidates = [];
-
-    public string $institutionId = '';
-
-    public string $agentId = '';
-
-    public string $projectName = '';
-
-    public string $treatmentProjectId = '';
-
-    public string $amountKrw = '';
-
-    public string $orderStatus = 'pending';
-
-    public string $completedOn = '';
-
-    public string $translatorName = '';
-
-    public string $translatorLanguageId = '';
-
-    public string $notes = '';
-
     /** @var array<string, array<int, array<string, mixed>>> */
     public array $options = [];
 
@@ -74,10 +35,9 @@ class OrderCenter extends Component
         'perPage' => ['except' => 20],
     ];
 
-    public function mount(OrderManagementWorkspace $workspace, BusinessClock $clock): void
+    public function mount(OrderManagementWorkspace $workspace): void
     {
         $this->options = $workspace->options();
-        $this->completedOn = $clock->now()->format('Y-m-d\TH:i');
     }
 
     public function updated(string $property): void
@@ -85,98 +45,6 @@ class OrderCenter extends Component
         if (in_array($property, ['search', 'statusFilter', 'institutionFilter', 'agentFilter', 'perPage'], true)) {
             $this->resetPage();
         }
-        if ($property === 'customerSearch') {
-            $this->customerCandidates = app(OrderManagementWorkspace::class)->customerCandidates($this->customerSearch);
-        }
-    }
-
-    public function openCreate(OrderManagementWorkspace $workspace): void
-    {
-        $this->showCreate = true;
-        $this->customerCandidates = $workspace->customerCandidates($this->customerSearch);
-    }
-
-    public function closeCreate(BusinessClock $clock): void
-    {
-        $this->showCreate = false;
-        $this->resetOrderForm($clock);
-        $this->resetValidation();
-    }
-
-    public function selectCustomer(int $customerId, OrderManagementWorkspace $workspace): void
-    {
-        $customer = $workspace->customer($customerId);
-        $this->selectedCustomer = $customer;
-        $this->customerId = (string) $customerId;
-        $this->customerSearch = '';
-        $this->customerCandidates = [];
-        $this->agentId = (string) $customer['source_agent_id'];
-        $this->resetValidation('customerId');
-    }
-
-    public function clearCustomer(): void
-    {
-        $this->customerId = '';
-        $this->selectedCustomer = null;
-        $this->customerCandidates = app(OrderManagementWorkspace::class)->customerCandidates('');
-    }
-
-    public function save(DailyOrderWorkspace $workspace, BusinessClock $clock): void
-    {
-        $this->validate([
-            'customerId' => ['required', 'integer'],
-            'institutionId' => ['required', 'integer'],
-            'agentId' => ['required', 'integer'],
-            'projectName' => ['required_without:treatmentProjectId', 'nullable', 'string', 'max:255'],
-            'treatmentProjectId' => ['nullable', 'integer'],
-            'amountKrw' => ['required', 'integer', 'min:0'],
-            'orderStatus' => ['required', 'in:pending,completed'],
-            'completedOn' => [$this->orderStatus === 'completed' ? 'required' : 'nullable', 'date'],
-            'translatorName' => ['nullable', 'string', 'max:255'],
-            'translatorLanguageId' => ['nullable', 'integer'],
-            'notes' => ['nullable', 'string', 'max:5000'],
-        ]);
-
-        try {
-            $workspace->create(new DailyOrderData(
-                customerId: (int) $this->customerId,
-                institutionId: (int) $this->institutionId,
-                agentId: (int) $this->agentId,
-                projectName: $this->projectName,
-                amountKrw: (int) $this->amountKrw,
-                status: $this->orderStatus,
-                completedOn: $this->orderStatus === 'completed'
-                    ? CarbonImmutable::parse($this->completedOn, 'Asia/Shanghai')
-                    : null,
-                translatorName: $this->translatorName === '' ? null : $this->translatorName,
-                notes: $this->notes === '' ? null : $this->notes,
-                ownerId: (int) Auth::id(),
-                ipAddress: request()->ip(),
-                treatmentProjectId: $this->treatmentProjectId === '' ? null : (int) $this->treatmentProjectId,
-                translatorLanguageId: $this->translatorLanguageId === '' ? null : (int) $this->translatorLanguageId,
-            ));
-        } catch (DomainException $exception) {
-            Flux::toast(variant: 'danger', text: __('orders.errors.unexpected', ['message' => $exception->getMessage()]));
-
-            return;
-        }
-
-        $this->showCreate = false;
-        $this->resetOrderForm($clock);
-        $this->resetPage();
-        Flux::toast(variant: 'success', text: __('orders.messages.saved'));
-    }
-
-    public function complete(int $orderId, DailyOrderWorkspace $workspace, BusinessClock $clock): void
-    {
-        try {
-            $workspace->complete($orderId, $clock->now(), (int) Auth::id(), request()->ip());
-        } catch (DomainException $exception) {
-            Flux::toast(variant: 'danger', text: __('orders.errors.unexpected', ['message' => $exception->getMessage()]));
-
-            return;
-        }
-        Flux::toast(variant: 'success', text: __('orders.messages.completed'));
     }
 
     public function clearFilters(): void
@@ -196,25 +64,5 @@ class OrderCenter extends Component
         ], in_array($this->perPage, [20, 50, 100], true) ? $this->perPage : 20);
 
         return view('livewire.orders.order-center', compact('orders'))->title(__('orders.title'));
-    }
-
-    private function resetOrderForm(BusinessClock $clock): void
-    {
-        $this->reset(
-            'customerSearch',
-            'customerId',
-            'selectedCustomer',
-            'customerCandidates',
-            'institutionId',
-            'agentId',
-            'projectName',
-            'treatmentProjectId',
-            'amountKrw',
-            'translatorName',
-            'translatorLanguageId',
-            'notes',
-        );
-        $this->orderStatus = 'pending';
-        $this->completedOn = $clock->now()->format('Y-m-d\TH:i');
     }
 }

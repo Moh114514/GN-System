@@ -12,4 +12,6 @@ interface TreatmentReminderGateway
     public function scheduleForCustomer(CustomerTreatmentCompletedData $data): void;
 
     public function cancelForOrder(int $orderId, int $actorId, string $reason): void;
+
+    public function transferForCustomer(int $customerId, int $ownerId, int $actorId): int;
 }

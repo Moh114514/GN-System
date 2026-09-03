@@ -4,14 +4,57 @@
 
 已实现 UAT 宿主机双层重置、配置重载脚本和非破坏性管理员维护命令。UAT 重置与配置重载均已加入目录、Compose 项目、环境文件权限、UAT URL、数据库名称和 PostgreSQL `current_database()` 防护；真实 UAT/Production 执行结果仍须在目标服务器按运维手册验收，不能由本机静态检查替代。
 
-> 最后核验：2026-08-18
-> 核验依据：Phase 6、订单中心、发布门禁、`v0.5.0-rc.13`、当前 `main` 提交记录和服务器环境记录
-> 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及最新规划 PR1–PR6 已合入 `develop`；PR7 当前位于 `feature/settlement-period-navigation`，新增月结周期选择、历史业务日期重叠查询和结清后文档下载回归。UAT/生产历史数据升级、抽样核验和人工业务验收仍未完成。
+> 最后核验：2026-09-01
+> 核验依据：Phase 6、订单中心、发布门禁、`v0.5.0-rc.13`、当前 `main` 提交记录和服务器环境记录，以及 `develop` 合并结果和 `feature/institution-monthly-sales` 定向测试
+> 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及 PR1–PR7 规划能力继续保持；角色/业务组底座、权限范围、客户负责人移交与状态回退审批、订单事实快照和 BD 季度提成已合入本地 `develop`。当前工作区 `feature/institution-monthly-sales` 新增机构月度销售额总览，尚未合入 `develop`、发布或完成 UAT/Production 验收。PR3、PR4、PR6 和 PR7 的迁移与发布运维前置条件仍需目标环境执行；UAT/生产历史数据升级、抽样核验和人工业务验收仍未完成。
 
 本页只描述仓库中可以验证的状态。未来规划见 `docs/source/`，不能据此页之外的
 规划内容推断某项能力已经存在。
 
+## 2026-09-01 客户详情订单登记 Modal
+
+- 当前工作区已将客户详情的“登记订单”改为同页 Modal 入口：客户信息与最近有效预约机构
+  自动带入，无预约机构时才允许选择活动机构；机构模板下载、Excel 回传校验和成功结果均在
+  同一 Modal 内完成。成功回传继续复用既有 Order Processor，直接生成 `completed` 订单并
+  触发客户详情刷新；旧客户订单页和机构回传中心暂时保留。新增流程已完成本地相关 Feature
+  测试，尚未合入 `develop`、部署或在 UAT/Production 做人工验收。
+
+## 2026-09-01 预约到院与提醒链路修复
+
+- 当前工作区已补齐预约生命周期：客户变更为“已到院”时，相关预约从 `scheduled` 推进为
+  `arrived` 并取消未处理的到院提醒；机构回传成功生成 `completed` 订单时，相关预约推进为
+  `completed`。订单登记 Modal 可继续使用 `scheduled` 或 `arrived` 的最近预约。
+- 客户详情新增预计到院/实际到院展示和预计时间调整入口。预计时间改动会同步替换未发送的
+  到院提醒，已发送提醒保留历史；预约提醒统一为预计到院前一天 18:00，并在站内/钉钉正文中
+  显示预计到院时间。新建客户不再把预计到院时间默认填为当前时间，要求明确填写。
+- 新增预约提醒归一化 migration；本轮已完成本地相关 Feature 测试，尚未合入 `develop`、
+  部署或在 UAT/Production 做人工验收。两份运维手册已核对，本次不涉及环境或部署语义变化。
+
+## 2026-09-01 预约时间与提醒历史审查修复
+
+- 预约预计到院时间在 `scheduled`、`arrived` 和 `completed` 状态下均可由当前负责人客服、BD 或
+  超级管理员更正；客户详情保留已完成预约历史，订单登记仍只使用可登记的预约。
+- 预计到院前一天 18:00 已经过但预计到院仍在未来时，系统立即创建幂等补偿提醒。到院、完成或
+  改期关闭提醒时，已发送钉钉通知保持 `notification_status=sent`，只关闭业务待办状态。
+- 客户状态回退到已预约时同步恢复 Appointment 为 `scheduled` 并重排提醒；客户详情状态表单不再
+  允许直接设置“施术结束”，该状态由有效机构回传订单流程产生，避免与订单完成形成双入口。
+- 本轮已完成客户生命周期、提醒相关本地 Feature 测试和完整本地质量门禁；尚未合入 `develop`、
+  部署或在 UAT/Production 做人工验收。两份运维手册已核对，本次不涉及环境或部署语义变化。
+
+## 新规划 PR7 收尾状态（2026-08-24）
+
+PR7 已补齐当前 feature worktree 的收尾文档：根 README、文档导航、架构概览、模块边界、
+Customer/Agent/Order/Settlement/Report/Auth 模块说明、ADR-0010，以及角色/业务组/代理商映射、
+只读迁移预检、备份、抽样、回退和恢复手册。建议大版本从 `v0.6.0-rc.1` 开始，但本机没有
+处理 `develop` 与 `main` 的分叉、合并、推送、标签、镜像构建、UAT/Production migration 或
+人工验收；这些仍是发布前置条件。完整执行顺序见
+[PR7 UAT 迁移与发布收尾手册](operations/pr7-uat-migration-runbook.md)。
+
 ## 阶段结论
+
+- 2026-08-30 在当前 `feature/business-groups-and-roles` 工作区完成正式财务单据导出收尾及审查修复：月结结算单统一提供 Word/XLSX/PDF 三种格式，BD 季度提成按选定 BD 提供 XLSX/PDF；统一模板包含标题、元数据、主金额、明细、汇总、备注、货币符号、A4 打印设置和跨页表头。导出复用已保存的月结/季度服务结果，不重新计算业务金额；页面和服务端均限制可见 BD 范围；修复调整金额重复计算、CJK TTF 字体、PDF table 布局、业务组/代理商快照展示和规则配置 UI，并增加金额及 PDF 文本 smoke test。本轮不新增 migration、Composer 依赖或环境变量，但 Docker app 镜像新增 CJK 字体构建包和 `poppler-utils`；未合入、部署或在 UAT/Production 人工验收。
+
+- 2026-08-24 当前工作区完成最新规划 PR6：新增版本化 BD 提成规则、按 `occurred_on` 和不可变业务归属快照的季度预览/生成/审核/确认、人工调整审计、BD 自身范围查看、超级管理员全量审核，以及确认后订单更正差额转入后续季度；新增 Dashboard/报表入口和 PR6 Feature 测试。当前默认口径为订单金额 KRW × 基点费率，产品确认项通过新增规则版本承接；本 PR 新增 migration，UAT/Production 未验证。
 
 - 2026-08-07 已完成国际化 PR-A 基础设施的第一部分：统一 `zh_CN`/`ko_KR` 白名单、请求级
   Locale 解析、用户 `preferred_locale` 增量字段、匿名 Session/加密 Cookie 持久化、登录同步、
@@ -53,7 +96,7 @@
   代理商排行保留稳定详情路由，普通用户不显示代理商/月结受限入口；客户列表新增建档日期筛选。
   本 PR 不新增 migration，UAT/Production 未验证。
 - 当前 `develop` 已合入最新规划 PR6：新配置使用
-  `generation_day=10`，月结统计周期固定为自然月，每月 10 日指定时间生成上一个自然月；
+  `generation_day=5`，月结统计周期固定为自然月，每月 5 日指定时间生成上一个自然月；
   Scheduler 仍每分钟检查并支持当月窗口补偿，同周期 Run、代理商月结和失败重试保持幂等；
   旧配置保留 `boundary_day` 并以空 `generation_day` 继续重建历史周期。新增
   `2026_08_14_000200_add_generation_day_to_settlement_configurations` migration；
@@ -61,6 +104,9 @@
 - 当前 `feature/settlement-period-navigation` 基于 `develop` 完成最新规划 PR7：月结中心默认展示最新已生成周期，
   支持从已生成周期下拉切换并在进入详情返回时保留选择；历史月结归档改为业务日期起止和周期重叠查询；月结中心代理商行支持直接下载或按需生成
   Word/PDF 文档；补齐已结清详情继续下载审核时生成的文档回归测试。本 PR 不新增 migration，UAT/Production 未验证。
+- 当前 `feature/business-groups-and-roles` 完成新规划 PR1：增加 `UserRole` 与 `users.role` 兼容回填，落地业务组、成员有效期历史和代理商业务组有效期历史，配置中心支持角色、业务组、成员及代理商归属管理，并展示未归属用户/代理商完整性检查结果。数据库使用 PostgreSQL exclusion constraint 防止同一业务组多个有效 BD、同一用户重叠成员期和同一代理商重叠归属期；本 PR 不修改订单主流程或 PR2 数据范围执行。已通过 PR1 定向测试和相关回归测试，尚未合入 `develop`，UAT/Production 未验证。
+- 2026-08-24 完成该 feature 的开发环境集成修复：业务组成员配置页不再编辑重复的“成员角色”，服务端从 `users.role` 推导并写入 `business_group_memberships.member_role` 历史快照；已创建、启用但尚未接受邀请的合法业务角色用户可以提前加入业务组，但其 `AccessContext` 仍为 deny-all，客户负责人、提醒负责人和转派目标等业务操作候选人继续要求启用且已接受邀请。开发库 migration 已全部执行，`/bd-commissions` 当前可正常打开；已用 `admin`、`ttt`、`zzz` 完成成员预配置流程核验。后端完整门禁为 403 个测试通过，前端构建通过，UAT/Production 未验证。
+- 2026-08-26 完成业务组/代理商归属配置收尾：历史表新增开放式归属的结束日期和原因操作，成员候选改为全部启用的 BD/客服并显示业务日期下当前业务组，允许提前配置不重叠的未来转组；配置默认日期、当前归属和未归属检查统一使用 `BusinessClock`，并将 PostgreSQL 排他约束并发冲突转换为本地化业务错误。当前角色控件按用户要求保持移除。相关 Feature 测试和完整本地门禁已验证；UAT/Production 尚未进行人工页面验收。
 - 历史 `feature/customer-status-tree` 分支曾完成 PR2：Customer 详情增加只读客户状态流转可视化，
   直接读取现有阶段、状态、流转和该客户的状态历史，区分已经过、当前、可继续、暂不可达及停用节点，
   并用箭头展示允许的流转关系；
@@ -106,7 +152,7 @@
 | XLSX 基础配置导入 | 已提供七工作表填写示例、加密上传、前 100 行预览、带工作表/源行号/字段值的明确错误提示及 XLSX 错误报告、格式及跨表引用校验、事务预演、管理员二次确认、依赖顺序原子写入和批次审计 | 2026-08-14 |
 | 历史导入回滚与清理 | 已有 24 小时逆序回滚、后续修改阻断和源文件/staging 定期清理 | 2026-07-27 |
 | 客户敏感数据保护 | 联系方式及证件加密保存，并以 HMAC 盲索引支持精确重复候选匹配 | 2026-07-27 |
-| Phase 2 本地模拟数据 | 可重复生成代理商、客户、代理商归属订单、推广费、月结和跟进数据；生产环境禁止执行 | 2026-08-14 |
+| 本地开发场景模拟数据 | `DevelopmentScenarioSeeder` 可重复生成固定测试用户/业务组、15 个代理商、200 个客户、250 笔订单、推广费、5 个月月结、提醒、导入批次、季度 BD 提成和审计记录；覆盖权限、生命周期、日期/金额边界；生产环境禁止执行 | 2026-08-27 |
 | Phase 3 客户全生命周期 | 已实现客户列表、建档、编辑、详情、跟进、状态流转、时间轴及超级管理员状态配置；基线状态由迁移幂等初始化 | 2026-07-30 |
 | 客户与提醒负责人归属 | 新建客户可从有效内部用户中指定负责人，客户与首次预约共享该归属，操作人独立用于审计；新建提醒仅允许启用且已接受邀请的内部用户 | 2026-08-20 |
 | 客户详情状态流转可视化及关联客户命名 | Customer 详情提供只读状态流转可视化，按该客户实际状态历史标记已经过、当前和可继续节点，并展示允许的流转关系；Agent 详情中韩文案统一使用“关联客户”；无新增 migration | 2026-08-14 |
@@ -116,9 +162,10 @@
 | Phase 4 代理商档案与配置 | 已实现代理商列表、建档、编辑、详情，以及带字段说明和查看排序的类型、政策、等级、机构费率和代理商特批配置 | 2026-07-30 |
 | 订单完成与推广费核算 | 已实现客户下最小订单登记/完成；订单必须归属有效代理商，并按有效等级和机构费率同步核算、固化推广费快照 | 2026-08-14 |
 | 配置中心统一入口 | 已汇总客户生命周期状态、代理商与推广费、主动提醒规则和模板入口；开发环境和 UAT 新增共享 Redis 业务时间模拟入口、快捷调整、立即触发月结/提醒任务和顶部恢复提示，正式生产按部署环境角色永久关闭 | 2026-08-18 |
-| Phase 5 月结闭环 | 已实现版本化连续月结周期、按历史合作区间选取代理商、自动/手动幂等批次、往期真实边界重建、零订单生成、按代理商队列进度、失败重试、审核、结清、受控状态更正及历史导入冲突保护；批次折叠、同批次连续审核、可降级失败详情/独立临时 XLSX 报告和统一临时通知已实现；月结源数据变化检测、待审核/已驳回人工刷新、批次汇总同步和刷新审计已实现；PR6 新配置按自然月统计并在每月 10 日指定时间生成上月，保留旧边界历史重建和 Scheduler 补偿；新增轻量失败记录器、Batch/member reconcile、队列异常状态和等待任务恢复 | 2026-08-18 |
+| Phase 5 月结闭环 | 已实现版本化连续月结周期、按历史合作区间选取代理商、自动/手动幂等批次、往期真实边界重建、零订单生成、按代理商队列进度、失败重试、审核、结清、受控状态更正及历史导入冲突保护；批次折叠、同批次连续审核、可降级失败详情/独立临时 XLSX 报告和统一临时通知已实现；月结源数据变化检测、待审核/已驳回人工刷新、批次汇总同步和刷新审计已实现；PR6 新配置按自然月统计并在每月 5 日指定时间生成上月，保留旧边界历史重建和 Scheduler 补偿；新增轻量失败记录器、Batch/member reconcile、队列异常状态和等待任务恢复 | 2026-08-24 |
 | PR7 月结页面与查询闭环 | 月结中心默认最新已生成周期并支持周期切换；进入代理商详情返回时保留展示周期；代理商行可直接下载或按需生成 Word/PDF；历史归档使用业务日期起止和周期重叠查询；已结清及历史导入的 `paid`/`reconciled` 月结支持文档生成/下载；不新增 migration | 2026-08-17 |
-| 结算文档与等级建议 | 已从同一内容快照生成私有 Word/PDF/ZIP；PDF 使用镜像内经 glyph 校验的 Noto Sans CJK 字体，覆盖中韩文；等级建议仅经管理员复核后安排下月生效 | 2026-08-07 |
+| 统一财务正式单据导出 | 月结结算单提供统一模板的 Word/XLSX/PDF；BD 季度提成按选定 BD 提供 XLSX/PDF；导出沿用已保存服务结果并执行角色范围校验；不新增 migration、Composer 依赖或环境变量，Docker app 镜像包含 CJK TTF 构建包和 `poppler-utils` | 2026-08-30 |
+| 结算文档与等级建议 | 已从同一内容快照生成私有 Word/PDF/ZIP；PDF 使用由 Noto Sans CJK SC/KR 构建、经字符集和 glyf 校验的 `GNSystemSans-Regular.ttf`/`GNSystemSans-Bold.ttf`，覆盖中韩文及 `₩`；等级建议仅经管理员复核后安排下月生效 | 2026-08-07 |
 | 主动提醒中心 | 已实现内置术前/到院/术后提醒、白名单规则、系统/个人模板、一次性与周期任务、权限、去重和生命周期日志 | 2026-07-28 |
 | 钉钉内部通知 | 已实现签名 Webhook 适配器、提醒/结算通知事务后队列发送、三次重试及失败/未启用状态；等级调整通知新增 `notification_deliveries` 投递记录、异步重试和 `sent`/`failed` 状态；真实凭据和生产实发待部署验收 | 2026-08-18 |
 | 9 维多维查询 | 以已完成订单为事实，支持成交日期/时段、客户、代理商、项目、机构、翻译、金额和规范化护照精确匹配；顶部回车统一展示客户、订单项目及有权限查看的代理商结果，仍保留分类定向入口；固定白名单排序、分页、耗时及客户详情跳转 | 2026-07-30 |
@@ -126,11 +173,13 @@
 | 真实数据看板 | 已实现六项指标、八项图表、六种区间、等长环比、五分钟缓存降级、手动/自动刷新以及同一快照的 PDF/HTML 导出 | 2026-07-30 |
 | 总览页面数据下钻 | Dashboard 的营收、复购率、趋势、新客户和最近客户入口携带当前日期范围；代理商排行保留稳定详情路由并按超级管理员权限显示；客户列表支持建档日期起止筛选；不新增 migration | 2026-08-14 |
 | 完整配置中心 | 已实现机构、项目/语种字典、白名单系统参数、内部用户邀请/角色/启停、全局审计日志入口，以及 Agent/Customer/Settlement 分类快照、差异和事务回滚 | 2026-08-14 |
+| 角色、业务组与代理商历史归属底座（新规划 PR1） | 已合入本地 `develop`，实现角色兼容回填、业务组、成员有效期历史、代理商业务组有效期历史、配置管理和未归属完整性检查；UAT/Production 未验证 | 2026-08-31 |
 | 订单成交时间兼容升级 | 新增 `completed_at` 与精度标识；历史日期按 Asia/Shanghai 零点回填，新写入双写保留的 `completed_on` | 2026-07-30 |
-| 订单中心 | 已启用侧栏一级订单页面，支持全量列表与订单号/客户/项目、状态、机构、代理商筛选及分页；可搜索客户新建订单，并通过独立二级回收站页面提供超级管理员的已删除订单查看与恢复入口 | 2026-08-14 |
+| 订单中心 | 已启用侧栏一级订单页面，支持全量列表与订单号/客户/项目、状态、机构、代理商筛选及分页；机构回传中心提供版本化固定模板、私有原始文件下载和原子入账；人工新建/人工完成入口已移除，回收站仍由独立二级页面提供超级管理员查看与恢复 | 2026-08-24 |
 | Order 日常管理扩展 | 已实现待完成订单编辑、订单详情二级页和状态编辑入口；支持待完成/已完成/已取消状态流转、超级管理员填写原因后将已完成订单受控回退为待完成、已取消订单软删除与回收站恢复。回收站及已删除详情仅超级管理员可读，操作按角色限制并写入审计 | 2026-08-03 |
 | 第一批前端易用性优化 | 已改善历史数据导入与基础配置导入的上传引导、中文状态、预览确认和撤销文案，并简化配置中心及月结中心的技术术语；相关 Feature 断言已同步 | 2026-08-03 |
 | Phase 5 月结工作流优化 | 已实现历史合作期间选取、真实周期边界重建、零订单生成、持久化生成状态及独立回填迁移；`unverified` 支持超级管理员审计归档或恢复批次，`not_applicable` 禁止重新生成；已生成且处于待审核/已驳回的月结支持检测源数据变化后人工刷新，刷新会重建明细、同步批次金额并记录审计；未关联批次历史月结已移入独立归档查询，需在 UAT 升级前备份并完成审计 | 2026-08-10 |
+| 开发/UAT 用户身份模拟 | 已实现请求级有效身份切换、真实用户会话保留、BD/客服业务范围复用、顶部告警、登出清理和开始/结束审计；本地自动化测试已通过，UAT/Production 尚未人工验收 | 2026-08-29 |
 
 ## 部分实现
 
@@ -171,3 +220,92 @@ UAT/Production 使用 `queue:work`。本地开发与 UAT/Production 操作手册
 功能首次落地、能力移除或阶段变化时，必须在同一变更中更新本页。描述必须能由
 代码、配置、迁移或测试验证；纯计划不得进入“已实现”。
 2026-08-06: PR-B added the unified import issue table, persisted stage statuses, unified issue reports, and non-ignorable issue guards. Real historical-file migration and sampling remain pre-release acceptance work.
+
+## 2026-08-24 PR4 institution return and order facts implementation
+
+- `feature/business-groups-and-roles` now contains the PR4 institution return workflow: versioned
+  fixed XLSX templates, very-hidden form metadata with HMAC integrity signing, private encrypted
+  original-file storage, customer-scope downloads, and SHA-256/form-UUID duplicate protection.
+- The new order facts migration adds `occurred_on`, `record_status`, attribution snapshots,
+  order item snapshots, template records, and return-file records. It refuses to run when pending
+  or otherwise unmappable legacy order facts remain, backfills `occurred_on` from `completed_on`,
+  and refuses rollback after business facts or original files exist.
+- A successful institution return atomically creates the order, items, commission snapshot,
+  customer completion, exactly two postoperative reminders, and audit record. Manual order
+  creation and manual completion are removed from the order pages. Excel serial dates, date
+  objects, supported string dates, customer/amount validation, tamper rejection, duplicate
+  upload, commission rollback, and scoped original-file download are covered by local tests.
+- This is local feature-branch work only. It is not merged into `develop`, has not been deployed
+  or migrated in UAT/Production, and still requires historical-data preflight, backup, RC release,
+  and manual business acceptance in target environments.
+
+## 2026-08-24 PR2 access scope implementation
+
+- `feature/business-groups-and-roles` now includes the PR2 access context: authenticated role, effective business-group membership, agent assignment scope, group-user scope, and a permission fingerprint carried by dashboard caches and queued exports.
+- Customer, Agent, Order, Reminder, Settlement, Report, global search, saved queries, dashboard drill-down, export, and settlement-document download paths now apply role and ownership/group scope. BD settlement pages are read-only; mapped non-owner Customer Service users cannot export or download sensitive returned data, and Customer Service responses omit agent contact, grade, contract, and financial fields.
+- Direct Livewire write methods retain server-side authorization checks. The PR2 matrix test covers super administrator, BD, owner Customer Service, and non-owner Customer Service identities, cross-group URL access, sensitive fields, export denial, and cache/fingerprint separation.
+- PR2 adds no migration. The implementation is locally tested on the feature branch only; it has not been merged into `develop` and has not been validated or deployed in UAT/Production.
+
+## 2026-08-24 PR3 customer transfer and rollback implementation
+
+- `feature/business-groups-and-roles` now contains the PR3 Customer application flow: same-group active Customer Service owner candidates, Customer Service transfer request/withdrawal, BD approval/rejection/direct/batch transfer, and super-admin cross-group transfer.
+- Customer transfer is transactional across the customer owner, future scheduled appointments, unfinished reminders, owner history, audit, and internal notification records. Historical follow-up creators remain unchanged. Duplicate pending requests, stale owners, inactive targets, and batch failures are rejected atomically.
+- Customer lifecycle now stores the latest `arrived_at`; repeated arrival creates another status history while updating the latest timestamp. The detail flow derives current/completed/available nodes from the current status, while status history and owner history remain on the timeline. Non-super rollback requires a status approval request, and any existing order blocks ordinary rollback.
+- PR3 adds `2026_08_24_000100_add_customer_transfer_and_status_approval.php` for arrival time, transfer requests, owner history, and status rollback requests. Local tests cover the PR3 matrix and existing customer lifecycle/business-group regressions. The migration and feature branch have not been validated or deployed in UAT/Production; release must use the normal immutable RC process with a pre-migration backup and target-environment acceptance.
+
+## 2026-08-24 PR5 order editing and settlement calculation implementation
+
+- Order editing is available to super administrators and BD managers within their assigned-agent scope. Customer, source agent, institution, and original return-file references remain immutable. The editable business date, item snapshot, amount, translator fields, and notes require a reason, optimistic-lock token, validation, and an audit diff.
+- Completed orders can be edited only before settlement references exist. The update transaction rolls back and rebuilds the unsettled commission snapshot and refreshes the historical business-group attribution using `occurred_on`; settled orders remain locked.
+- Settlement preview and formal generation use `SettlementCalculationService`. Preview reads only and writes no run, settlement, item, grade, suggestion, or notification rows. The default generation day is now 5, while historical configuration boundaries remain effective by date.
+- Agent grades are now manual business attributes: settlement generation no longer evaluates monthly thresholds, creates upgrade/downgrade suggestions, or sends grade notifications. The new `2026_08_27_000300_remove_agent_grade_thresholds.php` migration removes the obsolete threshold column while retaining historical grade-related tables for audit/migration compatibility. This is local feature-branch work only and has not been migrated, deployed, or accepted in UAT/Production.
+
+## 2026-08-27 业务组管理与季度提成体验修正
+
+- 配置中心支持业务组名称编辑、业务组详情查看、BD 原子更换和停用/解散。更换 BD 只结束旧 BD 的有效期并创建新 BD 记录，不移动客服；停用会保留历史并封存当日仍有效的业务组成员关系。
+- 有当前代理商归属的业务组不能停用，必须先结束或转移代理商归属；更换 BD 使用含首尾日期的有效期边界并记录原因和审计事件。
+- BD 季度提成明细支持展开/收起，操作按钮和确认操作保持对齐。相关变更仍仅在本地 feature 分支完成，未在 UAT/Production 部署或验收。
+
+## 2026-08-29 客户视角 PR1 落地
+
+- `feature/business-groups-and-roles` 完成客户管理列表的第一层视角优化：新增按当前 `AccessContext` 可见客服负责人筛选，筛选值通过 `ownerId` 保留在 URL；服务端查询继续先执行客户访问范围，再应用负责人条件，跨业务组负责人 ID 不会扩大结果集。
+- 客服列表使用 SQL 本人优先排序，其次按建档时间倒序；BD 和超级管理员保留原有顺序。负责人筛选项复用有效且已接受邀请的当前业务范围客服候选人。
+- 本轮不新增 migration、依赖或服务器配置。已完成 CustomerLifecycle 和 AccessScope 直接相关测试；仍未合入 `develop`，未部署或在 UAT/Production 做人工验收。
+
+## 2026-08-29 团队管理 PR2 落地
+
+- `feature/business-groups-and-roles` 增加 Report 一级“团队管理”页面：BD 只能查看当前有效业务组，超级管理员可查看全局业务组并下钻到组详情；客服不显示入口且直接访问返回 403。
+- 页面通过 Customer、Reminder、Order 的只读 Application Contract 组合客服人数、客户/新增客户、代理商、待跟进/逾期提醒、月度成交及负责人工作量，并复用客户列表、提醒中心和业务组详情入口；未新增数据库表、migration、依赖或环境配置。
+- 已完成 AccessScope、ConfigurationNavigation 直接测试；当前仅在本地 feature 分支验证，未合入 `develop`，未部署或在 UAT/Production 做人工验收。
+
+## 2026-08-30 团队管理 PR2 审查修复
+
+- 团队成交总额现在按 `occurred_on`、`record_status=active` 和订单保存时的业务组归属快照统计；当前客服/代理商后续转组或离组不会改写历史团队口径，负责人拆分仍按 `owner_id` 展示。
+- 超级管理员选择业务组后顶部 KPI 与组详情一致；无有效 BD、无有效客服、逾期提醒、无负责人客户或待处理移交任一存在时标记“需关注”，三个卡片分别带逾期/未分配/待移交筛选下钻。
+- 团队生命周期将空状态显示为“未设置”，客户列表分页增加 `created_at` 后的 `id` 倒序稳定键；测试身份模拟启动路由要求超级管理员已完成 2FA。上述修改已补充本地回归测试，仍未合入或在 UAT/Production 验收。
+
+## 2026-08-30 团队管理第二轮审查修复
+
+- 团队范围统计保留当前有效期内的全部代理商，包括暂停/终止代理商；有效代理商数仍单独按 `cooperation_status=active` 展示。停用、离组或邀请失效的客服负责人会计入“负责人异常客户”，可按业务组筛选并批量移交。
+- 客户与提醒下钻携带 `businessGroupId`，服务端重新校验业务组访问权限；Order 团队读取器也在自身边界校验 BD/超级管理员授权，同时继续只按历史订单归属快照统计。
+- 新增 `app:backfill-order-attribution-snapshots` 历史订单快照回填命令：默认只预览，必须显式 `--apply --actor --reason` 才写入，并逐单留下审计记录；无法唯一匹配的订单会阻止写入并输出异常清单。本轮仍未合入或在 UAT/Production 验收。
+
+## 2026-09-01 机构月度销售额总览审查修复
+
+- `feature/institution-monthly-sales` 新增 `/reports/institution-sales` 一级页面，支持月份选择、
+  机构名称筛选、客户数、有效订单数、KRW 销售额和合计；仅超级管理员与 BD 可查看，客服直接访问
+  返回 403，BD 复用 Auth 当前有效业务范围。机构销售额现支持 Excel/PDF 两种格式，二者复用同一份
+  权限过滤后的销售额快照，PDF 使用统一正式财务单据模板。
+- Order 报表读取器在数据库内按 `institution_id` 聚合，固定使用 `occurred_on` 自然月、
+  `status=completed`、`record_status=active`、非软删除订单和 `amount_krw`；空业务日期不统计。
+  页面与 XLSX/PDF 导出复用同一份汇总结果，Excel 金额保持数值单元格。
+- 本 PR 不新增 migration、汇总表、预聚合或索引；新增 Regular/Bold PDF 字体构建产物及其镜像/CI
+  配置，不新增 PHP/Composer 依赖；真实量级 UAT 仍需执行查询计划和 PDF 字形检查。当前仅完成本地
+  feature 分支验证，未合入 `develop`、部署或在 UAT/Production 人工验收。
+
+## 2026-09-03 报表与订单页面体验优化
+
+- Dashboard 顶部移除 BD 季度提成快捷按钮，侧栏入口、路由、权限和 Settlement 业务逻辑保持不变。
+- 订单中心保留现有筛选、查询和分页，仅将列表改为窄屏单列/宽屏两列响应式卡片，保留订单、客户、机构、代理商、金额、状态、业务日期和详情入口。
+- 机构月度销售额改为按权限范围内的机构 ID 快速筛选；筛选条件下沉到 Order 报表读取器的数据库聚合查询，并由页面 KPI、明细表、Excel 和 PDF 共用同一份汇总结果。BD 的机构选项按当前可见有效订单范围限制，超级管理员可选择启用机构。
+- 本轮不新增 migration、依赖或环境配置。修改仅在本地 feature 分支验证，未合入 `develop`，未部署或在 UAT/Production 做人工验收；两份运维手册已核对，未发现需要同步的环境或发布语义变化。

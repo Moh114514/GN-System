@@ -1,6 +1,6 @@
 # GN-System 完整运维手册
 
-> 当前基线：2026-08-04
+> 当前基线：2026-08-30
 >
 > 适用仓库：`Moh114514/GN-System`
 >
@@ -16,7 +16,8 @@
 [小白运维指南](beginner-operations-guide.md)。版本标签与镜像晋级的细节见
 [发布管理手册](release-management.md)，生产首次部署和灾难恢复的原则见
 [生产部署与恢复](production-deployment.md)，Phase 5 业务验收见
-[Phase 5 UAT 验收手册](phase-five-uat-acceptance.md)。GHCR 访问不稳定时，按
+[Phase 5 UAT 验收手册](phase-five-uat-acceptance.md)；新规划 PR1–PR6 的角色映射、迁移预检和
+恢复收尾见 [PR7 UAT 迁移与发布收尾手册](pr7-uat-migration-runbook.md)。GHCR 访问不稳定时，按
 [局域网离线镜像部署](offline-deployment.md)执行。
 
 出现冲突时，按以下顺序确认事实：
@@ -117,9 +118,19 @@ GitHub CI 和 GHCR 是发布基础设施，不是可登录的业务环境。
 | 2026-08-14，当前 `develop` | 工作区未发布 | PR1 收敛客户与订单为代理商归属，移除直销来源、渠道分支及七工作表以外的直销配置内容 | 包含不可逆的 `2026_08_14_000100_remove_direct_sales_business` forward migration；UAT/Production 发布前必须备份，并只读核对直销记录和缺少代理商归属的记录均为 0；迁移发现异常会中止，不能用旧镜像回退替代数据恢复 |
 | 2026-08-14，当前 `develop` | 工作区未发布 | PR1–PR6 已加入：客户/订单归属收敛、客户状态树、提醒 UI 紧凑化、指定节假日客服提醒、Dashboard 数据下钻及自然月月结生成 | PR1 含不可逆 migration，PR6 新增 `2026_08_14_000200_add_generation_day_to_settlement_configurations`；发布前按完整门禁执行，备份并核对 PR1/PR6 数据前置条件；UAT/Production 需人工验收状态树、提醒页面、指定日期规则、Dashboard 日期范围跳转和月结生成时间 |
 | 2026-08-17，当前 `develop` | 工作区未发布 | PR7 让月结中心默认展示最新已生成周期并支持周期切换，历史归档改用业务日期重叠查询；已结清详情保留文档下载，历史 `paid`/`reconciled` 月结可在只读详情按需生成并下载 Word/PDF | 不新增 migration；UAT 需核对周期下拉、业务日期边界、已结清详情文档下载及历史文档生成后状态不变；本机结果不能替代目标环境验证 |
+| 2026-08-30，`feature/business-groups-and-roles` 工作区 | 工作区未发布 | 修复财务单据 BD 调整金额重复计算；PDF 改用构建时合并的 CJK TrueType 字体、`truetype` 声明和 table 布局；规则配置 UI 改为响应式 12 栏；新增金额回归与 `pdftotext` 文本 smoke test | 不新增 migration、Composer 依赖或环境变量；Docker app 镜像新增字体构建包和 `poppler-utils`，UAT/Production 发布前必须重建并核对镜像中的字体路径、字符 smoke test 及月结/BD 中韩文输出；本机结果不能替代目标环境验证 |
+| 2026-08-24，`feature/business-groups-and-roles` | 工作区未发布 | 新规划 PR1 增加用户角色兼容回填、业务组/成员有效期历史、代理商业务组有效期历史及配置管理；新增 `2026_08_21_000100_add_roles_business_groups_and_agent_assignments` migration；2026-08-26 补齐开放式成员/代理商归属结束操作、未来转组候选、BusinessClock 统一和排他约束冲突业务化 | 仅完成本地开发和自动化验证，未合入 `develop`，未部署 UAT/Production。正式发布前必须备份数据库，按 RC 流程运行 migration，并人工核对角色、业务组成员、归属结束/未来转组、代理商归属和未归属完整性；本机结果不能替代目标环境验收 |
+| 2026-08-24，`feature/business-groups-and-roles` | 工作区未发布 | 新规划 PR7 完成 README、架构/模块文档、替代 ADR、UAT 角色映射、只读预检、备份迁移、抽样及回退/恢复手册；建议 `v0.6.0-rc.1` | 未处理 `develop`/`main` 分叉，未创建 RC，未推送、部署或执行 UAT/Production migration；发布前必须按 PR7 手册完成完整门禁、备份、映射、迁移和人工验收 |
 
 当前 `main` 高于 `v0.5.0-rc.8`。服务器上的 `releases/current` 和
 `history.tsv` 才能证明 UAT/Production 实际运行版本；本地 Git 日志不能证明目标环境已经升级。
+
+新规划 PR1 的本地分支包含角色和归属历史 migration，当前只在开发 Compose 的隔离
+测试数据库中验证。不得直接在 UAT/Production 手工建表或执行未审阅的 SQL；发布时
+必须先完成备份、RC 门禁和 migration 预检查，再按本手册的不可变版本流程执行。该
+migration 会启用 PostgreSQL `btree_gist` 扩展并创建日期重叠约束，目标环境需要确认
+数据库账号具备相应扩展/约束权限。回退前必须备份，并确认可以接受删除 PR1 新增结构
+及其归属历史数据。
 
 国际化 PR-A、PR-B、PR-C 及 PR-D，以及规划 PR1–PR4 当前只在 `develop` 工作区完成，尚未发布到 UAT 或 Production。发布该变更时，
 需先完成完整本地门禁，再按正常 RC 流程部署；migration 会为既有用户提供 `zh_CN` 默认值。
@@ -271,7 +282,26 @@ Production 发布前都必须确认该 migration 已由标准发布流程执行�
 验收结束前应确认状态已恢复为“真实时间”；若非生产环境发现遗留模拟状态，优先通过页面
 恢复；不要清空 PostgreSQL/Redis 或修改生产数据来处理状态。
 
-### 3.4 月结自动汇率
+### 3.4 开发和 UAT 用户身份模拟
+
+用户身份模拟是 Auth 模块的请求级测试能力，只允许部署角色为 `local`、`development`、`testing`
+或 `uat` 且 `APP_IMPERSONATION_ENABLED=true` 时使用。UAT 保持 `APP_ENV=production` 的强化运行模式，
+必须依赖 `APP_DEPLOYMENT_ENV=uat` 判断可用性；Production 即使误把开关设为 `true`，代码仍按
+`APP_DEPLOYMENT_ENV=production` 硬关闭。三套环境的模板值分别由 `.env.example`、`.env.uat.example`
+和 `.env.production.example` 提供，服务器环境文件仍只能按发布手册在目标目录维护。
+
+超级管理员从顶部“测试身份”菜单选择启用且已接受邀请的 BD/客服用户后，系统在当前请求中用
+`Auth::setUser()` 设置有效身份；浏览器会话仍保留真实超级管理员，业务范围继续由目标用户的
+`UserRole`、业务组成员关系和代理商归属解析。页面顶部持续显示红色模拟告警，退出模拟会清除会话键并恢复
+真实账号。目标账号停用、邀请未完成、目标为超级管理员、真实管理员失效或登出时，模拟状态不能继续使用。
+
+开始和结束模拟会写入 `auth-impersonation` 审计记录，其中 `causer_id` 和 `real_user_id` 是真实管理员，
+`target_user_id`/`target_role` 是有效测试身份。该功能不修改 `users.role`、`users.is_super_admin` 或业务组
+数据，也不需要 migration。发布到 UAT 后，需人工核验 BD/客服菜单、业务组数据范围、配置中心拒绝访问、退出
+恢复和登出清理；本机测试结果不能表述为 UAT 或 Production 已验证。发生异常时先退出模拟或重新登录，
+不要直接修改用户表或清空 Session/数据库。
+
+### 3.5 月结自动汇率
 
 月结详情页会按 `SETTLEMENT_EXCHANGE_RATE_PROVIDER` 调用接口盒子汇率服务，成功后预填六位
 小数的 CNY → KRW 汇率；审核人仍可手工覆盖。该服务按文章说明每日更新，并非严格实时，页面
@@ -294,14 +324,19 @@ SETTLEMENT_EXCHANGE_RATE_TIMEOUT=10
 月结中心的“往期月结”可选择最近已关闭的历史周期生成批次。节点按相邻历史配置边界计算，配置切换期间的过渡周期不得被跳过或重叠；参与代理商按周期内合作起止日期判断，不能用当前状态替代历史资格。
 如果该周期已有批次，系统保持幂等并返回原批次，同时明确区分新建、处理中、已完成和部分失败，不覆盖已有明细、审核状态或结算文档。
 
-PR6 的新配置使用 `settlement_configurations.generation_day=10`，统计周期固定为自然月，
-每月 10 日指定时间生成上一个自然月。Scheduler 仍每分钟运行，但生成日和时间之前不生成；
+PR6 的新配置使用 `settlement_configurations.generation_day=5`，统计周期固定为自然月，
+每月 5 日指定时间生成上一个自然月。Scheduler 仍每分钟运行，但生成日和时间之前不生成；
 生成窗口内恢复时补偿缺失周期。旧配置的 `generation_day` 为空，仍使用 `boundary_day`
-重建历史周期；不得直接把旧 `boundary_day` 改成 10。
+重建历史周期；不得直接把旧 `boundary_day` 改成 5。
 
 PR7 的月结中心默认展示最新已生成周期，顶部下拉可切换其他已生成周期，避免首页同时堆叠所有批次。
 历史月结归档使用业务日期起止，并按 `period_start <= businessTo AND period_end >= businessFrom` 判断周期重叠，
 不读取 `created_at`、`generated_at` 或 `reviewed_at` 作为查询依据。已结清详情必须继续显示并允许下载审核时生成的 Word/PDF 文档；历史 `paid`/`reconciled` 月结在 `generation_status=not_applicable` 时可从只读详情按需生成并下载相同格式文档，生成不改变历史状态。
+
+当前正式财务单据导出使用统一模板：月结结算单可下载 Word/XLSX/PDF，BD 季度提成在选择具体 BD 后可下载
+XLSX/PDF。导出模板固定标题、元数据、主金额、明细、汇总、备注、货币符号、A4 打印属性和重复表头；
+月结和季度导出均复用已保存服务结果，不在导出层重新计算金额。BD 下载接口再次执行角色与 BD 范围校验，
+不能以修改前端参数绕过授权。季度导出不虚构现有服务未提供的“未分配金额”字段。
 
 失败批次详情只读取代理商基础身份信息，即使当月资格或政策等级异常，也必须能够打开详情并生成报告；代理商已删除时保留原始 ID 并显示“未知/代理商不存在或已删除”。每次 XLSX 报告使用独立临时文件，下载完成后由响应清理，避免并发下载互相覆盖。一次操作产生的业务规则错误使用红色 Toast，持续阻断状态仍使用页面顶部横幅。
 
@@ -359,7 +394,7 @@ select count(*) from orders where agent_id is null;
 模板和报表看板；该迁移的 `down()` 明确不可用，若新版本已执行且必须恢复，只能停止写入并按第 13.3 节
 从发布前备份恢复，不能只切回旧镜像。
 
-### 3.5 密钥与外部服务
+### 3.6 密钥与外部服务
 
 以下值必须在两套环境分别生成，不能从 UAT 复制到 Production：
 
@@ -1232,14 +1267,22 @@ mountpoint /mnt/gn-system-offsite
 
 ### 14.10 PDF 中文字体或私有目录权限
 
-生产镜像应包含已在 CI 验证的独立 Noto Sans CJK PDF 字体。字体由 Docker 构建阶段从
-Debian 字体集合提取，不能只安装 TTC 集合后直接交给 Dompdf。若导出失败：
+生产镜像应包含已在 CI 验证的独立 `GNSystemSans-Regular.ttf` 和
+`GNSystemSans-Bold.ttf` PDF 字体（构建阶段由 Noto Sans CJK SC/KR 的 Regular/Bold 字体面合并为
+两份真正的 TrueType 字体，并校验
+`简体中文`、`한글`、`₩` 和数字字符及 `glyf` 表，同时确认 Regular/Bold 字重与字形不同）。不能
+只安装 TTC 集合后直接交给 Dompdf。若导出失败：
 
 ```bash
 sudo docker compose --env-file .env.uat \
   -f compose.production.yaml logs --tail 200 app queue
 namei -l /srv/gn-system/data/private
 ```
+
+同时确认 app 镜像内存在 `/usr/local/share/fonts/gn-system/GNSystemSans-Regular.ttf` 和
+`/usr/local/share/fonts/gn-system/GNSystemSans-Bold.ttf`，并在验收环境抽取一份测试 PDF
+的文本，确认中韩文、`₩` 和带逗号数字均可读；`pdftotext` 由 app 镜像提供。只重启旧
+容器不会更新字体，必须按发布流程使用包含新字体的镜像。
 
 确认 app、queue、scheduler 对 `PRIVATE_DATA_PATH` 可读写；不要把私有目录改为
 `0777`，也不要挂载到 Nginx 公开目录。
@@ -1370,3 +1413,89 @@ docker compose --env-file .env.uat -f compose.production.yaml exec app php artis
 `ADMIN` is an ID or email. `--operator` is a required operator or ticket identifier for audit traceability. Passwords are entered interactively, never passed as arguments. Disabling and password reset increment `session_version` and clear existing sessions; disabling the last active super administrator is rejected. There is intentionally no physical delete command.
 
 `reload-config.sh uat` requires `.env.uat` mode `0600`, validates required variables and Compose configuration, force-recreates app/queue/scheduler, rebuilds Laravel configuration cache, verifies PostgreSQL/Redis and the three health endpoints, and prints only a sanitized summary. It never prints password, archive-password, mail, or webhook-secret values.
+
+## PR2 access scope status (2026-08-24)
+
+The `feature/business-groups-and-roles` worktree contains the PR2 authorization scope implementation. It resolves the authenticated role, effective business-group memberships, agent assignments, group users, and a permission fingerprint. Customer, Agent, Order, Reminder, Settlement, Report, dashboard, search, saved-query, export, and settlement-document paths apply that scope; BD settlement access is read-only, and mapped non-owner Customer Service users are denied sensitive exports/downloads.
+
+This PR2 change adds no migration. Dashboard cache keys and queued export snapshots include the permission context, so app, queue, and scheduler workers must be upgraded from the same release before enabling the feature in a target environment. The feature branch is not merged or deployed. Before UAT/Production release, follow the normal immutable RC process and manually verify the four role identities, cross-group URLs, direct Livewire calls, document downloads, export denial, and cache separation. Local tests do not replace target-environment acceptance.
+
+## Customer work-view PR1 (2026-08-29)
+
+The current `feature/business-groups-and-roles` worktree also contains the first customer work-view increment. The Customer list adds an `ownerId` URL filter whose options are limited to active, accepted Customer Service users in the current `AccessContext`; the query applies the existing customer scope before the owner condition. Customer Service lists put their own customers first in SQL order and then sort by creation time; BD and super administrators retain the existing order.
+
+This increment adds no migration, dependency, worker, or environment variable. It is locally tested only and is not merged or deployed. Before UAT/Production acceptance, use the normal immutable RC process and verify owner-filter URL persistence, scoped candidate options, own-first ordering, BD/admin visibility, cross-group URL attempts, and no-scope Customer Service behavior. Local tests do not replace target-environment acceptance.
+
+## Team management PR2 (2026-08-29)
+
+The current feature worktree also contains the Team Overview page at `/team-overview`. BD sees only active business groups in its effective membership scope; super administrators see the global group table and can drill into a selected group. Customer Service users do not receive the navigation entry and direct access is denied. The page composes read-only Customer, Reminder, and Order contracts for group totals, customer-service workload, lifecycle counts, reminders, and monthly completed-order totals, then links back to existing customer/reminder/group pages.
+
+This increment adds no migration, dependency, worker, or environment variable. It is locally tested only and is not merged or deployed. Before UAT/Production acceptance, use the immutable RC process and verify BD versus super-admin visibility, cross-group URL rejection, group selector drill-down, paused/terminated-agent customer and reminder inclusion, invalid-owner counts and transfer filtering, occurred-date and attribution-snapshot order totals after agent/owner changes, the `unset` lifecycle bucket, the filtered attention links, and the existing-page links. Local tests do not replace target-environment acceptance. Before opening business pages, preview `app:backfill-order-attribution-snapshots`; apply it only with an approved actor and reason after all rows resolve uniquely.
+
+## PR3 customer transfer and rollback status (2026-08-24)
+
+The current feature worktree contains the PR3 Customer transfer and lifecycle approval implementation and the later PR6 BD quarterly commission implementation. It adds the `2026_08_24_000100_add_customer_transfer_and_status_approval.php` and `2026_08_24_000400_create_bd_quarterly_commission_tables.php` migrations, so any UAT/Production release must take the normal pre-migration backup, run migrations through the release process, and verify the schema before opening business pages. No UAT/Production migration or business acceptance was run from this workstation.
+
+Before release, manually verify owner Customer Service request/withdrawal, BD approval/rejection/direct/batch transfer, super-admin cross-group transfer, future appointment and unfinished reminder reassignment, historical follow-up creator preservation, repeated arrival timestamp/history behavior, rollback approval, stale/duplicate request rejection, batch atomicity, and the no-order rollback rule. Upgrade app, queue, and scheduler from the same immutable RC because transfer notifications and reminder updates are part of the application release. Rollback follows the normal release rollback procedure; do not manually delete the new tables or edit production data.
+
+## PR4 institution return and order facts status (2026-08-24)
+
+The current local `feature/business-groups-and-roles` worktree also contains the institution
+return flow. It adds `2026_08_24_000200_add_institution_return_order_facts.php`, versioned fixed
+institution templates, encrypted private original files, `order_items`, and the `occurred_on`
+business-date/attribution facts. The migration performs a preflight for pending orders,
+completed orders without dates, agents, or commission snapshots, and unmappable statuses. It
+backfills `occurred_on` from `completed_on` only after the preflight succeeds. Its `down()` refuses
+to remove schema once order facts, item snapshots, or original return files exist.
+
+Release requirements for this PR4 are:
+
+1. Take the normal environment-specific database and private-file backup before migration.
+2. Run the release migration through the immutable RC deployment process; do not create the new
+   tables manually or execute ad-hoc SQL on UAT/Production.
+3. Record the migration preflight output and stop if any blocker is reported. Repair and audit
+   legacy data through the approved migration plan before retrying with a new RC.
+4. Confirm that the configured private storage root is persistent, access-controlled, and not
+   served by Nginx as a public directory. Verify encrypted original-file download through the
+   application with both an authorized customer scope and an unauthorized scope.
+5. Manually verify template download, hidden metadata preservation, XLSX/WPS date variants,
+   customer and amount rejection, duplicate upload, cross-month `occurred_on` reporting,
+   commission failure rollback, exactly one 7-day and one 30-day reminder, and order/audit
+   attribution snapshots.
+
+The local branch has automated coverage for the flow and has not run this migration or any
+business acceptance in UAT/Production. The local result must not be reported as target-environment
+verification. Rollback requires the normal release rollback procedure and a verified backup;
+never delete `institution_return_files`, `order_items`, or order fact columns manually.
+
+## PR5 order editing and settlement status (2026-08-24)
+
+The local feature branch now contains scoped order editing, occurred-date commission snapshot
+rebuilds, read-only settlement preview, the default monthly generation day 5, and manual agent
+grade configuration without automatic monthly grade evaluation or grade notifications. It adds
+`2026_08_24_000300_add_pr5_settlement_generation_day.php`; the migration preserves historical
+effective configuration and must be run only by the immutable RC release process after the normal
+environment-specific backup and preflight.
+
+No UAT or Production migration, restart, preview, generation, or business acceptance was run from
+this workstation. Before release, verify BD agent scope, optimistic-lock and settled-order locks,
+preview/formal amount equality, the monthly day-5 scheduler window, historical configuration
+boundaries, and that commission generation creates no automatic grade records or notifications.
+Upgrade app, queue, and scheduler together, clear configuration cache, and use the normal rollback
+procedure with a verified backup if the release is rejected.
+# PR6 BD季度提成运行说明
+
+PR6 新增 `2026_08_24_000400_create_bd_quarterly_commission_tables` migration，正式环境发布前
+必须先备份数据库并确认迁移目标库。当前不需要新增环境变量、Redis 键或外部服务。迁移完成后，
+超级管理员在 `/bd-commissions` 创建已确认的规则版本，再按季度执行预览、正式生成、审核和确认；
+BD 仅能查看自身业务归属快照对应的记录。已确认周期不可重算，订单更正会在后续季度生成调整记录。
+
+季度详情页的超级管理员必须先选择 BD，随后才能导出该 BD 的 XLSX 或 PDF；BD 只能导出自己的季度记录，
+客服和其他无权限角色的服务端下载请求返回拒绝。月结详情页的导出下拉提供 Word、XLSX、PDF，历史文档
+下载继续读取已归档文档或按既有只读规则生成。所有正式导出使用统一财务模板，金额和汇总只取月结/季度服务
+已保存的结果。
+
+本机已覆盖 PR6 定向 Feature、PR4 订单推广费、PR5 月结、Dashboard、模块边界和中韩本地化检查；
+UAT/Production 迁移、规则配置、历史快照质量、季度抽样、导出文件内容和人工权限验收仍未执行。目标环境
+验收需检查季度边界、季度中途代理商/BD 转移、重复订单、草稿重算、确认不可变、调整审计、越权访问、
+XLSX/PDF 下载及 MIME/文件名、月结 Word/XLSX/PDF 内容、长明细分页和更正差额。

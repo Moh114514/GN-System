@@ -6,6 +6,7 @@ use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Customer\Application\Contracts\ReminderCustomerReader;
 use App\Modules\Customer\Application\Data\ReminderCustomerData;
 use App\Modules\Order\Application\Contracts\ReminderSourceReader;
+use App\Modules\Reminder\Application\Contracts\AppointmentReminderGateway;
 use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
 use App\Modules\Reminder\Application\Data\CompletedTreatmentData;
 use App\Modules\Reminder\Infrastructure\Models\Reminder;
@@ -18,6 +19,7 @@ final readonly class ReminderScheduler
     public function __construct(
         private ReminderCustomerReader $customers,
         private ReminderSourceReader $sources,
+        private AppointmentReminderGateway $appointments,
         private TreatmentReminderGateway $treatments,
         private BusinessClock $clock,
     ) {}
@@ -25,7 +27,7 @@ final readonly class ReminderScheduler
     public function materialize(?CarbonImmutable $at = null): int
     {
         $now = $at ?? $this->clock->now();
-        $created = $this->appointments($now);
+        $created = $this->appointments();
         foreach ($this->sources->completedOrders() as $order) {
             $before = Reminder::query()->count();
             $this->treatments->schedule(new CompletedTreatmentData(
@@ -81,58 +83,21 @@ final readonly class ReminderScheduler
         return $created;
     }
 
-    private function appointments(CarbonImmutable $now): int
+    private function appointments(): int
     {
         $created = 0;
         foreach ($this->sources->appointments() as $appointment) {
             if ($appointment->status !== 'scheduled') {
-                $cancelled = Reminder::query()
-                    ->where('appointment_id', $appointment->id)
-                    ->whereIn('status', ['pending', 'snoozed', 'transferred'])
-                    ->get();
-                foreach ($cancelled as $reminder) {
-                    $before = $reminder->status;
-                    $reminder->update(['status' => 'cancelled']);
-                    ReminderEvent::query()->create([
-                        'reminder_id' => $reminder->id,
-                        'event' => 'cancelled',
-                        'properties' => [
-                            'reason_key' => 'reminders.events.appointment_cancelled',
-                            'before' => $before,
-                            'after' => 'cancelled',
-                        ],
-                        'occurred_at' => now(),
-                    ]);
-                }
+                $this->appointments->cancelForAppointment($appointment->id, null, 'appointment_not_scheduled');
 
                 continue;
             }
-            foreach ([
-                [-3, '09:00', 'pre_visit_3_days'],
-                [-1, '18:00', 'arrival_previous_day'],
-                [0, '09:00', 'arrival_today'],
-            ] as [$days, $time, $contentKey]) {
-                $dueAt = $appointment->scheduledAt->startOfDay()->addDays($days)->setTimeFromTimeString($time);
-                if ($dueAt->isBefore($now->startOfDay()) || $dueAt->isAfter($now->addDays(200))) {
-                    continue;
-                }
-                $created += $this->create(
-                    customerId: $appointment->customerId,
-                    assignedTo: $appointment->ownerId,
-                    dueAt: $dueAt,
-                    sourceType: 'system',
-                    reminderType: 'appointment',
-                    title: (string) __("reminders.system_reminders.{$contentKey}.title"),
-                    suggestion: (string) __("reminders.system_reminders.{$contentKey}.suggestion"),
-                    priority: 1,
-                    dedupeSource: "appointment:{$appointment->id}:{$days}:{$time}",
-                    appointmentId: $appointment->id,
-                    localizedContent: [
-                        'title' => ['key' => "reminders.system_reminders.{$contentKey}.title", 'parameters' => []],
-                        'suggestion' => ['key' => "reminders.system_reminders.{$contentKey}.suggestion", 'parameters' => []],
-                    ],
-                );
-            }
+            $created += $this->appointments->syncForAppointment(
+                appointmentId: $appointment->id,
+                customerId: $appointment->customerId,
+                assignedTo: $appointment->ownerId,
+                scheduledAt: $appointment->scheduledAt,
+            );
         }
 
         return $created;

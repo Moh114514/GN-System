@@ -1,0 +1,51 @@
+<?php
+
+return [
+    'title' => '기관 매출',
+    'description' => '업무 발생일을 기준으로 현재 권한 범위의 유효한 완료 주문을 집계합니다.',
+    'scope_note' => '현재 사용자의 업무 범위 내 데이터만 집계합니다',
+    'period' => '집계 월: :month',
+    'fields' => [
+        'month' => '집계 월',
+        'institution' => '기관',
+        'all_institutions' => '전체 기관',
+    ],
+    'table' => [
+        'metrics' => '월별 매출 지표',
+        'title' => '기관 월별 매출',
+        'summary' => ':count개 기관',
+        'number' => '번호',
+        'institution' => '기관',
+        'customers' => '고객 수',
+        'orders' => '유효 주문 수',
+        'amount' => '매출（KRW）',
+        'total' => '합계',
+        'total_customers' => '고객 수',
+        'total_orders' => '유효 주문 수',
+        'total_amount' => '월 매출',
+        'empty' => '현재 월과 조건에 맞는 주문이 없습니다.',
+    ],
+    'export' => [
+        'xlsx_button' => 'Excel 내보내기',
+        'pdf_button' => 'PDF 내보내기',
+        'sheet_title' => '기관 매출',
+        'period' => '집계 월: :month',
+        'filename' => '기관월별매출_:month',
+        'all_institutions' => '전체 기관',
+        'institution_filter' => '기관 필터',
+        'primary_amount' => '월 매출',
+    ],
+    'errors' => [
+        'invalid_month' => '유효한 집계 월을 입력하세요.',
+        'institution_unavailable' => '선택한 기관은 현재 권한 범위에 없거나 비활성화되었습니다.',
+        'export_format' => '지원하지 않는 내보내기 형식입니다.',
+        'generation_failed' => '기관 매출 파일을 생성하지 못했습니다. 잠시 후 다시 시도하세요.',
+        'directory_unwritable' => '내보내기 디렉터리에 쓸 수 없습니다. 저장소 권한을 확인하세요.',
+        'file_missing' => '내보내기 파일이 생성되지 않았습니다. 저장소 권한을 확인하세요.',
+        'checksum_failed' => '내보내기 파일 검증에 실패했습니다.',
+        'generic' => '내보내기에 실패했습니다. 잠시 후 다시 시도하세요.',
+    ],
+    'fallbacks' => [
+        'missing_institution' => '알 수 없는 기관',
+    ],
+];

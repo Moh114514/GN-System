@@ -2,8 +2,11 @@
 
 namespace App\Modules\Order\Application\Services;
 
+use App\Modules\Agent\Application\Contracts\AgentBusinessAttributionReader;
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
+use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
 use App\Modules\Order\Application\Contracts\DailyOrderGateway;
 use App\Modules\Order\Application\Data\DailyOrderData;
 use App\Modules\Order\Application\Data\OrderSummaryData;
@@ -24,10 +27,14 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
         private DailyCommissionGateway $commissions,
         private TreatmentReminderGateway $reminders,
         private AuditRecorder $audit,
+        private AccessContextResolver $access,
+        private CustomerOrderReferenceReader $customers,
+        private AgentBusinessAttributionReader $attributions,
     ) {}
 
     public function create(DailyOrderData $data): int
     {
+        $this->assertOrderAgentAccess($data->agentId);
         $this->assertAgent($data->agentId);
 
         return DB::transaction(function () use ($data): int {
@@ -44,6 +51,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
                 'project_name' => trim($data->projectName),
                 'amount_krw' => $data->amountKrw,
                 'completed_on' => $data->status === 'completed' ? $data->completedOn : null,
+                'occurred_on' => $data->status === 'completed' ? $data->completedOn : null,
                 'completed_at' => $completedAt,
                 'completion_precision' => $completedAt === null ? 'date' : 'datetime',
                 'treatment_project_snapshot' => trim($data->projectName),
@@ -54,6 +62,14 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
                 'owner_id' => $data->ownerId,
                 'status' => $data->status,
                 'notes' => $data->notes,
+                'business_attribution_snapshot' => $data->status === 'completed' && $data->completedOn !== null
+                    ? [
+                        'source' => 'daily_order',
+                        'agent' => $this->agents->agentById($data->agentId),
+                        'business_group' => $this->attributions->forAgentOnDate($data->agentId, $data->completedOn),
+                        'occurred_on' => $data->completedOn->toDateString(),
+                    ]
+                    : null,
             ]);
 
             if ($data->status === 'completed') {
@@ -82,6 +98,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
     {
         return DB::transaction(function () use ($orderId, $completedOn, $actorId, $ipAddress): int {
             $order = Order::query()->lockForUpdate()->findOrFail($orderId);
+            $this->assertOrderVisible($order);
             if ($order->status === 'completed') {
                 return (int) $order->id;
             }
@@ -90,9 +107,17 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
             $order->update([
                 'status' => 'completed',
                 'completed_on' => $completedOn,
+                'occurred_on' => $completedOn,
                 'completed_at' => $completedOn->setTimezone('Asia/Shanghai'),
                 'completion_precision' => 'datetime',
                 'treatment_project_snapshot' => $order->treatment_project_snapshot ?: $order->project_name,
+                'business_attribution_snapshot' => [
+                    ...((array) $order->business_attribution_snapshot),
+                    'source' => 'daily_order',
+                    'agent' => $this->agents->agentById((int) $order->agent_id),
+                    'business_group' => $this->attributions->forAgentOnDate((int) $order->agent_id, $completedOn),
+                    'occurred_on' => $completedOn->toDateString(),
+                ],
             ]);
             $this->recordCommission($order, $completedOn, $actorId, $ipAddress);
             $this->scheduleReminders($order, $completedOn, $actorId);
@@ -112,11 +137,15 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
 
     public function forCustomer(int $customerId): array
     {
+        $this->customers->customerForOrder($customerId);
+
         return $this->summaries(Order::query()->where('customer_id', $customerId)->latest('id')->get());
     }
 
     public function forAgent(int $agentId): array
     {
+        abort_unless($this->access->current()->canViewAgent($agentId), 404);
+
         return $this->summaries(Order::query()->where('agent_id', $agentId)->latest('id')->limit(100)->get());
     }
 
@@ -129,6 +158,23 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
         if ($agent['cooperation_status'] !== 'active') {
             throw new DomainException(__('orders.errors.agent_inactive_save'));
         }
+    }
+
+    private function assertOrderAgentAccess(int $agentId): void
+    {
+        $context = $this->access->current();
+        if (! $context->isSuperAdmin() && ! $context->canViewAgent($agentId)) {
+            throw new DomainException(__('orders.errors.agent_required'));
+        }
+    }
+
+    private function assertOrderVisible(Order $order): void
+    {
+        $context = $this->access->current();
+        abort_unless($context->canViewOrder(
+            $order->agent_id === null ? null : (int) $order->agent_id,
+            $order->owner_id === null ? null : (int) $order->owner_id,
+        ), 404);
     }
 
     private function recordCommission(Order $order, CarbonImmutable $completedOn, int $actorId, ?string $ipAddress): void
@@ -178,6 +224,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
                 projectName: (string) $order->project_name,
                 amountKrw: (int) $order->amount_krw,
                 status: (string) $order->status,
+                occurredOn: $order->occurred_on?->format('Y-m-d'),
                 completedOn: $order->completed_on?->format('Y-m-d'),
                 commissionAmountKrw: $commission === null ? null : (int) $commission->amount_krw,
                 commissionRateBps: $commission === null ? null : (int) $commission->rate_bps,

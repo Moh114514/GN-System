@@ -4,7 +4,10 @@ GN-System 是面向医美/医疗代理业务的内部客户管理系统，用于
 Excel 客户、代理商、订单和结算数据。当前已完成 Phase 1 基础架构、Phase 2
 核心数据与导入能力、Phase 3 客户全生命周期及 Phase 4 代理商与推广费核算核心
 闭环、Phase 5 月结、结算单与主动提醒中心，以及 Phase 6 多维查询、真实数据看板
-和配置中心，并已启用独立订单中心；真实历史数据迁移仍待正式源文件、错误处理和抽样核对。
+和配置中心，并已启用独立订单中心。`develop` 已包含角色/业务组、权限范围、负责人移交、
+机构回传订单事实和 BD 季度提成实现；当前 `feature/institution-monthly-sales` 正在补充
+机构月度销售额总览。上述最新能力尚未发布或完成 UAT/Production 验收；真实历史数据迁移仍待
+正式源文件、错误处理和抽样核对。
 
 ## 技术基线
 
@@ -77,8 +80,11 @@ docker compose logs -f app nginx queue scheduler
 # 数据库迁移
 docker compose exec app php artisan migrate
 
-# 生成可重复执行的 Phase 2 本地模拟数据
-docker compose exec app php artisan db:seed --class=PhaseTwoDemoDataSeeder
+# 生成完整、可重复执行的本地开发场景数据
+docker compose exec app php artisan db:seed
+
+# 也可以显式执行开发场景 Seeder
+docker compose exec app php artisan db:seed --class=DevelopmentScenarioSeeder
 
 # 运行完整质量门禁
 docker compose exec app composer ci:check
@@ -161,6 +167,7 @@ app/Modules/
 复制 `.env.example` 后只在本地修改 `.env`。不得提交密码、令牌、证书、真实
 Sentry DSN、钉钉 Webhook/Secret 或云存储凭据。模板已包含 PostgreSQL、Redis、
 日志邮件、备份、Sentry、可选钉钉机器人和可选 S3 配置。
+本地和 UAT 模板默认开启 `APP_IMPERSONATION_ENABLED`，允许超级管理员在网页中以启用且已接受邀请的 BD/客服用户身份测试权限；Production 模板明确关闭，代码还会按 `APP_DEPLOYMENT_ENV=production` 硬关闭。该功能只保存会话中的真实账号和目标账号 ID，不修改任何用户角色或权限数据。
 
 ## 分支规范
 
@@ -181,5 +188,6 @@ PHPStan、PHPUnit、前端构建和 Composer / npm 安全审计。
 - [完整运维手册](docs/operations/operations-manual.md)
 - [CRM 需求文档 v1.9](docs/source/CRM-需求文档-v1.9.md)
 - [架构决策记录](docs/adr/README.md)
+- [PR7 UAT 迁移与发布收尾手册](docs/operations/pr7-uat-migration-runbook.md)
 
 当前实现状态和后续范围以[项目状态](docs/project-status.md)为准。

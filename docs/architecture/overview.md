@@ -1,6 +1,6 @@
 # 当前架构概览
 
-> 最后核验：2026-07-31
+> 最后核验：2026-08-24
 > 本文只描述当前仓库已经采用的架构，不描述未来业务数据流。
 
 ## 系统形态
@@ -29,7 +29,7 @@ MySQL 内容只是历史备选，不是当前支持矩阵。
 - `database/`：迁移、Factory 和 Seeder
 
 Auth 已有完整认证实现；Customer 已交付全生命周期页面；Agent 已交付档案、政策
-等级与配置页面；Order 与 Settlement 已交付最小订单完成、推广费核算和月结审核
+等级与配置页面；Order 与 Settlement 已交付机构回传正式订单、推广费核算和月结审核
 闭环；Reminder 已交付面向内部员工的主动提醒中心；Report 已交付查询、看板和
 导出协调；Config 已交付统一配置目录、用户管理协调和配置历史聚合。模块现状详见
 [项目状态](../project-status.md)，隔离规则详见
@@ -57,12 +57,25 @@ Phase 2 采用 PostgreSQL 关系模型保存机构、代理商、客户、预约
 Application Contract 在单一事务内提交和回滚。私有源文件应用层加密，客户联系方式
 和证件使用加密列与不可逆盲索引。
 
+Report 的机构月度销售额页面通过 Order 的只读报表契约按机构聚合订单，固定使用
+`occurred_on`、`status=completed`、`record_status=active` 和 `amount_krw`，并由
+Auth 的当前有效业务范围在 Order 查询边界执行隔离。页面与私有 XLSX 导出复用同一份
+汇总结果，不新增持久化汇总表。
+
 ## 代理商订单与推广费
 
 Agent 保存代理商、类型、政策等级及月度生效历史；Settlement 保存等级机构固定
-基点费率、代理商机构/全机构特批及订单推广费快照。Order 完成订单时使用同步
+基点费率、代理商机构/全机构特批及订单推广费快照。Order 在机构固定表单回传成功时使用同步
+
+PR6 在 Settlement 内新增版本化 BD 提成规则和季度事实。Settlement 通过 Order 的
+`BdCommissionOrderReader` 读取按 `occurred_on` 的完成订单，订单的
+`business_attribution_snapshot` 保存发生日对应的业务组和 BD 成员快照；季度明细、人工调整、
+审核确认和更正差额均由 Settlement 自己持久化。Order 只通过 Settlement 的
+`BdCommissionCorrectionGateway` 通知已确认季度的订单更正，不直接写 Settlement 表。
 Application Contract 在同一 PostgreSQL 事务中核算和审计；失败时订单完成一并回滚。
-当前所有订单均归属代理商并产生推广费。当前没有领域事件或异步核算。
+当前所有订单均归属代理商并产生推广费。该跨模块事实规则由
+[ADR-0010](../adr/0010-formal-order-facts-and-bd-commission-history.md) 固化；当前没有领域事件
+或异步核算。
 
 ## 月结、文档与主动提醒
 
@@ -90,7 +103,53 @@ Report 只编排数据所有者提供的只读 Application Contract/Data。Order
 只调用 Application 契约聚合操作；高风险配置快照分表保存在所属模块，回滚在所属
 模块的单一事务中完成，不重算历史订单推广费或已结算快照。
 
+Auth 还拥有用户角色、业务组及成员有效期历史；Agent 拥有代理商到业务组的有效期
+历史。两类历史均由 PostgreSQL 日期约束保护重叠关系，配置页面通过 Auth/Agent 的
+Application Contract 管理并展示未归属完整性检查。该基础能力属于新规划 PR1，尚未
+改变订单主流程或 PR2 的业务数据范围执行。
+
 ## 尚未形成的架构
 
 完整订单 CRUD、领域事件、CQRS 和看板预聚合尚未实现。对应源文档是后续设计输入，
 不能据此推断当前能力。
+
+## PR2 access context
+
+The current feature branch adds an Auth-owned access context for role, effective business-group membership, agent assignment, group-user ownership, and a permission fingerprint. Application readers and gateways apply that context to business records, reports, dashboards, saved queries, exports, and settlement documents. Queued exports carry a serialized snapshot and are checked against the current creator context when downloaded. This is scope enforcement inside the existing modular monolith; it does not introduce domain events, CQRS, a new projection store, or a general policy framework.
+
+## PR4 institution return and order facts
+
+The Order module now receives completed business facts from a versioned institution XLSX
+template. The generated workbook contains a very-hidden metadata sheet with a form UUID and
+HMAC signature. The parser accepts Excel serial dates, date objects, and supported string date
+forms, then validates customer identity, date consistency, item quantities, unit prices, and
+amounts before processing.
+
+The original workbook is encrypted into the private storage root. A successful upload atomically
+creates the order fact, item snapshots, commission snapshot, customer treatment completion, two
+postoperative reminders, and audit record. SHA-256 and form UUID uniqueness prevent duplicate
+processing. The `occurred_on` business date is independent from upload time, so cross-month
+uploads remain in the month in which the business occurred. Manual order creation and manual
+completion are no longer exposed by the Order pages.
+
+## PR5 order editing and settlement calculation
+
+Order edits are coordinated by the Order application service and lifecycle gateway. The gateway
+keeps customer, institution, source-agent, and original-file references immutable, validates item
+amounts, uses an optimistic-lock timestamp, records an audit diff, and rebuilds only unsettled
+commission snapshots in the same transaction. The Agent module exposes a narrow date-based
+business-attribution reader so the edited `occurred_on` date determines the saved group snapshot.
+
+Settlement preview and formal generation share the pure `SettlementCalculationService`; preview
+does not create settlement-side rows. Settlement readers use the order business date while keeping
+legacy completed-date snapshot keys for document compatibility. Agent grades are manually configured
+business attributes; settlement generation does not evaluate grades, create grade suggestions, or
+send grade-adjustment notifications.
+
+## PR7 发布收尾边界
+
+新规划 PR1–PR6 的代码在当前 feature worktree 中完成，但尚未合入 `develop`/`main`，也没有
+UAT/Production migration 或人工验收结论。发布必须沿
+`feature -> develop -> main -> v0.6.0-rc.1 -> UAT -> v0.6.0` 执行，并在 UAT 先完成角色、业务组、
+代理商归属和订单事实预检。具体备份、迁移、抽样和恢复步骤见
+[PR7 UAT 迁移与发布收尾手册](../operations/pr7-uat-migration-runbook.md)。

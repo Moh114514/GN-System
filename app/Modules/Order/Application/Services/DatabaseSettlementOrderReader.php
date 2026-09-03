@@ -2,6 +2,7 @@
 
 namespace App\Modules\Order\Application\Services;
 
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Order\Application\Contracts\SettlementOrderReader;
 use App\Modules\Order\Application\Data\SettlementOrderData;
 use App\Modules\Order\Infrastructure\Models\Order;
@@ -9,13 +10,19 @@ use Carbon\CarbonImmutable;
 
 final class DatabaseSettlementOrderReader implements SettlementOrderReader
 {
+    public function __construct(private readonly AccessContextResolver $access) {}
+
     public function completedForAgent(int $agentId, CarbonImmutable $periodStart, CarbonImmutable $periodEnd): array
     {
+        abort_unless($this->access->current()->canViewAgent($agentId), 404);
+
         return Order::query()
             ->where('agent_id', $agentId)
             ->where('status', 'completed')
-            ->whereBetween('completed_on', [$periodStart, $periodEnd])
-            ->orderBy('completed_on')
+            ->where('record_status', 'active')
+            ->whereNotNull('occurred_on')
+            ->whereBetween('occurred_on', [$periodStart, $periodEnd])
+            ->orderBy('occurred_on')
             ->orderBy('id')
             ->get()
             ->map(fn (Order $order): SettlementOrderData => new SettlementOrderData(
@@ -25,7 +32,7 @@ final class DatabaseSettlementOrderReader implements SettlementOrderReader
                 agentId: (int) $order->agent_id,
                 projectName: (string) $order->project_name,
                 amountKrw: (int) $order->amount_krw,
-                completedOn: CarbonImmutable::parse($order->completed_on),
+                completedOn: CarbonImmutable::parse($order->occurred_on),
             ))
             ->all();
     }
@@ -37,9 +44,11 @@ final class DatabaseSettlementOrderReader implements SettlementOrderReader
             return [];
         }
 
-        return Order::query()
+        $query = Order::query()
             ->whereIn('id', $orderIds)
-            ->pluck('id')
+            ->when(! $this->access->current()->isSuperAdmin(), fn ($query) => $query->whereIn('agent_id', $this->access->current()->agentIds));
+
+        return $query->pluck('id')
             ->map(static fn ($id): int => (int) $id)
             ->all();
     }

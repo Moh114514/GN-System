@@ -23,7 +23,7 @@ return [
         'back' => '返回代理商管理', 'profile' => '合作档案', 'edit' => '编辑档案', 'name' => '代理商名称', 'code' => '代理商编号', 'type' => '类型', 'business_role' => '业务角色', 'policy_system' => '政策体系', 'unset_policy' => '未设置政策', 'grade' => '当前等级', 'unset_grade' => '未设置等级', 'contact_name' => '联系人', 'contact_value' => '联系方式', 'started' => '合作开始', 'ended' => '合作结束', 'effective_month' => '等级生效月', 'notes' => '备注', 'customers' => '关联客户', 'customer' => '客户', 'created_at' => '建档时间', 'no_customers' => '暂无关联客户。', 'orders' => '关联订单', 'project_amount' => '项目/金额', 'status' => '状态', 'promotion_fee' => '推广费', 'completed' => '已完成', 'pending' => '待完成', 'no_orders' => '暂无关联订单。', 'empty' => '—',
     ],
     'messages' => ['created' => '代理商档案已创建。', 'updated' => '代理商档案已更新；等级变化将在下月生效。', 'grade_corrected' => '等级补录已保存，当前等级查询已更新。'],
-    'audit' => ['historical_grade_corrected' => '代理商历史等级补录已完成'],
+    'audit' => ['historical_grade_corrected' => '代理商历史等级补录已完成', 'business_group_assignment_created' => '代理商业务组归属已保存', 'business_group_assignment_ended' => '代理商业务组归属已结束'],
     'fallback' => [
         'unset' => '未设置',
         'unknown_policy' => '未知政策',
@@ -51,5 +51,10 @@ return [
         'historical_grade_month_invalid' => '历史等级补录只能写入当前月份之前的月份。',
         'historical_grade_before_cooperation' => '历史等级生效月份不能早于代理商合作开始月份。',
         'grade_correction_requires_missing_current' => '该代理商已有当前有效等级，请使用正常调级流程。',
+        'business_group_date_invalid' => '业务组归属日期格式无效。',
+        'business_group_date_order_invalid' => '结束日期不能早于归属生效日期。',
+        'business_group_reason_required' => '代理商业务组归属必须填写原因。',
+        'business_group_inactive' => '目标业务组未启用。',
+        'business_group_assignment_overlap' => '同一代理商的有效业务组归属期间不能重叠。',
     ],
 ];

@@ -3,6 +3,7 @@
 namespace App\Modules\Auth\Console;
 
 use App\Models\User;
+use App\Modules\Auth\Domain\UserRole;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Validator;
@@ -47,6 +48,7 @@ class CreateAdminCommand extends Command
             'email' => $email,
             'password' => Hash::make($password),
             'is_super_admin' => true,
+            'role' => UserRole::SuperAdmin,
         ]);
         $admin->markEmailAsVerified();
 

@@ -115,7 +115,6 @@ class PhaseTwoDemoDataSeeder extends Seeder
 
         foreach ($grades as $gradeIndex => $grade) {
             DB::table('policy_grades')->where('id', $grade->id)->update([
-                'monthly_threshold_krw' => ($gradeIndex + 1) * 10000000,
                 'sort_order' => ($gradeIndex + 1) * 10,
                 'updated_at' => now(),
             ]);

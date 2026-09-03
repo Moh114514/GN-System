@@ -2,7 +2,7 @@
 
 return [
     'titles' => ['center' => '능동 알림', 'create' => '알림 만들기', 'history' => '알림 기록', 'configuration' => '능동 알림 설정'],
-    'center' => ['description' => '시술 전·방문·시술 후·지정 공휴일 및 사용자 지정 후속 업무를 한곳에서 처리합니다. 알림은 내부 직원에게만 발송됩니다.', 'history' => '알림 기록', 'create' => '알림 만들기', 'pending' => '처리 대기', 'overdue' => '기한 초과', 'completed' => '누적 완료', 'type' => '알림 유형', 'all_types' => '모든 유형', 'appointment' => '시술 전/방문', 'post_treatment' => '시술 후', 'date_offset' => '날짜 규칙', 'fixed_cycle' => '주기 규칙', 'holiday_date' => '지정 공휴일', 'custom' => '상담사 사용자 지정', 'unknown_customer' => '알 수 없는 고객', 'no_script' => '고정 문구가 없습니다. 직원이 직접 작성하세요.', 'due' => '기한 도래', 'complete_notes' => '완료/종료 메모', 'snooze_until' => '연기 시각', 'snooze_reason' => '연기 사유', 'transfer_to' => '담당자 변경', 'select' => '선택하세요', 'mark_complete' => '완료로 표시', 'snooze' => '연기', 'transfer' => '전달', 'cancel' => '종료', 'cancel_action' => '작업 취소', 'retry_notification' => '딩톡 재시도', 'dingtalk' => '딩톡: :status', 'empty' => '처리할 알림이 없습니다.'],
+    'center' => ['due_filter' => '기한 상태', 'all_due' => '모든 알림', 'overdue_only' => '기한 초과만', 'description' => '시술 전·방문·시술 후·지정 공휴일 및 사용자 지정 후속 업무를 한곳에서 처리합니다. 알림은 내부 직원에게만 발송됩니다.', 'history' => '알림 기록', 'create' => '알림 만들기', 'pending' => '처리 대기', 'overdue' => '기한 초과', 'completed' => '누적 완료', 'type' => '알림 유형', 'all_types' => '모든 유형', 'appointment' => '시술 전/방문', 'post_treatment' => '시술 후', 'date_offset' => '날짜 규칙', 'fixed_cycle' => '주기 규칙', 'holiday_date' => '지정 공휴일', 'custom' => '상담사 사용자 지정', 'unknown_customer' => '알 수 없는 고객', 'no_script' => '고정 문구가 없습니다. 직원이 직접 작성하세요.', 'due' => '기한 도래', 'complete_notes' => '완료/종료 메모', 'snooze_until' => '연기 시각', 'snooze_reason' => '연기 사유', 'transfer_to' => '담당자 변경', 'select' => '선택하세요', 'mark_complete' => '완료로 표시', 'snooze' => '연기', 'transfer' => '전달', 'cancel' => '종료', 'cancel_action' => '작업 취소', 'retry_notification' => '딩톡 재시도', 'dingtalk' => '딩톡: :status', 'empty' => '처리할 알림이 없습니다.'],
     'statuses' => ['pending' => '처리 대기', 'completed' => '완료', 'cancelled' => '종료됨', 'overdue' => '기한 도래'],
     'notification_statuses' => ['pending' => '발송 대기', 'queued' => '대기열', 'sent' => '발송됨', 'failed' => '발송 실패', 'disabled' => '사용 안 함'],
     'create' => ['back' => '능동 알림으로 돌아가기', 'eyebrow' => '고객 후속 관리', 'description' => '일회성 또는 반복 알림을 만들고 템플릿으로 빠르게 시작할 수 있습니다.', 'template' => '알림 템플릿', 'without_template' => '템플릿 사용 안 함', 'customer' => '연결 고객', 'select_customer' => '선택하세요', 'title' => '알림 제목', 'assignee' => '담당자', 'due_at' => '알림 시각', 'suggestion' => '제안 방향（고정 문구 아님）', 'notes' => '자유 문구/업무 메모', 'recurrence' => '반복 주기', 'once' => '한 번만', 'day' => 'N일마다', 'week' => 'N주마다', 'month' => 'N개월마다', 'interval' => '주기 수 N', 'save_template' => '내 개인 템플릿으로 저장', 'template_name' => '개인 템플릿 이름', 'submit' => '알림 만들기'],
@@ -49,7 +49,7 @@ return [
     ],
     'system_reminders' => [
         'pre_visit_3_days' => ['title' => '시술 3일 전 확인', 'suggestion' => '방문 준비와 시술 전 주의사항을 확인합니다'],
-        'arrival_previous_day' => ['title' => '방문 하루 전 고객 연락', 'suggestion' => '고객에게 연락하여 방문 시간, 교통 및 숙박 일정을 확인합니다'],
+        'arrival_previous_day' => ['title' => '방문 하루 전 고객 연락', 'suggestion' => '고객에게 연락하여 예정 방문 시간, 교통 및 숙박 일정을 확인합니다', 'expected_arrival' => '예정 방문 시각: :scheduled_at'],
         'arrival_today' => ['title' => '오늘 고객 연락 및 방문 확인', 'suggestion' => '고객에게 연락하여 방문 후 응대 절차를 확인합니다'],
         'post_treatment' => [
             'title' => '시술 후 :days일차 후속 관리',

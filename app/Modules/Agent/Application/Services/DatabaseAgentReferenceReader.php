@@ -4,21 +4,25 @@ namespace App\Modules\Agent\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Agent\Infrastructure\Models\Agent;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 
 final class DatabaseAgentReferenceReader implements AgentReferenceReader
 {
+    public function __construct(private readonly AccessContextResolver $access) {}
+
     public function activeAgents(): array
     {
         return $this->serialize(
-            Agent::query()->where('cooperation_status', 'active')->orderBy('name')->get(['id', 'code', 'name', 'cooperation_status']),
+            $this->scoped(Agent::query())->where('cooperation_status', 'active')->orderBy('name')->get(['id', 'code', 'name', 'cooperation_status']),
         );
     }
 
     public function agentsByIds(array $ids): array
     {
         return $this->serialize(
-            Agent::query()->whereKey(array_values(array_unique($ids)))->get(['id', 'code', 'name', 'cooperation_status']),
+            $this->scoped(Agent::query())->whereKey(array_values(array_unique($ids)))->get(['id', 'code', 'name', 'cooperation_status']),
         );
     }
 
@@ -27,7 +31,7 @@ final class DatabaseAgentReferenceReader implements AgentReferenceReader
         $search = trim($search);
 
         return $this->serialize(
-            Agent::query()
+            $this->scoped(Agent::query())
                 ->when($search !== '', fn ($query) => $query->where(function ($query) use ($search): void {
                     $term = '%'.$search.'%';
                     $query->where('name', 'ilike', $term)
@@ -40,7 +44,7 @@ final class DatabaseAgentReferenceReader implements AgentReferenceReader
 
     public function agentById(int $id): array
     {
-        $agent = Agent::query()->findOrFail($id, ['id', 'code', 'name', 'cooperation_status']);
+        $agent = $this->scoped(Agent::query())->findOrFail($id, ['id', 'code', 'name', 'cooperation_status']);
 
         return [
             'id' => (int) $agent->id,
@@ -67,5 +71,21 @@ final class DatabaseAgentReferenceReader implements AgentReferenceReader
         }
 
         return $result;
+    }
+
+    /**
+     * @param  Builder<Agent>  $query
+     * @return Builder<Agent>
+     */
+    private function scoped(Builder $query): Builder
+    {
+        $context = $this->access->current();
+        if ($context->isSuperAdmin()) {
+            return $query;
+        }
+
+        return ! $context->hasEffectiveBusinessScope()
+            ? $query->whereRaw('1 = 0')
+            : $query->whereKey($context->agentIds);
     }
 }

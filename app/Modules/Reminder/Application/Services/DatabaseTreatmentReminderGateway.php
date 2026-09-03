@@ -136,4 +136,30 @@ final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
                 ]);
             });
     }
+
+    public function transferForCustomer(int $customerId, int $ownerId, int $actorId): int
+    {
+        $reminders = Reminder::query()
+            ->where('customer_id', $customerId)
+            ->whereIn('status', ['pending', 'snoozed', 'transferred'])
+            ->lockForUpdate()
+            ->get();
+        foreach ($reminders as $reminder) {
+            $before = $reminder->assigned_to;
+            $reminder->update([
+                'assigned_to' => $ownerId,
+                'status' => 'transferred',
+                'notification_status' => 'pending',
+            ]);
+            ReminderEvent::query()->create([
+                'reminder_id' => $reminder->id,
+                'event' => 'owner_transferred',
+                'actor_id' => $actorId,
+                'properties' => ['before' => $before, 'after' => $ownerId],
+                'occurred_at' => CarbonImmutable::now(),
+            ]);
+        }
+
+        return $reminders->count();
+    }
 }

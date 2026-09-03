@@ -41,6 +41,7 @@ return [
         'customer_config_rolled_back' => '客户状态与流转配置已回滚',
         'historical_import_completed' => '完成历史数据导入',
         'historical_import_rolled_back' => '回滚历史数据导入',
+        'historical_order_attribution_backfilled' => '完成历史订单归属快照回填',
         'import_row_adjudicated' => '人工裁决导入行',
         'reference_import_completed' => '完成基础配置导入',
         'reminder_rule_saved' => '主动提醒规则已保存',

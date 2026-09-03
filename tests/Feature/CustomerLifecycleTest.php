@@ -4,8 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Modules\Agent\Infrastructure\Models\Agent;
+use App\Modules\Agent\Infrastructure\Models\AgentBusinessGroupAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Infrastructure\Models\BusinessGroup;
+use App\Modules\Auth\Infrastructure\Models\BusinessGroupMembership;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Application\Data\CustomerProfileData;
 use App\Modules\Customer\Application\Exceptions\CustomerCodeChanged;
@@ -22,6 +25,8 @@ use App\Modules\Customer\Infrastructure\Models\CustomerStatusTransition;
 use App\Modules\Customer\Presentation\Livewire\CustomerDetail;
 use App\Modules\Customer\Presentation\Livewire\CustomerForm;
 use App\Modules\Customer\Presentation\Livewire\CustomerList;
+use App\Modules\Order\Infrastructure\Models\Appointment;
+use App\Modules\Order\Presentation\Livewire\CustomerOrderRegistration;
 use App\Modules\Reminder\Infrastructure\Models\Reminder;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
@@ -42,17 +47,40 @@ class CustomerLifecycleTest extends TestCase
 
     private Institution $institution;
 
+    private BusinessGroup $businessGroup;
+
     protected function setUp(): void
     {
         parent::setUp();
         $this->seed(PhaseTwoReferenceDataSeeder::class);
         $this->user = User::factory()->create();
+        $this->businessGroup = BusinessGroup::query()->create([
+            'code' => 'TEST-GROUP',
+            'name' => '测试业务组',
+            'is_active' => true,
+            'created_by' => $this->user->id,
+        ]);
+        BusinessGroupMembership::query()->create([
+            'business_group_id' => $this->businessGroup->id,
+            'user_id' => $this->user->id,
+            'member_role' => 'customer_service',
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $this->user->id,
+            'reason' => 'lifecycle test scope',
+        ]);
         $type = AgentTypeCode::query()->where('code', 'JG')->firstOrFail();
         $this->agent = Agent::query()->create([
             'agent_type_code_id' => $type->id,
             'code' => 'TEST-JG',
             'name' => '测试代理商',
             'cooperation_status' => 'active',
+        ]);
+        AgentBusinessGroupAssignment::query()->create([
+            'agent_id' => $this->agent->id,
+            'business_group_id' => $this->businessGroup->id,
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $this->user->id,
+            'reason' => 'lifecycle test scope',
         ]);
         $this->institution = Institution::query()->firstOrFail();
     }
@@ -61,6 +89,14 @@ class CustomerLifecycleTest extends TestCase
     {
         $manager = app(CustomerProfileManager::class);
         $owner = User::factory()->create(['name' => '指定负责人']);
+        BusinessGroupMembership::query()->create([
+            'business_group_id' => $this->businessGroup->id,
+            'user_id' => $owner->id,
+            'member_role' => 'customer_service',
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $this->user->id,
+            'reason' => 'lifecycle test scope',
+        ]);
         $code = $manager->previewCode($this->agent->id);
         $customerId = $manager->create(
             profile: $this->profile(),
@@ -244,28 +280,57 @@ class CustomerLifecycleTest extends TestCase
         $this->assertSame('补录历史客户状态', $history->reason);
     }
 
-    public function test_treatment_completed_creates_only_two_idempotent_passive_reminders(): void
+    public function test_customer_detail_uses_an_inline_order_registration_modal_with_the_appointment_institution(): void
+    {
+        $customerId = $this->createCustomer();
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+        app(CustomerStatusManager::class)->change($customerId, $arrived->id, '客户已到院', $this->user, null);
+
+        $response = $this->actingAs($this->user)->get(route('customers.show', $customerId));
+
+        $response->assertOk()
+            ->assertSee(__('customers.detail.actions.register_order'))
+            ->assertSee(__('orders.registration.title'))
+            ->assertSee($this->institution->name)
+            ->assertSee('customer-order-registration', false)
+            ->assertDontSee('href="'.route('customers.orders', $customerId).'"', false);
+    }
+
+    public function test_customer_detail_keeps_completed_appointment_history_visible(): void
+    {
+        $customerId = $this->createCustomer();
+        Appointment::query()->where('customer_id', $customerId)->update(['status' => 'completed']);
+
+        $this->actingAs($this->user)->get(route('customers.show', $customerId))
+            ->assertOk()
+            ->assertSee(__('orders.appointment_schedule.title'))
+            ->assertSee('2026-08-01 00:00');
+    }
+
+    public function test_treatment_completed_cannot_be_set_from_the_manual_status_form(): void
     {
         $customerId = $this->createCustomer();
         $manager = app(CustomerStatusManager::class);
         $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
         $completed = CustomerStatus::query()->where('key', 'treatment_completed')->firstOrFail();
-        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
 
         $manager->change($customerId, $arrived->id, '客户已到院', $this->user, null);
-        $manager->change($customerId, $completed->id, '施术完成', $this->user, null);
-        $manager->change($customerId, $arrived->id, '管理员回退到院', $admin, null);
-        $manager->change($customerId, $completed->id, '再次确认施术完成', $admin, null);
 
-        $this->assertSame(2, Reminder::query()->where('customer_id', $customerId)->count());
-        $completedAt = Customer::query()->findOrFail($customerId)->treatment_completed_at;
-        $this->assertNotNull($completedAt);
-        $this->assertSame(
-            [$completedAt->addDays(7)->setTime(9, 0)->toDateTimeString(), $completedAt->addDays(30)->setTime(9, 0)->toDateTimeString()],
-            Reminder::query()->where('customer_id', $customerId)->orderBy('due_at')->pluck('due_at')->map(
-                fn ($dueAt): string => CarbonImmutable::parse($dueAt)->toDateTimeString(),
-            )->all(),
-        );
+        try {
+            $manager->change($customerId, $completed->id, '施术完成', $this->user, null);
+            $this->fail('Expected manual treatment completion to be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                __('customers.form.validation.treatment_completed_requires_order'),
+                $exception->errors()['targetStatusId'][0],
+            );
+        }
+
+        $this->assertDatabaseHas('customers', [
+            'id' => $customerId,
+            'current_status_id' => $arrived->id,
+        ]);
+        $this->assertDatabaseCount('reminders', 0);
     }
 
     public function test_status_flow_marks_current_completed_and_available_nodes_without_edit_controls(): void
@@ -333,7 +398,7 @@ class CustomerLifecycleTest extends TestCase
             ->assertSee('data-status-key="treatment_completed" data-status-state="available"', false)
             ->assertSee('data-transition-visited="true"', false)
             ->assertDontSee('data-flow-history-transitions', false)
-            ->assertDontSee('wire:click', false);
+            ->assertDontSee('wire:click="changeStatus"', false);
     }
 
     public function test_super_admin_can_rollback_and_configuration_is_protected(): void
@@ -345,7 +410,10 @@ class CustomerLifecycleTest extends TestCase
         $admin = User::factory()->superAdmin()->withTwoFactor()->create();
 
         $manager->change($customerId, $arrived->id, '客户已到院', $this->user, null);
+        $appointment = Appointment::query()->where('customer_id', $customerId)->firstOrFail();
+        $this->assertSame('arrived', $appointment->refresh()->status);
         $manager->change($customerId, $booked->id, '主管确认退回已预约', $admin, null);
+        $this->assertSame('scheduled', $appointment->refresh()->status);
         $this->assertDatabaseHas('customer_status_histories', [
             'customer_id' => $customerId,
             'from_status_id' => $arrived->id,
@@ -468,6 +536,7 @@ class CustomerLifecycleTest extends TestCase
             ->set('statusId', '1')
             ->set('agentId', (string) $this->agent->id)
             ->set('institutionId', (string) $this->institution->id)
+            ->set('ownerId', (string) $this->user->id)
             ->set('createdFrom', '2026-08-01')
             ->set('createdTo', '2026-08-31')
             ->set('perPage', 50)
@@ -476,6 +545,7 @@ class CustomerLifecycleTest extends TestCase
             ->assertSet('statusId', '')
             ->assertSet('agentId', '')
             ->assertSet('institutionId', '')
+            ->assertSet('ownerId', '')
             ->assertSet('createdFrom', '')
             ->assertSet('createdTo', '')
             ->assertSet('perPage', 20);
@@ -632,15 +702,66 @@ class CustomerLifecycleTest extends TestCase
             ->assertDontSee('客户状态配置');
     }
 
+    public function test_arrival_updates_appointment_and_cancels_pending_arrival_reminder(): void
+    {
+        $customerId = $this->createCustomer();
+        $appointment = Appointment::query()->where('customer_id', $customerId)->firstOrFail();
+        Reminder::query()->create([
+            'customer_id' => $customerId,
+            'appointment_id' => $appointment->id,
+            'assigned_to' => $this->user->id,
+            'source_type' => 'system',
+            'reminder_type' => 'appointment',
+            'title' => '到院前一天联系客户',
+            'due_at' => '2026-08-01 18:00:00',
+            'status' => 'pending',
+            'notification_status' => 'sent',
+            'dedupe_key' => hash('sha256', 'arrival-reminder-test'),
+        ]);
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+
+        app(CustomerStatusManager::class)->change($customerId, $arrived->id, '客户已到院', $this->user, null);
+
+        $this->assertSame('arrived', $appointment->refresh()->status);
+        $this->assertDatabaseHas('reminders', [
+            'appointment_id' => $appointment->id,
+            'status' => 'cancelled',
+            'notification_status' => 'sent',
+        ]);
+    }
+
+    public function test_order_registration_refreshes_when_customer_arrives_without_a_full_page_reload(): void
+    {
+        $customerId = $this->createCustomer();
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+        $component = Livewire::actingAs($this->user)
+            ->test(CustomerOrderRegistration::class, ['customerId' => $customerId])
+            ->assertSee(__('orders.errors.customer_not_arrived'));
+
+        app(CustomerStatusManager::class)->change($customerId, $arrived->id, '客户已到院', $this->user, null);
+
+        $component->dispatch('customer-status-updated', customerId: $customerId)
+            ->assertDontSee(__('orders.errors.customer_not_arrived'));
+    }
+
     public function test_customer_form_defaults_owner_and_only_lists_eligible_internal_users(): void
     {
         $eligible = User::factory()->create(['name' => '可选负责人']);
+        BusinessGroupMembership::query()->create([
+            'business_group_id' => $this->businessGroup->id,
+            'user_id' => $eligible->id,
+            'member_role' => 'customer_service',
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $this->user->id,
+            'reason' => 'lifecycle test scope',
+        ]);
         $inactive = User::factory()->create(['name' => '停用负责人', 'is_active' => false]);
         $pending = User::factory()->create(['name' => '待接受负责人', 'invitation_status' => 'pending']);
 
         Livewire::actingAs($this->user)
             ->test(CustomerForm::class)
             ->assertSet('ownerId', (string) $this->user->id)
+            ->assertSet('arrivalAt', '')
             ->assertSee($this->user->name)
             ->assertSee($eligible->name)
             ->assertDontSee($inactive->name)

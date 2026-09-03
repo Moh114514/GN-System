@@ -41,6 +41,7 @@ return [
         'customer_config_rolled_back' => '고객 상태 및 전환 설정이 롤백되었습니다',
         'historical_import_completed' => '과거 데이터 가져오기가 완료되었습니다',
         'historical_import_rolled_back' => '과거 데이터 가져오기가 롤백되었습니다',
+        'historical_order_attribution_backfilled' => '과거 주문 귀속 스냅샷을 보완했습니다',
         'import_row_adjudicated' => '가져오기 행이 수동 판정되었습니다',
         'reference_import_completed' => '기준 설정 가져오기가 완료되었습니다',
         'reminder_rule_saved' => '능동 알림 규칙이 저장되었습니다',

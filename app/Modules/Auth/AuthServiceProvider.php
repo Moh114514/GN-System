@@ -4,18 +4,29 @@ namespace App\Modules\Auth;
 
 use App\Infrastructure\Localization\SupportedLocale;
 use App\Models\User;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
+use App\Modules\Auth\Application\Contracts\BusinessGroupBdAttributionReader;
+use App\Modules\Auth\Application\Contracts\BusinessGroupManagementGateway;
+use App\Modules\Auth\Application\Contracts\BusinessGroupMembershipReader;
+use App\Modules\Auth\Application\Contracts\BusinessGroupReferenceReader;
 use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
 use App\Modules\Auth\Application\Contracts\ReportUserReader;
 use App\Modules\Auth\Application\Contracts\UserManagementGateway;
+use App\Modules\Auth\Application\Services\DatabaseAccessContextResolver;
+use App\Modules\Auth\Application\Services\DatabaseBusinessGroupBdAttributionReader;
+use App\Modules\Auth\Application\Services\DatabaseBusinessGroupManagementGateway;
+use App\Modules\Auth\Application\Services\DatabaseBusinessGroupMembershipReader;
 use App\Modules\Auth\Application\Services\DatabaseInternalUserReferenceReader;
 use App\Modules\Auth\Application\Services\DatabaseReportUserReader;
 use App\Modules\Auth\Application\Services\DatabaseUserManagementGateway;
+use App\Modules\Auth\Application\Services\UserImpersonationService;
 use App\Modules\Auth\Console\CreateAdminCommand;
 use App\Modules\Auth\Console\DisableAdminCommand;
 use App\Modules\Auth\Console\EnableAdminCommand;
 use App\Modules\Auth\Console\ListAdminsCommand;
 use App\Modules\Auth\Console\ResetAdminPasswordCommand;
 use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\ServiceProvider;
 
@@ -24,6 +35,11 @@ class AuthServiceProvider extends ServiceProvider
     public function register(): void
     {
         $this->app->bind(InternalUserReferenceReader::class, DatabaseInternalUserReferenceReader::class);
+        $this->app->bind(BusinessGroupManagementGateway::class, DatabaseBusinessGroupManagementGateway::class);
+        $this->app->bind(BusinessGroupBdAttributionReader::class, DatabaseBusinessGroupBdAttributionReader::class);
+        $this->app->bind(BusinessGroupMembershipReader::class, DatabaseBusinessGroupMembershipReader::class);
+        $this->app->scoped(AccessContextResolver::class, DatabaseAccessContextResolver::class);
+        $this->app->bind(BusinessGroupReferenceReader::class, DatabaseBusinessGroupManagementGateway::class);
         $this->app->bind(ReportUserReader::class, DatabaseReportUserReader::class);
         $this->app->bind(UserManagementGateway::class, DatabaseUserManagementGateway::class);
     }
@@ -32,6 +48,7 @@ class AuthServiceProvider extends ServiceProvider
     {
         Event::listen(Login::class, function (Login $event): void {
             if ($event->user instanceof User && request()->hasSession()) {
+                app(UserImpersonationService::class)->clear();
                 $sessionLocale = SupportedLocale::fromCandidate(
                     request()->session()->get((string) config('localization.session_key', 'locale')),
                 );
@@ -48,6 +65,10 @@ class AuthServiceProvider extends ServiceProvider
 
                 request()->session()->put('auth.session_version', $event->user->session_version);
             }
+        });
+
+        Event::listen(Logout::class, function (): void {
+            app(UserImpersonationService::class)->clear();
         });
 
         if ($this->app->runningInConsole()) {

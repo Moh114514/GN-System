@@ -157,7 +157,7 @@ class ReferenceConfigurationImportTest extends TestCase
         $this->assertDatabaseHas('institutions', ['code' => 'UAT-HOSP', 'name' => 'UAT 示例机构']);
         $this->assertDatabaseHas('institution_aliases', ['alias' => '示例医院']);
         $this->assertDatabaseHas('policy_systems', ['name' => 'UAT 示例政策']);
-        $this->assertDatabaseHas('policy_grades', ['name' => 'UAT 银级', 'monthly_threshold_krw' => 1000000]);
+        $this->assertDatabaseHas('policy_grades', ['name' => 'UAT 银级', 'sort_order' => 10]);
         $this->assertDatabaseHas('commission_rules', ['rate_bps' => 1200, 'is_active' => true]);
         $this->assertDatabaseHas('agents', ['code' => 'UATP5-UAT', 'name' => 'UAT 示例代理商']);
         $this->assertDatabaseCount('agent_grade_assignments', 1);
@@ -393,7 +393,6 @@ class ReferenceConfigurationImportTest extends TestCase
         $grade = PolicyGrade::query()->create([
             'policy_system_id' => $system->id,
             'name' => '测试等级',
-            'monthly_threshold_krw' => 0,
             'sort_order' => 1,
             'is_active' => true,
         ]);

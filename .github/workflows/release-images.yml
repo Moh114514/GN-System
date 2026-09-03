@@ -96,10 +96,12 @@ jobs:
         if: steps.release.outputs.mode == 'rc'
         run: |
           sudo apt-get update
-          sudo apt-get install --no-install-recommends --yes fonts-noto-cjk python3-fonttools
-          sudo mkdir -p /usr/local/share/fonts/gn-system
-          sudo python3 -c "from fontTools.ttLib import TTCollection; font = TTCollection('/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc').fonts[0]; assert all(ord(char) in font.getBestCmap() for char in '中한가123GN-System'); font.save('/usr/local/share/fonts/gn-system/NotoSansCJK-Regular.otf')"
-          test -r /usr/local/share/fonts/gn-system/NotoSansCJK-Regular.otf
+          sudo apt-get install --no-install-recommends --yes fonts-noto-cjk poppler-utils python3-fonttools
+          sudo python3 scripts/build-cjk-font.py /tmp/GNSystemSans-Regular.ttf /tmp/GNSystemSans-Bold.ttf
+          sudo install -D -m 0644 /tmp/GNSystemSans-Regular.ttf /usr/local/share/fonts/gn-system/GNSystemSans-Regular.ttf
+          sudo install -D -m 0644 /tmp/GNSystemSans-Bold.ttf /usr/local/share/fonts/gn-system/GNSystemSans-Bold.ttf
+          test -r /usr/local/share/fonts/gn-system/GNSystemSans-Regular.ttf
+          test -r /usr/local/share/fonts/gn-system/GNSystemSans-Bold.ttf
 
       - name: Setup PHP
         if: steps.release.outputs.mode == 'rc'

@@ -6,12 +6,14 @@ use App\Modules\Customer\Application\Contracts\AgentCustomerPortfolioReader;
 use App\Modules\Customer\Application\Contracts\ConfigurationHistoryGateway;
 use App\Modules\Customer\Application\Contracts\CustomerImportGateway;
 use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
+use App\Modules\Customer\Application\Contracts\CustomerTreatmentCompletionGateway;
 use App\Modules\Customer\Application\Contracts\ReminderCustomerReader;
 use App\Modules\Customer\Application\Contracts\ReportCustomerReader;
 use App\Modules\Customer\Application\Services\DatabaseAgentCustomerPortfolioReader;
 use App\Modules\Customer\Application\Services\DatabaseConfigurationHistoryGateway;
 use App\Modules\Customer\Application\Services\DatabaseCustomerImportGateway;
 use App\Modules\Customer\Application\Services\DatabaseCustomerOrderReferenceReader;
+use App\Modules\Customer\Application\Services\DatabaseCustomerTreatmentCompletionGateway;
 use App\Modules\Customer\Application\Services\DatabaseReminderCustomerReader;
 use App\Modules\Customer\Application\Services\DatabaseReportCustomerReader;
 use App\Modules\Customer\Presentation\Livewire\CustomerDetail;
@@ -27,6 +29,7 @@ class CustomerServiceProvider extends ServiceProvider
     {
         $this->app->bind(CustomerImportGateway::class, DatabaseCustomerImportGateway::class);
         $this->app->bind(CustomerOrderReferenceReader::class, DatabaseCustomerOrderReferenceReader::class);
+        $this->app->bind(CustomerTreatmentCompletionGateway::class, DatabaseCustomerTreatmentCompletionGateway::class);
         $this->app->bind(AgentCustomerPortfolioReader::class, DatabaseAgentCustomerPortfolioReader::class);
         $this->app->bind(ReminderCustomerReader::class, DatabaseReminderCustomerReader::class);
         $this->app->bind(ReportCustomerReader::class, DatabaseReportCustomerReader::class);

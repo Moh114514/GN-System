@@ -8,9 +8,18 @@
                     <h2 class="text-lg font-semibold">{{ __('customers.detail.profile.heading') }}</h2>
                     <div class="flex flex-wrap items-center gap-2">
                         <span class="crm-pill tone-blue">{{ $customer['current_status'] }}</span>
-                        <flux:button :href="route('reminders.create', ['customer' => $customer['id']])" size="sm" icon="bell-alert" wire:navigate>{{ __('customers.detail.actions.add_followup_reminder') }}</flux:button>
-                        <flux:button :href="route('customers.orders', $customer['id'])" size="sm" icon="banknotes" wire:navigate>{{ __('customers.detail.actions.register_order') }}</flux:button>
-                        <flux:button :href="route('customers.edit', $customer['id'])" size="sm" icon="pencil-square" wire:navigate>{{ __('customers.detail.actions.edit_profile') }}</flux:button>
+                        @php
+                            $currentUser = auth()->user();
+                            $canOperateCustomer = $currentUser->is_super_admin || $currentUser->isBdManager() || ($currentUser->isCustomerService() && (int) $customer['owner_id'] === (int) $currentUser->id);
+                            $canReviewCustomer = $currentUser->is_super_admin || $currentUser->isBdManager();
+                        @endphp
+                        @if ($canOperateCustomer)
+                            <flux:button :href="route('reminders.create', ['customer' => $customer['id']])" size="sm" icon="bell-alert" wire:navigate>{{ __('customers.detail.actions.add_followup_reminder') }}</flux:button>
+                            <flux:modal.trigger name="customer-order-registration">
+                                <flux:button type="button" size="sm" icon="banknotes">{{ __('customers.detail.actions.register_order') }}</flux:button>
+                            </flux:modal.trigger>
+                            <flux:button :href="route('customers.edit', $customer['id'])" size="sm" icon="pencil-square" wire:navigate>{{ __('customers.detail.actions.edit_profile') }}</flux:button>
+                        @endif
                     </div>
                 </div>
                 <dl class="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
@@ -21,6 +30,8 @@
                     <div><dt class="text-xs text-zinc-500">{{ __('customers.detail.profile.birth_date') }}</dt><dd class="mt-1 font-medium">{{ $customer['birth_date'] }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('customers.detail.profile.source_type') }}</dt><dd class="mt-1 font-medium">{{ $customer['source_agent_name'] ?? __('customers.fallback.unknown_agent') }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('customers.detail.profile.project_intention') }}</dt><dd class="mt-1 font-medium">{{ $customer['project_intention'] }}</dd></div>
+                    <div><dt class="text-xs text-zinc-500">{{ __('customers.detail.profile.owner') }}</dt><dd class="mt-1 font-medium">{{ $customer['owner_name'] ?: __('customers.fallback.unset') }}</dd></div>
+                    <div><dt class="text-xs text-zinc-500">{{ __('customers.detail.profile.arrived_at') }}</dt><dd class="mt-1 font-medium">{{ $customer['arrived_at'] ?: __('customers.fallback.unset') }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('customers.detail.profile.created_at') }}</dt><dd class="mt-1 font-medium">{{ $customer['created_at'] }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('customers.detail.profile.notes') }}</dt><dd class="mt-1 font-medium">{{ $customer['notes'] ?: __('customers.detail.profile.empty_notes') }}</dd></div>
                 </dl>
@@ -96,6 +107,8 @@
                 @endif
             </section>
 
+            @livewire(\App\Modules\Order\Presentation\Livewire\CustomerAppointmentSchedule::class, ['customerId' => $customer['id']])
+
             <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
                 <div class="flex flex-wrap items-center justify-between gap-3">
                     <h3 class="text-lg font-semibold">{{ __('customers.detail.timeline.heading') }}</h3>
@@ -106,6 +119,7 @@
                         <flux:select.option value="order">{{ __('customers.detail.timeline.order') }}</flux:select.option>
                         <flux:select.option value="followup">{{ __('customers.detail.timeline.followup') }}</flux:select.option>
                         <flux:select.option value="status">{{ __('customers.detail.timeline.status') }}</flux:select.option>
+                        <flux:select.option value="owner">{{ __('customers.detail.timeline.owner') }}</flux:select.option>
                         <flux:select.option value="profile">{{ __('customers.detail.timeline.profile') }}</flux:select.option>
                     </flux:select>
                 </div>
@@ -134,26 +148,103 @@
         <aside class="space-y-6">
             <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
                 <h3 class="font-semibold">{{ __('customers.detail.status.heading') }}</h3>
-                <form wire:submit="changeStatus" class="mt-4 space-y-3">
-                    <flux:select wire:model="targetStatusId" :label="__('customers.detail.status.target')" required>
-                        <flux:select.option value="">{{ __('customers.form.select') }}</flux:select.option>
-                        @foreach ($options['statuses'] as $status)
-                            <flux:select.option value="{{ $status['id'] }}">{{ $status['name'] }}</flux:select.option>
-                        @endforeach
-                    </flux:select>
-                    <flux:textarea wire:model="statusReason" :label="__('customers.detail.status.reason')" rows="3" required />
-                    <flux:button type="submit" variant="primary" class="w-full">{{ __('customers.detail.status.submit') }}</flux:button>
-                </form>
+                @if ($canOperateCustomer)
+                    <form wire:submit="changeStatus" class="mt-4 space-y-3">
+                        <flux:select wire:model="targetStatusId" :label="__('customers.detail.status.target')" required>
+                            <flux:select.option value="">{{ __('customers.form.select') }}</flux:select.option>
+                            @foreach ($options['statuses'] as $status)
+                                @if ($status['key'] !== 'treatment_completed')
+                                    <flux:select.option value="{{ $status['id'] }}">{{ $status['name'] }}</flux:select.option>
+                                @endif
+                            @endforeach
+                        </flux:select>
+                        <flux:textarea wire:model="statusReason" :label="__('customers.detail.status.reason')" rows="3" required />
+                        <flux:button type="submit" variant="primary" class="w-full">{{ __('customers.detail.status.submit') }}</flux:button>
+                    </form>
+                @else
+                    <p class="mt-3 text-sm text-zinc-500">{{ __('customers.detail.status.read_only') }}</p>
+                @endif
             </section>
+            @if ($canOperateCustomer && auth()->user()->isCustomerService() && (int) $customer['owner_id'] === (int) auth()->id())
+                <section class="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm dark:border-amber-900 dark:bg-amber-950/20">
+                    <h3 class="font-semibold">{{ __('customers.detail.status_approval.heading') }}</h3>
+                    @if ($rollbackRequest)
+                        @php($rollbackStatus = collect($options['statuses'])->firstWhere('id', $rollbackRequest['to_status_id']))
+                        <p class="mt-3 text-sm text-zinc-600">{{ __('customers.detail.status_approval.pending', ['status' => $rollbackStatus['name'] ?? __('customers.fallback.unknown_status'), 'reason' => $rollbackRequest['reason']]) }}</p>
+                        <flux:button wire:click="withdrawRollback" class="mt-3 w-full" variant="ghost">{{ __('customers.detail.status_approval.withdraw') }}</flux:button>
+                    @else
+                        <form wire:submit="requestRollback" class="mt-4 space-y-3">
+                            <flux:select wire:model="targetStatusId" :label="__('customers.detail.status_approval.target')" required>
+                                <flux:select.option value="">{{ __('customers.form.select') }}</flux:select.option>
+                                @foreach ($options['statuses'] as $status)
+                                    @if ($status['sort_order'] < (collect($options['statuses'])->firstWhere('id', $customer['current_status_id'])['sort_order'] ?? PHP_INT_MAX))
+                                        <flux:select.option value="{{ $status['id'] }}">{{ $status['name'] }}</flux:select.option>
+                                    @endif
+                                @endforeach
+                            </flux:select>
+                            <flux:textarea wire:model="statusReason" :label="__('customers.detail.status_approval.reason')" rows="3" required />
+                            <flux:button type="submit" class="w-full">{{ __('customers.detail.status_approval.submit_request') }}</flux:button>
+                        </form>
+                    @endif
+                </section>
+            @endif
+            <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+                <h3 class="font-semibold">{{ __('customers.detail.transfer.heading') }}</h3>
+                @if ($transferRequest)
+                    <p class="mt-3 text-sm text-zinc-600">{{ __('customers.detail.transfer.pending', ['owner' => $transferRequest['to_owner_name'], 'reason' => $transferRequest['reason']]) }}</p>
+                    @if (auth()->user()->isCustomerService() && (int) $transferRequest['requested_by'] === (int) auth()->id())
+                        <flux:button wire:click="withdrawTransfer" class="mt-3 w-full" variant="ghost">{{ __('customers.detail.transfer.withdraw') }}</flux:button>
+                    @elseif ($canReviewCustomer)
+                        <div class="mt-4 space-y-3">
+                            <flux:textarea wire:model="transferReviewReason" :label="__('customers.detail.transfer.review_reason')" rows="2" required />
+                            <div class="grid grid-cols-2 gap-2">
+                                <flux:button wire:click="approveTransfer" variant="primary">{{ __('customers.detail.transfer.approve') }}</flux:button>
+                                <flux:button wire:click="rejectTransfer" variant="ghost">{{ __('customers.detail.transfer.reject') }}</flux:button>
+                            </div>
+                        </div>
+                    @endif
+                @elseif ($canReviewCustomer || (auth()->user()->isCustomerService() && (int) $customer['owner_id'] === (int) auth()->id()))
+                    <form wire:submit="{{ $canReviewCustomer ? 'directTransfer' : 'requestTransfer' }}" class="mt-4 space-y-3">
+                        <flux:select wire:model="transferTargetOwnerId" :label="__('customers.detail.transfer.target')" required>
+                            <flux:select.option value="">{{ __('customers.form.select') }}</flux:select.option>
+                            @forelse ($ownerCandidates as $owner)
+                                <flux:select.option value="{{ $owner['id'] }}">{{ $owner['name'] }}</flux:select.option>
+                            @empty
+                                <flux:select.option value="" disabled>{{ __('customers.detail.transfer.empty_owner') }}</flux:select.option>
+                            @endforelse
+                        </flux:select>
+                        <flux:textarea wire:model="transferReason" :label="__('customers.detail.transfer.reason')" rows="3" required />
+                        <flux:button type="submit" class="w-full" variant="{{ $canReviewCustomer ? 'primary' : 'ghost' }}">{{ __('customers.detail.transfer.'.($canReviewCustomer ? 'submit_direct' : 'submit_request')) }}</flux:button>
+                    </form>
+                @endif
+            </section>
+            @if ($canReviewCustomer && $rollbackRequest)
+                <section class="rounded-2xl border border-amber-200 bg-amber-50/50 p-5 shadow-sm dark:border-amber-900 dark:bg-amber-950/20">
+                    <h3 class="font-semibold">{{ __('customers.detail.status_approval.heading') }}</h3>
+                    @php($rollbackStatus = collect($options['statuses'])->firstWhere('id', $rollbackRequest['to_status_id']))
+                    <p class="mt-3 text-sm text-zinc-600">{{ __('customers.detail.status_approval.pending', ['status' => $rollbackStatus['name'] ?? __('customers.fallback.unknown_status'), 'reason' => $rollbackRequest['reason']]) }}</p>
+                    <flux:textarea wire:model="rollbackReviewReason" class="mt-3" :label="__('customers.detail.status_approval.review_reason')" rows="2" required />
+                    <div class="mt-3 grid grid-cols-2 gap-2">
+                        <flux:button wire:click="approveRollback" variant="primary">{{ __('customers.detail.status_approval.approve') }}</flux:button>
+                        <flux:button wire:click="rejectRollback" variant="ghost">{{ __('customers.detail.status_approval.reject') }}</flux:button>
+                    </div>
+                </section>
+            @endif
             <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
                 <h3 class="font-semibold">{{ __('customers.detail.followup.heading') }}</h3>
-                <form wire:submit="recordFollowup" class="mt-4 space-y-3">
-                    <flux:input wire:model="followupType" :label="__('customers.detail.followup.type')" required />
-                    <x-date-time-picker wire:model="followedUpOn" :value="$followedUpOn" :label="__('customers.detail.followup.date')" required />
-                    <flux:textarea wire:model="followupContent" :label="__('customers.detail.followup.content')" rows="4" required />
-                    <flux:button type="submit" class="w-full">{{ __('customers.detail.followup.submit') }}</flux:button>
-                </form>
+                @if ($canOperateCustomer)
+                    <form wire:submit="recordFollowup" class="mt-4 space-y-3">
+                        <flux:input wire:model="followupType" :label="__('customers.detail.followup.type')" required />
+                        <x-date-time-picker wire:model="followedUpOn" :value="$followedUpOn" :label="__('customers.detail.followup.date')" required />
+                        <flux:textarea wire:model="followupContent" :label="__('customers.detail.followup.content')" rows="4" required />
+                        <flux:button type="submit" class="w-full">{{ __('customers.detail.followup.submit') }}</flux:button>
+                    </form>
+                @endif
             </section>
         </aside>
     </div>
+
+    @if ($canOperateCustomer)
+        @livewire(\App\Modules\Order\Presentation\Livewire\CustomerOrderRegistration::class, ['customerId' => $customer['id']])
+    @endif
 </div>

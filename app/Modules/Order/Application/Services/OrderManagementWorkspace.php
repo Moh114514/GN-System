@@ -4,6 +4,7 @@ namespace App\Modules\Order\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Config\Application\Contracts\InstitutionReferenceReader;
 use App\Modules\Config\Application\Contracts\OrderDictionaryReader;
 use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
@@ -13,6 +14,7 @@ use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Reminder\Application\Contracts\OrderReminderReader;
 use App\Modules\Settlement\Application\Contracts\OrderFinancialReader;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
 
 final readonly class OrderManagementWorkspace
@@ -26,6 +28,7 @@ final readonly class OrderManagementWorkspace
         private AuditRecorder $audit,
         private OrderReminderReader $reminders,
         private OrderFinancialReader $financials,
+        private AccessContextResolver $access,
     ) {}
 
     /** @return array<string, array<int, array<string, mixed>>> */
@@ -39,13 +42,13 @@ final readonly class OrderManagementWorkspace
         ];
     }
 
-    /** @return array{id: int, code: string, name: string, source_agent_id: int} */
+    /** @return array{id: int, code: string, name: string, source_agent_id: int, owner_id: int|null} */
     public function customer(int $customerId): array
     {
         return $this->customers->customerForOrder($customerId);
     }
 
-    /** @return array<int, array{id: int, code: string, name: string, source_agent_id: int}> */
+    /** @return array<int, array{id: int, code: string, name: string, source_agent_id: int, owner_id: int|null}> */
     public function customerCandidates(string $search): array
     {
         return $this->customers->searchCustomersForOrder($search);
@@ -63,6 +66,7 @@ final readonly class OrderManagementWorkspace
      *     project_name: string,
      *     amount_krw: int,
      *     status: string,
+     *     occurred_on: string|null,
      *     completed_at: string|null,
      *     created_at: string|null
      * }>
@@ -71,6 +75,7 @@ final readonly class OrderManagementWorkspace
     {
         $this->assertCanViewDeleted($includeDeleted, $canViewDeleted);
         $query = $includeDeleted ? Order::onlyTrashed() : Order::query();
+        $this->applyScope($query);
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') {
             $customerIds = $this->customers->customerIdsForOrderSearch($search);
@@ -117,6 +122,7 @@ final readonly class OrderManagementWorkspace
                 'project_name' => (string) $order->project_name,
                 'amount_krw' => (int) $order->amount_krw,
                 'status' => (string) $order->status,
+                'occurred_on' => $order->occurred_on?->format('Y-m-d'),
                 'completed_at' => $order->completed_at?->format('Y-m-d H:i'),
                 'created_at' => $order->created_at?->format('Y-m-d H:i'),
             ];
@@ -136,10 +142,39 @@ final readonly class OrderManagementWorkspace
     /** @return array<string, mixed> */
     public function detail(int $orderId, bool $canViewDeleted = false): array
     {
-        $order = ($canViewDeleted ? Order::withTrashed() : Order::query())->findOrFail($orderId);
+        $query = $canViewDeleted ? Order::withTrashed() : Order::query();
+        $this->applyScope($query);
+        $order = $query->findOrFail($orderId);
         $customer = $this->customers->customerForOrder((int) $order->customer_id);
         $institution = $this->institutions->institutionsByIds([(int) $order->institution_id])[(int) $order->institution_id] ?? null;
         $agent = $order->agent_id === null ? null : ($this->agents->agentsByIds([(int) $order->agent_id])[(int) $order->agent_id] ?? null);
+        $items = $order->items()->orderBy('id')->get()->map(fn ($item): array => [
+            'id' => (int) $item->id,
+            'treatment_project_id' => $item->treatment_project_id === null ? null : (int) $item->treatment_project_id,
+            'project_name' => (string) $item->project_snapshot,
+            'specification' => $item->specification,
+            'quantity' => (string) $item->quantity,
+            'unit_price_krw' => (int) $item->unit_price_krw,
+            'amount_krw' => (int) $item->amount_krw,
+            'notes' => $item->notes,
+        ])->all();
+        if ($items === []) {
+            $items = [[
+                'id' => null,
+                'treatment_project_id' => $order->treatment_project_id === null ? null : (int) $order->treatment_project_id,
+                'project_name' => (string) $order->project_name,
+                'specification' => null,
+                'quantity' => '1',
+                'unit_price_krw' => (int) $order->amount_krw,
+                'amount_krw' => (int) $order->amount_krw,
+                'notes' => $order->notes,
+            ]];
+        }
+        $context = $this->access->current();
+        $canEdit = ($context->isSuperAdmin() || ($context->isBdManager() && $context->canViewAgent((int) $order->agent_id)))
+            && in_array((string) $order->status, ['pending', 'completed'], true)
+            && $order->deleted_at === null
+            && ($this->financials->forOrder((int) $order->id)['settlement'] ?? null) === null;
 
         return [
             'id' => (int) $order->id,
@@ -149,6 +184,7 @@ final readonly class OrderManagementWorkspace
             'project_name' => (string) $order->project_name,
             'amount_krw' => (int) $order->amount_krw,
             'status' => (string) $order->status,
+            'occurred_on' => $order->occurred_on?->format('Y-m-d'),
             'completed_at' => $order->completed_at?->format('Y-m-d H:i'),
             'created_at' => $order->created_at?->format('Y-m-d H:i'),
             'updated_at' => $order->updated_at === null ? null : (string) $order->updated_at,
@@ -161,6 +197,8 @@ final readonly class OrderManagementWorkspace
             'translator_language_id' => $order->translator_language_id,
             'treatment_project_id' => $order->treatment_project_id,
             'notes' => $order->notes,
+            'items' => $items,
+            'can_edit' => $canEdit,
             'financial' => $this->financials->forOrder((int) $order->id),
             'reminders' => $this->reminders->forOrder((int) $order->id),
             'audit' => array_map(fn ($entry): array => [
@@ -175,12 +213,24 @@ final readonly class OrderManagementWorkspace
 
     public function updatePending(OrderUpdateData $data, int $actorId, ?string $ipAddress): int
     {
+        $this->assertVisible($data->orderId);
+        $context = $this->access->current();
+        if (! $context->isSuperAdmin() && ! $context->isBdManager()) {
+            abort(404);
+        }
+        if ($context->isBdManager() && ! $context->canViewAgent($data->agentId)) {
+            abort(404);
+        }
         $project = $data->treatmentProjectId === null
             ? null
             : $this->dictionary->activeItem($data->treatmentProjectId, 'treatment_project');
         $language = $data->translatorLanguageId === null
             ? null
             : $this->dictionary->activeItem($data->translatorLanguageId, 'translator_language');
+        $items = $data->items;
+        if ($project !== null && isset($items[0])) {
+            $items[0]['project_name'] = (string) $project['name'];
+        }
 
         return $this->lifecycle->updatePending(new OrderUpdateData(
             orderId: $data->orderId,
@@ -193,31 +243,45 @@ final readonly class OrderManagementWorkspace
             treatmentProjectId: $project['id'] ?? null,
             translatorLanguageId: $language['id'] ?? null,
             translatorLanguageName: $language['name'] ?? null,
+            occurredOn: $data->occurredOn,
+            items: $items,
+            reason: $data->reason,
+            expectedUpdatedAt: $data->expectedUpdatedAt,
         ), $actorId, $ipAddress);
     }
 
     public function cancel(int $orderId, int $actorId, string $reason, ?string $ipAddress): int
     {
+        $this->assertVisible($orderId);
+
         return $this->lifecycle->cancel($orderId, $actorId, $reason, $ipAddress);
     }
 
     public function reopen(int $orderId, int $actorId, string $reason, ?string $ipAddress): int
     {
+        $this->assertVisible($orderId, true);
+
         return $this->lifecycle->reopen($orderId, $actorId, $reason, $ipAddress);
     }
 
     public function rollbackCompleted(int $orderId, int $actorId, string $reason, ?string $ipAddress): int
     {
+        $this->assertVisible($orderId);
+
         return $this->lifecycle->rollbackCompleted($orderId, $actorId, $reason, $ipAddress);
     }
 
     public function softDelete(int $orderId, int $actorId, string $reason, ?string $ipAddress): int
     {
+        $this->assertVisible($orderId);
+
         return $this->lifecycle->softDelete($orderId, $actorId, $reason, $ipAddress);
     }
 
     public function restore(int $orderId, int $actorId, ?string $ipAddress): int
     {
+        $this->assertVisible($orderId, true);
+
         return $this->lifecycle->restore($orderId, $actorId, $ipAddress);
     }
 
@@ -226,5 +290,36 @@ final readonly class OrderManagementWorkspace
         if ($includeDeleted && ! $canViewDeleted) {
             throw new AuthorizationException(__('orders.errors.recycle_bin_admin_only'));
         }
+    }
+
+    private function assertVisible(int $orderId, bool $withTrashed = false): void
+    {
+        $query = $withTrashed ? Order::withTrashed() : Order::query();
+        $this->applyScope($query);
+        $query->findOrFail($orderId);
+    }
+
+    /** @param Builder<Order> $query */
+    private function applyScope(Builder $query): void
+    {
+        $context = $this->access->current();
+        if ($context->isSuperAdmin()) {
+            return;
+        }
+
+        if (! $context->hasEffectiveBusinessScope()) {
+            $query->whereRaw('1 = 0');
+
+            return;
+        }
+
+        $query->where(function ($scope) use ($context): void {
+            if ($context->userId !== null) {
+                $scope->where('owner_id', $context->userId);
+            }
+            if ($context->agentIds !== []) {
+                $scope->orWhereIn('agent_id', $context->agentIds);
+            }
+        });
     }
 }
