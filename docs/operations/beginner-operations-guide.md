@@ -66,6 +66,7 @@ GN-System 当前有两套服务器环境，不能混用：
 | `develop`（2026-08-17 工作区） | PR7 让月结中心默认展示最新已生成周期，支持周期切换；历史月结改用业务日期重叠查询；已结清详情保留下载，历史 `paid`/`reconciled` 月结支持只读详情按需生成并下载 Word/PDF | 尚未发布；不新增 migration。UAT 需核对周期下拉、业务日期起止边界、已结清详情下载，以及历史文档生成后状态不变 |
 | `feature/business-groups-and-roles`（2026-08-26 本地工作区） | 新规划 PR1 增加角色、业务组、成员有效期历史和代理商业务组有效期历史；配置中心支持结束开放式归属、提前配置未来转组、按 BusinessClock 显示当前归属并检查未归属；新增 `2026_08_21_000100_add_roles_business_groups_and_agent_assignments` migration | 只在本地开发 Compose 测试数据库验证，尚未发布。以后发布前要备份数据库，并人工检查角色、成员结束归属、未来转组、代理商归属及未归属列表；不要在服务器手工建表 |
 | `feature/business-groups-and-roles`（2026-08-30 本地工作区） | 财务单据导出审查修复：BD 调整金额只计入一次，PDF 使用合并的 CJK TrueType 字体和 table 布局，规则配置 UI 调整为 12 栏响应式布局，并增加金额/PDF 文本测试 | 未处理 `develop`/`main` 分叉，未创建 RC，未推送、部署或执行 UAT/Production migration；Docker app 镜像需重建，UAT/Production 需核对字体、`pdftotext` smoke test、月结/BD 中文韩文及金额；本机结果不替代目标环境验收 |
+| `feature/institution-sales-drilldown`（2026-09-07 本地工作区） | 机构月度销售额总表补全零订单启用机构，并新增机构销售详情下钻、代理商贡献和订单明细 | 不新增 migration、依赖或环境变量；只在本地通过定向测试，未合入 `develop`、未创建 RC 或部署；发布前按完整门禁和 RC 流程验收，不能把本机结果当作 UAT/Production 验收 |
 | `feature/customer-status-tree`（历史工作分支） | PR2 客户详情状态流转可视化及 Agent 详情“关联客户”中韩文案 | 内容已合入 `develop`，不作为当前发布目标 |
 
 服务器实际版本以 `/srv/gn-system/releases/current` 和

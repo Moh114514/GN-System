@@ -77,7 +77,11 @@
                     @forelse ($summary['rows'] as $index => $row)
                         <tr wire:key="institution-sales-{{ $row['institution_id'] }}">
                             <td class="text-center tabular-nums">{{ $index + 1 }}</td>
-                            <td class="font-semibold">{{ $row['institution'] }}</td>
+                            <td>
+                                <a class="font-semibold text-teal-700 hover:underline" href="{{ route('reports.institution-sales.show', ['institution' => $row['institution_id'], 'month' => $summary['month']]) }}" wire:navigate>
+                                    {{ $row['institution'] }} <span aria-hidden="true">›</span>
+                                </a>
+                            </td>
                             <td class="text-right tabular-nums">{{ number_format($row['customer_count']) }}</td>
                             <td class="text-right tabular-nums">{{ number_format($row['order_count']) }}</td>
                             <td class="text-right tabular-nums">₩ {{ number_format($row['amount_krw']) }}</td>

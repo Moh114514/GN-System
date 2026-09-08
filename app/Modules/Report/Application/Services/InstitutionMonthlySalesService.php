@@ -41,24 +41,45 @@ final readonly class InstitutionMonthlySalesService
         $month = $this->normalizeMonth($month);
         $from = CarbonImmutable::createFromFormat('!Y-m-d', $month.'-01', (string) config('app.timezone'));
         $to = $from->endOfMonth();
-        $allowedInstitutionIds = array_column($this->institutionOptions(), 'id');
-        if ($institutionId !== null && ! in_array($institutionId, $allowedInstitutionIds, true)) {
-            throw new DomainException(__('institution_sales.errors.institution_unavailable'));
-        }
+        $activeInstitutions = $this->institutionOptions();
+        $activeIds = array_column($activeInstitutions, 'id');
+        $visibleIds = $this->access->current()->isSuperAdmin()
+            ? null
+            : $this->orders->visibleInstitutionIds();
         $aggregates = $this->orders->institutionMonthlySales($from, $to, $institutionId);
-        $names = $this->config->institutionNamesByIds(array_map(
+        $aggregateIds = array_values(array_unique(array_map(
             static fn ($row): int => $row->institutionId,
             $aggregates,
-        ));
-        $rows = [];
+        )));
+        $isVisible = static function (int $id) use ($visibleIds): bool {
+            return $visibleIds === null || in_array($id, $visibleIds, true);
+        };
+        if ($institutionId !== null && (! $isVisible($institutionId)
+            || (! in_array($institutionId, $activeIds, true) && ! in_array($institutionId, $aggregateIds, true)))) {
+            throw new DomainException(__('institution_sales.errors.institution_unavailable'));
+        }
+
+        $institutionIds = $institutionId === null
+            ? array_values(array_filter(
+                array_unique([...$activeIds, ...$aggregateIds]),
+                $isVisible,
+            ))
+            : [$institutionId];
+        $names = $this->config->institutionNamesByIds($institutionIds);
+        $aggregateByInstitution = [];
         foreach ($aggregates as $aggregate) {
-            $name = $names[$aggregate->institutionId] ?? __('institution_sales.fallbacks.missing_institution');
+            $aggregateByInstitution[$aggregate->institutionId] = $aggregate;
+        }
+        $rows = [];
+        foreach ($institutionIds as $id) {
+            $aggregate = $aggregateByInstitution[$id] ?? null;
+            $name = $names[$id] ?? __('institution_sales.fallbacks.missing_institution');
             $rows[] = new InstitutionMonthlySalesRowData(
-                institutionId: $aggregate->institutionId,
+                institutionId: $id,
                 institutionName: $name,
-                customerCount: $aggregate->customerCount,
-                orderCount: $aggregate->orderCount,
-                amountKrw: $aggregate->amountKrw,
+                customerCount: $aggregate === null ? 0 : $aggregate->customerCount,
+                orderCount: $aggregate === null ? 0 : $aggregate->orderCount,
+                amountKrw: $aggregate === null ? 0 : $aggregate->amountKrw,
             );
         }
         usort($rows, static function (InstitutionMonthlySalesRowData $left, InstitutionMonthlySalesRowData $right): int {

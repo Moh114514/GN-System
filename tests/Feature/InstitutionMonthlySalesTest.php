@@ -14,6 +14,7 @@ use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
 use App\Modules\Order\Application\Contracts\ReportOrderReader;
 use App\Modules\Order\Infrastructure\Models\Order;
+use App\Modules\Report\Application\Services\InstitutionMonthlySalesDetailService;
 use App\Modules\Report\Application\Services\InstitutionMonthlySalesService;
 use App\Modules\Report\Application\Services\ReportExportManager;
 use App\Modules\Report\Presentation\Livewire\InstitutionMonthlySales;
@@ -39,6 +40,8 @@ class InstitutionMonthlySalesTest extends TestCase
 
     private Institution $institutionB;
 
+    private Institution $institutionC;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -54,6 +57,7 @@ class InstitutionMonthlySalesTest extends TestCase
         ]);
         $this->institutionA = Institution::query()->where('code', 'DOD')->firstOrFail();
         $this->institutionB = Institution::query()->where('code', 'GRAYCITY')->firstOrFail();
+        $this->institutionC = Institution::query()->where('code', 'BLANCHE')->firstOrFail();
     }
 
     protected function tearDown(): void
@@ -80,19 +84,75 @@ class InstitutionMonthlySalesTest extends TestCase
         $this->actingAs($this->admin);
         $summary = app(InstitutionMonthlySalesService::class)->summary('2026-08');
 
-        $this->assertSame(2, count($summary->rows));
+        $this->assertSame(3, count($summary->rows));
         $this->assertSame(3, $summary->totalCustomers);
         $this->assertSame(4, $summary->totalOrders);
         $this->assertSame(10_000_000, $summary->totalAmountKrw);
-        $this->assertSame(6_000_000, $summary->rows[0]->amountKrw);
-        $this->assertSame(3, $summary->rows[0]->orderCount);
-        $this->assertSame(2, $summary->rows[0]->customerCount);
-        $this->assertSame(4_000_000, $summary->rows[1]->amountKrw);
+        $rows = collect($summary->rows)->keyBy('institutionId');
+        $this->assertSame(6_000_000, $rows[$this->institutionA->id]->amountKrw);
+        $this->assertSame(3, $rows[$this->institutionA->id]->orderCount);
+        $this->assertSame(2, $rows[$this->institutionA->id]->customerCount);
+        $this->assertSame(4_000_000, $rows[$this->institutionB->id]->amountKrw);
+        $this->assertSame(0, $rows[$this->institutionC->id]->amountKrw);
+        $this->assertSame(0, $rows[$this->institutionC->id]->orderCount);
+        $this->assertSame(0, $rows[$this->institutionC->id]->customerCount);
 
         $institutionSummary = app(InstitutionMonthlySalesService::class)->summary('2026-08', $this->institutionA->id);
         $this->assertSame(6_000_000, $institutionSummary->totalAmountKrw);
         $this->assertCount(1, $institutionSummary->rows);
         $this->assertSame($this->institutionA->id, $institutionSummary->rows[0]->institutionId);
+    }
+
+    public function test_active_institution_without_orders_is_listed_and_detail_is_empty(): void
+    {
+        $customer = $this->customer('零订单客户');
+        $this->order($customer, $this->institutionA, 1_000_000, '2026-08-15', 'completed', 'active');
+
+        $this->actingAs($this->admin);
+        $summary = app(InstitutionMonthlySalesService::class)->summary('2026-08');
+        $zeroRow = collect($summary->rows)->firstWhere('institutionId', $this->institutionC->id);
+
+        $this->assertNotNull($zeroRow);
+        $this->assertSame(0, $zeroRow->customerCount);
+        $this->assertSame(0, $zeroRow->orderCount);
+        $this->assertSame(0, $zeroRow->amountKrw);
+        $this->assertSame(1, $summary->totalCustomers);
+        $this->assertSame(1, $summary->totalOrders);
+        $this->assertSame(1_000_000, $summary->totalAmountKrw);
+
+        $detail = app(InstitutionMonthlySalesDetailService::class)->detail('2026-08', $this->institutionC->id);
+        $this->assertSame(0, $detail['customer_count']);
+        $this->assertSame(0, $detail['order_count']);
+        $this->assertSame(0, $detail['agent_count']);
+        $this->assertSame(0, $detail['amount_krw']);
+        $this->assertSame([], $detail['agents']);
+        $this->assertSame([], $detail['orders']);
+
+        $this->get(route('reports.institution-sales.show', [
+            'institution' => $this->institutionC->id,
+            'month' => '2026-08',
+        ]))->assertOk()
+            ->assertSee('机构销售详情')
+            ->assertSee('返回机构销售额')
+            ->assertSee('data-page-back-path="/reports/institution-sales"', false);
+    }
+
+    public function test_institution_detail_combines_agent_and_order_facts(): void
+    {
+        $customer = $this->customer('详情客户');
+        $this->order($customer, $this->institutionA, 1_250_000, '2026-08-15', 'completed', 'active');
+
+        $this->actingAs($this->admin);
+        $detail = app(InstitutionMonthlySalesDetailService::class)->detail('2026-08', $this->institutionA->id);
+
+        $this->assertSame(1, $detail['customer_count']);
+        $this->assertSame(1, $detail['order_count']);
+        $this->assertSame(1, $detail['agent_count']);
+        $this->assertSame(1_250_000, $detail['amount_krw']);
+        $this->assertSame('详情客户', $detail['orders'][0]['customer']);
+        $this->assertSame('销售代理商 A', $detail['orders'][0]['agent']);
+        $this->assertSame(1_250_000, $detail['agents'][0]['amount_krw']);
+        $this->assertSame(100.0, $detail['agents'][0]['share']);
     }
 
     public function test_order_reader_and_page_respect_effective_business_scope(): void
@@ -163,6 +223,7 @@ class InstitutionMonthlySalesTest extends TestCase
         $customerService = User::factory()->create(['role' => UserRole::CustomerService]);
 
         $this->actingAs($customerService)->get(route('reports.institution-sales'))->assertForbidden();
+        $this->get(route('reports.institution-sales.show', ['institution' => $this->institutionA->id]))->assertForbidden();
         $this->actingAs($customerService);
         $this->expectException(HttpException::class);
         app(ReportExportManager::class)->startInstitutionMonthlySales($customerService, '2026-08');
