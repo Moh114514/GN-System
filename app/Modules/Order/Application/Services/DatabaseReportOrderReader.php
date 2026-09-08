@@ -6,7 +6,10 @@ use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Order\Application\Contracts\ReportOrderReader;
 use App\Modules\Order\Infrastructure\Models\Appointment;
 use App\Modules\Order\Infrastructure\Models\Order;
+use App\Modules\Report\Application\Data\InstitutionMonthlySalesAgentData;
 use App\Modules\Report\Application\Data\InstitutionMonthlySalesAggregateData;
+use App\Modules\Report\Application\Data\InstitutionMonthlySalesOrderData;
+use App\Modules\Report\Application\Data\InstitutionMonthlySalesOrderPageData;
 use App\Modules\Report\Application\Data\ReportOrderData;
 use App\Modules\Report\Application\Data\ReportPageData;
 use App\Modules\Report\Application\Data\ReportQueryData;
@@ -161,12 +164,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
     /** @return list<InstitutionMonthlySalesAggregateData> */
     public function institutionMonthlySales(CarbonImmutable $from, CarbonImmutable $to, ?int $institutionId = null): array
     {
-        $query = Order::query()
-            ->where('status', 'completed')
-            ->where('record_status', 'active')
-            ->whereNotNull('occurred_on')
-            ->whereBetween('occurred_on', [$from->toDateString(), $to->toDateString()]);
-        $this->applyScope($query);
+        $query = $this->institutionSalesQuery($from, $to);
         if ($institutionId !== null) {
             $query->where('institution_id', $institutionId);
         }
@@ -188,6 +186,80 @@ final class DatabaseReportOrderReader implements ReportOrderReader
             ->all();
     }
 
+    /** @return list<InstitutionMonthlySalesAgentData> */
+    public function institutionMonthlySalesAgents(CarbonImmutable $from, CarbonImmutable $to, int $institutionId): array
+    {
+        return $this->institutionSalesQuery($from, $to, $institutionId)
+            ->select('agent_id')
+            ->selectRaw('COUNT(DISTINCT customer_id)::int AS customer_count')
+            ->selectRaw('COUNT(*)::int AS order_count')
+            ->selectRaw('COALESCE(SUM(amount_krw), 0)::bigint AS amount_krw')
+            ->groupBy('agent_id')
+            ->get()
+            ->map(static fn (Order $row): InstitutionMonthlySalesAgentData => new InstitutionMonthlySalesAgentData(
+                agentId: $row->agent_id === null ? null : (int) $row->agent_id,
+                customerCount: (int) $row->getAttribute('customer_count'),
+                orderCount: (int) $row->getAttribute('order_count'),
+                amountKrw: (int) $row->getAttribute('amount_krw'),
+            ))
+            ->values()
+            ->all();
+    }
+
+    public function institutionMonthlySalesOrders(
+        CarbonImmutable $from,
+        CarbonImmutable $to,
+        int $institutionId,
+        ?int $agentId,
+        string $search,
+        string $sort,
+        string $direction,
+        int $perPage,
+        int $page,
+    ): InstitutionMonthlySalesOrderPageData {
+        $query = $this->institutionSalesQuery($from, $to, $institutionId);
+        if ($agentId !== null) {
+            $query->where('agent_id', $agentId);
+        }
+        $search = trim($search);
+        if ($search !== '') {
+            $query->where(function ($project) use ($search): void {
+                $project->where('project_name', 'ilike', '%'.$search.'%')
+                    ->orWhere('treatment_project_snapshot', 'ilike', '%'.$search.'%');
+            });
+        }
+
+        $sortColumns = [
+            'occurred_on' => 'occurred_on',
+            'amount' => 'amount_krw',
+            'project' => 'project_name',
+        ];
+        $sort = array_key_exists($sort, $sortColumns) ? $sort : 'occurred_on';
+        $direction = $direction === 'asc' ? 'asc' : 'desc';
+        $paginator = $query
+            ->orderBy($sortColumns[$sort], $direction)
+            ->orderBy('id', $direction)
+            ->paginate(max(1, $perPage), ['id', 'occurred_on', 'customer_id', 'agent_id', 'project_name', 'treatment_project_snapshot', 'amount_krw'], 'page', max(1, $page));
+
+        return new InstitutionMonthlySalesOrderPageData(
+            items: $paginator->getCollection()
+                ->map(static fn (Order $order): InstitutionMonthlySalesOrderData => new InstitutionMonthlySalesOrderData(
+                    id: (int) $order->id,
+                    occurredOn: $order->occurred_on?->toDateString() ?? '',
+                    customerId: (int) $order->customer_id,
+                    agentId: $order->agent_id === null ? null : (int) $order->agent_id,
+                    projectName: (string) ($order->treatment_project_snapshot ?: $order->project_name),
+                    amountKrw: (int) $order->amount_krw,
+                ))
+                ->values()
+                ->all(),
+            total: $paginator->total(),
+            perPage: $paginator->perPage(),
+            currentPage: $paginator->currentPage(),
+            lastPage: $paginator->lastPage(),
+        );
+    }
+
     /** @return list<int> */
     public function visibleInstitutionIds(): array
     {
@@ -202,6 +274,22 @@ final class DatabaseReportOrderReader implements ReportOrderReader
             ->map(fn ($id): int => (int) $id)
             ->values()
             ->all();
+    }
+
+    /** @return Builder<Order> */
+    private function institutionSalesQuery(CarbonImmutable $from, CarbonImmutable $to, ?int $institutionId = null): Builder
+    {
+        $query = Order::query()
+            ->where('status', 'completed')
+            ->where('record_status', 'active')
+            ->whereNotNull('occurred_on')
+            ->whereBetween('occurred_on', [$from->toDateString(), $to->toDateString()]);
+        $this->applyScope($query);
+        if ($institutionId !== null) {
+            $query->where('institution_id', $institutionId);
+        }
+
+        return $query;
     }
 
     /**

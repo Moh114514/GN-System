@@ -2,7 +2,9 @@
 
 namespace App\Modules\Order\Application\Contracts;
 
+use App\Modules\Report\Application\Data\InstitutionMonthlySalesAgentData;
 use App\Modules\Report\Application\Data\InstitutionMonthlySalesAggregateData;
+use App\Modules\Report\Application\Data\InstitutionMonthlySalesOrderPageData;
 use App\Modules\Report\Application\Data\ReportOrderData;
 use App\Modules\Report\Application\Data\ReportPageData;
 use App\Modules\Report\Application\Data\ReportQueryData;
@@ -40,6 +42,21 @@ interface ReportOrderReader
 
     /** @return list<InstitutionMonthlySalesAggregateData> */
     public function institutionMonthlySales(CarbonImmutable $from, CarbonImmutable $to, ?int $institutionId = null): array;
+
+    /** @return list<InstitutionMonthlySalesAgentData> */
+    public function institutionMonthlySalesAgents(CarbonImmutable $from, CarbonImmutable $to, int $institutionId): array;
+
+    public function institutionMonthlySalesOrders(
+        CarbonImmutable $from,
+        CarbonImmutable $to,
+        int $institutionId,
+        ?int $agentId,
+        string $search,
+        string $sort,
+        string $direction,
+        int $perPage,
+        int $page,
+    ): InstitutionMonthlySalesOrderPageData;
 
     /** @return list<int> */
     public function visibleInstitutionIds(): array;
