@@ -139,6 +139,7 @@ class CustomerOrderRegistration extends Component
                     ...$this->evidence($this->settlementReceipts, 'settlement_receipt'),
                 ],
                 requireArrived: true,
+                requireEvidence: true,
             ));
         } catch (DomainException $exception) {
             $this->fail($exception->getMessage());

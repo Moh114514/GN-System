@@ -2,6 +2,8 @@
 
 namespace App\Modules\Order\Application\Services;
 
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use DomainException;
@@ -13,7 +15,7 @@ use Throwable;
 final readonly class InstitutionReturnParser
 {
     /**
-     * @param  array{institution_id: int, customer_id: int, customer_code: string, customer_name: string}  $expected
+     * @param  array{institution_id: int, customer_id: int, customer_code: string, customer_name: string, arrived_on?: CarbonImmutable|null}  $expected
      * @return array{
      *     metadata: array<string, string>,
      *     integrity_signature: string,
@@ -81,41 +83,40 @@ final readonly class InstitutionReturnParser
                     continue;
                 }
 
-                if (trim((string) $values[0]) !== $expected['customer_code']
-                    || trim((string) $values[1]) !== $expected['customer_name']) {
+                if (trim((string) $values[0]) !== $expected['customer_name']) {
                     throw new DomainException(__('orders.errors.institution_form_customer_mismatch'));
                 }
-                $date = $this->date($values[2]);
+                $date = $this->date($values[1]);
                 if ($date === null) {
                     throw new DomainException(__('orders.errors.institution_form_date_required'));
+                }
+                if (array_key_exists('arrived_on', $expected)
+                    && ($expected['arrived_on'] === null || ! $date->isSameDay($expected['arrived_on']))) {
+                    throw new DomainException(__('orders.errors.occurred_on_arrival_mismatch'));
                 }
                 if ($occurredOn !== null && ! $occurredOn->isSameDay($date)) {
                     throw new DomainException(__('orders.errors.institution_form_multiple_dates'));
                 }
                 $occurredOn = $date;
 
-                $project = trim((string) $values[3]);
+                $project = trim((string) $values[2]);
                 if ($project === '') {
                     throw new DomainException(__('orders.errors.institution_form_project_required'));
                 }
-                $quantity = $this->decimal($values[5], 'quantity');
+                $quantity = $this->decimal($values[3], 'quantity');
                 if ((float) $quantity <= 0) {
                     throw new DomainException(__('orders.errors.institution_form_quantity_invalid'));
                 }
-                $unitPrice = $this->amount($values[6], 'unit_price');
-                $amount = $this->amount($values[7], 'amount');
-                $expectedAmount = (int) round((float) $quantity * $unitPrice);
-                if ($expectedAmount !== $amount) {
-                    throw new DomainException(__('orders.errors.institution_form_amount_mismatch'));
-                }
+                $amount = $this->amount($values[4], 'amount');
+                $unitPrice = $this->derivedUnitPrice($quantity, $amount);
 
                 $items[] = [
                     'project_name' => $project,
-                    'specification' => $this->nullableText($values[4]),
+                    'specification' => null,
                     'quantity' => $quantity,
                     'unit_price_krw' => $unitPrice,
                     'amount_krw' => $amount,
-                    'notes' => $this->nullableText($values[8]),
+                    'notes' => $this->nullableText($values[5]),
                 ];
             }
 
@@ -144,7 +145,7 @@ final readonly class InstitutionReturnParser
 
     /**
      * @param  array<string, string>  $metadata
-     * @param  array{institution_id: int, customer_id: int, customer_code: string, customer_name: string}  $expected
+     * @param  array{institution_id: int, customer_id: int, customer_code: string, customer_name: string, arrived_on?: CarbonImmutable|null}  $expected
      */
     private function assertMetadata(array $metadata, array $expected): void
     {
@@ -223,6 +224,28 @@ final readonly class InstitutionReturnParser
         }
 
         return (int) $text;
+    }
+
+    private function derivedUnitPrice(string $quantity, int $amount): int
+    {
+        try {
+            $unitPrice = BigDecimal::of($amount)
+                ->dividedBy($quantity, 6, RoundingMode::HalfUp)
+                ->toScale(0, RoundingMode::HalfUp)
+                ->toInt();
+            $expectedAmount = BigDecimal::of($quantity)
+                ->multipliedBy($unitPrice)
+                ->toScale(0, RoundingMode::HalfUp)
+                ->toInt();
+        } catch (Throwable $exception) {
+            throw new DomainException(__('orders.errors.institution_form_amount_mismatch'), previous: $exception);
+        }
+
+        if ($expectedAmount !== $amount) {
+            throw new DomainException(__('orders.errors.institution_form_amount_mismatch'));
+        }
+
+        return $unitPrice;
     }
 
     private function nullableText(mixed $value): ?string

@@ -25,5 +25,6 @@ final readonly class CompletedOrderRegistrationData
         public array $sourceMetadata = [],
         public array $evidence = [],
         public bool $requireArrived = false,
+        public bool $requireEvidence = false,
     ) {}
 }

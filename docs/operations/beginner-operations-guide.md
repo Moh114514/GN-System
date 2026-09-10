@@ -68,6 +68,7 @@ GN-System 当前有两套服务器环境，不能混用：
 | `feature/business-groups-and-roles`（2026-08-30 本地工作区） | 财务单据导出审查修复：BD 调整金额只计入一次，PDF 使用合并的 CJK TrueType 字体和 table 布局，规则配置 UI 调整为 12 栏响应式布局，并增加金额/PDF 文本测试 | 未处理 `develop`/`main` 分叉，未创建 RC，未推送、部署或执行 UAT/Production migration；Docker app 镜像需重建，UAT/Production 需核对字体、`pdftotext` smoke test、月结/BD 中文韩文及金额；本机结果不替代目标环境验收 |
 | `feature/institution-sales-drilldown`（2026-09-07 本地工作区） | 机构月度销售额总表补全零订单启用机构，并新增机构销售详情下钻、代理商贡献和订单明细 | 不新增 migration、依赖或环境变量；只在本地通过定向测试，未合入 `develop`、未创建 RC 或部署；发布前按完整门禁和 RC 流程验收，不能把本机结果当作 UAT/Production 验收 |
 | `feature/pr1-order-registration`（2026-09-10 本地工作区） | 方案 PR1 增加客户已到院后的订单一单多项目手工登记、沟通截图/结算小票私有凭证及按客户权限下载；机构 Excel 回传继续保留 | 新增 `2026_09_10_000100_create_order_evidence_files.php` migration 和私有加密文件；发布前备份数据库与 `storage/app/private`，按 RC 流程执行 migration；本机测试不等于 UAT/Production 验收 |
+| `feature/pr1-order-registration`（2026-09-10 本地工作区） | 方案 PR2 将机构 Excel 模板升级为 v2，保留隐藏客户元数据，预填 `arrived_at` 日期，并在回传时强制校验客户已到院及日期一致 | 不新增 migration、依赖或环境变量；只完成本地自动化测试，未合入 `develop`、未创建 RC 或部署；UAT 要检查 v2 列、隐藏签名、日期篡改、数量/金额和旧字段淘汰 |
 | `feature/customer-status-tree`（历史工作分支） | PR2 客户详情状态流转可视化及 Agent 详情“关联客户”中韩文案 | 内容已合入 `develop`，不作为当前发布目标 |
 
 服务器实际版本以 `/srv/gn-system/releases/current` 和
@@ -955,6 +956,17 @@ UAT/Production 验收。本次新增 `2026_09_10_000100_create_order_evidence_fi
 客服、BD 和管理员检查：未到院客户不能登记；一单多项目金额正确；两类凭证均必填；客服不能下载别人的
 凭证；失败或重复提交不会留下半成品订单。不要在服务器手工建表、删除凭证表或直接修改订单凭证；回退
 必须使用标准回退流程和已验证备份。本机结果不能当作 UAT/Production 结果。
+
+## 方案 PR2 机构表单 v2（2026-09-10）
+
+本次把机构 Excel 表单从 v1 升级为 v2。机构只填写客户姓名、消费日期、项目、数量、金额和业务备注；
+客户编号、客户 ID、机构和表单编号仍放在隐藏的 `__GN_META` 工作表里。下载模板时系统会预填客户姓名
+和实际到院日期，上传时会检查客户确实已到院，并且 Excel 消费日期没有被改成别的日期。
+
+这次没有新增 migration、依赖或环境变量，只完成本机测试。发布到 UAT 前不能继续使用旧 v1 模板；要让
+标准 RC 流程升级 app、queue、scheduler 后重新下载 v2 模板，再检查旧列（客户编号、规格、单价）已经
+消失、隐藏元数据仍能验签、改日期/客户/表头会失败、多个项目会生成一张订单和多条明细。UAT/Production
+仍未验证，本机结果不能替代目标环境验收。
 
 ## PR5 order and settlement status (2026-08-24)
 

@@ -190,7 +190,7 @@ final readonly class CompletedOrderRegistrar
     private function assertCustomerCanBeCompleted(array $customer, CompletedOrderRegistrationData $data): void
     {
         $types = array_map(static fn ($evidence): string => $evidence->type, $data->evidence);
-        if ($data->requireArrived && (! in_array('communication_screenshot', $types, true) || ! in_array('settlement_receipt', $types, true))) {
+        if ($data->requireEvidence && (! in_array('communication_screenshot', $types, true) || ! in_array('settlement_receipt', $types, true))) {
             throw new DomainException(__('orders.errors.order_evidence_required'));
         }
 

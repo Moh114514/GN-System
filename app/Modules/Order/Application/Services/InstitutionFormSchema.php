@@ -8,30 +8,24 @@ final class InstitutionFormSchema
 {
     public const TEMPLATE_KEY = 'gn-institution-return';
 
-    public const VERSION = 1;
+    public const VERSION = 2;
 
     /** @var array<int, string> */
     public const COLUMNS = [
-        'customer_code',
         'customer_name',
         'occurred_on',
         'project_name',
-        'specification',
         'quantity',
-        'unit_price_krw',
         'amount_krw',
         'notes',
     ];
 
     /** @var array<int, string> */
     public const HEADERS = [
-        '客户编号',
         '客户姓名',
         '消费日期',
         '项目',
-        '规格',
         '数量',
-        '单价（KRW）',
         '金额（KRW）',
         '业务备注',
     ];

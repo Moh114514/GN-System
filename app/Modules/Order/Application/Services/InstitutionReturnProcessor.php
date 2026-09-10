@@ -12,6 +12,7 @@ use App\Modules\Order\Application\Data\InstitutionReturnUploadData;
 use App\Modules\Order\Infrastructure\InstitutionReturnStorage;
 use App\Modules\Order\Infrastructure\Models\InstitutionFormTemplate;
 use App\Modules\Order\Infrastructure\Models\InstitutionReturnFile;
+use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Str;
@@ -35,6 +36,10 @@ final readonly class InstitutionReturnProcessor
             throw new DomainException(__('orders.errors.institution_unavailable'));
         }
         $customer = $this->customers->customerForOrder($data->customerId);
+        if (($customer['current_status_key'] ?? null) !== 'arrived' || ($customer['arrived_at'] ?? null) === null) {
+            throw new DomainException(__('orders.errors.customer_not_arrived'));
+        }
+        $arrivedOn = CarbonImmutable::parse((string) $customer['arrived_at'])->startOfDay();
         $hash = hash('sha256', $data->contents);
         if (InstitutionReturnFile::query()->where('sha256', $hash)->exists()) {
             throw new DomainException(__('orders.errors.institution_return_duplicate_file'));
@@ -72,6 +77,7 @@ final readonly class InstitutionReturnProcessor
                 'customer_id' => $data->customerId,
                 'customer_code' => (string) $customer['code'],
                 'customer_name' => (string) $customer['name'],
+                'arrived_on' => $arrivedOn,
             ]);
             $agent = $this->agents->agentById((int) $customer['source_agent_id']);
             if ($agent['cooperation_status'] !== 'active') {
@@ -127,6 +133,7 @@ final readonly class InstitutionReturnProcessor
                     'template_key' => InstitutionFormSchema::TEMPLATE_KEY,
                     'template_version' => $template->version,
                 ],
+                requireArrived: true,
             ));
 
             $returnFile->update([
