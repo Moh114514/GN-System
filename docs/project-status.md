@@ -5,8 +5,8 @@
 已实现 UAT 宿主机双层重置、配置重载脚本和非破坏性管理员维护命令。UAT 重置与配置重载均已加入目录、Compose 项目、环境文件权限、UAT URL、数据库名称和 PostgreSQL `current_database()` 防护；真实 UAT/Production 执行结果仍须在目标服务器按运维手册验收，不能由本机静态检查替代。
 
 > 最后核验：2026-09-10
-> 核验依据：当前 `develop` 基线、`feature/pr1-order-registration` 工作区、订单登记 PR1/PR2 定向测试、完整后端门禁和 Vite 构建
-> 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及 PR1–PR7 规划能力继续保持；角色/业务组底座、权限范围、客户负责人移交与状态回退审批、订单事实快照和 BD 季度提成已合入本地 `develop`。当前工作区 `feature/pr1-order-registration` 已完成方案 PR1 和 PR2 的订单登记基础，但尚未合入 `develop`、发布或完成 UAT/Production 验收；凭证表 migration 与 Excel v2 行为的目标环境执行、备份、抽样核验和人工业务验收仍未完成。
+> 核验依据：当前 `develop` 基线、`feature/pr1-order-registration` 工作区、订单登记 PR1/PR2/PR3 定向测试、完整后端门禁和 Vite 构建
+> 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及 PR1–PR7 规划能力继续保持；角色/业务组底座、权限范围、客户负责人移交与状态回退审批、订单事实快照和 BD 季度提成已合入本地 `develop`。当前工作区 `feature/pr1-order-registration` 已完成方案 PR1、PR2 和 PR3 的订单登记/机构销售 PDF 能力，但尚未合入 `develop`、发布或完成 UAT/Production 验收；凭证表 migration、Excel v2 和机构销售 PDF 行为的目标环境执行、备份、抽样核验和人工业务验收仍未完成。
 
 本页只描述仓库中可以验证的状态。未来规划见 `docs/source/`，不能据此页之外的
 规划内容推断某项能力已经存在。
@@ -28,6 +28,13 @@
   不一致的 Excel 消费日期。数量/金额会转换为订单明细需要的整数韩元单价快照并校验金额一致性。
 - 已补充模板结构、隐藏元数据、到院日期篡改、解析兼容性和完整回归测试；本地后端门禁和 Vite
   构建通过。PR2 尚未合入 `develop`、部署或完成 UAT/Production 人工验收。
+
+## 2026-09-10 PR3 机构月度销售额 PDF
+
+- 页面、筛选和机构详情保持不变；PDF 明细改为从 Order 报表契约读取 `order_items`，展示消费日期、订单号、客户姓名、项目、数量、金额和业务备注。
+- 单机构 PDF 使用“机构”作为主题标签，不再输出“机构筛选”；全部机构 PDF 按机构分段，并分别展示客户数、有效订单数和机构小计，顶部保留全部机构月销售额。
+- 通用财务文档 DTO 增加可选主题标签和分组区块能力，默认行为不变；本 PR 不新增 migration、依赖、环境变量或页面结构。
+- 已补充单机构/全部机构 PDF 的 `pdftotext` 回归测试；本地后端门禁和 Vite 构建通过。PR3 尚未合入 `develop`、部署或完成 UAT/Production 人工验收。
 
 ## 2026-09-01 客户详情订单登记 Modal
 

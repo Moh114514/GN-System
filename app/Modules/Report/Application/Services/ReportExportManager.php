@@ -5,6 +5,9 @@ namespace App\Modules\Report\Application\Services;
 use App\Infrastructure\Localization\SupportedLocale;
 use App\Models\User;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
+use App\Modules\Customer\Application\Contracts\ReportCustomerReader;
+use App\Modules\Order\Application\Contracts\ReportOrderReader;
+use App\Modules\Report\Application\Data\InstitutionMonthlySalesOrderData;
 use App\Modules\Report\Infrastructure\Models\ReportExport;
 use App\Modules\Report\Jobs\GenerateReportExport;
 use DomainException;
@@ -18,6 +21,8 @@ final readonly class ReportExportManager
         private ReportSearchExportGenerator $generator,
         private InstitutionMonthlySalesService $institutionSales,
         private InstitutionMonthlySalesExportGenerator $institutionSalesGenerator,
+        private ReportOrderReader $orders,
+        private ReportCustomerReader $customers,
         private AccessContextResolver $access,
     ) {}
 
@@ -99,15 +104,24 @@ final readonly class ReportExportManager
             throw new DomainException(__('institution_sales.errors.export_format'));
         }
         $context = $this->access->forUser($user);
-        [$summary, $institutionName] = $this->access->using(
+        [$summary, $institutionName, $detailOrders, $customerNames] = $this->access->using(
             $context,
-            function () use ($month, $institutionId): array {
+            function () use ($month, $institutionId, $format): array {
                 $summary = $this->institutionSales->summary($month, $institutionId);
                 $institutionName = $institutionId === null
                     ? null
                     : data_get(collect($this->institutionSales->institutionOptions())->firstWhere('id', $institutionId), 'name');
+                $detailOrders = $format === 'pdf'
+                    ? $this->orders->institutionMonthlySalesExportOrders($summary->from, $summary->to, $institutionId)
+                    : [];
+                $customerNames = $format === 'pdf'
+                    ? $this->customers->namesByIds(array_values(array_unique(array_map(
+                        static fn (InstitutionMonthlySalesOrderData $order): int => $order->customerId,
+                        $detailOrders,
+                    ))))
+                    : [];
 
-                return [$summary, $institutionName];
+                return [$summary, $institutionName, $detailOrders, $customerNames];
             },
         );
         $export = ReportExport::query()->create([
@@ -127,7 +141,7 @@ final readonly class ReportExportManager
         ]);
 
         try {
-            return $this->institutionSalesGenerator->generate($export, $summary);
+            return $this->institutionSalesGenerator->generate($export, $summary, $detailOrders, $customerNames);
         } catch (Throwable $exception) {
             report($exception);
             $export->update([

@@ -63,6 +63,13 @@ return [
         'all_institutions' => '전체 기관',
         'institution_filter' => '기관 필터',
         'primary_amount' => '월 매출',
+        'date' => '소비 날짜',
+        'order' => '주문 번호',
+        'customer' => '고객 이름',
+        'project' => '프로젝트',
+        'quantity' => '수량',
+        'amount' => '금액（KRW）',
+        'notes' => '업무 메모',
     ],
     'errors' => [
         'invalid_month' => '유효한 집계 월을 입력하세요.',

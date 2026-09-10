@@ -63,6 +63,13 @@ return [
         'all_institutions' => '全部机构',
         'institution_filter' => '机构筛选',
         'primary_amount' => '月销售额',
+        'date' => '消费日期',
+        'order' => '订单号',
+        'customer' => '客户姓名',
+        'project' => '项目',
+        'quantity' => '数量',
+        'amount' => '金额（KRW）',
+        'notes' => '业务备注',
     ],
     'errors' => [
         'invalid_month' => '请输入有效的统计月份。',
