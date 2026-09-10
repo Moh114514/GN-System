@@ -120,6 +120,7 @@ GitHub CI 和 GHCR 是发布基础设施，不是可登录的业务环境。
 | 2026-08-17，当前 `develop` | 工作区未发布 | PR7 让月结中心默认展示最新已生成周期并支持周期切换，历史归档改用业务日期重叠查询；已结清详情保留文档下载，历史 `paid`/`reconciled` 月结可在只读详情按需生成并下载 Word/PDF | 不新增 migration；UAT 需核对周期下拉、业务日期边界、已结清详情文档下载及历史文档生成后状态不变；本机结果不能替代目标环境验证 |
 | 2026-08-30，`feature/business-groups-and-roles` 工作区 | 工作区未发布 | 修复财务单据 BD 调整金额重复计算；PDF 改用构建时合并的 CJK TrueType 字体、`truetype` 声明和 table 布局；规则配置 UI 改为响应式 12 栏；新增金额回归与 `pdftotext` 文本 smoke test | 不新增 migration、Composer 依赖或环境变量；Docker app 镜像新增字体构建包和 `poppler-utils`，UAT/Production 发布前必须重建并核对镜像中的字体路径、字符 smoke test 及月结/BD 中韩文输出；本机结果不能替代目标环境验证 |
 | 2026-09-07，`feature/institution-sales-drilldown` 工作区 | 工作区未发布 | 机构月度销售额总表补全零订单启用机构，并新增机构销售详情下钻、代理商贡献和订单明细 | 不新增 migration、依赖或环境变量；仅完成本地定向测试，未合入 `develop`，未创建 RC、部署或执行 UAT/Production 人工验收；发布前仍按完整门禁和正常 RC 流程核对 |
+| 2026-09-10，`feature/pr1-order-registration` 工作区 | 工作区未发布 | 方案 PR1 增加客户已到院后的订单一单多项目手工登记、沟通截图/结算小票私有凭证及按客户权限下载；机构 Excel 回传继续保留 | 新增 `2026_09_10_000100_create_order_evidence_files.php` migration 和私有加密文件；发布前必须备份数据库与 `storage/app/private`，按 RC 流程执行 migration，并在 UAT 核对凭证权限、日期/到院校验、事务回滚和订单明细；本机结果不能替代 UAT/Production 验收 |
 | 2026-08-24，`feature/business-groups-and-roles` | 工作区未发布 | 新规划 PR1 增加用户角色兼容回填、业务组/成员有效期历史、代理商业务组有效期历史及配置管理；新增 `2026_08_21_000100_add_roles_business_groups_and_agent_assignments` migration；2026-08-26 补齐开放式成员/代理商归属结束操作、未来转组候选、BusinessClock 统一和排他约束冲突业务化 | 仅完成本地开发和自动化验证，未合入 `develop`，未部署 UAT/Production。正式发布前必须备份数据库，按 RC 流程运行 migration，并人工核对角色、业务组成员、归属结束/未来转组、代理商归属和未归属完整性；本机结果不能替代目标环境验收 |
 | 2026-08-24，`feature/business-groups-and-roles` | 工作区未发布 | 新规划 PR7 完成 README、架构/模块文档、替代 ADR、UAT 角色映射、只读预检、备份迁移、抽样及回退/恢复手册；建议 `v0.6.0-rc.1` | 未处理 `develop`/`main` 分叉，未创建 RC，未推送、部署或执行 UAT/Production migration；发布前必须按 PR7 手册完成完整门禁、备份、映射、迁移和人工验收 |
 
@@ -138,6 +139,19 @@ migration 会启用 PostgreSQL `btree_gist` 扩展并创建日期重叠约束，
 本机测试通过不代表 UAT 或 Production 已完成语言切换、缓存清理或数据库验收；发布前需执行至 `000500` 的全部 migration，并抽查导入失败批次、月结失败、报表导出失败、系统提醒模板/历史提醒的结构化消息及韩文语言设置入口。`000400` 和 `000500` 仅增加可空字段并保留旧文本列，旧镜像仍可读取旧字段；回退 migration 会删除新结构化元数据，因此回退前必须备份，并确认可以接受失去新增的韩文投影信息。
 
 PR4 的指定节假日提醒复用现有 `reminder_rules` 表和每分钟 Scheduler，不需要数据库 migration、第三方节假日 API 或新的客服权限体系。发布前在 UAT 配置两条连续日期规则，核对 `date`/`time`、客户范围、客户负责人分配、重复扫描幂等和停用规则；生产发布仍需按 RC 流程执行，不能以本机测试替代人工验收。
+
+## 方案 PR1 订单登记基础（2026-09-10）
+
+当前 `feature/pr1-order-registration` 只在本机开发 Compose 测试数据库完成验证，尚未合入
+`develop`、创建 RC、部署或执行 UAT/Production migration。该版本新增
+`2026_09_10_000100_create_order_evidence_files.php`，建立订单凭证元数据表；凭证内容写入
+`storage/app/private` 的加密文件，不得放入公开 Web 根目录或手工复制到服务器公开目录。
+
+发布前必须按环境分别备份数据库和私有文件存储，使用不可变 RC 由发布脚本执行 migration、清理缓存、
+启动应用并重启相关 Worker/Scheduler。UAT 至少核对：客户未到院或到院日期不一致时拒绝登记；一单多项目
+金额与明细合计一致；沟通截图和结算小票均为必填且可多文件；客服只能下载本人客户凭证，BD/管理员遵循
+现有范围；凭证重复、事务失败和下载权限失败不产生可见的半成品订单。不得手工建表、上传明文凭证或
+直接删除 `order_evidence_files`；回退必须走标准版本回退并使用已验证备份，避免丢失凭证元数据与私有文件。
 
 ### 2.3 UAT 当前状态
 

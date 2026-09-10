@@ -13,6 +13,7 @@
                 <dl class="grid gap-4 rounded-2xl bg-zinc-50 p-5 sm:grid-cols-2 dark:bg-zinc-800/60">
                     <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.order') }}</dt><dd class="mt-1 font-semibold">#{{ $successResult['id'] }} <span class="crm-pill tone-green ml-2">{{ __('orders.statuses.completed') }}</span></dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.treatment_project') }}</dt><dd class="mt-1 font-medium">{{ $successResult['project_name'] }}</dd></div>
+                    <div><dt class="text-xs text-zinc-500">{{ __('orders.registration.item_count') }}</dt><dd class="mt-1 font-medium">{{ $successResult['item_count'] }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.institution') }}</dt><dd class="mt-1 font-medium">{{ $successResult['institution'] }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.occurred_on') }}</dt><dd class="mt-1 font-medium">{{ $successResult['occurred_on'] ?: __('orders.values.empty') }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.transaction_amount') }}</dt><dd class="mt-1 font-medium">₩ {{ number_format((int) $successResult['amount_krw']) }}</dd></div>
@@ -25,7 +26,7 @@
                 </div>
             </div>
         @else
-            <form wire:submit="uploadReturn" class="space-y-6">
+            <form wire:submit="registerOrder" class="space-y-6">
                 <div>
                     <flux:heading size="lg">{{ __('orders.registration.title') }}</flux:heading>
                     <flux:subheading class="mt-2">{{ __('orders.registration.description') }}</flux:subheading>
@@ -37,7 +38,7 @@
                         <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.customer') }}</dt><dd class="mt-1 font-semibold">{{ $context['customer']['name'] }} · {{ $context['customer']['code'] }}</dd></div>
                         <div><dt class="text-xs text-zinc-500">{{ __('customers.detail.profile.agent') }}</dt><dd class="mt-1 font-medium">{{ $context['agent']['name'] ?? __('customers.fallback.unknown_agent') }}</dd></div>
                         <div><dt class="text-xs text-zinc-500">{{ __('orders.registration.status') }}</dt><dd class="mt-1 font-medium">{{ $context['customer']['current_status'] ?: __('customers.fallback.unset') }}</dd></div>
-                        <div><dt class="text-xs text-zinc-500">{{ __('customers.detail.profile.arrived_at') }}</dt><dd class="mt-1 font-medium">{{ $context['customer']['arrived_at'] ?: __('customers.fallback.unset') }}</dd></div>
+                        <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.occurred_on') }}</dt><dd class="mt-1 font-medium">{{ $context['customer']['arrived_at'] ? \Illuminate\Support\Carbon::parse($context['customer']['arrived_at'])->format('Y-m-d') : __('customers.fallback.unset') }}</dd></div>
                     </dl>
                 </section>
 
@@ -47,11 +48,11 @@
                     </div>
                 @endif
 
-                <section class="space-y-3">
+                <section class="space-y-4 rounded-2xl border border-teal-200 bg-teal-50/50 p-4 dark:border-teal-900/60 dark:bg-teal-950/20">
                     <div class="flex items-center justify-between gap-3">
                         <div>
-                            <h3 class="text-sm font-semibold">{{ __('orders.registration.form_title') }}</h3>
-                            <p class="mt-1 text-xs text-zinc-500">{{ __('orders.registration.form_hint') }}</p>
+                            <h3 class="text-sm font-semibold">{{ __('orders.registration.manual_title') }}</h3>
+                            <p class="mt-1 text-xs text-zinc-500">{{ __('orders.registration.manual_description') }}</p>
                         </div>
                         @if (($context['institution_locked'] ?? false) && ! $institutionPickerOpen)
                             <flux:button type="button" wire:click="showInstitutionPicker" variant="ghost" size="sm">{{ __('orders.registration.change_institution') }}</flux:button>
@@ -59,7 +60,7 @@
                     </div>
 
                     @if (($context['institution_locked'] ?? false) && ! $institutionPickerOpen)
-                        <div class="rounded-xl bg-teal-50 px-4 py-3 text-sm dark:bg-teal-950/30">
+                        <div class="rounded-xl bg-white px-4 py-3 text-sm dark:bg-zinc-900">
                             <span class="font-medium">{{ $context['institution']['name'] }}</span>
                             <span class="ml-2 text-xs text-zinc-500">{{ $context['institution']['code'] }}</span>
                         </div>
@@ -73,6 +74,49 @@
                     @endif
                     @error('institutionId') <p class="text-sm text-red-600">{{ $message }}</p> @enderror
 
+                    <div class="space-y-3">
+                        @foreach ($items as $index => $item)
+                            <div class="grid gap-3 sm:grid-cols-[minmax(0,1fr)_12rem_auto] sm:items-end">
+                                <flux:input wire:model="items.{{ $index }}.project_name" :label="__('orders.fields.project_name')" required />
+                                <flux:input wire:model="items.{{ $index }}.amount_krw" type="number" min="1" step="1" :label="__('orders.fields.amount')" required />
+                                @if (count($items) > 1)
+                                    <flux:button type="button" wire:click="removeItem({{ $index }})" variant="ghost" size="sm">{{ __('orders.registration.remove_item') }}</flux:button>
+                                @endif
+                            </div>
+                            @error("items.{$index}.project_name") <p class="text-sm text-red-600">{{ $message }}</p> @enderror
+                            @error("items.{$index}.amount_krw") <p class="text-sm text-red-600">{{ $message }}</p> @enderror
+                        @endforeach
+                        <flux:button type="button" wire:click="addItem" variant="ghost" icon="plus">{{ __('orders.registration.add_item') }}</flux:button>
+                    </div>
+                </section>
+
+                <section class="space-y-4">
+                    <div>
+                        <h3 class="text-sm font-semibold">{{ __('orders.registration.evidence_title') }}</h3>
+                        <p class="mt-1 text-xs text-zinc-500">{{ __('orders.registration.evidence_description') }}</p>
+                    </div>
+                    <div class="grid gap-4 sm:grid-cols-2">
+                        <div>
+                            <flux:input type="file" wire:model="communicationScreenshots" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple :label="__('orders.registration.communication_screenshot')" required />
+                            @error('communicationScreenshots') <p class="text-sm text-red-600">{{ $message }}</p> @enderror
+                            @error('communicationScreenshots.*') <p class="text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                        <div>
+                            <flux:input type="file" wire:model="settlementReceipts" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple :label="__('orders.registration.settlement_receipt')" required />
+                            @error('settlementReceipts') <p class="text-sm text-red-600">{{ $message }}</p> @enderror
+                            @error('settlementReceipts.*') <p class="text-sm text-red-600">{{ $message }}</p> @enderror
+                        </div>
+                    </div>
+                    @if ($status === 'error' && $errorMessage)
+                        <p class="text-sm text-red-600">{{ $errorMessage }}</p>
+                    @endif
+                </section>
+
+                <section class="space-y-3 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+                    <div>
+                        <h3 class="text-sm font-semibold">{{ __('orders.registration.excel_title') }}</h3>
+                        <p class="mt-1 text-xs text-zinc-500">{{ __('orders.registration.excel_description') }}</p>
+                    </div>
                     <div class="flex flex-wrap items-center gap-3">
                         <span class="{{ ($context['can_register'] ?? false) ? '' : 'cursor-not-allowed opacity-50' }}">
                             <flux:button type="button" wire:click="downloadTemplate" variant="ghost" icon="arrow-down-tray" :disabled="! ($context['can_register'] ?? false)">{{ __('orders.registration.download_template') }}</flux:button>
@@ -82,14 +126,7 @@
                         @endif
                         <span class="text-xs text-zinc-500">{{ __('orders.registration.download_hint') }}</span>
                     </div>
-                </section>
-
-                <section class="space-y-3">
-                    <div>
-                        <h3 class="text-sm font-semibold">{{ __('orders.registration.upload_title') }}</h3>
-                        <p class="mt-1 text-xs text-zinc-500">{{ __('orders.registration.upload_description') }}</p>
-                    </div>
-                    <label class="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-zinc-300 px-6 py-8 text-center transition hover:border-teal-500 hover:bg-teal-50/50 dark:border-zinc-600 dark:hover:bg-teal-950/20">
+                    <label class="flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed border-zinc-300 px-6 py-6 text-center transition hover:border-teal-500 hover:bg-teal-50/50 dark:border-zinc-600 dark:hover:bg-teal-950/20">
                         <span class="text-sm font-medium">{{ __('orders.registration.drop_file') }}</span>
                         <span class="mt-1 text-xs text-zinc-500">.xlsx / .xlsm / .xls · {{ __('orders.registration.max_file') }}</span>
                         <input type="file" wire:model="upload" accept=".xlsx,.xlsm,.xls" class="sr-only" />
@@ -98,9 +135,9 @@
                         <p class="text-sm text-zinc-600 dark:text-zinc-300">{{ $upload->getClientOriginalName() }}</p>
                     @endif
                     @error('upload') <p class="text-sm text-red-600">{{ $message }}</p> @enderror
-                    @if ($status === 'error' && $errorMessage && ! $errors->has('upload'))
-                        <p class="text-sm text-red-600">{{ $errorMessage }}</p>
-                    @endif
+                    <div class="flex justify-end">
+                        <flux:button type="button" wire:click="uploadReturn" variant="ghost" :disabled="! ($context['can_register'] ?? false)" wire:loading.attr="disabled">{{ __('orders.registration.upload_submit') }}</flux:button>
+                    </div>
                 </section>
 
                 <div class="flex justify-end gap-2">
@@ -109,7 +146,7 @@
                     </flux:modal.close>
                     <div class="flex flex-col items-end gap-1">
                         <span class="{{ ($context['can_register'] ?? false) ? '' : 'cursor-not-allowed opacity-50' }}">
-                            <flux:button type="submit" variant="primary" :disabled="! ($context['can_register'] ?? false)" wire:loading.attr="disabled">{{ __('orders.registration.upload_submit') }}</flux:button>
+                            <flux:button type="submit" variant="primary" :disabled="! ($context['can_register'] ?? false)" wire:loading.attr="disabled">{{ __('orders.registration.confirm') }}</flux:button>
                         </span>
                         @if (! ($context['can_register'] ?? false))
                             <span class="text-xs text-zinc-400 dark:text-zinc-500">{{ __('orders.registration.unavailable_hint') }}</span>

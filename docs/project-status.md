@@ -4,12 +4,21 @@
 
 已实现 UAT 宿主机双层重置、配置重载脚本和非破坏性管理员维护命令。UAT 重置与配置重载均已加入目录、Compose 项目、环境文件权限、UAT URL、数据库名称和 PostgreSQL `current_database()` 防护；真实 UAT/Production 执行结果仍须在目标服务器按运维手册验收，不能由本机静态检查替代。
 
-> 最后核验：2026-09-01
-> 核验依据：Phase 6、订单中心、发布门禁、`v0.5.0-rc.13`、当前 `main` 提交记录和服务器环境记录，以及 `develop` 合并结果和 `feature/institution-sales-drilldown` 定向测试
-> 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及 PR1–PR7 规划能力继续保持；角色/业务组底座、权限范围、客户负责人移交与状态回退审批、订单事实快照和 BD 季度提成已合入本地 `develop`。当前工作区 `feature/institution-sales-drilldown` 在机构月度销售额总览基础上新增机构全集补零和机构销售详情下钻，尚未合入 `develop`、发布或完成 UAT/Production 验收。PR3、PR4、PR6 和 PR7 的迁移与发布运维前置条件仍需目标环境执行；UAT/生产历史数据升级、抽样核验和人工业务验收仍未完成。
+> 最后核验：2026-09-10
+> 核验依据：当前 `develop` 基线、`feature/pr1-order-registration` 工作区、订单登记 PR1 定向测试、完整后端门禁和 Vite 构建
+> 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及 PR1–PR7 规划能力继续保持；角色/业务组底座、权限范围、客户负责人移交与状态回退审批、订单事实快照和 BD 季度提成已合入本地 `develop`。当前工作区 `feature/pr1-order-registration` 已完成方案 PR1 的订单登记基础，但尚未合入 `develop`、发布或完成 UAT/Production 验收；新增凭证表 migration 的目标环境执行、备份、抽样核验和人工业务验收仍未完成。
 
 本页只描述仓库中可以验证的状态。未来规划见 `docs/source/`，不能据此页之外的
 规划内容推断某项能力已经存在。
+
+## 2026-09-10 PR1 订单登记基础
+
+- 当前分支 `feature/pr1-order-registration` 已完成 PR1：客户详情登记 Modal 支持一单多项目手工
+  登记，订单金额由项目明细合计，消费日期由已到院客户的 `arrived_at` 固化；服务端拒绝未到院客户。
+- 新增 `order_evidence_files` 私有凭证表、加密存储和按客户权限下载；沟通截图与结算小票均至少
+  上传一份，支持多文件。机构 Excel 流程继续保留，Excel v2 日期/字段改造属于后续 PR2。
+- 手工登记和机构回传已统一复用 `CompletedOrderRegistrar`，并已补充订单、凭证、权限、事务和回归测试。
+  本地后端完整门禁和 Vite 构建已通过；尚未合入 `develop`、部署或完成 UAT/Production 人工验收。
 
 ## 2026-09-01 客户详情订单登记 Modal
 

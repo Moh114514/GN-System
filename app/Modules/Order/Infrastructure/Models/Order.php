@@ -49,6 +49,12 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
+    /** @return HasMany<OrderEvidenceFile, $this> */
+    public function evidenceFiles(): HasMany
+    {
+        return $this->hasMany(OrderEvidenceFile::class);
+    }
+
     /** @return BelongsTo<InstitutionReturnFile, $this> */
     public function sourceReturnFile(): BelongsTo
     {

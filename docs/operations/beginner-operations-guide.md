@@ -67,6 +67,7 @@ GN-System 当前有两套服务器环境，不能混用：
 | `feature/business-groups-and-roles`（2026-08-26 本地工作区） | 新规划 PR1 增加角色、业务组、成员有效期历史和代理商业务组有效期历史；配置中心支持结束开放式归属、提前配置未来转组、按 BusinessClock 显示当前归属并检查未归属；新增 `2026_08_21_000100_add_roles_business_groups_and_agent_assignments` migration | 只在本地开发 Compose 测试数据库验证，尚未发布。以后发布前要备份数据库，并人工检查角色、成员结束归属、未来转组、代理商归属及未归属列表；不要在服务器手工建表 |
 | `feature/business-groups-and-roles`（2026-08-30 本地工作区） | 财务单据导出审查修复：BD 调整金额只计入一次，PDF 使用合并的 CJK TrueType 字体和 table 布局，规则配置 UI 调整为 12 栏响应式布局，并增加金额/PDF 文本测试 | 未处理 `develop`/`main` 分叉，未创建 RC，未推送、部署或执行 UAT/Production migration；Docker app 镜像需重建，UAT/Production 需核对字体、`pdftotext` smoke test、月结/BD 中文韩文及金额；本机结果不替代目标环境验收 |
 | `feature/institution-sales-drilldown`（2026-09-07 本地工作区） | 机构月度销售额总表补全零订单启用机构，并新增机构销售详情下钻、代理商贡献和订单明细 | 不新增 migration、依赖或环境变量；只在本地通过定向测试，未合入 `develop`、未创建 RC 或部署；发布前按完整门禁和 RC 流程验收，不能把本机结果当作 UAT/Production 验收 |
+| `feature/pr1-order-registration`（2026-09-10 本地工作区） | 方案 PR1 增加客户已到院后的订单一单多项目手工登记、沟通截图/结算小票私有凭证及按客户权限下载；机构 Excel 回传继续保留 | 新增 `2026_09_10_000100_create_order_evidence_files.php` migration 和私有加密文件；发布前备份数据库与 `storage/app/private`，按 RC 流程执行 migration；本机测试不等于 UAT/Production 验收 |
 | `feature/customer-status-tree`（历史工作分支） | PR2 客户详情状态流转可视化及 Agent 详情“关联客户”中韩文案 | 内容已合入 `develop`，不作为当前发布目标 |
 
 服务器实际版本以 `/srv/gn-system/releases/current` 和
@@ -943,6 +944,17 @@ There is no PR2 database migration. This is a local feature-branch result only: 
 当前本地 feature 分支新增 `/team-overview`“团队管理”一级页面。BD 只能看到自己有效业务组的数据；超级管理员可以看到全局业务组并点击进入某个组的详情；客服不显示侧栏入口，直接输入地址也会被拒绝。页面展示客服、客户、代理商、待跟进/逾期提醒、月度成交和负责人工作量，并跳回已有客户管理、提醒中心和业务组页面。
 
 本次没有新增 migration、依赖或服务器配置，只完成本机自动化测试，尚未合入、部署或完成 UAT/Production 验收。正式发布时按 RC 流程，在 UAT 用 BD、超级管理员和客服分别检查业务组隔离、暂停/终止代理商客户和提醒是否仍纳入、失效负责人异常客户、组选择下钻、按发生日/归属快照统计的工作量、生命周期“未设置”、需关注卡片筛选链接和 2FA 模拟身份门槛；开放业务页面前先预览历史订单归属快照回填，只有全部唯一匹配并经批准后才用显式 actor/reason 参数执行。不要在服务器手工改代码或数据库。
+
+## 方案 PR1 订单登记基础（2026-09-10）
+
+当前 `feature/pr1-order-registration` 只在本机开发 Compose 测试数据库验证，尚未合入、发布或完成
+UAT/Production 验收。本次新增 `2026_09_10_000100_create_order_evidence_files.php` migration；订单沟通截图
+和结算小票写入 `storage/app/private` 并加密，不能手工放到公开目录。
+
+正式发布前先分别备份目标环境数据库和私有文件目录，再让标准 RC 发布流程执行 migration。UAT 至少使用
+客服、BD 和管理员检查：未到院客户不能登记；一单多项目金额正确；两类凭证均必填；客服不能下载别人的
+凭证；失败或重复提交不会留下半成品订单。不要在服务器手工建表、删除凭证表或直接修改订单凭证；回退
+必须使用标准回退流程和已验证备份。本机结果不能当作 UAT/Production 结果。
 
 ## PR5 order and settlement status (2026-08-24)
 

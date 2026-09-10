@@ -22,7 +22,7 @@ final readonly class DatabaseCustomerTreatmentCompletionGateway implements Custo
         private BusinessClock $clock,
     ) {}
 
-    public function completeFromInstitutionReturn(
+    public function completeFromOrder(
         int $customerId,
         CarbonImmutable $occurredOn,
         int $actorId,
@@ -63,7 +63,7 @@ final readonly class DatabaseCustomerTreatmentCompletionGateway implements Custo
                     throw new DomainException(__('orders.errors.customer_status_unavailable'));
                 }
 
-                $this->writeHistory($customer, $current, $arrived, $actor->id, '机构回传确认到院');
+                $this->writeHistory($customer, $current, $arrived, $actor->id, '订单登记确认到院');
                 $customer->update([
                     'current_status_id' => $arrived->id,
                     'arrived_at' => $customer->arrived_at ?? $businessDate,
@@ -72,7 +72,7 @@ final readonly class DatabaseCustomerTreatmentCompletionGateway implements Custo
             }
 
             if ($current->id !== $target->id) {
-                $this->writeHistory($customer, $current, $target, $actor->id, '机构回传确认施术完成');
+                $this->writeHistory($customer, $current, $target, $actor->id, '订单登记确认施术完成');
             }
             $customer->update([
                 'current_status_id' => $target->id,
@@ -81,7 +81,7 @@ final readonly class DatabaseCustomerTreatmentCompletionGateway implements Custo
             ]);
 
             $this->audit->record(
-                description: '机构回传完成客户生命周期',
+                description: '订单登记完成客户生命周期',
                 properties: [
                     'customer_id' => $customer->id,
                     'occurred_on' => $businessDate->toDateString(),
@@ -90,7 +90,7 @@ final readonly class DatabaseCustomerTreatmentCompletionGateway implements Custo
                 causerId: $actor->id,
                 subject: $customer,
                 logName: 'customer',
-                event: 'institution_return_completed',
+                event: 'order_completed',
                 ipAddress: $ipAddress,
             );
         }, 3);

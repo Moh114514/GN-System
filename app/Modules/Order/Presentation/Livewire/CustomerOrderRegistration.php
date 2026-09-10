@@ -2,10 +2,15 @@
 
 namespace App\Modules\Order\Presentation\Livewire;
 
+use App\Modules\Order\Application\Data\CompletedOrderItemData;
+use App\Modules\Order\Application\Data\CompletedOrderRegistrationData;
 use App\Modules\Order\Application\Data\InstitutionReturnUploadData;
+use App\Modules\Order\Application\Data\OrderEvidenceUploadData;
+use App\Modules\Order\Application\Services\CompletedOrderRegistrar;
 use App\Modules\Order\Application\Services\CustomerOrderRegistrationWorkspace;
 use App\Modules\Order\Application\Services\InstitutionFormTemplateService;
 use App\Modules\Order\Application\Services\InstitutionReturnProcessor;
+use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
@@ -29,6 +34,15 @@ class CustomerOrderRegistration extends Component
 
     public ?TemporaryUploadedFile $upload = null;
 
+    /** @var array<int, array{project_name: string, amount_krw: string}> */
+    public array $items = [['project_name' => '', 'amount_krw' => '']];
+
+    /** @var array<int, TemporaryUploadedFile> */
+    public array $communicationScreenshots = [];
+
+    /** @var array<int, TemporaryUploadedFile> */
+    public array $settlementReceipts = [];
+
     public string $errorMessage = '';
 
     /** @var array<string, mixed>|null */
@@ -50,6 +64,92 @@ class CustomerOrderRegistration extends Component
         $this->institutionId = (string) $institutionId;
         $this->institutionPickerOpen = false;
         $this->resetValidation('institutionId');
+    }
+
+    public function addItem(): void
+    {
+        $this->items[] = ['project_name' => '', 'amount_krw' => ''];
+    }
+
+    public function removeItem(int $index): void
+    {
+        if (count($this->items) <= 1) {
+            return;
+        }
+
+        unset($this->items[$index]);
+        $this->items = array_values($this->items);
+    }
+
+    public function registerOrder(
+        CompletedOrderRegistrar $registrar,
+        CustomerOrderRegistrationWorkspace $workspace,
+    ): void {
+        $this->resetValidation();
+        $this->validate([
+            'institutionId' => ['required', 'integer', 'min:1'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.project_name' => ['required', 'string', 'max:255'],
+            'items.*.amount_krw' => ['required', 'integer', 'min:1'],
+            'communicationScreenshots' => ['required', 'array', 'min:1'],
+            'communicationScreenshots.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:20480'],
+            'settlementReceipts' => ['required', 'array', 'min:1'],
+            'settlementReceipts.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:20480'],
+        ]);
+        try {
+            $workspace->assertCanRegister($this->customerId);
+            $workspace->assertActiveInstitution((int) $this->institutionId);
+            $context = $workspace->context($this->customerId);
+        } catch (DomainException $exception) {
+            $this->fail($exception->getMessage());
+
+            return;
+        }
+        $arrivedAt = $context['customer']['arrived_at'] ?? null;
+        if ($arrivedAt === null) {
+            $this->fail(__('orders.errors.customer_not_arrived'));
+
+            return;
+        }
+
+        $actorId = Auth::id();
+        abort_unless(is_int($actorId), 403);
+        $this->status = 'registering';
+        $this->errorMessage = '';
+
+        try {
+            $orderId = $registrar->register(new CompletedOrderRegistrationData(
+                customerId: $this->customerId,
+                institutionId: (int) $this->institutionId,
+                agentId: (int) $context['customer']['source_agent_id'],
+                items: array_map(
+                    static fn (array $item): CompletedOrderItemData => new CompletedOrderItemData(
+                        projectName: trim($item['project_name']),
+                        amountKrw: (int) $item['amount_krw'],
+                    ),
+                    $this->items,
+                ),
+                occurredOn: CarbonImmutable::parse($arrivedAt)->startOfDay(),
+                actorId: $actorId,
+                ipAddress: request()->ip(),
+                ownerId: isset($context['customer']['owner_id']) ? (int) $context['customer']['owner_id'] : $actorId,
+                source: 'manual_registration',
+                evidence: [
+                    ...$this->evidence($this->communicationScreenshots, 'communication_screenshot'),
+                    ...$this->evidence($this->settlementReceipts, 'settlement_receipt'),
+                ],
+                requireArrived: true,
+            ));
+        } catch (DomainException $exception) {
+            $this->fail($exception->getMessage());
+
+            return;
+        }
+
+        $this->reset('communicationScreenshots', 'settlementReceipts');
+        $this->successResult = $workspace->result($this->customerId, $orderId);
+        $this->status = 'success';
+        $this->dispatch('customer-order-registered', customerId: $this->customerId);
     }
 
     public function downloadTemplate(
@@ -118,7 +218,8 @@ class CustomerOrderRegistration extends Component
     #[On('customer-order-registration-reset')]
     public function resetRegistration(): void
     {
-        $this->reset('upload', 'errorMessage', 'successResult', 'institutionPickerOpen');
+        $this->reset('upload', 'communicationScreenshots', 'settlementReceipts', 'errorMessage', 'successResult', 'institutionPickerOpen');
+        $this->items = [['project_name' => '', 'amount_krw' => '']];
         $this->resetValidation();
         $this->status = 'ready';
     }
@@ -160,5 +261,26 @@ class CustomerOrderRegistration extends Component
         $this->status = 'error';
         $this->errorMessage = $message;
         $this->addError('upload', $message);
+    }
+
+    /**
+     * @param  array<int, TemporaryUploadedFile>  $files
+     * @return array<int, OrderEvidenceUploadData>
+     */
+    private function evidence(array $files, string $type): array
+    {
+        return array_map(function (TemporaryUploadedFile $file) use ($type): OrderEvidenceUploadData {
+            $contents = $file->get();
+            if ($contents === false) {
+                throw new DomainException(__('orders.errors.order_evidence_unreadable'));
+            }
+
+            return new OrderEvidenceUploadData(
+                type: $type,
+                originalName: $file->getClientOriginalName(),
+                mimeType: $file->getMimeType(),
+                contents: $contents,
+            );
+        }, $files);
     }
 }

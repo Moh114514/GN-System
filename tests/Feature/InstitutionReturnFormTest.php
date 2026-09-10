@@ -22,6 +22,7 @@ use App\Modules\Order\Application\Services\InstitutionReturnProcessor;
 use App\Modules\Order\Infrastructure\Models\Appointment;
 use App\Modules\Order\Infrastructure\Models\InstitutionReturnFile;
 use App\Modules\Order\Infrastructure\Models\Order;
+use App\Modules\Order\Infrastructure\Models\OrderEvidenceFile;
 use App\Modules\Order\Infrastructure\Models\OrderItem;
 use App\Modules\Order\Presentation\Livewire\CustomerOrderRegistration;
 use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
@@ -63,7 +64,8 @@ class InstitutionReturnFormTest extends TestCase
             'owner_id' => $user->id,
             'status' => 'arrived',
         ]);
-        $contents = $this->workbook($institution->id, $customer->id, '2026-09-01', 2, 150000, 300000);
+        $occurredOn = now()->addDay()->toDateString();
+        $contents = $this->workbook($institution->id, $customer->id, $occurredOn, 2, 150000, 300000);
 
         $orderId = app(InstitutionReturnProcessor::class)->upload(new InstitutionReturnUploadData(
             institutionId: $institution->id,
@@ -81,8 +83,8 @@ class InstitutionReturnFormTest extends TestCase
             'customer_id' => $customer->id,
             'institution_id' => $institution->id,
             'agent_id' => $agent->id,
-            'occurred_on' => '2026-09-01',
-            'completed_on' => '2026-09-01',
+            'occurred_on' => $occurredOn,
+            'completed_on' => $occurredOn,
             'status' => 'completed',
             'record_status' => 'active',
         ]);
@@ -117,6 +119,92 @@ class InstitutionReturnFormTest extends TestCase
             ->assertDispatched('customer-order-registered');
 
         $this->assertDatabaseCount('orders', 1);
+    }
+
+    public function test_manual_registration_creates_one_order_with_multiple_items_and_private_evidence(): void
+    {
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent($institution);
+        $customer = $this->customer($agent, $user);
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+        app(CustomerStatusManager::class)->change($customer->id, $arrived->id, '客户已到院', $user, null);
+        $arrivedOn = $customer->refresh()->arrived_at?->toDateString();
+
+        Livewire::actingAs($user)
+            ->test(CustomerOrderRegistration::class, ['customerId' => $customer->id])
+            ->set('institutionId', (string) $institution->id)
+            ->set('items', [
+                ['project_name' => '水光针', 'amount_krw' => '500000'],
+                ['project_name' => 'Botox', 'amount_krw' => '300000'],
+                ['project_name' => '皮肤管理', 'amount_krw' => '200000'],
+            ])
+            ->set('communicationScreenshots', [UploadedFile::fake()->image('沟通.png')])
+            ->set('settlementReceipts', [UploadedFile::fake()->image('小票.png')])
+            ->call('registerOrder')
+            ->assertHasNoErrors()
+            ->assertSet('status', 'success')
+            ->assertSet('successResult.item_count', 3)
+            ->assertDispatched('customer-order-registered');
+
+        $order = Order::query()->firstOrFail();
+        $this->assertSame($arrivedOn, $order->occurred_on?->toDateString());
+        $this->assertSame(1000000, (int) $order->amount_krw);
+        $this->assertSame(3, OrderItem::query()->where('order_id', $order->id)->count());
+        $this->assertSame(1000000, (int) OrderItem::query()->where('order_id', $order->id)->sum('amount_krw'));
+        $this->assertDatabaseCount('order_evidence_files', 2);
+        $this->assertDatabaseHas('order_evidence_files', ['order_id' => $order->id, 'type' => 'communication_screenshot']);
+        $this->assertDatabaseHas('order_evidence_files', ['order_id' => $order->id, 'type' => 'settlement_receipt']);
+
+        $evidence = OrderEvidenceFile::query()->where('order_id', $order->id)->firstOrFail();
+        Storage::disk('local')->assertExists($evidence->encrypted_path);
+        $this->actingAs($user)
+            ->get(route('orders.evidence.download', $evidence->id))
+            ->assertOk()
+            ->assertHeader('Content-Disposition', 'attachment; filename="沟通.png"');
+        $this->actingAs(User::factory()->create())
+            ->get(route('orders.evidence.download', $evidence->id))
+            ->assertNotFound();
+    }
+
+    public function test_manual_registration_requires_both_evidence_types(): void
+    {
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent($institution);
+        $customer = $this->customer($agent, $user);
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+        app(CustomerStatusManager::class)->change($customer->id, $arrived->id, '客户已到院', $user, null);
+
+        Livewire::actingAs($user)
+            ->test(CustomerOrderRegistration::class, ['customerId' => $customer->id])
+            ->set('institutionId', (string) $institution->id)
+            ->set('items', [['project_name' => '水光针', 'amount_krw' => '500000']])
+            ->call('registerOrder')
+            ->assertHasErrors(['communicationScreenshots', 'settlementReceipts']);
+
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseCount('order_evidence_files', 0);
+    }
+
+    public function test_manual_registration_is_rejected_for_customer_who_has_not_arrived(): void
+    {
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent($institution);
+        $customer = $this->customer($agent, $user);
+
+        Livewire::actingAs($user)
+            ->test(CustomerOrderRegistration::class, ['customerId' => $customer->id])
+            ->set('institutionId', (string) $institution->id)
+            ->set('items', [['project_name' => '水光针', 'amount_krw' => '500000']])
+            ->set('communicationScreenshots', [UploadedFile::fake()->image('沟通.png')])
+            ->set('settlementReceipts', [UploadedFile::fake()->image('小票.png')])
+            ->call('registerOrder')
+            ->assertSee(__('orders.errors.customer_not_arrived'))
+            ->assertSet('status', 'error');
+
+        $this->assertDatabaseCount('orders', 0);
     }
 
     public function test_unavailable_customer_registration_actions_are_visibly_disabled(): void

@@ -3,27 +3,17 @@
 namespace App\Modules\Order\Application\Services;
 
 use App\Infrastructure\Time\BusinessClock;
-use App\Modules\Agent\Application\Contracts\AgentBusinessAttributionReader;
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
-use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Config\Application\Contracts\InstitutionReferenceReader;
 use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
-use App\Modules\Customer\Application\Contracts\CustomerTreatmentCompletionGateway;
-use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
+use App\Modules\Order\Application\Data\CompletedOrderItemData;
+use App\Modules\Order\Application\Data\CompletedOrderRegistrationData;
 use App\Modules\Order\Application\Data\InstitutionReturnUploadData;
 use App\Modules\Order\Infrastructure\InstitutionReturnStorage;
 use App\Modules\Order\Infrastructure\Models\InstitutionFormTemplate;
 use App\Modules\Order\Infrastructure\Models\InstitutionReturnFile;
-use App\Modules\Order\Infrastructure\Models\Order;
-use App\Modules\Order\Infrastructure\Models\OrderItem;
-use App\Modules\Reminder\Application\Contracts\AppointmentReminderGateway;
-use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
-use App\Modules\Reminder\Application\Data\CompletedTreatmentData;
-use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
-use App\Modules\Settlement\Application\Data\CompletedOrderCommissionData;
 use DomainException;
 use Illuminate\Database\QueryException;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -35,14 +25,8 @@ final readonly class InstitutionReturnProcessor
         private InstitutionReferenceReader $institutions,
         private CustomerOrderReferenceReader $customers,
         private AgentReferenceReader $agents,
-        private AgentBusinessAttributionReader $attributions,
-        private CustomerTreatmentCompletionGateway $customerCompletion,
-        private DailyCommissionGateway $commissions,
-        private TreatmentReminderGateway $reminders,
-        private CustomerOrderGateway $appointments,
-        private AppointmentReminderGateway $appointmentReminders,
-        private AuditRecorder $audit,
         private BusinessClock $clock,
+        private CompletedOrderRegistrar $registrar,
     ) {}
 
     public function upload(InstitutionReturnUploadData $data): int
@@ -117,94 +101,33 @@ final readonly class InstitutionReturnProcessor
                 'status' => 'processing',
             ]);
 
-            $orderId = DB::transaction(function () use ($data, $customer, $agent, $parsed, $returnFile, $template): int {
-                $attribution = $this->attributions->forAgentOnDate(
-                    (int) $customer['source_agent_id'],
-                    $parsed['occurred_on'],
-                );
-                $order = Order::query()->create([
-                    'customer_id' => $data->customerId,
-                    'institution_id' => $data->institutionId,
-                    'agent_id' => (int) $customer['source_agent_id'],
-                    'project_name' => (string) $parsed['items'][0]['project_name'],
-                    'amount_krw' => (int) $parsed['total_amount_krw'],
-                    'occurred_on' => $parsed['occurred_on'],
-                    'completed_on' => $parsed['occurred_on'],
-                    'completed_at' => $parsed['occurred_on']->startOfDay(),
-                    'completion_precision' => 'date',
-                    'record_status' => 'active',
-                    'status' => 'completed',
-                    'owner_id' => $customer['owner_id'] ?? $data->actorId,
-                    'source_return_file_id' => $returnFile->id,
-                    'treatment_project_snapshot' => (string) $parsed['items'][0]['project_name'],
-                    'business_attribution_snapshot' => [
-                        'source' => 'institution_return',
-                        'agent' => $agent,
-                        'business_group' => $attribution,
-                        'institution_id' => $data->institutionId,
-                        'occurred_on' => $parsed['occurred_on']->toDateString(),
-                        'template_key' => InstitutionFormSchema::TEMPLATE_KEY,
-                        'template_version' => $template->version,
-                    ],
-                ]);
-
-                foreach ($parsed['items'] as $item) {
-                    OrderItem::query()->create([
-                        'order_id' => $order->id,
-                        'project_snapshot' => $item['project_name'],
-                        'specification' => $item['specification'],
-                        'quantity' => $item['quantity'],
-                        'unit_price_krw' => $item['unit_price_krw'],
-                        'amount_krw' => $item['amount_krw'],
-                        'notes' => $item['notes'],
-                    ]);
-                }
-
-                $this->commissions->recordForCompletedOrder(new CompletedOrderCommissionData(
-                    orderId: (int) $order->id,
-                    agentId: (int) $customer['source_agent_id'],
-                    institutionId: $data->institutionId,
-                    orderAmountKrw: (int) $parsed['total_amount_krw'],
-                    completedOn: $parsed['occurred_on'],
-                    actorId: $data->actorId,
-                    ipAddress: $data->ipAddress,
-                ));
-                $this->customerCompletion->completeFromInstitutionReturn(
-                    customerId: $data->customerId,
-                    occurredOn: $parsed['occurred_on'],
-                    actorId: $data->actorId,
-                    ipAddress: $data->ipAddress,
-                );
-                $appointmentId = $this->appointments->completeAppointmentForCustomer($data->customerId, $data->institutionId);
-                if ($appointmentId !== null) {
-                    $this->appointmentReminders->cancelForAppointment($appointmentId, $data->actorId, 'institution_return_completed');
-                }
-                $this->reminders->schedule(new CompletedTreatmentData(
-                    orderId: (int) $order->id,
-                    customerId: $data->customerId,
-                    projectName: (string) $parsed['items'][0]['project_name'],
-                    completedOn: $parsed['occurred_on'],
-                    ownerId: isset($customer['owner_id']) ? (int) $customer['owner_id'] : $data->actorId,
-                    actorId: $data->actorId,
-                ));
-
-                $this->audit->record(
-                    description: '机构回传原子生成订单',
-                    properties: [
-                        'return_file_id' => $returnFile->id,
-                        'order_id' => $order->id,
-                        'occurred_on' => $parsed['occurred_on']->toDateString(),
-                        'item_count' => count($parsed['items']),
-                    ],
-                    causerId: $data->actorId,
-                    subject: $order,
-                    logName: 'order',
-                    event: 'institution_return_completed',
-                    ipAddress: $data->ipAddress,
-                );
-
-                return (int) $order->id;
-            }, 3);
+            $orderId = $this->registrar->register(new CompletedOrderRegistrationData(
+                customerId: $data->customerId,
+                institutionId: $data->institutionId,
+                agentId: (int) $customer['source_agent_id'],
+                items: array_map(
+                    static fn (array $item): CompletedOrderItemData => new CompletedOrderItemData(
+                        projectName: (string) $item['project_name'],
+                        amountKrw: (int) $item['amount_krw'],
+                        unitPriceKrw: (int) $item['unit_price_krw'],
+                        quantity: (string) $item['quantity'],
+                        specification: $item['specification'],
+                        notes: $item['notes'],
+                    ),
+                    $parsed['items'],
+                ),
+                occurredOn: $parsed['occurred_on'],
+                actorId: $data->actorId,
+                ipAddress: $data->ipAddress,
+                ownerId: isset($customer['owner_id']) ? (int) $customer['owner_id'] : $data->actorId,
+                source: 'institution_return',
+                sourceReturnFileId: $returnFile->id,
+                sourceMetadata: [
+                    'return_file_id' => $returnFile->id,
+                    'template_key' => InstitutionFormSchema::TEMPLATE_KEY,
+                    'template_version' => $template->version,
+                ],
+            ));
 
             $returnFile->update([
                 'status' => 'processed',

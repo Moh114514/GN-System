@@ -198,6 +198,12 @@ final readonly class OrderManagementWorkspace
             'treatment_project_id' => $order->treatment_project_id,
             'notes' => $order->notes,
             'items' => $items,
+            'evidence' => $order->evidenceFiles()->orderBy('type')->orderBy('id')->get()->map(fn ($file): array => [
+                'id' => (int) $file->id,
+                'type' => (string) $file->type,
+                'original_name' => (string) $file->original_name,
+                'size_bytes' => (int) $file->size_bytes,
+            ])->all(),
             'can_edit' => $canEdit,
             'financial' => $this->financials->forOrder((int) $order->id),
             'reminders' => $this->reminders->forOrder((int) $order->id),

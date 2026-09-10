@@ -22,6 +22,7 @@ use App\Modules\Order\Application\Services\DatabaseReportOrderReader;
 use App\Modules\Order\Application\Services\DatabaseSettlementOrderReader;
 use App\Modules\Order\Console\BackfillOrderAttributionSnapshotsCommand;
 use App\Modules\Order\Presentation\Http\InstitutionReturnFileController;
+use App\Modules\Order\Presentation\Http\OrderEvidenceFileController;
 use App\Modules\Order\Presentation\Livewire\CustomerOrders;
 use App\Modules\Order\Presentation\Livewire\InstitutionReturnCenter;
 use App\Modules\Order\Presentation\Livewire\OrderCenter;
@@ -59,6 +60,9 @@ class OrderServiceProvider extends ServiceProvider
                 Route::get('/institution-returns/{returnFile}/download', [InstitutionReturnFileController::class, 'download'])
                     ->whereUuid('returnFile')
                     ->name('institution-returns.download');
+                Route::get('/orders/evidence/{evidence}/download', [OrderEvidenceFileController::class, 'download'])
+                    ->whereNumber('evidence')
+                    ->name('orders.evidence.download');
                 Route::get('/orders/recycle-bin', OrderRecycleBin::class)->name('orders.recycle-bin');
                 Route::get('/orders/{order}', OrderDetail::class)->whereNumber('order')->name('orders.show');
                 Route::get('/orders/{order}/edit', OrderEdit::class)->whereNumber('order')->name('orders.edit');
