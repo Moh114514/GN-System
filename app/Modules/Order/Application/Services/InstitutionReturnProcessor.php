@@ -133,7 +133,9 @@ final readonly class InstitutionReturnProcessor
                     'template_key' => InstitutionFormSchema::TEMPLATE_KEY,
                     'template_version' => $template->version,
                 ],
+                evidence: $data->evidence,
                 requireArrived: true,
+                requireEvidence: true,
             ));
 
             $returnFile->update([

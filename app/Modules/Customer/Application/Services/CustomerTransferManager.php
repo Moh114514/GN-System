@@ -321,7 +321,7 @@ final readonly class CustomerTransferManager
             'customer-transfer:'.$history->id,
             __('customers.transfer.notifications.title'),
             __('customers.transfer.notifications.body', ['customer' => $customer->name, 'reason' => $reason]),
-            array_values(array_filter([$fromOwnerId, $toOwnerId, (int) $actor->id])),
+            array_values(array_filter([$fromOwnerId, $toOwnerId])),
             route('customers.show', $customer->id),
         );
         $this->audit->record(

@@ -101,6 +101,14 @@ class InstitutionMonthlySalesTest extends TestCase
         $this->assertSame(6_000_000, $institutionSummary->totalAmountKrw);
         $this->assertCount(1, $institutionSummary->rows);
         $this->assertSame($this->institutionA->id, $institutionSummary->rows[0]->institutionId);
+
+        $dashboardInstitutionRevenue = app(ReportOrderReader::class)->institutionRevenue(
+            CarbonImmutable::parse('2026-08-01'),
+            CarbonImmutable::parse('2026-08-31'),
+        );
+        $dashboardRows = collect($dashboardInstitutionRevenue)->keyBy('institution_id');
+        $this->assertSame(6_000_000, $dashboardRows[$this->institutionA->id]['value']);
+        $this->assertSame(4_000_000, $dashboardRows[$this->institutionB->id]['value']);
     }
 
     public function test_active_institution_without_orders_is_listed_and_detail_is_empty(): void

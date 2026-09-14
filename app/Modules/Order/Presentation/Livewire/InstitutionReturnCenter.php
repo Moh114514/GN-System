@@ -3,6 +3,7 @@
 namespace App\Modules\Order\Presentation\Livewire;
 
 use App\Modules\Order\Application\Data\InstitutionReturnUploadData;
+use App\Modules\Order\Application\Data\OrderEvidenceUploadData;
 use App\Modules\Order\Application\Services\InstitutionFormTemplateService;
 use App\Modules\Order\Application\Services\InstitutionReturnAccess;
 use App\Modules\Order\Application\Services\InstitutionReturnProcessor;
@@ -34,6 +35,12 @@ class InstitutionReturnCenter extends Component
     public array $customerCandidates = [];
 
     public ?TemporaryUploadedFile $upload = null;
+
+    /** @var array<int, TemporaryUploadedFile> */
+    public array $communicationScreenshots = [];
+
+    /** @var array<int, TemporaryUploadedFile> */
+    public array $settlementReceipts = [];
 
     /** @var array<int, array{id: int, code: string, name: string}> */
     public array $institutions = [];
@@ -80,6 +87,10 @@ class InstitutionReturnCenter extends Component
             'institutionId' => ['required', 'integer'],
             'customerId' => ['required', 'integer'],
             'upload' => ['required', 'file', 'mimes:xlsx,xlsm,xls', 'max:20480'],
+            'communicationScreenshots' => ['required', 'array', 'min:1'],
+            'communicationScreenshots.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:20480'],
+            'settlementReceipts' => ['required', 'array', 'min:1'],
+            'settlementReceipts.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:20480'],
         ]);
         $actorId = Auth::id();
         abort_unless(is_int($actorId), 403);
@@ -100,6 +111,10 @@ class InstitutionReturnCenter extends Component
                 contents: $contents,
                 actorId: $actorId,
                 ipAddress: request()->ip(),
+                evidence: [
+                    ...$this->evidence($this->communicationScreenshots, 'communication_screenshot'),
+                    ...$this->evidence($this->settlementReceipts, 'settlement_receipt'),
+                ],
             ));
         } catch (DomainException $exception) {
             $this->addError('upload', $exception->getMessage());
@@ -107,12 +122,33 @@ class InstitutionReturnCenter extends Component
             return;
         }
 
-        $this->reset('upload');
+        $this->reset('upload', 'communicationScreenshots', 'settlementReceipts');
         Flux::toast(variant: 'success', text: __('orders.messages.institution_return_processed', ['id' => $orderId]));
     }
 
     public function render(): View
     {
         return view('livewire.orders.institution-return-center')->title(__('orders.institution_return.title'));
+    }
+
+    /**
+     * @param  array<int, TemporaryUploadedFile>  $files
+     * @return array<int, OrderEvidenceUploadData>
+     */
+    private function evidence(array $files, string $type): array
+    {
+        return array_map(function (TemporaryUploadedFile $file) use ($type): OrderEvidenceUploadData {
+            $contents = $file->get();
+            if ($contents === false) {
+                throw new DomainException(__('orders.errors.order_evidence_unreadable'));
+            }
+
+            return new OrderEvidenceUploadData(
+                type: $type,
+                originalName: $file->getClientOriginalName(),
+                mimeType: $file->getMimeType(),
+                contents: $contents,
+            );
+        }, $files);
     }
 }

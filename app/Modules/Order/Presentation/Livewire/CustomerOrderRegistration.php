@@ -172,6 +172,10 @@ class CustomerOrderRegistration extends Component
         $this->validate([
             'institutionId' => ['required', 'integer', 'min:1'],
             'upload' => ['required', 'file', 'mimes:xlsx,xlsm,xls', 'max:20480'],
+            'communicationScreenshots' => ['required', 'array', 'min:1'],
+            'communicationScreenshots.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:20480'],
+            'settlementReceipts' => ['required', 'array', 'min:1'],
+            'settlementReceipts.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:20480'],
         ]);
         $workspace->assertCanRegister($this->customerId);
         $workspace->assertActiveInstitution((int) $this->institutionId);
@@ -196,6 +200,10 @@ class CustomerOrderRegistration extends Component
                 contents: $contents,
                 actorId: $actorId,
                 ipAddress: request()->ip(),
+                evidence: [
+                    ...$this->evidence($this->communicationScreenshots, 'communication_screenshot'),
+                    ...$this->evidence($this->settlementReceipts, 'settlement_receipt'),
+                ],
             ));
         } catch (DomainException $exception) {
             $this->fail($exception->getMessage());
@@ -203,7 +211,7 @@ class CustomerOrderRegistration extends Component
             return;
         }
 
-        $this->reset('upload');
+        $this->reset('upload', 'communicationScreenshots', 'settlementReceipts');
         $this->successResult = $workspace->result($this->customerId, $orderId);
         $this->status = 'success';
         $this->dispatch('customer-order-registered', customerId: $this->customerId);

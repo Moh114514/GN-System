@@ -67,7 +67,7 @@
             $institutionRevenue = $snapshot['charts']['institution_revenue'] ?? [];
             $institutionRevenueTotal = array_sum(array_column($institutionRevenue, 'value'));
             $institutionRevenueMax = max(1, ...array_column($institutionRevenue ?: [['value' => 0]], 'value'));
-            $institutionMonth = substr($rangeTo, 0, 7);
+            $institutionMonth = (string) ($snapshot['panels']['institution_revenue_month'] ?? '');
             $metricLinks = [
                 'revenue' => route('reports.search', $reportRange),
                 'new_customers' => route('customers.index', ['createdFrom' => $rangeFrom, 'createdTo' => $rangeTo]),
@@ -191,7 +191,7 @@
 
                 <article class="crm-card" data-test="institution-revenue-panel">
                     <header class="crm-card-header">
-                        <h2>{{ __('dashboard.panels.institution_revenue') }}</h2>
+                        <h2>{{ __('dashboard.panels.institution_revenue_month') }}</h2>
                         <a class="crm-card-link" href="{{ route('reports.institution-sales', ['month' => $institutionMonth]) }}" wire:navigate>{{ __('dashboard.panels.view_details') }} <span>›</span></a>
                     </header>
                     <div class="space-y-4" data-institution-revenue>
@@ -215,7 +215,7 @@
                                 </div>
                             </a>
                         @empty
-                            <div class="crm-panel-empty"><flux:icon name="building-office" />{{ __('dashboard.panels.no_institution_revenue') }}</div>
+                            <div class="crm-panel-empty"><flux:icon name="building-office" />{{ __('dashboard.panels.no_institution_revenue_month') }}</div>
                         @endforelse
                     </div>
                 </article>
@@ -259,12 +259,6 @@
             </section>
 
             <footer class="crm-dashboard-footer">
-                <div>
-                    <span>{{ __('dashboard.panels.status_legend') }}</span>
-                    <span><i class="tone-blue"></i>{{ __('dashboard.statuses.appointed') }}</span>
-                    <span><i class="tone-purple"></i>{{ __('dashboard.statuses.arrived') }}</span>
-                    <span><i class="tone-teal"></i>{{ __('dashboard.statuses.treated') }}</span>
-                </div>
                 <span>
                     {{ __('dashboard.panels.updated_at') }}
                     {{ \Carbon\CarbonImmutable::parse($snapshot['generated_at'])->setTimezone('Asia/Shanghai')->format('Y-m-d H:i:s') }}

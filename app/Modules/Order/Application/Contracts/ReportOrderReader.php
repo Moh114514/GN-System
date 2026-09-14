@@ -35,6 +35,9 @@ interface ReportOrderReader
      */
     public function dashboard(CarbonImmutable $from, CarbonImmutable $to): array;
 
+    /** @return list<array{institution_id: int, value: int}> */
+    public function institutionRevenue(CarbonImmutable $from, CarbonImmutable $to): array;
+
     /**
      * @param  list<int>  $ownerIds
      * @return array{orders: int, amount_krw: int, owners: array<int, array{orders: int, amount_krw: int}>}

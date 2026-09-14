@@ -319,9 +319,11 @@ class PhaseSixReportingConfigurationTest extends TestCase
             'project_name' => 'Dashboard Project',
             'amount_krw' => 880000,
             'completed_on' => '2026-07-30',
+            'occurred_on' => '2026-07-30',
             'completed_at' => CarbonImmutable::now(),
             'completion_precision' => 'datetime',
             'owner_id' => $this->user->id,
+            'record_status' => 'active',
             'status' => 'completed',
         ]);
         OrderCommission::query()->create([
@@ -355,6 +357,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->assertSame(1, $snapshot['panels']['monthly_revenue_orders'][0]['orders']);
         $this->assertSame(880000, $snapshot['charts']['institution_revenue'][0]['value']);
         $this->assertSame($this->institutionId, $snapshot['charts']['institution_revenue'][0]['id']);
+        $this->assertSame('2026-07', $snapshot['panels']['institution_revenue_month']);
         $this->assertArrayNotHasKey('today_tasks', $snapshot['panels']);
         $this->assertArrayNotHasKey('recent_customers', $snapshot['panels']);
         $this->assertArrayNotHasKey('lifecycle', $snapshot['panels']);
@@ -385,7 +388,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->assertSee('数据看板')
             ->assertSee('营收与订单趋势')
             ->assertSee('代理商推广费排行')
-            ->assertSee('机构营收对比')
+            ->assertSee('本月各机构销售额')
             ->assertSee('最近月结进度')
             ->assertSee('data-dashboard-chart="monthly_revenue_orders"', false)
             ->assertDontSee('data-dashboard-export', false)

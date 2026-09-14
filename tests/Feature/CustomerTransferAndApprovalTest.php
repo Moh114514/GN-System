@@ -195,6 +195,11 @@ class CustomerTransferAndApprovalTest extends TestCase
             'user_id' => $this->targetOwner->id,
             'event_key' => 'customer-transfer:'.$historyId,
         ]);
+        $this->assertDatabaseMissing('internal_notifications', [
+            'user_id' => $this->bd->id,
+            'event_type' => 'customer_transfer',
+            'event_key' => 'customer-transfer:'.$historyId,
+        ]);
     }
 
     public function test_rejected_transfer_notifies_the_requesting_customer_service_user(): void

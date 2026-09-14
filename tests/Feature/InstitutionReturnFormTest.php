@@ -16,6 +16,7 @@ use App\Modules\Customer\Application\Services\CustomerStatusManager;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
 use App\Modules\Order\Application\Data\InstitutionReturnUploadData;
+use App\Modules\Order\Application\Data\OrderEvidenceUploadData;
 use App\Modules\Order\Application\Services\InstitutionFormTemplateService;
 use App\Modules\Order\Application\Services\InstitutionReturnParser;
 use App\Modules\Order\Application\Services\InstitutionReturnProcessor;
@@ -25,6 +26,7 @@ use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Order\Infrastructure\Models\OrderEvidenceFile;
 use App\Modules\Order\Infrastructure\Models\OrderItem;
 use App\Modules\Order\Presentation\Livewire\CustomerOrderRegistration;
+use App\Modules\Order\Presentation\Livewire\InstitutionReturnCenter;
 use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
 use App\Modules\Settlement\Infrastructure\Models\CommissionRule;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
@@ -79,6 +81,7 @@ class InstitutionReturnFormTest extends TestCase
             contents: $contents,
             actorId: $user->id,
             ipAddress: '127.0.0.1',
+            evidence: $this->evidence(),
         ));
 
         $this->assertDatabaseHas('orders', [
@@ -115,6 +118,8 @@ class InstitutionReturnFormTest extends TestCase
             ->test(CustomerOrderRegistration::class, ['customerId' => $customer->id])
             ->set('institutionId', (string) $institution->id)
             ->set('upload', UploadedFile::fake()->createWithContent('登记订单.xlsx', $contents))
+            ->set('communicationScreenshots', [UploadedFile::fake()->image('沟通.png')])
+            ->set('settlementReceipts', [UploadedFile::fake()->image('小票.png')])
             ->call('uploadReturn')
             ->assertHasNoErrors()
             ->assertSet('status', 'success')
@@ -122,6 +127,45 @@ class InstitutionReturnFormTest extends TestCase
             ->assertDispatched('customer-order-registered');
 
         $this->assertDatabaseCount('orders', 1);
+    }
+
+    public function test_customer_registration_excel_upload_requires_both_evidence_types(): void
+    {
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent($institution);
+        $customer = $this->customer($agent, $user);
+        $this->arrive($customer, $user);
+        $contents = $this->workbook($institution->id, $customer->id, $customer->refresh()->arrived_at?->toDateString(), 1, 200000, 200000);
+
+        Livewire::actingAs($user)
+            ->test(CustomerOrderRegistration::class, ['customerId' => $customer->id])
+            ->set('institutionId', (string) $institution->id)
+            ->set('upload', UploadedFile::fake()->createWithContent('缺凭证.xlsx', $contents))
+            ->call('uploadReturn')
+            ->assertHasErrors(['communicationScreenshots', 'settlementReceipts']);
+
+        $this->assertDatabaseCount('orders', 0);
+    }
+
+    public function test_institution_return_center_excel_upload_requires_both_evidence_types(): void
+    {
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent($institution);
+        $customer = $this->customer($agent, $user);
+        $this->arrive($customer, $user);
+        $contents = $this->workbook($institution->id, $customer->id, $customer->refresh()->arrived_at?->toDateString(), 1, 200000, 200000);
+
+        Livewire::actingAs($user)
+            ->test(InstitutionReturnCenter::class)
+            ->set('institutionId', (string) $institution->id)
+            ->set('customerId', (string) $customer->id)
+            ->set('upload', UploadedFile::fake()->createWithContent('中心缺凭证.xlsx', $contents))
+            ->call('uploadReturn')
+            ->assertHasErrors(['communicationScreenshots', 'settlementReceipts']);
+
+        $this->assertDatabaseCount('orders', 0);
     }
 
     public function test_institution_template_v2_hides_legacy_fields_and_prefills_arrival_date(): void
@@ -182,6 +226,7 @@ class InstitutionReturnFormTest extends TestCase
             contents: $contents,
             actorId: $user->id,
             ipAddress: null,
+            evidence: $this->evidence(),
         ));
 
         $this->assertDatabaseCount('orders', 0);
@@ -310,6 +355,7 @@ class InstitutionReturnFormTest extends TestCase
             contents: $contents,
             actorId: $user->id,
             ipAddress: null,
+            evidence: $this->evidence(),
         ));
 
         $this->assertDatabaseCount('orders', 0);
@@ -347,6 +393,7 @@ class InstitutionReturnFormTest extends TestCase
             contents: $contents === false ? '' : $contents,
             actorId: $user->id,
             ipAddress: null,
+            evidence: $this->evidence(),
         ));
 
         $this->assertDatabaseCount('orders', 0);
@@ -420,7 +467,7 @@ class InstitutionReturnFormTest extends TestCase
         $customer = $this->customer($agent, $user);
         $this->arrive($customer, $user);
         $contents = $this->workbook($institution->id, $customer->id, $customer->refresh()->arrived_at?->toDateString(), 1, 200000, 200000);
-        $data = new InstitutionReturnUploadData($institution->id, $customer->id, '重复.xlsx', 'xlsx', null, $contents, $user->id, null);
+        $data = new InstitutionReturnUploadData($institution->id, $customer->id, '重复.xlsx', 'xlsx', null, $contents, $user->id, null, $this->evidence());
 
         app(InstitutionReturnProcessor::class)->upload($data);
         $this->expectException(DomainException::class);
@@ -443,7 +490,7 @@ class InstitutionReturnFormTest extends TestCase
         app()->instance(DailyCommissionGateway::class, $gateway);
 
         $this->expectException(DomainException::class);
-        app(InstitutionReturnProcessor::class)->upload(new InstitutionReturnUploadData($institution->id, $customer->id, '失败.xlsx', 'xlsx', null, $contents, $user->id, null));
+        app(InstitutionReturnProcessor::class)->upload(new InstitutionReturnUploadData($institution->id, $customer->id, '失败.xlsx', 'xlsx', null, $contents, $user->id, null, $this->evidence()));
 
         $this->assertDatabaseCount('orders', 0);
         $this->assertDatabaseCount('order_commissions', 0);
@@ -460,7 +507,7 @@ class InstitutionReturnFormTest extends TestCase
         $customer = $this->customer($agent, $user);
         $this->arrive($customer, $user);
         $contents = $this->workbook($institution->id, $customer->id, $customer->refresh()->arrived_at?->toDateString(), 1, 100000, 100000);
-        $orderId = app(InstitutionReturnProcessor::class)->upload(new InstitutionReturnUploadData($institution->id, $customer->id, '原始回传.xlsx', 'xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $contents, $user->id, null));
+        $orderId = app(InstitutionReturnProcessor::class)->upload(new InstitutionReturnUploadData($institution->id, $customer->id, '原始回传.xlsx', 'xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $contents, $user->id, null, $this->evidence()));
         $file = InstitutionReturnFile::query()->firstOrFail();
 
         $response = $this->actingAs($user)->get(route('institution-returns.download', $file->id));
@@ -490,6 +537,15 @@ class InstitutionReturnFormTest extends TestCase
         @unlink($path);
 
         return $contents === false ? '' : $contents;
+    }
+
+    /** @return array<int, OrderEvidenceUploadData> */
+    private function evidence(): array
+    {
+        return [
+            new OrderEvidenceUploadData('communication_screenshot', '沟通.png', 'image/png', 'communication'),
+            new OrderEvidenceUploadData('settlement_receipt', '小票.png', 'image/png', 'receipt'),
+        ];
     }
 
     private function arrive(Customer $customer, User $user): void

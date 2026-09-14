@@ -2,6 +2,7 @@
 
 namespace App\Modules\Report\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Application\Contracts\ReportAgentReader;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Config\Application\Contracts\ReportConfigReader;
@@ -26,6 +27,7 @@ final readonly class DashboardService
         private ReportSettlementReader $settlements,
         private ReportReminderReader $reminders,
         private AccessContextResolver $access,
+        private BusinessClock $clock,
     ) {}
 
     public function refreshSeconds(): int
@@ -35,7 +37,7 @@ final readonly class DashboardService
 
     public function snapshot(DashboardRangeData $range, bool $force = false): DashboardSnapshotData
     {
-        $key = 'report:dashboard:v6:'.hash('sha256', $range->from->toIso8601String().'|'.$range->to->toIso8601String().'|'.$this->access->current()->fingerprint);
+        $key = 'report:dashboard:v7:'.hash('sha256', $range->from->toIso8601String().'|'.$range->to->toIso8601String().'|'.$this->access->current()->fingerprint);
         if ($force) {
             try {
                 Cache::forget($key);
@@ -83,7 +85,11 @@ final readonly class DashboardService
             ),
         ];
         $agentNames = $this->agents->namesByIds($agentIds);
-        $institutionRevenue = $this->institutionRevenue($current['order']['institution_revenue']);
+        $institutionMonth = $this->clock->now();
+        $institutionRevenue = $this->institutionRevenue($this->orders->institutionRevenue(
+            $institutionMonth->startOfMonth(),
+            $institutionMonth,
+        ));
         $monthlyOrders = [];
         foreach ($current['order']['monthly_orders'] as $monthlyOrder) {
             $monthlyOrders[(string) $monthlyOrder['key']] = (int) $monthlyOrder['value'];
@@ -125,6 +131,7 @@ final readonly class DashboardService
                 'promotion_fee' => $current['settlement']['promotion_fee'],
                 'monthly_revenue_orders' => $monthlyTrend,
                 'settlement_progress' => $current['settlement']['progress'],
+                'institution_revenue_month' => $institutionMonth->format('Y-m'),
             ],
             generatedAt: now('Asia/Shanghai')->toIso8601String(),
         );

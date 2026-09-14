@@ -98,25 +98,30 @@ final class DatabaseReportOrderReader implements ReportOrderReader
                 'key' => (string) $row->getAttribute('key'),
                 'value' => (int) $row->getAttribute('value'),
             ])->all();
-        $institutions = (clone $base)
-            ->select('institution_id')
-            ->selectRaw('SUM(amount_krw)::bigint AS value')
-            ->groupBy('institution_id')
-            ->orderByDesc('value')
-            ->get()
-            ->map(fn (Order $row): array => [
-                'institution_id' => (int) $row->institution_id,
-                'value' => (int) $row->getAttribute('value'),
-            ])->all();
 
         return [
             'completed_amount' => $amount,
             'repurchase_rate' => $purchasers === 0 ? 0.0 : round($repeaters / $purchasers * 100, 2),
             'monthly_consumption' => $monthly,
             'monthly_orders' => $monthlyOrders,
-            'institution_revenue' => $institutions,
+            'institution_revenue' => $this->institutionRevenue($from, $to),
             'lifecycle' => $this->lifecycle($to),
         ];
+    }
+
+    /** @return list<array{institution_id: int, value: int}> */
+    public function institutionRevenue(CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        return $this->institutionSalesQuery($from, $to)
+            ->select('institution_id')
+            ->selectRaw('SUM(amount_krw)::bigint AS value')
+            ->groupBy('institution_id')
+            ->orderByDesc('value')
+            ->get()
+            ->map(static fn (Order $row): array => [
+                'institution_id' => (int) $row->institution_id,
+                'value' => (int) $row->getAttribute('value'),
+            ])->values()->all();
     }
 
     public function teamOverview(array $ownerIds, int $businessGroupId, CarbonImmutable $from, CarbonImmutable $to): array
