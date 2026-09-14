@@ -56,6 +56,8 @@ return [
         'orders_count' => '订单数（单）',
         'no_transactions' => '当前区间暂无成交数据',
         'promotion_ranking' => '代理商推广费排行',
+        'institution_revenue' => '机构营收对比',
+        'no_institution_revenue' => '当前区间暂无机构营收数据',
         'view_all' => '查看全部',
         'no_promotion_fee' => '当前区间暂无推广费',
         'lifecycle' => '客户生命周期概览',

@@ -8,4 +8,7 @@ interface NotificationRecipientGateway
 
     /** @param list<int> $userIds */
     public function notifyInternalUsers(string $eventType, string $eventKey, string $title, string $body, array $userIds, ?string $link = null): void;
+
+    /** @param list<int> $userIds */
+    public function notifyUsers(string $eventType, string $eventKey, string $title, string $body, array $userIds, ?string $link = null): void;
 }

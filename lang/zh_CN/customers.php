@@ -300,6 +300,10 @@ return [
         'notifications' => [
             'title' => '客户负责人已变更',
             'body' => '客户 :customer 的负责人已变更。:reason',
+            'request_title' => '客户移交申请待审批',
+            'request_body' => '客户 :customer 提交了负责人移交申请，请审核。原因：:reason',
+            'rejected_title' => '客户移交申请已驳回',
+            'rejected_body' => '客户 :customer 的负责人移交申请已驳回。审核意见：:reason',
         ],
     ],
     'status_approval' => [

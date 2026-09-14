@@ -37,6 +37,7 @@ class DashboardTest extends TestCase
             ->assertDontSee('PNG')
             ->assertSee('新增客户')
             ->assertSee('营收与订单趋势')
+            ->assertSee('机构营收对比')
             ->assertDontSee('客户生命周期概览')
             ->assertDontSee('最近客户记录')
             ->assertDontSee('演示数据');

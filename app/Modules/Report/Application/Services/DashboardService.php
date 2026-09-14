@@ -35,7 +35,7 @@ final readonly class DashboardService
 
     public function snapshot(DashboardRangeData $range, bool $force = false): DashboardSnapshotData
     {
-        $key = 'report:dashboard:v5:'.hash('sha256', $range->from->toIso8601String().'|'.$range->to->toIso8601String().'|'.$this->access->current()->fingerprint);
+        $key = 'report:dashboard:v6:'.hash('sha256', $range->from->toIso8601String().'|'.$range->to->toIso8601String().'|'.$this->access->current()->fingerprint);
         if ($force) {
             try {
                 Cache::forget($key);
@@ -83,7 +83,7 @@ final readonly class DashboardService
             ),
         ];
         $agentNames = $this->agents->namesByIds($agentIds);
-        $institutionNames = $this->config->institutionNamesByIds(array_column($current['order']['institution_revenue'], 'institution_id'));
+        $institutionRevenue = $this->institutionRevenue($current['order']['institution_revenue']);
         $monthlyOrders = [];
         foreach ($current['order']['monthly_orders'] as $monthlyOrder) {
             $monthlyOrders[(string) $monthlyOrder['key']] = (int) $monthlyOrder['value'];
@@ -119,10 +119,7 @@ final readonly class DashboardService
                 'monthly_consumption' => $current['order']['monthly_consumption'],
                 'repurchase_rate' => [['key' => '__dashboard_repurchase_rate__', 'value' => $current['order']['repurchase_rate']]],
                 'followup_completion_rate' => [['key' => '__dashboard_followup_completion_rate__', 'value' => $current['reminder']['followup_completion_rate']]],
-                'institution_revenue' => array_map(fn (array $row): array => [
-                    'key' => $institutionNames[$row['institution_id']] ?? '__dashboard_missing_institution__',
-                    'value' => $row['value'],
-                ], $current['order']['institution_revenue']),
+                'institution_revenue' => $institutionRevenue,
             ],
             panels: [
                 'promotion_fee' => $current['settlement']['promotion_fee'],
@@ -154,5 +151,52 @@ final readonly class DashboardService
             'previous' => $previous,
             'change' => $previous == 0 ? null : round(($value - $previous) / abs($previous) * 100, 2),
         ];
+    }
+
+    /**
+     * @param  list<array{institution_id: int, value: int}>  $aggregates
+     * @return list<array{id: int, key: string, value: int}>
+     */
+    private function institutionRevenue(array $aggregates): array
+    {
+        $context = $this->access->current();
+        $visibleIds = $context->isSuperAdmin()
+            ? null
+            : array_fill_keys($this->orders->visibleInstitutionIds(), true);
+        $amounts = [];
+        foreach ($aggregates as $aggregate) {
+            $id = (int) $aggregate['institution_id'];
+            if ($visibleIds !== null && ! isset($visibleIds[$id])) {
+                continue;
+            }
+            $amounts[$id] = ($amounts[$id] ?? 0) + (int) $aggregate['value'];
+        }
+
+        $names = [];
+        foreach ($this->config->activeInstitutions() as $institution) {
+            $id = (int) $institution['id'];
+            if ($visibleIds !== null && ! isset($visibleIds[$id])) {
+                continue;
+            }
+            $names[$id] = (string) $institution['name'];
+            $amounts[$id] ??= 0;
+        }
+        $missingIds = array_values(array_diff(array_keys($amounts), array_keys($names)));
+        if ($missingIds !== []) {
+            $names += $this->config->institutionNamesByIds($missingIds);
+        }
+
+        $rows = [];
+        foreach ($amounts as $id => $value) {
+            $rows[] = [
+                'id' => (int) $id,
+                'key' => $names[$id] ?? '__dashboard_missing_institution__',
+                'value' => (int) $value,
+            ];
+        }
+        usort($rows, static fn (array $left, array $right): int => [$right['value'], mb_strtolower($right['key']), $right['id']]
+            <=> [$left['value'], mb_strtolower($left['key']), $left['id']]);
+
+        return $rows;
     }
 }

@@ -64,6 +64,10 @@
             $rangeFrom = \Carbon\CarbonImmutable::parse($snapshot['range']['from'])->setTimezone('Asia/Shanghai')->toDateString();
             $rangeTo = \Carbon\CarbonImmutable::parse($snapshot['range']['to'])->setTimezone('Asia/Shanghai')->toDateString();
             $reportRange = ['completedFrom' => $rangeFrom, 'completedTo' => $rangeTo];
+            $institutionRevenue = $snapshot['charts']['institution_revenue'] ?? [];
+            $institutionRevenueTotal = array_sum(array_column($institutionRevenue, 'value'));
+            $institutionRevenueMax = max(1, ...array_column($institutionRevenue ?: [['value' => 0]], 'value'));
+            $institutionMonth = substr($rangeTo, 0, 7);
             $metricLinks = [
                 'revenue' => route('reports.search', $reportRange),
                 'new_customers' => route('customers.index', ['createdFrom' => $rangeFrom, 'createdTo' => $rangeTo]),
@@ -181,6 +185,37 @@
                             </div>
                         @empty
                             <div class="crm-panel-empty"><flux:icon name="briefcase" />{{ __('dashboard.panels.no_promotion_fee') }}</div>
+                        @endforelse
+                    </div>
+                </article>
+
+                <article class="crm-card" data-test="institution-revenue-panel">
+                    <header class="crm-card-header">
+                        <h2>{{ __('dashboard.panels.institution_revenue') }}</h2>
+                        <a class="crm-card-link" href="{{ route('reports.institution-sales', ['month' => $institutionMonth]) }}" wire:navigate>{{ __('dashboard.panels.view_details') }} <span>›</span></a>
+                    </header>
+                    <div class="space-y-4" data-institution-revenue>
+                        @forelse ($institutionRevenue as $institution)
+                            @php
+                                $share = $institutionRevenueTotal === 0 ? 0 : $institution['value'] / $institutionRevenueTotal * 100;
+                                $width = $institution['value'] / $institutionRevenueMax * 100;
+                            @endphp
+                            <a
+                                class="group block"
+                                data-institution-revenue-row
+                                href="{{ route('reports.institution-sales.show', ['institution' => $institution['id'], 'month' => $institutionMonth]) }}"
+                                wire:navigate
+                            >
+                                <div class="flex items-center justify-between gap-3 text-xs">
+                                    <span class="truncate font-semibold text-zinc-700 group-hover:text-teal-700 dark:text-zinc-200 dark:group-hover:text-teal-300">{{ $institution['key'] }}</span>
+                                    <span class="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">₩ {{ number_format($institution['value']) }} · {{ number_format($share, 1) }}%</span>
+                                </div>
+                                <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800" aria-hidden="true">
+                                    <span class="block h-full rounded-full bg-teal-500 transition-all" style="width: {{ number_format($width, 2, '.', '') }}%"></span>
+                                </div>
+                            </a>
+                        @empty
+                            <div class="crm-panel-empty"><flux:icon name="building-office" />{{ __('dashboard.panels.no_institution_revenue') }}</div>
                         @endforelse
                     </div>
                 </article>

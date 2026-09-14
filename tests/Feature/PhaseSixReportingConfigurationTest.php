@@ -9,6 +9,7 @@ use App\Modules\Auth\Application\Contracts\UserManagementGateway;
 use App\Modules\Auth\Domain\UserRole;
 use App\Modules\Auth\Infrastructure\Notifications\InternalUserInvitationNotification;
 use App\Modules\Config\Application\Services\ConfigurationCatalogManager;
+use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Application\Contracts\ConfigurationHistoryGateway as CustomerConfigurationHistory;
 use App\Modules\Customer\Domain\BlindIndex;
 use App\Modules\Customer\Infrastructure\Models\Customer;
@@ -352,6 +353,8 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->assertArrayNotHasKey('pending_reminders', $snapshot['panels']);
         $this->assertSame(880000, $snapshot['panels']['monthly_revenue_orders'][0]['value']);
         $this->assertSame(1, $snapshot['panels']['monthly_revenue_orders'][0]['orders']);
+        $this->assertSame(880000, $snapshot['charts']['institution_revenue'][0]['value']);
+        $this->assertSame($this->institutionId, $snapshot['charts']['institution_revenue'][0]['id']);
         $this->assertArrayNotHasKey('today_tasks', $snapshot['panels']);
         $this->assertArrayNotHasKey('recent_customers', $snapshot['panels']);
         $this->assertArrayNotHasKey('lifecycle', $snapshot['panels']);
@@ -382,6 +385,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->assertSee('数据看板')
             ->assertSee('营收与订单趋势')
             ->assertSee('代理商推广费排行')
+            ->assertSee('机构营收对比')
             ->assertSee('最近月结进度')
             ->assertSee('data-dashboard-chart="monthly_revenue_orders"', false)
             ->assertDontSee('data-dashboard-export', false)
@@ -391,6 +395,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->assertDontSee('演示数据')
             ->assertSee('href="'.e(route('reports.search', ['completedFrom' => '2026-07-01', 'completedTo' => '2026-07-30'])).'"', false)
             ->assertSee('href="'.e(route('customers.index', ['createdFrom' => '2026-07-01', 'createdTo' => '2026-07-30'])).'"', false)
+            ->assertSee('href="'.e(route('reports.institution-sales', ['month' => '2026-07'])).'"', false)
             ->assertSee('href="'.e(route('reminders.index')).'"', false)
             ->assertDontSee('href="'.e(route('settlements.index')).'"', false)
             ->assertDontSee('href="'.e(route('agents.index')).'"', false);
@@ -399,7 +404,8 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->actingAs($admin)->get(route('dashboard'))
             ->assertOk()
             ->assertSee('href="'.e(route('settlements.index')).'"', false)
-            ->assertSee('href="'.e(route('agents.show', $this->agentId)).'"', false);
+            ->assertSee('href="'.e(route('agents.show', $this->agentId)).'"', false)
+            ->assertSee('href="'.e(route('reports.institution-sales.show', ['institution' => $this->institutionId, 'month' => '2026-07'])).'"', false);
 
         foreach (['html', 'pdf'] as $format) {
             $component = Livewire::actingAs($this->user)->test(Dashboard::class);
@@ -414,6 +420,26 @@ class PhaseSixReportingConfigurationTest extends TestCase
             $component->assertRedirect(route('reports.exports.download', $componentExport));
             Storage::disk('local')->assertExists($componentExport->path);
         }
+    }
+
+    public function test_dashboard_includes_active_institutions_without_sales_for_super_admin(): void
+    {
+        $zeroSalesInstitution = Institution::query()->create([
+            'code' => 'P6-ZERO',
+            'name' => 'Phase Six Zero Sales Institution',
+            'is_active' => true,
+        ]);
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $range = app(DashboardRangeFactory::class)->make('month');
+
+        $this->actingAs($admin);
+        $snapshot = app(DashboardService::class)->snapshot($range, true)->toArray();
+        $zeroSalesRow = collect($snapshot['charts']['institution_revenue'])
+            ->firstWhere('id', $zeroSalesInstitution->id);
+
+        $this->assertIsArray($zeroSalesRow);
+        $this->assertSame(0, $zeroSalesRow['value']);
+        $this->assertSame('Phase Six Zero Sales Institution', $zeroSalesRow['key']);
     }
 
     public function test_export_failures_store_safe_keys_and_localize_recent_exports(): void

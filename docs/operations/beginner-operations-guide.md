@@ -70,6 +70,7 @@ GN-System 当前有两套服务器环境，不能混用：
 | `feature/pr1-order-registration`（2026-09-10 本地工作区） | 方案 PR1 增加客户已到院后的订单一单多项目手工登记、沟通截图/结算小票私有凭证及按客户权限下载；机构 Excel 回传继续保留 | 新增 `2026_09_10_000100_create_order_evidence_files.php` migration 和私有加密文件；发布前备份数据库与 `storage/app/private`，按 RC 流程执行 migration；本机测试不等于 UAT/Production 验收 |
 | `feature/pr1-order-registration`（2026-09-10 本地工作区） | 方案 PR2 将机构 Excel 模板升级为 v2，保留隐藏客户元数据，预填 `arrived_at` 日期，并在回传时强制校验客户已到院及日期一致 | 不新增 migration、依赖或环境变量；只完成本地自动化测试，未合入 `develop`、未创建 RC 或部署；UAT 要检查 v2 列、隐藏签名、日期篡改、数量/金额和旧字段淘汰 |
 | `feature/pr1-order-registration`（2026-09-10 本地工作区） | 方案 PR3 完善机构月度销售额 PDF，读取订单项目明细并支持单机构/全部机构分组 | 不新增 migration、依赖或环境变量；只完成本地自动化测试，未合入 `develop`、未创建 RC 或部署；UAT 要检查机构标签、订单/客户/项目明细、机构分组、小计、权限范围和中韩文字体 |
+| `feature/pr1-order-registration`（2026-09-14 本地工作区） | 方案 PR4 客户工作台迁移；PR5 增加机构营收对比和客户移交 BD 站内/钉钉通知 | 不新增 migration、依赖或环境变量；仅完成本地自动化验证，未合入 `develop`、未创建 RC 或部署；UAT 要检查机构范围、零营收活动机构、月度销售下钻、BD/客服通知对象和钉钉投递 |
 | `feature/customer-status-tree`（历史工作分支） | PR2 客户详情状态流转可视化及 Agent 详情“关联客户”中韩文案 | 内容已合入 `develop`，不作为当前发布目标 |
 
 服务器实际版本以 `/srv/gn-system/releases/current` 和
@@ -988,6 +989,14 @@ UAT/Production 验收。本次新增 `2026_09_10_000100_create_order_evidence_fi
 没有合入 `develop`，也没有创建 RC、部署或完成 UAT/Production 验收。发布前要用客服、BD 和超级管理员账号分别登录，
 确认工作台只显示各自有效范围内的客户、提醒和生命周期数据，并确认 Dashboard 不再出现客户工作台四个模块；发布和
 回退必须继续使用标准 RC 流程，不能在服务器直接改业务代码。
+
+## 方案 PR5 机构营收图与 BD 通知（2026-09-14）
+
+Dashboard 的“机构营收对比”按当前统计区间显示横向金额条和占比；条目可以进入已有机构月度销售总览或机构详情。超级管理员可看到零营收的活动机构，客服和 BD 仍只能看到原有报表权限范围内的数据。
+
+客服提交客户负责人移交申请后，系统按客户当前业务归属通知对应 BD。通知会写入 BD 的站内提醒；若 BD 绑定了 DingTalk `user_id` 或手机号，还会排队发送钉钉。BD 驳回会通知原客服，批准、直接移交和批量移交完成后会通知原负责人和新负责人。通知不广播到其他业务组。
+
+本次没有新增数据库表、依赖或环境变量。当前只在本机 Docker Compose 测试库完成定向验证，尚未合入 `develop`、创建 RC、部署或完成 UAT/Production 验收。上线前在 UAT 用客服、BD、超级管理员账号分别检查机构范围、零营收机构、总览/详情跳转、移交申请通知、驳回/批准通知，以及钉钉成功和失败重试；真实钉钉凭据必须在目标环境单独验证。
 
 ## PR5 order and settlement status (2026-08-24)
 

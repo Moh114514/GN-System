@@ -123,6 +123,7 @@ GitHub CI 和 GHCR 是发布基础设施，不是可登录的业务环境。
 | 2026-09-10，`feature/pr1-order-registration` 工作区 | 工作区未发布 | 方案 PR1 增加客户已到院后的订单一单多项目手工登记、沟通截图/结算小票私有凭证及按客户权限下载；机构 Excel 回传继续保留 | 新增 `2026_09_10_000100_create_order_evidence_files.php` migration 和私有加密文件；发布前必须备份数据库与 `storage/app/private`，按 RC 流程执行 migration，并在 UAT 核对凭证权限、日期/到院校验、事务回滚和订单明细；本机结果不能替代 UAT/Production 验收 |
 | 2026-09-10，`feature/pr1-order-registration` 工作区 | 工作区未发布 | 方案 PR2 将机构 Excel 模板升级为 v2，保留隐藏客户元数据，预填 `arrived_at` 日期，并在回传时强制校验客户已到院及日期一致 | 不新增 migration、依赖或环境变量；仅完成本地自动化验证，未合入 `develop`、创建 RC 或部署；UAT 需核对 v2 可见字段、隐藏元数据签名、日期篡改拒绝、数量/金额解析和旧字段不再出现在模板中 |
 | 2026-09-10，`feature/pr1-order-registration` 工作区 | 工作区未发布 | 方案 PR3 完善机构月度销售额 PDF，读取订单项目明细并支持单机构/全部机构分组 | 不新增 migration、依赖或环境变量；仅完成本地自动化验证，未合入 `develop`、创建 RC 或部署；UAT 需核对机构主题标签、订单/客户/项目明细、机构分组、小计、权限范围和中韩文字体 |
+| 2026-09-14，`feature/pr1-order-registration` 工作区 | 工作区未发布 | 方案 PR4 客户工作台迁移及 PR5 机构营收看板、客户移交通知 | 不新增 migration、依赖或环境变量；PR5 增加动态用户站内/钉钉通知和 Dashboard 机构营收下钻；仅完成本地自动化验证，未合入 `develop`、创建 RC 或部署；UAT 需核对机构范围、零营收活动机构、月度销售下钻、BD/客服通知对象、钉钉队列投递和审批结果 |
 | 2026-08-24，`feature/business-groups-and-roles` | 工作区未发布 | 新规划 PR1 增加用户角色兼容回填、业务组/成员有效期历史、代理商业务组有效期历史及配置管理；新增 `2026_08_21_000100_add_roles_business_groups_and_agent_assignments` migration；2026-08-26 补齐开放式成员/代理商归属结束操作、未来转组候选、BusinessClock 统一和排他约束冲突业务化 | 仅完成本地开发和自动化验证，未合入 `develop`，未部署 UAT/Production。正式发布前必须备份数据库，按 RC 流程运行 migration，并人工核对角色、业务组成员、归属结束/未来转组、代理商归属和未归属完整性；本机结果不能替代目标环境验收 |
 | 2026-08-24，`feature/business-groups-and-roles` | 工作区未发布 | 新规划 PR7 完成 README、架构/模块文档、替代 ADR、UAT 角色映射、只读预检、备份迁移、抽样及回退/恢复手册；建议 `v0.6.0-rc.1` | 未处理 `develop`/`main` 分叉，未创建 RC，未推送、部署或执行 UAT/Production migration；发布前必须按 PR7 手册完成完整门禁、备份、映射、迁移和人工验收 |
 
@@ -136,7 +137,7 @@ migration 会启用 PostgreSQL `btree_gist` 扩展并创建日期重叠约束，
 数据库账号具备相应扩展/约束权限。回退前必须备份，并确认可以接受删除 PR1 新增结构
 及其归属历史数据。
 
-国际化 PR-A、PR-B、PR-C 及 PR-D，以及规划 PR1–PR4 当前只在 `develop` 工作区完成，尚未发布到 UAT 或 Production。发布该变更时，
+国际化 PR-A、PR-B、PR-C 及 PR-D，以及规划 PR1–PR5 当前只在工作区完成，尚未发布到 UAT 或 Production。发布该变更时，
 需先完成完整本地门禁，再按正常 RC 流程部署；migration 会为既有用户提供 `zh_CN` 默认值。
 本机测试通过不代表 UAT 或 Production 已完成语言切换、缓存清理或数据库验收；发布前需执行至 `000500` 的全部 migration，并抽查导入失败批次、月结失败、报表导出失败、系统提醒模板/历史提醒的结构化消息及韩文语言设置入口。`000400` 和 `000500` 仅增加可空字段并保留旧文本列，旧镜像仍可读取旧字段；回退 migration 会删除新结构化元数据，因此回退前必须备份，并确认可以接受失去新增的韩文投影信息。
 
@@ -193,6 +194,14 @@ Order 报表契约读取 `order_items`，单机构文件展示消费日期、订
 或执行 UAT/Production 验收。发布前应按标准 RC 流程同时升级 app、queue、scheduler，并用客服、BD、超级管理员三种
 身份检查工作台数据范围、待跟进数量、今日待办、生命周期、最近客户和 Dashboard 客户面板确实消失；回退使用上一
 个不可变 RC，不直接修改数据库。
+
+## 方案 PR5 机构营收图与 BD 通知（2026-09-14）
+
+Dashboard 现在显示机构营收横向对比条，金额按当前 Dashboard 统计区间展示，并显示占总营收比例。机构条目链接到现有机构月度销售总览和详情；超级管理员还会看到当前区间零营收的活动机构。机构销售详情仍由原有 `agent.read` 权限和报表范围控制，PR5 没有新增分析页面。
+
+客户移交申请会通过客户当前有效的机构/业务归属找到对应 BD，并写入 BD 的站内通知；如果用户绑定有效 DingTalk `user_id` 或 `mobile`，同时创建现有 `notification_deliveries` 记录并通过 Queue after-commit 投递钉钉。BD 驳回时通知原客服，批准、直接移交和批量移交完成后通知原负责人及新负责人。动态通知复用现有幂等事件键，不向无关业务组广播。
+
+本次不新增 migration、Composer/NPM 依赖或环境变量。当前已在本机 Docker Compose 测试库通过 Dashboard、机构销售、客户移交、通知配置定向测试；PR5 尚未合入 `develop`、创建 RC、部署或执行 UAT/Production 验收。发布前应按标准 RC 流程同时升级 app、queue、scheduler，并在 UAT 使用客服、BD、超级管理员分别核对机构营收范围、零营收活动机构、总览/详情下钻、BD 申请通知、客服审批结果通知、DingTalk 绑定与失败重试；本机结果不能替代真实钉钉凭据和目标环境验收。
 
 ### 2.3 UAT 当前状态
 

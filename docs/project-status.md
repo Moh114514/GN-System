@@ -5,8 +5,8 @@
 已实现 UAT 宿主机双层重置、配置重载脚本和非破坏性管理员维护命令。UAT 重置与配置重载均已加入目录、Compose 项目、环境文件权限、UAT URL、数据库名称和 PostgreSQL `current_database()` 防护；真实 UAT/Production 执行结果仍须在目标服务器按运维手册验收，不能由本机静态检查替代。
 
 > 最后核验：2026-09-14
-> 核验依据：当前 `feature/pr1-order-registration` 工作区、PR4 定向客户/Dashboard 测试、模块边界与本地化检查、完整后端门禁和 Vite 构建
-> 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及 PR1–PR7 规划能力继续保持；角色/业务组底座、权限范围、客户负责人移交与状态回退审批、订单事实快照和 BD 季度提成已合入本地 `develop`。当前工作区已完成方案 PR1–PR4 的订单登记、机构销售 PDF 和客户工作台能力，但尚未合入 `develop`、发布或完成 UAT/Production 验收；凭证表 migration、Excel v2、机构销售 PDF 和客户工作台行为的目标环境执行、备份、抽样核验和人工业务验收仍未完成。
+> 核验依据：当前 `feature/pr1-order-registration` 工作区、PR4/PR5 定向测试、模块边界与本地化检查、完整后端门禁和 Vite 构建
+> 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及 PR1–PR7 规划能力继续保持；角色/业务组底座、权限范围、客户负责人移交与状态回退审批、订单事实快照和 BD 季度提成已合入本地 `develop`。当前工作区已完成方案 PR1–PR5 的订单登记、机构销售 PDF、客户工作台、机构营收看板和移交通知能力，但尚未合入 `develop`、发布或完成 UAT/Production 验收；凭证表 migration、Excel v2、机构销售 PDF、客户工作台、机构营收看板和动态 BD 通知的目标环境执行、备份、抽样核验和人工业务验收仍未完成。
 
 本页只描述仓库中可以验证的状态。未来规划见 `docs/source/`，不能据此页之外的
 规划内容推断某项能力已经存在。
@@ -42,6 +42,12 @@
 - 客户工作台通过 Customer、Reminder、Agent 和 User 的 Application Contract 读取，并继续沿用当前有效 `AccessContext`：客服只看自身有效范围，BD 只看业务组范围，超级管理员看全局。
 - Dashboard 已移除 `pending_reminders`、`today_tasks`、`lifecycle` 和 `recent_customers` 面板及对应聚合查询；Dashboard 缓存键已升级，避免复用迁移前快照。未新增 migration、依赖或环境变量。
 - 已通过客户生命周期、Dashboard、报表、模块边界、本地化定向测试，以及完整后端门禁和 Vite 构建；PR4 尚未合入 `develop`、部署或完成 UAT/Production 人工验收。
+
+## 2026-09-14 PR5 机构营收图与 BD 通知
+
+- Dashboard 新增机构营收横向对比条，沿用当前订单报表口径，显示金额和占总营收比例；超级管理员可看到零营收的活动机构，并可跳转现有机构月度销售总览和机构详情。
+- NotificationRecipientGateway 新增动态用户站内与钉钉通知能力。客服提交客户移交申请时，系统按客户当前业务归属通知对应 BD；BD 驳回申请通知原客服，批准/直接移交后通知原负责人和新负责人。钉钉投递仍通过现有异步投递记录和 after-commit 队列执行。
+- 本 PR 不新增 migration、依赖或环境变量；已通过 Dashboard、机构销售、客户移交、通知配置等定向测试。PR5 尚未合入 `develop`、部署或完成 UAT/Production 人工验收。
 
 ## 2026-09-01 客户详情订单登记 Modal
 
@@ -205,6 +211,7 @@ Customer/Agent/Order/Settlement/Report/Auth 模块说明、ADR-0010，以及角�
 | 真实数据看板 | 已实现六项指标、八项图表、六种区间、等长环比、五分钟缓存降级、手动/自动刷新以及同一快照的 PDF/HTML 导出 | 2026-07-30 |
 | 总览页面数据下钻 | Dashboard 的营收、复购率、趋势和新客户入口携带当前日期范围；代理商排行保留稳定详情路由并按超级管理员权限显示；客户列表支持建档日期起止筛选；不新增 migration | 2026-09-14 |
 | 客户工作台迁移（方案 PR4） | 客户管理页顶部提供独立 CustomerOverview，展示待跟进、今日待办、生命周期和最近客户；Dashboard 删除对应客户运营面板与聚合读取；沿用客服/BD/超级管理员现有有效范围 | 2026-09-14 |
+| 机构营收看板与 BD 移交通知（方案 PR5） | Dashboard 展示包含零营收活动机构的横向营收对比并下钻到现有机构月度销售；客户移交申请按业务归属通知 BD，审批结果通知相关客服，动态用户通知同时支持站内和钉钉；不新增 migration | 2026-09-14 |
 | 完整配置中心 | 已实现机构、项目/语种字典、白名单系统参数、内部用户邀请/角色/启停、全局审计日志入口，以及 Agent/Customer/Settlement 分类快照、差异和事务回滚 | 2026-08-14 |
 | 角色、业务组与代理商历史归属底座（新规划 PR1） | 已合入本地 `develop`，实现角色兼容回填、业务组、成员有效期历史、代理商业务组有效期历史、配置管理和未归属完整性检查；UAT/Production 未验证 | 2026-08-31 |
 | 订单成交时间兼容升级 | 新增 `completed_at` 与精度标识；历史日期按 Asia/Shanghai 零点回填，新写入双写保留的 `completed_on` | 2026-07-30 |

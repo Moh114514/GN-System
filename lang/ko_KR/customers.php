@@ -300,6 +300,10 @@ return [
         'notifications' => [
             'title' => '고객 담당자 변경',
             'body' => '고객 :customer의 담당자가 변경되었습니다. :reason',
+            'request_title' => '고객 인계 요청 검토 대기',
+            'request_body' => '고객 :customer의 담당자 인계 요청이 제출되었습니다. 검토 사유: :reason',
+            'rejected_title' => '고객 인계 요청 거절',
+            'rejected_body' => '고객 :customer의 담당자 인계 요청이 거절되었습니다. 검토 의견: :reason',
         ],
     ],
     'status_approval' => [
