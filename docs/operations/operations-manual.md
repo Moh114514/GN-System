@@ -179,6 +179,21 @@ Order 报表契约读取 `order_items`，单机构文件展示消费日期、订
 标准 RC 流程升级 app，并抽查单机构、多机构、零订单机构、权限范围、订单多项目、客户姓名、金额合计、中文/韩文和
 `pdftotext` 文本结果；本机结果不能替代 UAT/Production 验收。
 
+## 方案 PR4 客户工作台迁移（2026-09-14）
+
+当前工作区已把 Dashboard 的客户运营内容迁移到客户管理页顶部。页面通过独立的
+`CustomerOverview` Livewire 子组件和 `CustomerOverviewService` 展示待跟进、今日待办、客户生命周期和最近客户；
+客户筛选、批量移交和分页仍由 `CustomerList` 负责。Dashboard 不再返回
+`pending_reminders`、`today_tasks`、`lifecycle` 和 `recent_customers`，并已停止对应的聚合查询；缓存键从 v4
+升级为 v5。客户工作台的读取仍通过 Application Contract，并沿用 Customer Service 当前有效范围、BD 业务组范围和
+超级管理员全局范围。
+
+本次不新增 migration、Composer/NPM 依赖或环境变量。已在本机 Docker Compose 测试库通过客户生命周期、Dashboard、
+报表配置、模块边界、本地化检查、完整 `composer ci:check` 和 `npm run build`。PR4 尚未合入 `develop`、创建 RC、部署
+或执行 UAT/Production 验收。发布前应按标准 RC 流程同时升级 app、queue、scheduler，并用客服、BD、超级管理员三种
+身份检查工作台数据范围、待跟进数量、今日待办、生命周期、最近客户和 Dashboard 客户面板确实消失；回退使用上一
+个不可变 RC，不直接修改数据库。
+
 ### 2.3 UAT 当前状态
 
 | 项目 | 当前值 |

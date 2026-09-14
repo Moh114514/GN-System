@@ -37,8 +37,8 @@ class DashboardTest extends TestCase
             ->assertDontSee('PNG')
             ->assertSee('新增客户')
             ->assertSee('营收与订单趋势')
-            ->assertSee('客户生命周期概览')
-            ->assertSee('最近客户记录')
+            ->assertDontSee('客户生命周期概览')
+            ->assertDontSee('最近客户记录')
             ->assertDontSee('演示数据');
     }
 
@@ -95,6 +95,6 @@ class DashboardTest extends TestCase
             ->assertSee('대시보드')
             ->assertSee('신규 고객')
             ->assertSee('매출 및 주문 추이')
-            ->assertSee('고객 생애주기 개요');
+            ->assertDontSee('고객 생애주기 개요');
     }
 }

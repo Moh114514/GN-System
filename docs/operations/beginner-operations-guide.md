@@ -978,6 +978,17 @@ UAT/Production 验收。本次新增 `2026_09_10_000100_create_order_evidence_fi
 本次没有新增 migration、依赖或环境变量。发布到 UAT 前要用标准 RC 流程升级 app，并检查单机构、多机构、零订单机构、
 权限范围、一单多项目、金额合计、中文/韩文和 `pdftotext` 文本；本机测试通过不代表 UAT/Production 已验收。
 
+## 方案 PR4 客户工作台迁移（2026-09-14）
+
+客户管理页现在在筛选区和客户列表之前显示“客户工作台”，包括待跟进、今日待办、客户生命周期和最近客户。
+这些内容由独立的 `CustomerOverview` 子组件提供，原来的客户筛选、批量移交和分页仍然保留。Dashboard 不再显示这四类
+客户运营内容，也不再为它们查询数据库。
+
+这次没有新增数据库表、依赖或环境变量。当前只在本机 Docker Compose 测试库完成定向测试、完整后端门禁和前端构建，
+没有合入 `develop`，也没有创建 RC、部署或完成 UAT/Production 验收。发布前要用客服、BD 和超级管理员账号分别登录，
+确认工作台只显示各自有效范围内的客户、提醒和生命周期数据，并确认 Dashboard 不再出现客户工作台四个模块；发布和
+回退必须继续使用标准 RC 流程，不能在服务器直接改业务代码。
+
 ## PR5 order and settlement status (2026-08-24)
 
 PR5 is currently local branch work only. It adds scoped order editing, a new migration

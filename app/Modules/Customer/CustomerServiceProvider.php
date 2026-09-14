@@ -19,9 +19,11 @@ use App\Modules\Customer\Application\Services\DatabaseReportCustomerReader;
 use App\Modules\Customer\Presentation\Livewire\CustomerDetail;
 use App\Modules\Customer\Presentation\Livewire\CustomerForm;
 use App\Modules\Customer\Presentation\Livewire\CustomerList;
+use App\Modules\Customer\Presentation\Livewire\CustomerOverview;
 use App\Modules\Customer\Presentation\Livewire\CustomerStatusConfiguration;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Livewire\Livewire;
 
 class CustomerServiceProvider extends ServiceProvider
 {
@@ -38,6 +40,8 @@ class CustomerServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
+        Livewire::component('customer-overview', CustomerOverview::class);
+
         Route::middleware(['web', 'auth', 'verified', 'super-admin.2fa'])->group(function (): void {
             Route::get('/customers', CustomerList::class)->name('customers.index');
             Route::get('/customers/create', CustomerForm::class)->name('customers.create');

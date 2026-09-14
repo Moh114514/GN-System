@@ -106,27 +106,9 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
     {
         $newCustomersQuery = $this->scoped(Customer::query())->whereBetween('created_at', [$from, $to]);
         $newCustomers = $newCustomersQuery->count();
-        $totalCustomers = $this->scoped(Customer::query())->where('created_at', '<=', $to)->count();
-        $arrivedCustomers = DB::table('customers')
-            ->join('customer_statuses as status', 'status.id', '=', 'customers.current_status_id')
-            ->join('customer_lifecycle_stages as stage', 'stage.id', '=', 'status.stage_id')
-            ->where('customers.created_at', '<=', $to)
-            ->whereIn('status.key', ['arrived', 'treatment_completed'])
-            ->whereIn('customers.id', $this->scopedCustomerIds())
-            ->distinct('customers.id')
-            ->count('customers.id');
         $activeCustomers = $this->scoped(Customer::query())
             ->where('created_at', '<=', $to)
             ->count();
-        $statusCounts = DB::table('customers')
-            ->leftJoin('customer_statuses as status', 'status.id', '=', 'customers.current_status_id')
-            ->where('customers.created_at', '<=', $to)
-            ->whereIn('customers.id', $this->scopedCustomerIds())
-            ->selectRaw("COALESCE(status.key, 'unset') as status_key, COUNT(*)::int as value")
-            ->groupByRaw("COALESCE(status.key, 'unset')")
-            ->pluck('value', 'status_key')
-            ->map(fn ($value): int => (int) $value)
-            ->all();
         $sourceDistribution = $this->scoped(Customer::query())
             ->whereBetween('customers.created_at', [$from, $to])
             ->select([
@@ -143,8 +125,28 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
                 'value' => (int) $row->getAttribute('value'),
             ])
             ->all();
-        $recentCustomers = $this->scoped(Customer::query())
-            ->where('customers.created_at', '<=', $to)
+
+        return [
+            'new_customers' => $newCustomers,
+            'active_customers' => $activeCustomers,
+            'source_distribution' => $sourceDistribution,
+        ];
+    }
+
+    public function overview(CarbonImmutable $asOf): array
+    {
+        $base = $this->scoped(Customer::query())->where('customers.created_at', '<=', $asOf);
+        $totalCustomers = (clone $base)->count('customers.id');
+        $statusCounts = DB::table('customers')
+            ->leftJoin('customer_statuses as status', 'status.id', '=', 'customers.current_status_id')
+            ->where('customers.created_at', '<=', $asOf)
+            ->whereIn('customers.id', $this->scopedCustomerIds())
+            ->selectRaw("COALESCE(status.key, 'unset') as status_key, COUNT(*)::int as value")
+            ->groupByRaw("COALESCE(status.key, 'unset')")
+            ->pluck('value', 'status_key')
+            ->map(fn ($value): int => (int) $value)
+            ->all();
+        $recentCustomers = (clone $base)
             ->leftJoin('customer_statuses as status', 'status.id', '=', 'customers.current_status_id')
             ->orderByDesc('customers.created_at')
             ->orderByDesc('customers.id')
@@ -180,12 +182,8 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
             ->all();
 
         return [
-            'new_customers' => $newCustomers,
-            'active_customers' => $activeCustomers,
             'total_customers' => $totalCustomers,
-            'arrived_customers' => $arrivedCustomers,
             'status_counts' => $statusCounts,
-            'source_distribution' => $sourceDistribution,
             'recent_customers' => $recentCustomers,
         ];
     }

@@ -9,19 +9,26 @@ interface ReportReminderReader
     /**
      * @return array{
      *   overdue_customers: int,
-     *   pending_reminders: int,
      *   followup_completion_rate: float,
-     *   followup_customers: int,
+     * }
+     */
+    public function dashboard(CarbonImmutable $from, CarbonImmutable $to): array;
+
+    /**
+     * @return array{
+     *   pending_reminders: int,
      *   today_tasks: array<int, array{
      *     customer_id: int,
      *     time: string,
      *     title: string,
+     *     title_key: string|null,
+     *     title_parameters: array<string, scalar>,
      *     tag: string,
      *     priority: int
      *   }>
      * }
      */
-    public function dashboard(CarbonImmutable $from, CarbonImmutable $to): array;
+    public function overview(CarbonImmutable $now): array;
 
     /**
      * @param  list<int>  $ownerIds

@@ -349,11 +349,12 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->assertSame(880000, $snapshot['metrics']['completed_amount']['value']);
         $this->assertSame(1, $snapshot['metrics']['overdue_customers']['value']);
         $this->assertCount(8, $snapshot['charts']);
-        $this->assertSame(1, $snapshot['panels']['pending_reminders']);
+        $this->assertArrayNotHasKey('pending_reminders', $snapshot['panels']);
         $this->assertSame(880000, $snapshot['panels']['monthly_revenue_orders'][0]['value']);
         $this->assertSame(1, $snapshot['panels']['monthly_revenue_orders'][0]['orders']);
-        $this->assertSame('Phase Six Customer', $snapshot['panels']['today_tasks'][0]['customer_name']);
-        $this->assertSame('Phase Six Customer', $snapshot['panels']['recent_customers'][0]['name']);
+        $this->assertArrayNotHasKey('today_tasks', $snapshot['panels']);
+        $this->assertArrayNotHasKey('recent_customers', $snapshot['panels']);
+        $this->assertArrayNotHasKey('lifecycle', $snapshot['panels']);
 
         $html = app(DashboardExportGenerator::class)->generate($this->user, 'html', $snapshot);
         $pdf = app(DashboardExportGenerator::class)->generate($this->user, 'pdf', $snapshot);
@@ -381,9 +382,6 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->assertSee('数据看板')
             ->assertSee('营收与订单趋势')
             ->assertSee('代理商推广费排行')
-            ->assertSee('客户生命周期概览')
-            ->assertSee('今日待办提醒')
-            ->assertSee('最近客户记录')
             ->assertSee('最近月结进度')
             ->assertSee('data-dashboard-chart="monthly_revenue_orders"', false)
             ->assertDontSee('data-dashboard-export', false)
@@ -475,8 +473,8 @@ class PhaseSixReportingConfigurationTest extends TestCase
             $this->assertNotSame($zhExport->id, $koExport->id);
             $this->assertSame('zh_CN', $zhExport->data_snapshot['locale']);
             $this->assertSame('ko_KR', $koExport->data_snapshot['locale']);
-            $this->assertSame('已预约', $zhExport->data_snapshot['panels']['recent_customers'][0]['status_name']);
-            $this->assertSame('예약 완료', $koExport->data_snapshot['panels']['recent_customers'][0]['status_name']);
+            $this->assertArrayNotHasKey('recent_customers', $zhExport->data_snapshot['panels']);
+            $this->assertArrayNotHasKey('recent_customers', $koExport->data_snapshot['panels']);
             $this->assertSame(2, ReportExport::query()->where('kind', 'dashboard')->count());
             $this->assertStringContainsString('<html lang="zh-CN">', Storage::disk('local')->get($zhExport->path));
             $this->assertStringContainsString('GN-System 数据看板', Storage::disk('local')->get($zhExport->path));
