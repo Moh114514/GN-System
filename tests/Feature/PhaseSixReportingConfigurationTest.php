@@ -149,6 +149,45 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->assertSame(0, $missing['page']->total);
     }
 
+    public function test_report_project_filter_matches_any_order_item_project(): void
+    {
+        $order = Order::query()->create([
+            'customer_id' => $this->customer->id,
+            'institution_id' => $this->institutionId,
+            'agent_id' => $this->agentId,
+            'project_name' => '水光针',
+            'treatment_project_snapshot' => '水光针',
+            'amount_krw' => 900000,
+            'completed_on' => '2026-07-15',
+            'completed_at' => CarbonImmutable::parse('2026-07-15 14:30:00', 'Asia/Shanghai'),
+            'completion_precision' => 'datetime',
+            'owner_id' => $this->user->id,
+            'status' => 'completed',
+        ]);
+        $order->items()->createMany([
+            [
+                'project_snapshot' => '水光针',
+                'quantity' => '1',
+                'unit_price_krw' => 500000,
+                'amount_krw' => 500000,
+            ],
+            [
+                'project_snapshot' => 'Botox',
+                'quantity' => '1',
+                'unit_price_krw' => 400000,
+                'amount_krw' => 400000,
+            ],
+        ]);
+
+        $this->actingAs($this->user);
+        $result = app(ReportSearch::class)->paginate([
+            'project_name' => 'Botox',
+        ], 50, 1);
+
+        $this->assertSame(1, $result['page']->total);
+        $this->assertSame($order->id, $result['rows'][0]['id']);
+    }
+
     public function test_topbar_enter_search_groups_all_authorized_result_types(): void
     {
         Order::query()->create([

@@ -81,6 +81,9 @@ final readonly class OrderManagementWorkspace
             $customerIds = $this->customers->customerIdsForOrderSearch($search);
             $query->where(function ($inner) use ($search, $customerIds): void {
                 $inner->where('project_name', 'ilike', '%'.$search.'%')
+                    ->orWhereHas('items', function ($items) use ($search): void {
+                        $items->where('project_snapshot', 'ilike', '%'.$search.'%');
+                    })
                     ->orWhere('id', ctype_digit($search) ? (int) $search : 0);
                 if ($customerIds !== []) {
                     $inner->orWhereIn('customer_id', $customerIds);

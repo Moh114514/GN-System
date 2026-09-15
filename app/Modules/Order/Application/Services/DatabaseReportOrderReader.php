@@ -231,7 +231,10 @@ final class DatabaseReportOrderReader implements ReportOrderReader
         if ($search !== '') {
             $query->where(function ($project) use ($search): void {
                 $project->where('project_name', 'ilike', '%'.$search.'%')
-                    ->orWhere('treatment_project_snapshot', 'ilike', '%'.$search.'%');
+                    ->orWhere('treatment_project_snapshot', 'ilike', '%'.$search.'%')
+                    ->orWhereHas('items', function ($items) use ($search): void {
+                        $items->where('project_snapshot', 'ilike', '%'.$search.'%');
+                    });
             });
         }
 
@@ -401,7 +404,13 @@ final class DatabaseReportOrderReader implements ReportOrderReader
             }
         }
         if ($filters->projectName !== null && $filters->projectName !== '') {
-            $query->where('project_name', 'ilike', '%'.$filters->projectName.'%');
+            $query->where(function ($project) use ($filters): void {
+                $project->where('project_name', 'ilike', '%'.$filters->projectName.'%')
+                    ->orWhere('treatment_project_snapshot', 'ilike', '%'.$filters->projectName.'%')
+                    ->orWhereHas('items', function ($items) use ($filters): void {
+                        $items->where('project_snapshot', 'ilike', '%'.$filters->projectName.'%');
+                    });
+            });
         }
         if ($filters->translatorName !== null && $filters->translatorName !== '') {
             $query->where('translator_name', 'ilike', '%'.$filters->translatorName.'%');

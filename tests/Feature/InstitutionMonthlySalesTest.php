@@ -163,6 +163,36 @@ class InstitutionMonthlySalesTest extends TestCase
         $this->assertSame(100.0, $detail['agents'][0]['share']);
     }
 
+    public function test_institution_detail_project_search_matches_any_order_item_project(): void
+    {
+        $customer = $this->customer('明细筛选客户');
+        $order = $this->order($customer, $this->institutionA, 900_000, '2026-08-15', 'completed', 'active');
+        $order->items()->createMany([
+            [
+                'project_snapshot' => '水光针',
+                'quantity' => '1',
+                'unit_price_krw' => 500_000,
+                'amount_krw' => 500_000,
+            ],
+            [
+                'project_snapshot' => 'Botox',
+                'quantity' => '1',
+                'unit_price_krw' => 400_000,
+                'amount_krw' => 400_000,
+            ],
+        ]);
+
+        $this->actingAs($this->admin);
+        $detail = app(InstitutionMonthlySalesDetailService::class)->detail(
+            month: '2026-08',
+            institutionId: $this->institutionA->id,
+            search: 'Botox',
+        );
+
+        $this->assertSame(1, $detail['orders_total']);
+        $this->assertSame($order->id, $detail['orders'][0]['id']);
+    }
+
     public function test_order_reader_and_page_respect_effective_business_scope(): void
     {
         $bd = User::factory()->create(['role' => UserRole::BdManager]);
