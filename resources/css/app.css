@@ -882,7 +882,7 @@ select:focus[data-flux-control] {
 
 .crm-metrics {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 14px;
     margin-bottom: 16px;
 }
@@ -1024,11 +1024,11 @@ select:focus[data-flux-control] {
 }
 
 .crm-dashboard-grid-top {
-    grid-template-columns: minmax(390px, 1.4fr) minmax(280px, 1fr) minmax(300px, 1fr);
+    grid-template-columns: minmax(420px, 1.5fr) minmax(260px, .95fr) minmax(300px, 1.05fr);
 }
 
 .crm-dashboard-grid-bottom {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: 1fr;
 }
 
 .crm-card {
@@ -1586,7 +1586,7 @@ select:focus[data-flux-control] {
 
 .crm-settlement {
     display: grid;
-    grid-template-columns: 125px minmax(0, 1fr);
+    grid-template-columns: 150px minmax(0, 1fr);
     align-items: center;
     gap: 15px;
     padding-top: 4px;
@@ -1645,10 +1645,10 @@ select:focus[data-flux-control] {
 }
 
 .crm-settlement dl {
-    display: flex;
+    display: grid;
     min-width: 0;
-    flex-direction: column;
-    gap: 8px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px 32px;
 }
 
 .crm-settlement dl div {
@@ -1866,15 +1866,7 @@ select:focus[data-flux-control] {
     }
 
     .crm-dashboard-grid-top {
-        grid-template-columns: minmax(430px, 1.5fr) repeat(2, minmax(260px, 1fr));
-    }
-
-    .crm-dashboard-grid-bottom {
-        grid-template-columns: 1fr 1.35fr;
-    }
-
-    .crm-dashboard-grid-bottom> :last-child {
-        grid-column: span 2;
+        grid-template-columns: minmax(430px, 1.5fr) minmax(260px, .95fr) minmax(300px, 1.05fr);
     }
 }
 
@@ -1938,8 +1930,7 @@ select:focus[data-flux-control] {
         grid-template-columns: 1fr;
     }
 
-    .crm-dashboard-grid-top> :first-child,
-    .crm-dashboard-grid-bottom> :last-child {
+    .crm-dashboard-grid-top> :first-child {
         grid-column: auto;
     }
 
@@ -2041,6 +2032,10 @@ select:focus[data-flux-control] {
     }
 
     .crm-settlement {
+        grid-template-columns: 1fr;
+    }
+
+    .crm-settlement dl {
         grid-template-columns: 1fr;
     }
 
