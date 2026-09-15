@@ -9,6 +9,7 @@ use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Report\Application\Data\InstitutionMonthlySalesAgentData;
 use App\Modules\Report\Application\Data\InstitutionMonthlySalesAggregateData;
 use App\Modules\Report\Application\Data\InstitutionMonthlySalesOrderData;
+use App\Modules\Report\Application\Data\InstitutionMonthlySalesOrderItemData;
 use App\Modules\Report\Application\Data\InstitutionMonthlySalesOrderPageData;
 use App\Modules\Report\Application\Data\ReportOrderData;
 use App\Modules\Report\Application\Data\ReportPageData;
@@ -97,25 +98,30 @@ final class DatabaseReportOrderReader implements ReportOrderReader
                 'key' => (string) $row->getAttribute('key'),
                 'value' => (int) $row->getAttribute('value'),
             ])->all();
-        $institutions = (clone $base)
-            ->select('institution_id')
-            ->selectRaw('SUM(amount_krw)::bigint AS value')
-            ->groupBy('institution_id')
-            ->orderByDesc('value')
-            ->get()
-            ->map(fn (Order $row): array => [
-                'institution_id' => (int) $row->institution_id,
-                'value' => (int) $row->getAttribute('value'),
-            ])->all();
 
         return [
             'completed_amount' => $amount,
             'repurchase_rate' => $purchasers === 0 ? 0.0 : round($repeaters / $purchasers * 100, 2),
             'monthly_consumption' => $monthly,
             'monthly_orders' => $monthlyOrders,
-            'institution_revenue' => $institutions,
+            'institution_revenue' => $this->institutionRevenue($from, $to),
             'lifecycle' => $this->lifecycle($to),
         ];
+    }
+
+    /** @return list<array{institution_id: int, value: int}> */
+    public function institutionRevenue(CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        return $this->institutionSalesQuery($from, $to)
+            ->select('institution_id')
+            ->selectRaw('SUM(amount_krw)::bigint AS value')
+            ->groupBy('institution_id')
+            ->orderByDesc('value')
+            ->get()
+            ->map(static fn (Order $row): array => [
+                'institution_id' => (int) $row->institution_id,
+                'value' => (int) $row->getAttribute('value'),
+            ])->values()->all();
     }
 
     public function teamOverview(array $ownerIds, int $businessGroupId, CarbonImmutable $from, CarbonImmutable $to): array
@@ -225,7 +231,10 @@ final class DatabaseReportOrderReader implements ReportOrderReader
         if ($search !== '') {
             $query->where(function ($project) use ($search): void {
                 $project->where('project_name', 'ilike', '%'.$search.'%')
-                    ->orWhere('treatment_project_snapshot', 'ilike', '%'.$search.'%');
+                    ->orWhere('treatment_project_snapshot', 'ilike', '%'.$search.'%')
+                    ->orWhereHas('items', function ($items) use ($search): void {
+                        $items->where('project_snapshot', 'ilike', '%'.$search.'%');
+                    });
             });
         }
 
@@ -245,6 +254,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
             items: $paginator->getCollection()
                 ->map(static fn (Order $order): InstitutionMonthlySalesOrderData => new InstitutionMonthlySalesOrderData(
                     id: (int) $order->id,
+                    institutionId: (int) $order->institution_id,
                     occurredOn: $order->occurred_on?->toDateString() ?? '',
                     customerId: (int) $order->customer_id,
                     agentId: $order->agent_id === null ? null : (int) $order->agent_id,
@@ -258,6 +268,46 @@ final class DatabaseReportOrderReader implements ReportOrderReader
             currentPage: $paginator->currentPage(),
             lastPage: $paginator->lastPage(),
         );
+    }
+
+    /** @return list<InstitutionMonthlySalesOrderData> */
+    public function institutionMonthlySalesExportOrders(
+        CarbonImmutable $from,
+        CarbonImmutable $to,
+        ?int $institutionId = null,
+    ): array {
+        $query = $this->institutionSalesQuery($from, $to, $institutionId)
+            ->with(['items' => static fn ($items) => $items
+                ->select(['id', 'order_id', 'project_snapshot', 'quantity', 'amount_krw', 'notes'])
+                ->orderBy('id')])
+            ->orderBy('institution_id')
+            ->orderBy('occurred_on')
+            ->orderBy('id');
+
+        return $query->get([
+            'id',
+            'institution_id',
+            'occurred_on',
+            'customer_id',
+            'agent_id',
+            'project_name',
+            'treatment_project_snapshot',
+            'amount_krw',
+        ])->map(static fn (Order $order): InstitutionMonthlySalesOrderData => new InstitutionMonthlySalesOrderData(
+            id: (int) $order->id,
+            institutionId: (int) $order->institution_id,
+            occurredOn: $order->occurred_on?->toDateString() ?? '',
+            customerId: (int) $order->customer_id,
+            agentId: $order->agent_id === null ? null : (int) $order->agent_id,
+            projectName: (string) ($order->treatment_project_snapshot ?: $order->project_name),
+            amountKrw: (int) $order->amount_krw,
+            items: $order->items->map(static fn ($item): InstitutionMonthlySalesOrderItemData => new InstitutionMonthlySalesOrderItemData(
+                projectName: (string) $item->project_snapshot,
+                quantity: (string) $item->quantity,
+                amountKrw: (int) $item->amount_krw,
+                notes: $item->notes === null ? null : (string) $item->notes,
+            ))->values()->all(),
+        ))->values()->all();
     }
 
     /** @return list<int> */
@@ -354,7 +404,13 @@ final class DatabaseReportOrderReader implements ReportOrderReader
             }
         }
         if ($filters->projectName !== null && $filters->projectName !== '') {
-            $query->where('project_name', 'ilike', '%'.$filters->projectName.'%');
+            $query->where(function ($project) use ($filters): void {
+                $project->where('project_name', 'ilike', '%'.$filters->projectName.'%')
+                    ->orWhere('treatment_project_snapshot', 'ilike', '%'.$filters->projectName.'%')
+                    ->orWhereHas('items', function ($items) use ($filters): void {
+                        $items->where('project_snapshot', 'ilike', '%'.$filters->projectName.'%');
+                    });
+            });
         }
         if ($filters->translatorName !== null && $filters->translatorName !== '') {
             $query->where('translator_name', 'ilike', '%'.$filters->translatorName.'%');

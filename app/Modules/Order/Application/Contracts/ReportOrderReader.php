@@ -4,6 +4,7 @@ namespace App\Modules\Order\Application\Contracts;
 
 use App\Modules\Report\Application\Data\InstitutionMonthlySalesAgentData;
 use App\Modules\Report\Application\Data\InstitutionMonthlySalesAggregateData;
+use App\Modules\Report\Application\Data\InstitutionMonthlySalesOrderData;
 use App\Modules\Report\Application\Data\InstitutionMonthlySalesOrderPageData;
 use App\Modules\Report\Application\Data\ReportOrderData;
 use App\Modules\Report\Application\Data\ReportPageData;
@@ -34,6 +35,9 @@ interface ReportOrderReader
      */
     public function dashboard(CarbonImmutable $from, CarbonImmutable $to): array;
 
+    /** @return list<array{institution_id: int, value: int}> */
+    public function institutionRevenue(CarbonImmutable $from, CarbonImmutable $to): array;
+
     /**
      * @param  list<int>  $ownerIds
      * @return array{orders: int, amount_krw: int, owners: array<int, array{orders: int, amount_krw: int}>}
@@ -57,6 +61,13 @@ interface ReportOrderReader
         int $perPage,
         int $page,
     ): InstitutionMonthlySalesOrderPageData;
+
+    /** @return list<InstitutionMonthlySalesOrderData> */
+    public function institutionMonthlySalesExportOrders(
+        CarbonImmutable $from,
+        CarbonImmutable $to,
+        ?int $institutionId = null,
+    ): array;
 
     /** @return list<int> */
     public function visibleInstitutionIds(): array;

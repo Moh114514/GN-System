@@ -107,6 +107,22 @@ final readonly class CustomerTransferManager
                 event: 'transfer_requested',
                 ipAddress: $ipAddress,
             );
+            $bdUserId = data_get(
+                $customer->source_agent_id === null
+                    ? null
+                    : $this->attributions->forAgentOnDate((int) $customer->source_agent_id, $this->clock->now()),
+                'bd_manager.user_id',
+            );
+            if (is_numeric($bdUserId) && (int) $bdUserId > 0) {
+                $this->notifications->notifyUsers(
+                    'customer_transfer_request',
+                    'customer-transfer-request:'.$request->id,
+                    __('customers.transfer.notifications.request_title'),
+                    __('customers.transfer.notifications.request_body', ['customer' => $customer->name, 'reason' => $reason]),
+                    [(int) $bdUserId],
+                    route('customers.show', $customer->id),
+                );
+            }
 
             return (int) $request->id;
         }, 3);
@@ -267,6 +283,16 @@ final readonly class CustomerTransferManager
                 event: 'transfer_'.$status,
                 ipAddress: $ipAddress,
             );
+            if ($status === 'rejected') {
+                $this->notifications->notifyUsers(
+                    'customer_transfer_review',
+                    'customer-transfer-review:'.$request->id.':rejected',
+                    __('customers.transfer.notifications.rejected_title'),
+                    __('customers.transfer.notifications.rejected_body', ['customer' => $customer->name, 'reason' => $reviewReason]),
+                    [(int) $request->requested_by],
+                    route('customers.show', $customer->id),
+                );
+            }
         }, 3);
     }
 
@@ -290,12 +316,12 @@ final readonly class CustomerTransferManager
             'reason' => $reason,
             'effective_at' => $this->clock->now(),
         ]);
-        $this->notifications->notifyInternalUsers(
+        $this->notifications->notifyUsers(
             'customer_transfer',
             'customer-transfer:'.$history->id,
             __('customers.transfer.notifications.title'),
             __('customers.transfer.notifications.body', ['customer' => $customer->name, 'reason' => $reason]),
-            array_values(array_filter([$fromOwnerId, $toOwnerId, (int) $actor->id])),
+            array_values(array_filter([$fromOwnerId, $toOwnerId])),
             route('customers.show', $customer->id),
         );
         $this->audit->record(

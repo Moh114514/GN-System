@@ -6,6 +6,35 @@ return [
         'form' => '客户档案',
         'detail' => '客户详情',
     ],
+    'overview' => [
+        'title' => '客户工作台',
+        'description' => '集中查看待跟进、今日待办、生命周期和最近客户。',
+        'pending_followups' => '待跟进',
+        'today_tasks' => '今日待办',
+        'lifecycle' => '客户生命周期',
+        'recent_customers' => '最近客户记录',
+        'view_all' => '查看全部',
+        'updated_at' => '更新于',
+        'no_tasks' => '今天没有待办提醒。',
+        'no_customers' => '尚无客户记录。',
+        'columns' => [
+            'customer' => '客户',
+            'source' => '来源',
+            'status' => '当前状态',
+            'created_date' => '建档日期',
+            'owner' => '负责人',
+        ],
+        'stages' => [
+            'booked' => '已预约',
+            'arrived' => '已到院',
+            'treatment_completed' => '已完成',
+        ],
+        'fallbacks' => [
+            'missing_agent' => '未知代理商',
+            'missing_customer' => '未知客户',
+            'unassigned' => '未分配',
+        ],
+    ],
     'list' => [
         'description' => '统一管理客户档案、来源、状态与跟进记录。',
         'status_configuration' => '状态配置',
@@ -271,6 +300,10 @@ return [
         'notifications' => [
             'title' => '客户负责人已变更',
             'body' => '客户 :customer 的负责人已变更。:reason',
+            'request_title' => '客户移交申请待审批',
+            'request_body' => '客户 :customer 提交了负责人移交申请，请审核。原因：:reason',
+            'rejected_title' => '客户移交申请已驳回',
+            'rejected_body' => '客户 :customer 的负责人移交申请已驳回。审核意见：:reason',
         ],
     ],
     'status_approval' => [

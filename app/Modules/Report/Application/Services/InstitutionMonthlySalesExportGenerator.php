@@ -2,9 +2,11 @@
 
 namespace App\Modules\Report\Application\Services;
 
+use App\Modules\Report\Application\Data\InstitutionMonthlySalesOrderData;
 use App\Modules\Report\Application\Data\InstitutionMonthlySalesSummaryData;
 use App\Modules\Report\Infrastructure\Models\ReportExport;
 use App\Support\Exports\DTO\FinancialDocumentData;
+use App\Support\Exports\DTO\FinancialDocumentSectionData;
 use App\Support\Exports\FinancialWorkbookTemplate;
 use Illuminate\Support\Facades\Storage;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
@@ -20,8 +22,16 @@ final readonly class InstitutionMonthlySalesExportGenerator
 {
     public function __construct(private FinancialWorkbookTemplate $template) {}
 
-    public function generate(ReportExport $export, InstitutionMonthlySalesSummaryData $summary): ReportExport
-    {
+    /**
+     * @param  list<InstitutionMonthlySalesOrderData>  $detailOrders
+     * @param  array<int, string>  $customerNames
+     */
+    public function generate(
+        ReportExport $export,
+        InstitutionMonthlySalesSummaryData $summary,
+        array $detailOrders = [],
+        array $customerNames = [],
+    ): ReportExport {
         if (! in_array($export->format, ['xlsx', 'pdf'], true)) {
             throw new RuntimeException(__('institution_sales.errors.export_format'));
         }
@@ -42,7 +52,7 @@ final readonly class InstitutionMonthlySalesExportGenerator
                 throw new RuntimeException(__('institution_sales.errors.directory_unwritable'));
             }
             if ($export->format === 'pdf') {
-                $disk->put($path, $this->template->renderPdf($this->document($summary, $export)));
+                $disk->put($path, $this->template->renderPdf($this->document($summary, $export, $detailOrders, $customerNames)));
             } else {
                 $this->writeXlsx($summary, $absolutePath);
             }
@@ -136,23 +146,64 @@ final readonly class InstitutionMonthlySalesExportGenerator
         }
     }
 
-    private function document(InstitutionMonthlySalesSummaryData $summary, ReportExport $export): FinancialDocumentData
-    {
+    /**
+     * @param  list<InstitutionMonthlySalesOrderData>  $detailOrders
+     * @param  array<int, string>  $customerNames
+     */
+    private function document(
+        InstitutionMonthlySalesSummaryData $summary,
+        ReportExport $export,
+        array $detailOrders,
+        array $customerNames,
+    ): FinancialDocumentData {
         $institutionName = trim((string) ($export->criteria_snapshot['institution_name'] ?? ''));
-        $metadata = $institutionName === '' ? [] : [[
-            'label' => __('institution_sales.export.institution_filter'),
-            'value' => $institutionName,
-        ]];
-        $rows = [];
-        foreach ($summary->rows as $index => $row) {
-            $rows[] = [
-                'number' => $index + 1,
-                'institution' => $row->institutionName,
-                'customers' => $row->customerCount,
-                'orders' => $row->orderCount,
-                'amount' => $row->amountKrw,
-            ];
+        $ordersByInstitution = [];
+        foreach ($detailOrders as $order) {
+            $ordersByInstitution[$order->institutionId][] = $order;
         }
+        $columns = [
+            ['key' => 'occurred_on', 'label' => __('institution_sales.export.date'), 'type' => 'text', 'width' => 14],
+            ['key' => 'order', 'label' => __('institution_sales.export.order'), 'type' => 'text', 'width' => 14],
+            ['key' => 'customer', 'label' => __('institution_sales.export.customer'), 'type' => 'text', 'width' => 22],
+            ['key' => 'project', 'label' => __('institution_sales.export.project'), 'type' => 'text', 'width' => 24],
+            ['key' => 'quantity', 'label' => __('institution_sales.export.quantity'), 'type' => 'number', 'width' => 12],
+            ['key' => 'amount', 'label' => __('institution_sales.export.amount'), 'type' => 'amount', 'width' => 18],
+            ['key' => 'notes', 'label' => __('institution_sales.export.notes'), 'type' => 'text', 'width' => 26],
+        ];
+        $sections = [];
+        foreach ($summary->rows as $row) {
+            $orders = $ordersByInstitution[$row->institutionId] ?? [];
+            $rows = [];
+            $customerIds = [];
+            foreach ($orders as $order) {
+                $customerIds[] = $order->customerId;
+                foreach ($order->items as $item) {
+                    $rows[] = [
+                        'occurred_on' => $order->occurredOn,
+                        'order' => '#'.$order->id,
+                        'customer' => $customerNames[$order->customerId] ?? __('institution_sales.fallbacks.missing_customer'),
+                        'project' => $item->projectName,
+                        'quantity' => $item->quantity,
+                        'amount' => $item->amountKrw,
+                        'notes' => $item->notes,
+                    ];
+                }
+            }
+            $sections[] = new FinancialDocumentSectionData(
+                title: $row->institutionName,
+                rows: $rows,
+                summaryRows: [
+                    ['label' => __('institution_sales.table.total_customers'), 'value' => count(array_unique($customerIds)), 'type' => 'number'],
+                    ['label' => __('institution_sales.table.total_orders'), 'value' => count($orders), 'type' => 'number'],
+                    ['label' => __('institution_sales.table.total_amount'), 'value' => $row->amountKrw, 'type' => 'amount', 'emphasis' => true],
+                ],
+            );
+        }
+        $summaryRows = $institutionName === '' ? [
+            ['label' => __('institution_sales.table.total_customers'), 'value' => $summary->totalCustomers, 'type' => 'number'],
+            ['label' => __('institution_sales.table.total_orders'), 'value' => $summary->totalOrders, 'type' => 'number'],
+            ['label' => __('institution_sales.table.total_amount'), 'value' => $summary->totalAmountKrw, 'type' => 'amount', 'emphasis' => true],
+        ] : [];
 
         return new FinancialDocumentData(
             title: __('institution_sales.title'),
@@ -162,23 +213,15 @@ final readonly class InstitutionMonthlySalesExportGenerator
             period: $summary->from->toDateString().' — '.$summary->to->toDateString(),
             primaryAmount: $summary->totalAmountKrw,
             currency: 'KRW',
-            metadata: $metadata,
-            columns: [
-                ['key' => 'number', 'label' => __('institution_sales.table.number'), 'type' => 'number', 'width' => 10],
-                ['key' => 'institution', 'label' => __('institution_sales.table.institution'), 'type' => 'text', 'width' => 32],
-                ['key' => 'customers', 'label' => __('institution_sales.table.customers'), 'type' => 'number', 'width' => 16],
-                ['key' => 'orders', 'label' => __('institution_sales.table.orders'), 'type' => 'number', 'width' => 18],
-                ['key' => 'amount', 'label' => __('institution_sales.table.amount'), 'type' => 'amount', 'width' => 20],
-            ],
-            rows: $rows,
-            summaryRows: [
-                ['label' => __('institution_sales.table.total_customers'), 'value' => $summary->totalCustomers, 'type' => 'number'],
-                ['label' => __('institution_sales.table.total_orders'), 'value' => $summary->totalOrders, 'type' => 'number'],
-                ['label' => __('institution_sales.table.total_amount'), 'value' => $summary->totalAmountKrw, 'type' => 'amount', 'emphasis' => true],
-            ],
+            metadata: [],
+            columns: $columns,
+            rows: [],
+            summaryRows: $summaryRows,
             remarks: [__('institution_sales.scope_note')],
             primaryAmountLabel: __('institution_sales.export.primary_amount'),
             currencyDecimals: 0,
+            subjectLabel: __('institution_sales.fields.institution'),
+            sections: $sections,
         );
     }
 }

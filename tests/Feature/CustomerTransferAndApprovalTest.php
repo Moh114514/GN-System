@@ -8,7 +8,9 @@ use App\Modules\Agent\Infrastructure\Models\Agent;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Auth\Application\Contracts\BusinessGroupManagementGateway;
 use App\Modules\Auth\Domain\UserRole;
+use App\Modules\Config\Application\Jobs\SendDingTalkNotification;
 use App\Modules\Config\Infrastructure\Models\Institution;
+use App\Modules\Config\Infrastructure\Models\NotificationDelivery;
 use App\Modules\Customer\Application\Data\CustomerProfileData;
 use App\Modules\Customer\Application\Services\CustomerDirectory;
 use App\Modules\Customer\Application\Services\CustomerFollowupManager;
@@ -25,6 +27,9 @@ use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Validation\ValidationException;
 use Tests\TestCase;
 
@@ -74,6 +79,17 @@ class CustomerTransferAndApprovalTest extends TestCase
 
     public function test_transfer_request_keeps_old_owner_until_approval_and_moves_only_open_work(): void
     {
+        config([
+            'dingtalk.enabled' => true,
+            'dingtalk.webhook_url' => 'https://oapi.dingtalk.com/robot/send?access_token=test',
+            'dingtalk.secret' => '',
+        ]);
+        $this->bd->update([
+            'dingtalk_mention_type' => 'user_id',
+            'dingtalk_mention_value' => 'pr3-bd',
+        ]);
+        Queue::fake();
+        Http::fake();
         $customerId = $this->createCustomer();
         $futureAppointment = Appointment::query()->create([
             'customer_id' => $customerId,
@@ -108,6 +124,17 @@ class CustomerTransferAndApprovalTest extends TestCase
 
         $this->assertDatabaseHas('customers', ['id' => $customerId, 'owner_id' => $this->owner->id]);
         $this->assertDatabaseHas('customer_transfer_requests', ['id' => $requestId, 'status' => 'pending']);
+        $this->assertDatabaseHas('internal_notifications', [
+            'user_id' => $this->bd->id,
+            'event_type' => 'customer_transfer_request',
+            'event_key' => 'customer-transfer-request:'.$requestId,
+        ]);
+        $delivery = NotificationDelivery::query()
+            ->where('event_type', 'customer_transfer_request')
+            ->where('event_key', 'customer-transfer-request:'.$requestId)
+            ->firstOrFail();
+        $this->assertSame([['type' => 'user_id', 'value' => 'pr3-bd']], $delivery->recipients);
+        Queue::assertPushed(SendDingTalkNotification::class, fn (SendDingTalkNotification $job): bool => $job->deliveryId === $delivery->id);
         $this->expectException(DomainException::class);
         $transfers->request($customerId, $this->targetOwner->id, '重复申请', $this->owner, null);
     }
@@ -159,6 +186,35 @@ class CustomerTransferAndApprovalTest extends TestCase
         $this->assertDatabaseHas('appointments', ['id' => $pastAppointment->id, 'owner_id' => $this->owner->id]);
         $this->assertDatabaseHas('reminders', ['id' => $reminder->id, 'assigned_to' => $this->targetOwner->id, 'status' => 'transferred']);
         $this->assertDatabaseHas('followup_records', ['customer_id' => $customerId, 'owner_id' => $this->owner->id, 'content' => '历史跟进']);
+        $historyId = (int) DB::table('customer_owner_histories')->where('transfer_request_id', $requestId)->value('id');
+        $this->assertDatabaseHas('internal_notifications', [
+            'user_id' => $this->owner->id,
+            'event_key' => 'customer-transfer:'.$historyId,
+        ]);
+        $this->assertDatabaseHas('internal_notifications', [
+            'user_id' => $this->targetOwner->id,
+            'event_key' => 'customer-transfer:'.$historyId,
+        ]);
+        $this->assertDatabaseMissing('internal_notifications', [
+            'user_id' => $this->bd->id,
+            'event_type' => 'customer_transfer',
+            'event_key' => 'customer-transfer:'.$historyId,
+        ]);
+    }
+
+    public function test_rejected_transfer_notifies_the_requesting_customer_service_user(): void
+    {
+        $customerId = $this->createCustomer();
+        $requestId = app(CustomerTransferManager::class)->request($customerId, $this->targetOwner->id, '客户交接', $this->owner, null);
+
+        app(CustomerTransferManager::class)->reject($requestId, '当前无需交接', $this->bd, null);
+
+        $this->assertDatabaseHas('customer_transfer_requests', ['id' => $requestId, 'status' => 'rejected']);
+        $this->assertDatabaseHas('internal_notifications', [
+            'user_id' => $this->owner->id,
+            'event_type' => 'customer_transfer_review',
+            'event_key' => 'customer-transfer-review:'.$requestId.':rejected',
+        ]);
     }
 
     public function test_invalid_target_expires_request_and_batch_transfer_is_atomic(): void

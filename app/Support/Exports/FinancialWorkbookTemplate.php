@@ -40,7 +40,7 @@ final class FinancialWorkbookTemplate
         $row += 2;
 
         $metadata = [
-            ['label' => __('exports.formal_document.subject'), 'value' => $document->subject],
+            ['label' => $document->subjectLabel ?? __('exports.formal_document.subject'), 'value' => $document->subject],
             ['label' => __('exports.formal_document.period'), 'value' => $document->period],
             ['label' => __('exports.formal_document.document_date'), 'value' => $document->documentDate],
             ['label' => __('exports.formal_document.document_number'), 'value' => $document->documentNumber],
@@ -188,7 +188,7 @@ final class FinancialWorkbookTemplate
     {
         $metadataRows = '';
         $metadataItems = [
-            ['label' => __('exports.formal_document.subject'), 'value' => $document->subject],
+            ['label' => $document->subjectLabel ?? __('exports.formal_document.subject'), 'value' => $document->subject],
             ['label' => __('exports.formal_document.period'), 'value' => $document->period],
             ['label' => __('exports.formal_document.document_date'), 'value' => $document->documentDate],
             ['label' => __('exports.formal_document.document_number'), 'value' => $document->documentNumber],
@@ -203,28 +203,19 @@ final class FinancialWorkbookTemplate
                 : '<td class="meta"><span>'.e((string) $right['label']).'</span><strong>'.e((string) $right['value']).'</strong></td>';
             $metadataRows .= '</tr>';
         }
-        $headers = '';
-        foreach ($document->columns as $column) {
-            $headers .= '<th>'.e((string) $column['label']).'</th>';
-        }
-        $rows = '';
-        foreach ($document->rows as $item) {
-            $rows .= '<tr>';
-            foreach ($document->columns as $column) {
-                $rows .= '<td class="'.e((string) ($column['type'] ?? 'text')).'">'.$this->htmlValue($item[$column['key']] ?? null, (string) ($column['type'] ?? 'text'), $document->currency, $document->currencyDecimals).'</td>';
+        if ($document->sections === []) {
+            $details = '<h2>'.e(__('exports.formal_document.details')).'</h2>'
+                .$this->htmlTable($document, $document->rows)
+                .$this->htmlSummary($document, $document->summaryRows);
+        } else {
+            $details = '';
+            foreach ($document->sections as $section) {
+                $details .= '<h2>'.e($section->title).'</h2>'
+                    .$this->htmlTable($document, $section->rows)
+                    .$this->htmlSummary($document, $section->summaryRows);
             }
-            $rows .= '</tr>';
+            $details .= $this->htmlSummary($document, $document->summaryRows);
         }
-        if ($rows === '') {
-            $rows = '<tr><td class="empty" colspan="'.max(1, count($document->columns)).'">'.e(__('exports.formal_document.no_items')).'</td></tr>';
-        }
-        $summary = '<table class="summary"><tbody>';
-        foreach ($document->summaryRows as $item) {
-            $currency = (string) ($item['currency'] ?? $document->currency);
-            $type = (string) ($item['type'] ?? 'amount');
-            $summary .= '<tr class="'.(! empty($item['emphasis']) ? 'emphasis' : '').'"><td class="summary-label">'.e((string) $item['label']).'</td><td class="summary-value">'.$this->htmlValue($item['value'] ?? null, $type, $currency, $document->currencyDecimals).'</td></tr>';
-        }
-        $summary .= '</tbody></table>';
         $remarks = $document->remarks === [] ? '' : '<div class="remarks"><h3>'.e(__('exports.formal_document.remarks')).'</h3>'.implode('', array_map(fn (string $remark): string => '<p>'.e($remark).'</p>', $document->remarks)).'</div>';
         $primary = $this->htmlValue($document->primaryAmount, 'amount', $document->currency, $document->currencyDecimals);
         $css = '@font-face{font-family:"GN System Sans";font-style:normal;font-weight:400;src:url("file://'.e($pdfRegularFontPath).'") format("truetype");}'
@@ -238,7 +229,46 @@ final class FinancialWorkbookTemplate
             .'.remarks{margin-top:14px;border-top:1px solid #'.FinancialWorkbookStyle::BORDER.';padding-top:8px}.remarks h3{color:#'.FinancialWorkbookStyle::ACCENT_DARK.';font-size:11px}.remarks p{margin:4px 0;color:#'.FinancialWorkbookStyle::MUTED.'}';
 
         return '<!doctype html><html lang="'.e(str_replace('_', '-', app()->getLocale())).'"><head><meta charset="UTF-8"><style>'.$css
-            .'</style></head><body><h1>'.e($document->title).'</h1><table class="meta-grid"><tbody>'.$metadataRows.'</tbody></table><div class="primary"><span>'.e($document->primaryAmountLabel ?? __('exports.formal_document.primary_amount')).'</span><strong>'.$primary.'</strong></div><h2>'.e(__('exports.formal_document.details')).'</h2><table><thead><tr>'.$headers.'</tr></thead><tbody>'.$rows.'</tbody></table>'.$summary.$remarks.'</body></html>';
+            .'</style></head><body><h1>'.e($document->title).'</h1><table class="meta-grid"><tbody>'.$metadataRows.'</tbody></table><div class="primary"><span>'.e($document->primaryAmountLabel ?? __('exports.formal_document.primary_amount')).'</span><strong>'.$primary.'</strong></div>'.$details.$remarks.'</body></html>';
+    }
+
+    /** @param list<array<string, mixed>> $rows */
+    private function htmlTable(FinancialDocumentData $document, array $rows): string
+    {
+        $headers = '';
+        foreach ($document->columns as $column) {
+            $headers .= '<th>'.e((string) $column['label']).'</th>';
+        }
+        $body = '';
+        foreach ($rows as $item) {
+            $body .= '<tr>';
+            foreach ($document->columns as $column) {
+                $type = (string) ($column['type'] ?? 'text');
+                $body .= '<td class="'.e($type).'">'.$this->htmlValue($item[$column['key']] ?? null, $type, $document->currency, $document->currencyDecimals).'</td>';
+            }
+            $body .= '</tr>';
+        }
+        if ($body === '') {
+            $body = '<tr><td class="empty" colspan="'.max(1, count($document->columns)).'">'.e(__('exports.formal_document.no_items')).'</td></tr>';
+        }
+
+        return '<table><thead><tr>'.$headers.'</tr></thead><tbody>'.$body.'</tbody></table>';
+    }
+
+    /** @param list<array{label: string, value: scalar|null, type?: string, currency?: string, emphasis?: bool}> $items */
+    private function htmlSummary(FinancialDocumentData $document, array $items): string
+    {
+        if ($items === []) {
+            return '';
+        }
+        $summary = '<table class="summary"><tbody>';
+        foreach ($items as $item) {
+            $currency = (string) ($item['currency'] ?? $document->currency);
+            $type = (string) ($item['type'] ?? 'amount');
+            $summary .= '<tr class="'.(! empty($item['emphasis']) ? 'emphasis' : '').'"><td class="summary-label">'.e((string) $item['label']).'</td><td class="summary-value">'.$this->htmlValue($item['value'] ?? null, $type, $currency, $document->currencyDecimals).'</td></tr>';
+        }
+
+        return $summary.'</tbody></table>';
     }
 
     /**

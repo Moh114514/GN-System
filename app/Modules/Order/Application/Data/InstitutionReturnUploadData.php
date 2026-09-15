@@ -4,6 +4,7 @@ namespace App\Modules\Order\Application\Data;
 
 final readonly class InstitutionReturnUploadData
 {
+    /** @param array<int, OrderEvidenceUploadData> $evidence */
     public function __construct(
         public int $institutionId,
         public int $customerId,
@@ -13,5 +14,6 @@ final readonly class InstitutionReturnUploadData
         public string $contents,
         public int $actorId,
         public ?string $ipAddress,
+        public array $evidence = [],
     ) {}
 }

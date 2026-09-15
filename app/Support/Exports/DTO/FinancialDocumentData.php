@@ -16,6 +16,7 @@ final readonly class FinancialDocumentData
      * @param  list<array<string, mixed>>  $rows
      * @param  list<array{label: string, value: scalar|null, type?: string, currency?: string, emphasis?: bool}>  $summaryRows
      * @param  list<string>  $remarks
+     * @param  list<FinancialDocumentSectionData>  $sections
      */
     public function __construct(
         public string $title,
@@ -32,5 +33,7 @@ final readonly class FinancialDocumentData
         public array $remarks = [],
         public ?string $primaryAmountLabel = null,
         public ?int $currencyDecimals = null,
+        public ?string $subjectLabel = null,
+        public array $sections = [],
     ) {}
 }

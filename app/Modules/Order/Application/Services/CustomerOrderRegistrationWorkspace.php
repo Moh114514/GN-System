@@ -67,7 +67,7 @@ final readonly class CustomerOrderRegistrationWorkspace
         }
     }
 
-    /** @return array{id: int, institution: string, project_name: string, amount_krw: int, occurred_on: string|null, status: string} */
+    /** @return array{id: int, institution: string, project_name: string, amount_krw: int, item_count: int, occurred_on: string|null, status: string} */
     public function result(int $customerId, int $orderId): array
     {
         $this->customers->customerForOrder($customerId);
@@ -79,6 +79,7 @@ final readonly class CustomerOrderRegistrationWorkspace
             'institution' => (string) ($institution['name'] ?? __('orders.values.unknown_institution')),
             'project_name' => (string) $order->project_name,
             'amount_krw' => (int) $order->amount_krw,
+            'item_count' => (int) $order->items()->count(),
             'occurred_on' => $order->occurred_on?->format('Y-m-d'),
             'status' => (string) $order->status,
         ];

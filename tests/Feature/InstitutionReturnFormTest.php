@@ -16,14 +16,17 @@ use App\Modules\Customer\Application\Services\CustomerStatusManager;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
 use App\Modules\Order\Application\Data\InstitutionReturnUploadData;
+use App\Modules\Order\Application\Data\OrderEvidenceUploadData;
 use App\Modules\Order\Application\Services\InstitutionFormTemplateService;
 use App\Modules\Order\Application\Services\InstitutionReturnParser;
 use App\Modules\Order\Application\Services\InstitutionReturnProcessor;
 use App\Modules\Order\Infrastructure\Models\Appointment;
 use App\Modules\Order\Infrastructure\Models\InstitutionReturnFile;
 use App\Modules\Order\Infrastructure\Models\Order;
+use App\Modules\Order\Infrastructure\Models\OrderEvidenceFile;
 use App\Modules\Order\Infrastructure\Models\OrderItem;
 use App\Modules\Order\Presentation\Livewire\CustomerOrderRegistration;
+use App\Modules\Order\Presentation\Livewire\InstitutionReturnCenter;
 use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
 use App\Modules\Settlement\Infrastructure\Models\CommissionRule;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
@@ -36,6 +39,7 @@ use Livewire\Livewire;
 use Mockery;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
+use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Tests\TestCase;
 
@@ -56,6 +60,7 @@ class InstitutionReturnFormTest extends TestCase
         $institution = Institution::query()->firstOrFail();
         $agent = $this->agent($institution);
         $customer = $this->customer($agent, $user);
+        $this->arrive($customer, $user);
         $appointment = Appointment::query()->create([
             'customer_id' => $customer->id,
             'institution_id' => $institution->id,
@@ -63,7 +68,9 @@ class InstitutionReturnFormTest extends TestCase
             'owner_id' => $user->id,
             'status' => 'arrived',
         ]);
-        $contents = $this->workbook($institution->id, $customer->id, '2026-09-01', 2, 150000, 300000);
+        $occurredOn = $customer->refresh()->arrived_at?->toDateString();
+        $this->assertNotNull($occurredOn);
+        $contents = $this->workbook($institution->id, $customer->id, $occurredOn, 2, 150000, 300000);
 
         $orderId = app(InstitutionReturnProcessor::class)->upload(new InstitutionReturnUploadData(
             institutionId: $institution->id,
@@ -74,6 +81,7 @@ class InstitutionReturnFormTest extends TestCase
             contents: $contents,
             actorId: $user->id,
             ipAddress: '127.0.0.1',
+            evidence: $this->evidence(),
         ));
 
         $this->assertDatabaseHas('orders', [
@@ -81,8 +89,8 @@ class InstitutionReturnFormTest extends TestCase
             'customer_id' => $customer->id,
             'institution_id' => $institution->id,
             'agent_id' => $agent->id,
-            'occurred_on' => '2026-09-01',
-            'completed_on' => '2026-09-01',
+            'occurred_on' => $occurredOn,
+            'completed_on' => $occurredOn,
             'status' => 'completed',
             'record_status' => 'active',
         ]);
@@ -104,12 +112,14 @@ class InstitutionReturnFormTest extends TestCase
         $customer = $this->customer($agent, $user);
         $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
         app(CustomerStatusManager::class)->change($customer->id, $arrived->id, '客户已到院', $user, null);
-        $contents = $this->workbook($institution->id, $customer->id, '2026-09-01', 1, 200000, 200000);
+        $contents = $this->workbook($institution->id, $customer->id, $customer->refresh()->arrived_at?->toDateString(), 1, 200000, 200000);
 
         Livewire::actingAs($user)
             ->test(CustomerOrderRegistration::class, ['customerId' => $customer->id])
             ->set('institutionId', (string) $institution->id)
             ->set('upload', UploadedFile::fake()->createWithContent('登记订单.xlsx', $contents))
+            ->set('communicationScreenshots', [UploadedFile::fake()->image('沟通.png')])
+            ->set('settlementReceipts', [UploadedFile::fake()->image('小票.png')])
             ->call('uploadReturn')
             ->assertHasNoErrors()
             ->assertSet('status', 'success')
@@ -117,6 +127,195 @@ class InstitutionReturnFormTest extends TestCase
             ->assertDispatched('customer-order-registered');
 
         $this->assertDatabaseCount('orders', 1);
+    }
+
+    public function test_customer_registration_excel_upload_requires_both_evidence_types(): void
+    {
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent($institution);
+        $customer = $this->customer($agent, $user);
+        $this->arrive($customer, $user);
+        $contents = $this->workbook($institution->id, $customer->id, $customer->refresh()->arrived_at?->toDateString(), 1, 200000, 200000);
+
+        Livewire::actingAs($user)
+            ->test(CustomerOrderRegistration::class, ['customerId' => $customer->id])
+            ->set('institutionId', (string) $institution->id)
+            ->set('upload', UploadedFile::fake()->createWithContent('缺凭证.xlsx', $contents))
+            ->call('uploadReturn')
+            ->assertHasErrors(['communicationScreenshots', 'settlementReceipts']);
+
+        $this->assertDatabaseCount('orders', 0);
+    }
+
+    public function test_institution_return_center_excel_upload_requires_both_evidence_types(): void
+    {
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent($institution);
+        $customer = $this->customer($agent, $user);
+        $this->arrive($customer, $user);
+        $contents = $this->workbook($institution->id, $customer->id, $customer->refresh()->arrived_at?->toDateString(), 1, 200000, 200000);
+
+        Livewire::actingAs($user)
+            ->test(InstitutionReturnCenter::class)
+            ->set('institutionId', (string) $institution->id)
+            ->set('customerId', (string) $customer->id)
+            ->set('upload', UploadedFile::fake()->createWithContent('中心缺凭证.xlsx', $contents))
+            ->call('uploadReturn')
+            ->assertHasErrors(['communicationScreenshots', 'settlementReceipts']);
+
+        $this->assertDatabaseCount('orders', 0);
+    }
+
+    public function test_institution_template_v2_hides_legacy_fields_and_prefills_arrival_date(): void
+    {
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent($institution);
+        $customer = $this->customer($agent, $user);
+        $this->arrive($customer, $user);
+        $customer->refresh();
+
+        $generated = app(InstitutionFormTemplateService::class)->generate($institution->id, $customer->id);
+        $spreadsheet = IOFactory::load($generated['path']);
+        $sheet = $spreadsheet->getSheetByName('机构回传');
+        $metadata = $spreadsheet->getSheetByName('__GN_META');
+        $metadataKeys = [];
+        for ($row = 2; $row <= $metadata->getHighestRow(); $row++) {
+            $metadataKeys[(string) $metadata->getCell("A{$row}")->getValue()] = (string) $metadata->getCell("B{$row}")->getValue();
+        }
+
+        $this->assertSame(2, $generated['metadata']['template_version']);
+        $this->assertSame(['客户姓名', '消费日期', '项目', '数量', '金额（KRW）', '业务备注'], [
+            $sheet->getCell('A1')->getValue(),
+            $sheet->getCell('B1')->getValue(),
+            $sheet->getCell('C1')->getValue(),
+            $sheet->getCell('D1')->getValue(),
+            $sheet->getCell('E1')->getValue(),
+            $sheet->getCell('F1')->getValue(),
+        ]);
+        $this->assertSame('客户姓名', $sheet->getCell('A1')->getValue());
+        $this->assertSame($customer->name, $sheet->getCell('A2')->getValue());
+        $this->assertSame($customer->arrived_at?->toDateString(), substr((string) $sheet->getCell('B2')->getValue(), 0, 10));
+        $this->assertSame(1, $sheet->getCell('D2')->getValue());
+        $this->assertSame($customer->code, $metadataKeys['customer_code']);
+        $this->assertSame((string) $customer->id, $metadataKeys['customer_id']);
+        $this->assertSame(Worksheet::SHEETSTATE_VERYHIDDEN, $metadata->getSheetState());
+
+        @unlink($generated['path']);
+    }
+
+    public function test_excel_date_must_match_customer_arrival_date(): void
+    {
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent($institution);
+        $customer = $this->customer($agent, $user);
+        $this->arrive($customer, $user);
+        $wrongDate = $customer->refresh()->arrived_at?->addDay()->toDateString();
+        $contents = $this->workbook($institution->id, $customer->id, $wrongDate, 1, 100000, 100000);
+
+        $this->expectException(DomainException::class);
+        app(InstitutionReturnProcessor::class)->upload(new InstitutionReturnUploadData(
+            institutionId: $institution->id,
+            customerId: $customer->id,
+            originalName: '日期不一致.xlsx',
+            extension: 'xlsx',
+            mimeType: null,
+            contents: $contents,
+            actorId: $user->id,
+            ipAddress: null,
+            evidence: $this->evidence(),
+        ));
+
+        $this->assertDatabaseCount('orders', 0);
+    }
+
+    public function test_manual_registration_creates_one_order_with_multiple_items_and_private_evidence(): void
+    {
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent($institution);
+        $customer = $this->customer($agent, $user);
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+        app(CustomerStatusManager::class)->change($customer->id, $arrived->id, '客户已到院', $user, null);
+        $arrivedOn = $customer->refresh()->arrived_at?->toDateString();
+
+        Livewire::actingAs($user)
+            ->test(CustomerOrderRegistration::class, ['customerId' => $customer->id])
+            ->set('institutionId', (string) $institution->id)
+            ->set('items', [
+                ['project_name' => '水光针', 'amount_krw' => '500000'],
+                ['project_name' => 'Botox', 'amount_krw' => '300000'],
+                ['project_name' => '皮肤管理', 'amount_krw' => '200000'],
+            ])
+            ->set('communicationScreenshots', [UploadedFile::fake()->image('沟通.png')])
+            ->set('settlementReceipts', [UploadedFile::fake()->image('小票.png')])
+            ->call('registerOrder')
+            ->assertHasNoErrors()
+            ->assertSet('status', 'success')
+            ->assertSet('successResult.item_count', 3)
+            ->assertDispatched('customer-order-registered');
+
+        $order = Order::query()->firstOrFail();
+        $this->assertSame($arrivedOn, $order->occurred_on?->toDateString());
+        $this->assertSame(1000000, (int) $order->amount_krw);
+        $this->assertSame(3, OrderItem::query()->where('order_id', $order->id)->count());
+        $this->assertSame(1000000, (int) OrderItem::query()->where('order_id', $order->id)->sum('amount_krw'));
+        $this->assertDatabaseCount('order_evidence_files', 2);
+        $this->assertDatabaseHas('order_evidence_files', ['order_id' => $order->id, 'type' => 'communication_screenshot']);
+        $this->assertDatabaseHas('order_evidence_files', ['order_id' => $order->id, 'type' => 'settlement_receipt']);
+
+        $evidence = OrderEvidenceFile::query()->where('order_id', $order->id)->firstOrFail();
+        Storage::disk('local')->assertExists($evidence->encrypted_path);
+        $this->actingAs($user)
+            ->get(route('orders.evidence.download', $evidence->id))
+            ->assertOk()
+            ->assertHeader('Content-Disposition', 'attachment; filename="沟通.png"');
+        $this->actingAs(User::factory()->create())
+            ->get(route('orders.evidence.download', $evidence->id))
+            ->assertNotFound();
+    }
+
+    public function test_manual_registration_requires_both_evidence_types(): void
+    {
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent($institution);
+        $customer = $this->customer($agent, $user);
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+        app(CustomerStatusManager::class)->change($customer->id, $arrived->id, '客户已到院', $user, null);
+
+        Livewire::actingAs($user)
+            ->test(CustomerOrderRegistration::class, ['customerId' => $customer->id])
+            ->set('institutionId', (string) $institution->id)
+            ->set('items', [['project_name' => '水光针', 'amount_krw' => '500000']])
+            ->call('registerOrder')
+            ->assertHasErrors(['communicationScreenshots', 'settlementReceipts']);
+
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseCount('order_evidence_files', 0);
+    }
+
+    public function test_manual_registration_is_rejected_for_customer_who_has_not_arrived(): void
+    {
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent($institution);
+        $customer = $this->customer($agent, $user);
+
+        Livewire::actingAs($user)
+            ->test(CustomerOrderRegistration::class, ['customerId' => $customer->id])
+            ->set('institutionId', (string) $institution->id)
+            ->set('items', [['project_name' => '水光针', 'amount_krw' => '500000']])
+            ->set('communicationScreenshots', [UploadedFile::fake()->image('沟通.png')])
+            ->set('settlementReceipts', [UploadedFile::fake()->image('小票.png')])
+            ->call('registerOrder')
+            ->assertSee(__('orders.errors.customer_not_arrived'))
+            ->assertSet('status', 'error');
+
+        $this->assertDatabaseCount('orders', 0);
     }
 
     public function test_unavailable_customer_registration_actions_are_visibly_disabled(): void
@@ -143,7 +342,8 @@ class InstitutionReturnFormTest extends TestCase
         $institution = Institution::query()->firstOrFail();
         $agent = $this->agent($institution);
         $customer = $this->customer($agent, $user);
-        $contents = $this->workbook($institution->id, $customer->id, '2026/09/01', 1, 100000, 90000);
+        $this->arrive($customer, $user);
+        $contents = $this->workbook($institution->id, $customer->id, $customer->refresh()->arrived_at?->toDateString(), 3, 0, 100);
 
         $this->expectException(DomainException::class);
         app(InstitutionReturnProcessor::class)->upload(new InstitutionReturnUploadData(
@@ -155,6 +355,7 @@ class InstitutionReturnFormTest extends TestCase
             contents: $contents,
             actorId: $user->id,
             ipAddress: null,
+            evidence: $this->evidence(),
         ));
 
         $this->assertDatabaseCount('orders', 0);
@@ -167,6 +368,7 @@ class InstitutionReturnFormTest extends TestCase
         $institution = Institution::query()->firstOrFail();
         $agent = $this->agent($institution);
         $customer = $this->customer($agent, $user);
+        $this->arrive($customer, $user);
         $generated = app(InstitutionFormTemplateService::class)->generate($institution->id, $customer->id);
         $spreadsheet = IOFactory::load($generated['path']);
         $metaSheet = $spreadsheet->getSheetByName('__GN_META');
@@ -191,6 +393,7 @@ class InstitutionReturnFormTest extends TestCase
             contents: $contents === false ? '' : $contents,
             actorId: $user->id,
             ipAddress: null,
+            evidence: $this->evidence(),
         ));
 
         $this->assertDatabaseCount('orders', 0);
@@ -262,8 +465,9 @@ class InstitutionReturnFormTest extends TestCase
         $institution = Institution::query()->firstOrFail();
         $agent = $this->agent($institution);
         $customer = $this->customer($agent, $user);
-        $contents = $this->workbook($institution->id, $customer->id, '2026-09-01', 1, 200000, 200000);
-        $data = new InstitutionReturnUploadData($institution->id, $customer->id, '重复.xlsx', 'xlsx', null, $contents, $user->id, null);
+        $this->arrive($customer, $user);
+        $contents = $this->workbook($institution->id, $customer->id, $customer->refresh()->arrived_at?->toDateString(), 1, 200000, 200000);
+        $data = new InstitutionReturnUploadData($institution->id, $customer->id, '重复.xlsx', 'xlsx', null, $contents, $user->id, null, $this->evidence());
 
         app(InstitutionReturnProcessor::class)->upload($data);
         $this->expectException(DomainException::class);
@@ -279,13 +483,14 @@ class InstitutionReturnFormTest extends TestCase
         $institution = Institution::query()->firstOrFail();
         $agent = $this->agent($institution);
         $customer = $this->customer($agent, $user);
-        $contents = $this->workbook($institution->id, $customer->id, '2026-09-01', 1, 100000, 100000);
+        $this->arrive($customer, $user);
+        $contents = $this->workbook($institution->id, $customer->id, $customer->refresh()->arrived_at?->toDateString(), 1, 100000, 100000);
         $gateway = Mockery::mock(DailyCommissionGateway::class);
         $gateway->shouldReceive('recordForCompletedOrder')->once()->andThrow(new DomainException('commission failure'));
         app()->instance(DailyCommissionGateway::class, $gateway);
 
         $this->expectException(DomainException::class);
-        app(InstitutionReturnProcessor::class)->upload(new InstitutionReturnUploadData($institution->id, $customer->id, '失败.xlsx', 'xlsx', null, $contents, $user->id, null));
+        app(InstitutionReturnProcessor::class)->upload(new InstitutionReturnUploadData($institution->id, $customer->id, '失败.xlsx', 'xlsx', null, $contents, $user->id, null, $this->evidence()));
 
         $this->assertDatabaseCount('orders', 0);
         $this->assertDatabaseCount('order_commissions', 0);
@@ -300,8 +505,9 @@ class InstitutionReturnFormTest extends TestCase
         $institution = Institution::query()->firstOrFail();
         $agent = $this->agent($institution);
         $customer = $this->customer($agent, $user);
-        $contents = $this->workbook($institution->id, $customer->id, '2026-09-01', 1, 100000, 100000);
-        $orderId = app(InstitutionReturnProcessor::class)->upload(new InstitutionReturnUploadData($institution->id, $customer->id, '原始回传.xlsx', 'xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $contents, $user->id, null));
+        $this->arrive($customer, $user);
+        $contents = $this->workbook($institution->id, $customer->id, $customer->refresh()->arrived_at?->toDateString(), 1, 100000, 100000);
+        $orderId = app(InstitutionReturnProcessor::class)->upload(new InstitutionReturnUploadData($institution->id, $customer->id, '原始回传.xlsx', 'xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', $contents, $user->id, null, $this->evidence()));
         $file = InstitutionReturnFile::query()->firstOrFail();
 
         $response = $this->actingAs($user)->get(route('institution-returns.download', $file->id));
@@ -318,12 +524,9 @@ class InstitutionReturnFormTest extends TestCase
         $sheet = $spreadsheet->getSheetByName('机构回传');
         $sheet->fromArray([
             $sheet->getCell('A2')->getValue(),
-            $sheet->getCell('B2')->getValue(),
             $date,
             '皮肤管理',
-            '标准项目',
             $quantity,
-            $unitPrice,
             $amount,
             '机构回传测试',
         ], null, 'A2');
@@ -334,6 +537,21 @@ class InstitutionReturnFormTest extends TestCase
         @unlink($path);
 
         return $contents === false ? '' : $contents;
+    }
+
+    /** @return array<int, OrderEvidenceUploadData> */
+    private function evidence(): array
+    {
+        return [
+            new OrderEvidenceUploadData('communication_screenshot', '沟通.png', 'image/png', 'communication'),
+            new OrderEvidenceUploadData('settlement_receipt', '小票.png', 'image/png', 'receipt'),
+        ];
+    }
+
+    private function arrive(Customer $customer, User $user): void
+    {
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+        app(CustomerStatusManager::class)->change($customer->id, $arrived->id, '客户已到院', $user, null);
     }
 
     private function agent(Institution $institution): Agent

@@ -25,12 +25,14 @@ use App\Modules\Customer\Infrastructure\Models\CustomerStatusTransition;
 use App\Modules\Customer\Presentation\Livewire\CustomerDetail;
 use App\Modules\Customer\Presentation\Livewire\CustomerForm;
 use App\Modules\Customer\Presentation\Livewire\CustomerList;
+use App\Modules\Customer\Presentation\Livewire\CustomerOverview;
 use App\Modules\Order\Infrastructure\Models\Appointment;
 use App\Modules\Order\Presentation\Livewire\CustomerOrderRegistration;
 use App\Modules\Reminder\Infrastructure\Models\Reminder;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Mockery;
@@ -492,6 +494,48 @@ class CustomerLifecycleTest extends TestCase
         $this->assertSame(2, substr_count($response->getContent(), __('customers.list.all_statuses')));
         $this->assertSame(2, substr_count($response->getContent(), __('customers.list.all_agents')));
         $this->assertSame(2, substr_count($response->getContent(), __('customers.list.all_institutions')));
+    }
+
+    public function test_customer_management_renders_the_customer_overview_as_a_separate_component(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-08-10 12:00:00', 'Asia/Shanghai'));
+        try {
+            $customerId = $this->createCustomer('工作台客户');
+            DB::table('reminders')->insert([
+                'customer_id' => $customerId,
+                'assigned_to' => $this->user->id,
+                'created_by' => $this->user->id,
+                'source_type' => 'manual',
+                'reminder_type' => 'manual',
+                'title' => '工作台提醒',
+                'priority' => 3,
+                'due_at' => CarbonImmutable::now(),
+                'status' => 'pending',
+                'notification_status' => 'pending',
+                'dedupe_key' => hash('sha256', 'customer-overview'),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            Livewire::actingAs($this->user)
+                ->test(CustomerOverview::class)
+                ->assertSee(__('customers.overview.title'))
+                ->assertSee(__('customers.overview.pending_followups'))
+                ->assertSee(__('customers.overview.today_tasks'))
+                ->assertSee(__('customers.overview.lifecycle'))
+                ->assertSee(__('customers.overview.recent_customers'))
+                ->assertSee('工作台客户')
+                ->assertSee('1');
+
+            $this->actingAs($this->user)
+                ->get(route('customers.index'))
+                ->assertOk()
+                ->assertSee('data-customer-overview', false)
+                ->assertSee(__('customers.overview.title'))
+                ->assertSee('工作台客户');
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
     }
 
     public function test_korean_locale_localizes_default_statuses_and_timeline_without_translating_custom_status_names(): void

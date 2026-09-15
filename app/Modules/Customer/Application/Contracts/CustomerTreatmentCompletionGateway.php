@@ -6,7 +6,7 @@ use Carbon\CarbonImmutable;
 
 interface CustomerTreatmentCompletionGateway
 {
-    public function completeFromInstitutionReturn(
+    public function completeFromOrder(
         int $customerId,
         CarbonImmutable $occurredOn,
         int $actorId,

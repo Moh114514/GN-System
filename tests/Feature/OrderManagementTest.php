@@ -14,6 +14,7 @@ use App\Modules\Auth\Domain\UserRole;
 use App\Modules\Config\Infrastructure\Models\DictionaryItem;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Infrastructure\Models\Customer;
+use App\Modules\Order\Application\Services\OrderManagementWorkspace;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Order\Presentation\Livewire\OrderCenter;
 use App\Modules\Order\Presentation\Livewire\OrderDetail;
@@ -67,6 +68,49 @@ class OrderManagementTest extends TestCase
             ->assertSee('line-clamp-2', false)
             ->assertSee('title="'.$projectName.'"', false)
             ->assertDontSee('<table', false)
+            ->assertSee('#'.$order->id);
+    }
+
+    public function test_order_center_search_matches_any_order_item_project(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent();
+        $customer = $this->customer($agent, $user->id);
+        $order = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'agent_id' => $agent->id,
+            'project_name' => '水光针',
+            'treatment_project_snapshot' => '水光针',
+            'amount_krw' => 900000,
+            'status' => 'completed',
+            'owner_id' => $user->id,
+        ]);
+        $order->items()->createMany([
+            [
+                'project_snapshot' => '水光针',
+                'quantity' => '1',
+                'unit_price_krw' => 500000,
+                'amount_krw' => 500000,
+            ],
+            [
+                'project_snapshot' => 'Botox',
+                'quantity' => '1',
+                'unit_price_krw' => 400000,
+                'amount_krw' => 400000,
+            ],
+        ]);
+
+        $this->actingAs($user);
+        $result = app(OrderManagementWorkspace::class)->paginate(['search' => 'Botox'], 20);
+
+        $this->assertSame(1, $result->total());
+        $this->assertSame($order->id, $result->getCollection()->first()['id']);
+        Livewire::actingAs($user)
+            ->test(OrderCenter::class)
+            ->set('search', 'Botox')
             ->assertSee('#'.$order->id);
     }
 

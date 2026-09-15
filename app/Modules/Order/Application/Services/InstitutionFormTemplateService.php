@@ -60,25 +60,26 @@ final readonly class InstitutionFormTemplateService
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('机构回传');
         $sheet->fromArray(InstitutionFormSchema::HEADERS, null, 'A1');
+        $arrivedOn = isset($customer['arrived_at'])
+            ? CarbonImmutable::parse((string) $customer['arrived_at'])->startOfDay()->toDateTimeImmutable()
+            : null;
         $sheet->fromArray([
-            $customer['code'],
             $customer['name'],
-            null,
-            null,
+            $arrivedOn,
             null,
             1,
             null,
             null,
-            null,
         ], null, 'A2');
         $sheet->freezePane('A2');
-        $sheet->getStyle('A1:I1')->getFont()->setBold(true);
-        $sheet->getStyle('C2:C100')->getNumberFormat()->setFormatCode('yyyy-mm-dd');
-        $sheet->getStyle('F2:H100')->getNumberFormat()->setFormatCode('#,##0.00');
-        foreach (range('A', 'I') as $column) {
+        $sheet->getStyle('A1:F1')->getFont()->setBold(true);
+        $sheet->getStyle('B2:B100')->getNumberFormat()->setFormatCode('yyyy-mm-dd');
+        $sheet->getStyle('D2:D100')->getNumberFormat()->setFormatCode('#,##0.###');
+        $sheet->getStyle('E2:E100')->getNumberFormat()->setFormatCode('#,##0');
+        foreach (range('A', 'F') as $column) {
             $sheet->getColumnDimension($column)->setWidth(18);
         }
-        $sheet->getColumnDimension('I')->setWidth(30);
+        $sheet->getColumnDimension('F')->setWidth(30);
 
         $metaSheet = $spreadsheet->createSheet();
         $metaSheet->setTitle('__GN_META');

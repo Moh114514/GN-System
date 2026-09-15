@@ -106,6 +106,20 @@
                     <p class="mt-4 text-sm text-zinc-500">{{ __('orders.detail.no_reminders') }}</p>
                 @endforelse
             </section>
+
+            @if (($order['evidence'] ?? []) !== [])
+                <section class="crm-card">
+                    <h3 class="font-semibold">{{ __('orders.registration.evidence') }}</h3>
+                    <div class="mt-4 space-y-3">
+                        @foreach ($order['evidence'] as $evidence)
+                            <a class="flex items-center justify-between gap-3 rounded-xl bg-zinc-50 px-3 py-2 text-sm text-teal-700 hover:underline dark:bg-zinc-800/60 dark:text-teal-300" href="{{ route('orders.evidence.download', $evidence['id']) }}">
+                                <span>{{ $evidence['original_name'] }}</span>
+                                <span class="text-xs text-zinc-500">{{ $evidence['type'] === 'communication_screenshot' ? __('orders.registration.communication_screenshot') : __('orders.registration.settlement_receipt') }}</span>
+                            </a>
+                        @endforeach
+                    </div>
+                </section>
+            @endif
         </div>
 
         <aside class="space-y-6">

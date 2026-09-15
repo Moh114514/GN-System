@@ -81,6 +81,9 @@ final readonly class OrderManagementWorkspace
             $customerIds = $this->customers->customerIdsForOrderSearch($search);
             $query->where(function ($inner) use ($search, $customerIds): void {
                 $inner->where('project_name', 'ilike', '%'.$search.'%')
+                    ->orWhereHas('items', function ($items) use ($search): void {
+                        $items->where('project_snapshot', 'ilike', '%'.$search.'%');
+                    })
                     ->orWhere('id', ctype_digit($search) ? (int) $search : 0);
                 if ($customerIds !== []) {
                     $inner->orWhereIn('customer_id', $customerIds);
@@ -198,6 +201,12 @@ final readonly class OrderManagementWorkspace
             'treatment_project_id' => $order->treatment_project_id,
             'notes' => $order->notes,
             'items' => $items,
+            'evidence' => $order->evidenceFiles()->orderBy('type')->orderBy('id')->get()->map(fn ($file): array => [
+                'id' => (int) $file->id,
+                'type' => (string) $file->type,
+                'original_name' => (string) $file->original_name,
+                'size_bytes' => (int) $file->size_bytes,
+            ])->all(),
             'can_edit' => $canEdit,
             'financial' => $this->financials->forOrder((int) $order->id),
             'reminders' => $this->reminders->forOrder((int) $order->id),

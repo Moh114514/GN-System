@@ -32,9 +32,15 @@ interface ReportCustomerReader
      * @return array{
      *   new_customers: int,
      *   active_customers: int,
+     *   source_distribution: array<int, array{source_type: string, source_id: int, key: string, value: int}>
+     * }
+     */
+    public function dashboard(CarbonImmutable $from, CarbonImmutable $to): array;
+
+    /**
+     * @return array{
      *   total_customers: int,
-     *   arrived_customers: int,
-     *   source_distribution: array<int, array{source_type: string, source_id: int, key: string, value: int}>,
+     *   status_counts: array<string, int>,
      *   recent_customers: array<int, array{
      *     id: int,
      *     code: string,
@@ -50,7 +56,7 @@ interface ReportCustomerReader
      *   }>
      * }
      */
-    public function dashboard(CarbonImmutable $from, CarbonImmutable $to): array;
+    public function overview(CarbonImmutable $asOf): array;
 
     /**
      * @param  list<int>  $ownerIds

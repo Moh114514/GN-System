@@ -101,6 +101,14 @@ class InstitutionMonthlySalesTest extends TestCase
         $this->assertSame(6_000_000, $institutionSummary->totalAmountKrw);
         $this->assertCount(1, $institutionSummary->rows);
         $this->assertSame($this->institutionA->id, $institutionSummary->rows[0]->institutionId);
+
+        $dashboardInstitutionRevenue = app(ReportOrderReader::class)->institutionRevenue(
+            CarbonImmutable::parse('2026-08-01'),
+            CarbonImmutable::parse('2026-08-31'),
+        );
+        $dashboardRows = collect($dashboardInstitutionRevenue)->keyBy('institution_id');
+        $this->assertSame(6_000_000, $dashboardRows[$this->institutionA->id]['value']);
+        $this->assertSame(4_000_000, $dashboardRows[$this->institutionB->id]['value']);
     }
 
     public function test_active_institution_without_orders_is_listed_and_detail_is_empty(): void
@@ -153,6 +161,36 @@ class InstitutionMonthlySalesTest extends TestCase
         $this->assertSame('销售代理商 A', $detail['orders'][0]['agent']);
         $this->assertSame(1_250_000, $detail['agents'][0]['amount_krw']);
         $this->assertSame(100.0, $detail['agents'][0]['share']);
+    }
+
+    public function test_institution_detail_project_search_matches_any_order_item_project(): void
+    {
+        $customer = $this->customer('明细筛选客户');
+        $order = $this->order($customer, $this->institutionA, 900_000, '2026-08-15', 'completed', 'active');
+        $order->items()->createMany([
+            [
+                'project_snapshot' => '水光针',
+                'quantity' => '1',
+                'unit_price_krw' => 500_000,
+                'amount_krw' => 500_000,
+            ],
+            [
+                'project_snapshot' => 'Botox',
+                'quantity' => '1',
+                'unit_price_krw' => 400_000,
+                'amount_krw' => 400_000,
+            ],
+        ]);
+
+        $this->actingAs($this->admin);
+        $detail = app(InstitutionMonthlySalesDetailService::class)->detail(
+            month: '2026-08',
+            institutionId: $this->institutionA->id,
+            search: 'Botox',
+        );
+
+        $this->assertSame(1, $detail['orders_total']);
+        $this->assertSame($order->id, $detail['orders'][0]['id']);
     }
 
     public function test_order_reader_and_page_respect_effective_business_scope(): void
@@ -288,6 +326,88 @@ class InstitutionMonthlySalesTest extends TestCase
             ->assertHeader('content-disposition');
     }
 
+    public function test_single_institution_pdf_contains_customer_order_and_item_details(): void
+    {
+        $customer = $this->customer('PDF 明细客户');
+        $order = $this->order($customer, $this->institutionA, 900_000, '2026-08-08', 'completed', 'active');
+        $order->items()->delete();
+        $order->items()->createMany([
+            [
+                'project_snapshot' => '水光针',
+                'quantity' => '1',
+                'unit_price_krw' => 500_000,
+                'amount_krw' => 500_000,
+                'notes' => '首项目备注',
+            ],
+            [
+                'project_snapshot' => 'Botox',
+                'quantity' => '2',
+                'unit_price_krw' => 200_000,
+                'amount_krw' => 400_000,
+                'notes' => '第二项目备注',
+            ],
+        ]);
+
+        $this->actingAs($this->admin);
+        Storage::fake('local');
+        $export = app(ReportExportManager::class)->startInstitutionMonthlySales($this->admin, '2026-08', $this->institutionA->id, 'pdf');
+        $pdfPath = tempnam(sys_get_temp_dir(), 'gn-institution-sales-detail-pdf-');
+        $this->assertNotFalse($pdfPath);
+        try {
+            file_put_contents($pdfPath, Storage::disk('local')->get($export->path));
+            $process = new Process(['pdftotext', $pdfPath, '-']);
+            $process->run();
+            $this->assertTrue($process->isSuccessful(), $process->getErrorOutput());
+            $text = $process->getOutput();
+            $this->assertStringContainsString('机构', $text);
+            $this->assertStringContainsString('PDF 明细客户', $text);
+            $this->assertStringContainsString('#'.$order->id, $text);
+            $this->assertStringContainsString('水光针', $text);
+            $this->assertStringContainsString('Botox', $text);
+            $this->assertStringContainsString('500,000', $text);
+            $this->assertStringContainsString('400,000', $text);
+            $this->assertStringNotContainsString('机构筛选', $text);
+            $this->assertStringNotContainsString('对象', $text);
+        } finally {
+            if (is_string($pdfPath) && is_file($pdfPath)) {
+                unlink($pdfPath);
+            }
+        }
+    }
+
+    public function test_all_institution_pdf_is_grouped_and_contains_each_institution(): void
+    {
+        $customerA = $this->customer('全部机构客户 A');
+        $customerB = $this->customer('全部机构客户 B');
+        $this->order($customerA, $this->institutionA, 1_000_000, '2026-08-08', 'completed', 'active');
+        $this->order($customerB, $this->institutionB, 2_000_000, '2026-08-09', 'completed', 'active');
+
+        $this->actingAs($this->admin);
+        Storage::fake('local');
+        $export = app(ReportExportManager::class)->startInstitutionMonthlySales($this->admin, '2026-08', null, 'pdf');
+        $pdfPath = tempnam(sys_get_temp_dir(), 'gn-institution-sales-all-pdf-');
+        $this->assertNotFalse($pdfPath);
+        try {
+            file_put_contents($pdfPath, Storage::disk('local')->get($export->path));
+            $process = new Process(['pdftotext', $pdfPath, '-']);
+            $process->run();
+            $this->assertTrue($process->isSuccessful(), $process->getErrorOutput());
+            $text = $process->getOutput();
+            $this->assertStringContainsString('全部机构', $text);
+            $this->assertStringContainsString($this->institutionA->name, $text);
+            $this->assertStringContainsString($this->institutionB->name, $text);
+            $this->assertStringContainsString('全部机构客户 A', $text);
+            $this->assertStringContainsString('全部机构客户 B', $text);
+            $this->assertStringContainsString('3,000,000', $text);
+            $this->assertStringNotContainsString('机构筛选', $text);
+            $this->assertStringNotContainsString('对象', $text);
+        } finally {
+            if (is_string($pdfPath) && is_file($pdfPath)) {
+                unlink($pdfPath);
+            }
+        }
+    }
+
     private function customer(string $name, ?Agent $agent = null): Customer
     {
         return Customer::query()->create([
@@ -308,7 +428,7 @@ class InstitutionMonthlySalesTest extends TestCase
         ?string $completedAt = null,
         ?Agent $agent = null,
     ): Order {
-        return Order::query()->create([
+        $order = Order::query()->create([
             'customer_id' => $customer->id,
             'institution_id' => $institution->id,
             'agent_id' => ($agent ?? $this->agent)->id,
@@ -321,5 +441,14 @@ class InstitutionMonthlySalesTest extends TestCase
             'status' => $status,
             'record_status' => $recordStatus,
         ]);
+        $order->items()->create([
+            'project_snapshot' => '机构销售额测试项目',
+            'quantity' => '1',
+            'unit_price_krw' => $amount,
+            'amount_krw' => $amount,
+            'notes' => null,
+        ]);
+
+        return $order;
     }
 }

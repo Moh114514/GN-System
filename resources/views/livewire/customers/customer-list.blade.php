@@ -12,6 +12,8 @@
         </div>
     </section>
 
+    <livewire:customer-overview />
+
     <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         @php
             $selectedStatus = collect($options['statuses'])->firstWhere('id', (int) $statusId);

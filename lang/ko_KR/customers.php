@@ -6,6 +6,35 @@ return [
         'form' => '고객 프로필',
         'detail' => '고객 상세',
     ],
+    'overview' => [
+        'title' => '고객 워크벤치',
+        'description' => '후속 연락, 오늘의 할 일, 생애주기와 최근 고객을 한곳에서 확인합니다.',
+        'pending_followups' => '후속 연락 대기',
+        'today_tasks' => '오늘의 할 일',
+        'lifecycle' => '고객 생애주기',
+        'recent_customers' => '최근 고객 기록',
+        'view_all' => '전체 보기',
+        'updated_at' => '업데이트',
+        'no_tasks' => '오늘 예정된 할 일이 없습니다.',
+        'no_customers' => '고객 기록이 없습니다.',
+        'columns' => [
+            'customer' => '고객',
+            'source' => '유입 경로',
+            'status' => '현재 상태',
+            'created_date' => '등록일',
+            'owner' => '담당자',
+        ],
+        'stages' => [
+            'booked' => '예약 완료',
+            'arrived' => '방문 완료',
+            'treatment_completed' => '시술 완료',
+        ],
+        'fallbacks' => [
+            'missing_agent' => '알 수 없는 에이전트',
+            'missing_customer' => '알 수 없는 고객',
+            'unassigned' => '미배정',
+        ],
+    ],
     'list' => [
         'description' => '고객 프로필, 유입 경로, 상태 및 후속 기록을 통합 관리합니다.',
         'status_configuration' => '상태 설정',
@@ -271,6 +300,10 @@ return [
         'notifications' => [
             'title' => '고객 담당자 변경',
             'body' => '고객 :customer의 담당자가 변경되었습니다. :reason',
+            'request_title' => '고객 인계 요청 검토 대기',
+            'request_body' => '고객 :customer의 담당자 인계 요청이 제출되었습니다. 검토 사유: :reason',
+            'rejected_title' => '고객 인계 요청 거절',
+            'rejected_body' => '고객 :customer의 담당자 인계 요청이 거절되었습니다. 검토 의견: :reason',
         ],
     ],
     'status_approval' => [
