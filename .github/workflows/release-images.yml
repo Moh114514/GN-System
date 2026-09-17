@@ -66,6 +66,12 @@ jobs:
           set -euo pipefail
 
           release_tag=${GITHUB_REF_NAME}
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "Release commit ${GITHUB_SHA} is not contained in origin/main." >&2
+            exit 1
+          fi
+
           if [[ ${release_tag} =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
             echo "mode=rc" >> "$GITHUB_OUTPUT"
             exit 0
