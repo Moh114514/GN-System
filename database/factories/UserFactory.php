@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Models\User;
+use App\Modules\Auth\Domain\UserRole;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -31,6 +32,7 @@ class UserFactory extends Factory
             'password' => static::$password ??= Hash::make('password'),
             'preferred_locale' => 'zh_CN',
             'is_super_admin' => false,
+            'role' => UserRole::CustomerService,
             'remember_token' => Str::random(10),
             'two_factor_secret' => null,
             'two_factor_recovery_codes' => null,
@@ -45,6 +47,7 @@ class UserFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'is_super_admin' => true,
+            'role' => UserRole::SuperAdmin,
         ]);
     }
 

@@ -3,6 +3,7 @@
 return [
     'title' => '대시보드',
     'controls' => [
+        'bd_commission' => 'BD 분기 인센티브',
         'actions' => '대시보드 작업',
         'range' => '통계 기간',
         'custom_range' => '사용자 지정 날짜 범위',
@@ -48,13 +49,17 @@ return [
         'conversion' => '등록에서 재구매까지 전환율',
     ],
     'panels' => [
-        'trend' => '월별 매출 및 주문 추이',
+        'trend' => '매출 및 주문 추이',
         'period' => '통계 주기',
         'monthly' => '월별',
         'revenue_krw' => '매출（KRW）',
         'orders_count' => '주문 수（건）',
         'no_transactions' => '현재 기간에 거래 데이터가 없습니다.',
         'promotion_ranking' => '에이전트 프로모션 비용 순위',
+        'institution_revenue' => '기관 매출 비교',
+        'institution_revenue_month' => '이번 달 기관 매출',
+        'no_institution_revenue' => '현재 기간에 기관 매출 데이터가 없습니다.',
+        'no_institution_revenue_month' => '이번 달 기관 매출 데이터가 없습니다.',
         'view_all' => '전체 보기',
         'no_promotion_fee' => '현재 기간에 프로모션 비용이 없습니다.',
         'lifecycle' => '고객 생애주기 개요',
@@ -121,7 +126,6 @@ return [
         'missing_agent' => '알 수 없는 에이전시',
         'missing_customer' => '알 수 없는 고객',
         'missing_institution' => '알 수 없는 기관',
-        'missing_direct_source' => '알 수 없는 직접 판매 출처',
         'unassigned' => '미배정',
     ],
 ];

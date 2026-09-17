@@ -3,9 +3,15 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Agent\Application\Contracts\AgentBusinessGroupAssignmentGateway;
+use App\Modules\Agent\Infrastructure\Models\Agent;
+use App\Modules\Agent\Infrastructure\Models\AgentBusinessGroupAssignment;
+use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
+use App\Modules\Auth\Application\Contracts\BusinessGroupManagementGateway;
 use App\Modules\Config\Infrastructure\Models\Institution;
+use App\Modules\Config\Infrastructure\Models\NotificationRecipientConfig;
 use App\Modules\Customer\Infrastructure\Models\Customer;
-use App\Modules\Customer\Infrastructure\Models\DirectSalesSource;
+use App\Modules\Order\Application\Services\CustomerAppointmentScheduleWorkspace;
 use App\Modules\Order\Infrastructure\Models\Appointment;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Reminder\Application\Data\CompletedTreatmentData;
@@ -21,6 +27,8 @@ use App\Modules\Reminder\Infrastructure\Models\Reminder;
 use App\Modules\Reminder\Infrastructure\Models\ReminderRule;
 use App\Modules\Reminder\Infrastructure\Models\ReminderTemplate;
 use App\Modules\Reminder\Jobs\SendReminderNotification;
+use App\Modules\Reminder\Presentation\Livewire\ReminderCenter;
+use App\Modules\Reminder\Presentation\Livewire\ReminderConfiguration;
 use App\Modules\Reminder\Presentation\Livewire\ReminderCreate;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
@@ -44,7 +52,7 @@ class PhaseFiveReminderTest extends TestCase
 
     private Customer $customer;
 
-    private DirectSalesSource $source;
+    private Agent $agent;
 
     protected function setUp(): void
     {
@@ -54,13 +62,23 @@ class PhaseFiveReminderTest extends TestCase
         $this->user = User::factory()->create(['name' => '负责客服']);
         $this->other = User::factory()->create(['name' => '其他客服']);
         $this->admin = User::factory()->superAdmin()->withTwoFactor()->create();
-        $this->source = DirectSalesSource::query()->create(['code' => 'REM', 'name' => '提醒测试', 'is_active' => true]);
+        $groups = app(BusinessGroupManagementGateway::class);
+        $groupId = $groups->create('REMINDER-TEST', 'Reminder test group', $this->admin->id, null)['id'];
+        foreach ([$this->user, $this->other] as $member) {
+            $groups->assignMember($groupId, $member->id, '2026-01-01', null, 'Reminder test scope', $this->admin->id, null);
+        }
+        $this->agent = Agent::query()->create([
+            'agent_type_code_id' => AgentTypeCode::query()->where('code', 'JG')->value('id'),
+            'code' => 'REM-JG',
+            'name' => '提醒测试代理商',
+            'cooperation_status' => 'active',
+        ]);
+        app(AgentBusinessGroupAssignmentGateway::class)->assign($this->agent->id, $groupId, '2026-01-01', null, 'Reminder test scope', $this->admin->id, null);
         $this->customer = Customer::query()->create([
             'code' => 'REMIND-0001',
             'name' => '提醒测试客户',
             'birth_date' => '1990-08-02',
-            'original_channel' => 'direct',
-            'source_direct_sales_id' => $this->source->id,
+            'source_agent_id' => $this->agent->id,
             'owner_id' => $this->user->id,
             'project_intention' => '皮肤管理',
         ]);
@@ -72,13 +90,12 @@ class PhaseFiveReminderTest extends TestCase
         parent::tearDown();
     }
 
-    public function test_completed_treatment_creates_five_idempotent_future_reminders(): void
+    public function test_completed_treatment_creates_two_idempotent_future_reminders(): void
     {
         $order = Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => Institution::query()->firstOrFail()->id,
-            'channel' => 'direct',
-            'direct_sales_source_id' => $this->source->id,
+            'agent_id' => $this->agent->id,
             'project_name' => '皮肤管理',
             'amount_krw' => 10000,
             'completed_on' => '2026-08-01',
@@ -97,9 +114,9 @@ class PhaseFiveReminderTest extends TestCase
         $gateway->schedule($data);
         $gateway->schedule($data);
 
-        $this->assertDatabaseCount('reminders', 5);
+        $this->assertDatabaseCount('reminders', 2);
         $this->assertDatabaseHas('reminders', ['customer_id' => $this->customer->id, 'reminder_type' => 'post_treatment', 'status' => 'pending']);
-        $this->assertDatabaseCount('reminder_events', 5);
+        $this->assertDatabaseCount('reminder_events', 2);
     }
 
     public function test_cancelled_post_treatment_reminders_reactivate_on_order_recompletion(): void
@@ -107,8 +124,7 @@ class PhaseFiveReminderTest extends TestCase
         $order = Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => Institution::query()->firstOrFail()->id,
-            'channel' => 'direct',
-            'direct_sales_source_id' => $this->source->id,
+            'agent_id' => $this->agent->id,
             'project_name' => '提醒复活项目',
             'amount_krw' => 10000,
             'completed_on' => '2026-08-05',
@@ -131,9 +147,9 @@ class PhaseFiveReminderTest extends TestCase
 
         $gateway->schedule($data);
 
-        $this->assertSame(5, Reminder::query()->where('order_id', $order->id)->count());
+        $this->assertSame(2, Reminder::query()->where('order_id', $order->id)->count());
         $this->assertSame('completed', $completed->refresh()->status);
-        $this->assertSame(4, Reminder::query()->where('order_id', $order->id)->where('status', 'pending')->count());
+        $this->assertSame(1, Reminder::query()->where('order_id', $order->id)->where('status', 'pending')->count());
         $this->assertDatabaseHas('reminder_events', ['event' => 'reactivated']);
     }
 
@@ -148,10 +164,288 @@ class PhaseFiveReminderTest extends TestCase
             'status' => 'scheduled',
         ]);
         $scheduler = app(ReminderScheduler::class);
-        $this->assertSame(3, $scheduler->materialize());
+        $this->assertSame(1, $scheduler->materialize());
         $this->assertSame(0, $scheduler->materialize());
-        $this->assertDatabaseHas('reminders', ['title' => '术前 3 天确认', 'assigned_to' => $this->user->id]);
-        $this->assertDatabaseHas('reminders', ['title' => '今日到店接待确认']);
+        $this->assertDatabaseHas('reminders', ['title' => '到院前一天联系客户', 'due_at' => '2026-08-03 18:00:00', 'assigned_to' => $this->user->id]);
+        $this->assertDatabaseHas('reminders', ['notes' => '预计到院时间：2026-08-04 10:00']);
+        $this->assertSame(1, Reminder::query()->count());
+    }
+
+    public function test_scheduler_creates_one_idempotent_compensation_reminder_after_the_previous_day_cutoff(): void
+    {
+        $institution = Institution::query()->firstOrFail();
+        Appointment::query()->create([
+            'customer_id' => $this->customer->id,
+            'institution_id' => $institution->id,
+            'scheduled_at' => '2026-08-02 10:00:00',
+            'owner_id' => $this->user->id,
+            'status' => 'scheduled',
+        ]);
+        CarbonImmutable::setTestNow('2026-08-01 20:00:00');
+
+        $scheduler = app(ReminderScheduler::class);
+        $this->assertSame(1, $scheduler->materialize());
+        $this->assertSame(0, $scheduler->materialize());
+        $this->assertDatabaseCount('reminders', 1);
+        $this->assertDatabaseHas('reminders', [
+            'appointment_id' => Appointment::query()->firstOrFail()->id,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_arrived_and_completed_appointments_can_be_corrected_without_recreating_arrival_reminders(): void
+    {
+        $institution = Institution::query()->firstOrFail();
+        $appointment = Appointment::query()->create([
+            'customer_id' => $this->customer->id,
+            'institution_id' => $institution->id,
+            'scheduled_at' => '2026-08-04 10:00:00',
+            'owner_id' => $this->user->id,
+            'status' => 'arrived',
+        ]);
+
+        app(CustomerAppointmentScheduleWorkspace::class)->reschedule(
+            customerId: $this->customer->id,
+            appointmentId: $appointment->id,
+            scheduledAt: CarbonImmutable::parse('2026-08-05 11:00:00'),
+            actorId: $this->user->id,
+            ipAddress: null,
+        );
+
+        $this->assertSame('2026-08-05 11:00', $appointment->refresh()->scheduled_at->format('Y-m-d H:i'));
+        $this->assertDatabaseCount('reminders', 0);
+
+        $appointment->update(['status' => 'completed']);
+        app(CustomerAppointmentScheduleWorkspace::class)->reschedule(
+            customerId: $this->customer->id,
+            appointmentId: $appointment->id,
+            scheduledAt: CarbonImmutable::parse('2026-08-06 12:00:00'),
+            actorId: $this->user->id,
+            ipAddress: null,
+        );
+
+        $this->assertSame('2026-08-06 12:00', $appointment->refresh()->scheduled_at->format('Y-m-d H:i'));
+        $this->assertDatabaseCount('reminders', 0);
+    }
+
+    public function test_rescheduling_an_appointment_replaces_unsent_reminder_and_preserves_sent_history(): void
+    {
+        $institution = Institution::query()->firstOrFail();
+        $appointment = Appointment::query()->create([
+            'customer_id' => $this->customer->id,
+            'institution_id' => $institution->id,
+            'scheduled_at' => '2026-08-04 10:00:00',
+            'owner_id' => $this->user->id,
+            'status' => 'scheduled',
+        ]);
+        $scheduler = app(ReminderScheduler::class);
+        $scheduler->materialize();
+        $old = Reminder::query()->where('appointment_id', $appointment->id)->firstOrFail();
+
+        app(CustomerAppointmentScheduleWorkspace::class)->reschedule(
+            customerId: $this->customer->id,
+            appointmentId: $appointment->id,
+            scheduledAt: CarbonImmutable::parse('2026-08-05 11:00:00'),
+            actorId: $this->user->id,
+            ipAddress: null,
+        );
+        $replacement = Reminder::query()->where('appointment_id', $appointment->id)->where('status', 'pending')->firstOrFail();
+        $this->assertSame('cancelled', $old->refresh()->status);
+        $this->assertSame('2026-08-04 18:00', $replacement->due_at->format('Y-m-d H:i'));
+
+        $replacement->update(['notification_status' => 'sent']);
+        app(CustomerAppointmentScheduleWorkspace::class)->reschedule(
+            customerId: $this->customer->id,
+            appointmentId: $appointment->id,
+            scheduledAt: CarbonImmutable::parse('2026-08-06 11:00:00'),
+            actorId: $this->user->id,
+            ipAddress: null,
+        );
+
+        $this->assertSame('sent', $replacement->refresh()->notification_status);
+        $this->assertDatabaseHas('reminders', [
+            'appointment_id' => $appointment->id,
+            'due_at' => '2026-08-05 18:00:00',
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_appointment_reminder_normalization_migration_cancels_legacy_pending_instances(): void
+    {
+        $reminder = Reminder::query()->create([
+            'customer_id' => $this->customer->id,
+            'assigned_to' => $this->user->id,
+            'source_type' => 'system',
+            'reminder_type' => 'appointment',
+            'title' => '旧到院提醒',
+            'due_at' => '2026-08-02 09:00:00',
+            'status' => 'pending',
+            'notification_status' => 'pending',
+            'dedupe_key' => hash('sha256', 'legacy-appointment-reminder'),
+        ]);
+
+        $migration = require database_path('migrations/2026_09_01_000100_normalize_appointment_reminders.php');
+        $migration->up();
+
+        $this->assertDatabaseHas('reminders', [
+            'id' => $reminder->id,
+            'status' => 'cancelled',
+            'notification_status' => 'cancelled',
+        ]);
+        $this->assertDatabaseHas('reminder_events', [
+            'reminder_id' => $reminder->id,
+            'event' => 'cancelled',
+        ]);
+
+        $sent = Reminder::query()->create([
+            'customer_id' => $this->customer->id,
+            'assigned_to' => $this->user->id,
+            'source_type' => 'system',
+            'reminder_type' => 'appointment',
+            'title' => '旧已发送到院提醒',
+            'due_at' => '2026-08-02 10:00:00',
+            'status' => 'pending',
+            'notification_status' => 'sent',
+            'dedupe_key' => hash('sha256', 'legacy-sent-appointment-reminder'),
+        ]);
+        $migration->up();
+
+        $this->assertDatabaseHas('reminders', [
+            'id' => $sent->id,
+            'status' => 'cancelled',
+            'notification_status' => 'sent',
+        ]);
+    }
+
+    public function test_holiday_date_rules_materialize_for_each_date_and_remain_idempotent_across_days(): void
+    {
+        $manager = app(ReminderRuleManager::class);
+        $manager->saveRule(
+            null,
+            '节日第一天',
+            'holiday_date',
+            ['date' => '2026-08-02', 'time' => '09:00'],
+            'all_customers',
+            [],
+            '节日联系客户',
+            '联系客户表达节日关怀',
+            2,
+            $this->admin->id,
+        );
+        $firstRule = ReminderRule::query()->where('name', '节日第一天')->firstOrFail();
+        $manager->saveRule(
+            null,
+            '节日第二天',
+            'holiday_date',
+            ['date' => '2026-08-03', 'time' => '10:00'],
+            'owner',
+            ['value' => (string) $this->user->id],
+            '节日第二次联系客户',
+            '继续跟进客户',
+            2,
+            $this->admin->id,
+        );
+
+        $scheduler = app(ReminderScheduler::class);
+        $this->assertSame(2, $scheduler->materialize());
+        $this->assertSame(2, Reminder::query()->where('reminder_type', 'holiday_date')->count());
+        $this->assertDatabaseHas('reminders', [
+            'reminder_type' => 'holiday_date',
+            'assigned_to' => $this->user->id,
+            'due_at' => '2026-08-02 09:00:00',
+            'dedupe_key' => hash('sha256', 'holiday-rule:'.$firstRule->id.':'.$this->customer->id.':2026-08-02'),
+        ]);
+        $this->assertDatabaseHas('reminders', ['due_at' => '2026-08-03 10:00:00', 'assigned_to' => $this->user->id]);
+
+        CarbonImmutable::setTestNow('2026-08-02 09:30:00');
+        $this->assertSame(0, $scheduler->materialize());
+        CarbonImmutable::setTestNow('2026-08-03 11:00:00');
+        $this->assertSame(0, $scheduler->materialize());
+        $this->assertSame(2, Reminder::query()->where('reminder_type', 'holiday_date')->count());
+    }
+
+    public function test_disabled_holiday_rule_does_not_materialize_and_invalid_date_is_rejected(): void
+    {
+        $manager = app(ReminderRuleManager::class);
+        $manager->saveRule(
+            null,
+            '停用节日规则',
+            'holiday_date',
+            ['date' => '2026-08-05', 'time' => '09:00'],
+            'all_customers',
+            [],
+            '不应生成',
+            null,
+            3,
+            $this->admin->id,
+        );
+        $rule = ReminderRule::query()->where('name', '停用节日规则')->firstOrFail();
+        $manager->toggleRule($rule->id, $this->admin->id);
+
+        $this->assertSame(0, app(ReminderScheduler::class)->materialize());
+        $this->assertDatabaseMissing('reminders', ['rule_id' => $rule->id]);
+
+        $this->expectException(\DomainException::class);
+        $manager->saveRule(
+            null,
+            '无效节日规则',
+            'holiday_date',
+            ['date' => '2026-02-30', 'time' => '09:00'],
+            'all_customers',
+            [],
+            '无效日期',
+            null,
+            3,
+            $this->admin->id,
+        );
+    }
+
+    public function test_editing_holiday_date_reschedules_pending_reminders_without_touching_history(): void
+    {
+        $manager = app(ReminderRuleManager::class);
+        $manager->saveRule(
+            null,
+            '可调整节日规则',
+            'holiday_date',
+            ['date' => '2026-08-05', 'time' => '09:00'],
+            'all_customers',
+            [],
+            '节日联系客户',
+            null,
+            3,
+            $this->admin->id,
+        );
+        $rule = ReminderRule::query()->where('name', '可调整节日规则')->firstOrFail();
+        $scheduler = app(ReminderScheduler::class);
+        $this->assertSame(1, $scheduler->materialize());
+        $reminder = Reminder::query()->where('rule_id', $rule->id)->firstOrFail();
+        $historical = $reminder->replicate();
+        $historical->fill([
+            'dedupe_key' => hash('sha256', 'holiday-rule:'.$rule->id.':'.$this->customer->id.':2026-08-04'),
+            'due_at' => '2026-08-04 09:00:00',
+            'status' => 'completed',
+            'completed_at' => now(),
+            'completed_by' => $this->user->id,
+        ])->save();
+
+        $manager->saveRule(
+            $rule->id,
+            '可调整节日规则',
+            'holiday_date',
+            ['date' => '2026-08-06', 'time' => '10:00'],
+            'all_customers',
+            [],
+            '节日联系客户',
+            null,
+            3,
+            $this->admin->id,
+        );
+        $this->assertSame('pending', $reminder->refresh()->status);
+        $this->assertSame('2026-08-06 10:00', $reminder->due_at->format('Y-m-d H:i'));
+        $this->assertSame('completed', $historical->refresh()->status);
+        $this->assertSame('2026-08-04 09:00', $historical->due_at->format('Y-m-d H:i'));
+        $this->assertSame(0, $scheduler->materialize());
+        $this->assertDatabaseHas('reminder_events', ['reminder_id' => $reminder->id, 'event' => 'rescheduled']);
     }
 
     public function test_custom_reminder_visibility_lifecycle_and_recurrence(): void
@@ -187,7 +481,17 @@ class PhaseFiveReminderTest extends TestCase
             'dingtalk.webhook_url' => 'https://oapi.dingtalk.com/robot/send?access_token=test',
             'dingtalk.secret' => 'secret',
         ]);
-        $this->user->update(['preferred_locale' => 'ko_KR']);
+        $this->user->update([
+            'preferred_locale' => 'ko_KR',
+            'dingtalk_mention_type' => 'user_id',
+            'dingtalk_mention_value' => ' dt-owner-1 ',
+        ]);
+        NotificationRecipientConfig::query()->create([
+            'event_type' => 'reminder',
+            'user_id' => $this->user->id,
+            'channel' => 'internal',
+            'enabled' => true,
+        ]);
 
         Http::fake(['oapi.dingtalk.com/*' => Http::response(['errcode' => 0, 'errmsg' => 'ok'])]);
         $reminder = Reminder::query()->create([
@@ -211,8 +515,15 @@ class PhaseFiveReminderTest extends TestCase
         (new SendReminderNotification($reminder->id, 'ko_KR'))->handle(app(ReminderNotifier::class));
 
         $this->assertDatabaseHas('reminders', ['id' => $reminder->id, 'notification_status' => 'sent']);
+        $this->assertDatabaseHas('internal_notifications', [
+            'user_id' => $this->user->id,
+            'event_type' => 'reminder',
+            'event_key' => 'reminder:'.$reminder->id,
+        ]);
         Http::assertSent(fn ($request): bool => str_contains($request->url(), 'timestamp=') && str_contains($request->url(), 'sign='));
-        Http::assertSent(fn ($request): bool => str_contains((string) $request->data()['markdown']['text'], '고객:'));
+        Http::assertSent(fn ($request): bool => str_contains((string) $request->data()['markdown']['text'], '고객:')
+            && str_contains((string) $request->data()['markdown']['text'], '@dt-owner-1')
+            && $request->data()['at'] === ['atUserIds' => ['dt-owner-1'], 'isAtAll' => false]);
     }
 
     public function test_reminder_pages_follow_two_level_permissions_and_navigation(): void
@@ -222,7 +533,170 @@ class PhaseFiveReminderTest extends TestCase
             ->assertOk()->assertSee('返回主动提醒')->assertSee('href="'.route('reminders.index').'"', false);
         $this->actingAs($this->user)->get(route('reminder-configuration.index'))->assertForbidden();
         $this->actingAs($this->admin)->get(route('reminder-configuration.index'))
-            ->assertOk()->assertSee('返回配置中心')->assertSee('href="'.route('configuration.index').'"', false);
+            ->assertOk()->assertSee('返回配置中心')->assertSee('href="'.route('configuration.index').'"', false)
+            ->assertSee('指定节假日');
+        Livewire::actingAs($this->admin)->test(ReminderConfiguration::class)
+            ->set('triggerType', 'holiday_date')
+            ->assertSee('节假日期');
+    }
+
+    public function test_reminder_center_keeps_action_forms_collapsed_and_only_opens_one_at_a_time(): void
+    {
+        $first = Reminder::query()->create([
+            'customer_id' => $this->customer->id,
+            'assigned_to' => $this->user->id,
+            'created_by' => $this->user->id,
+            'source_type' => 'custom',
+            'reminder_type' => 'custom',
+            'title' => '第一个提醒',
+            'suggestion' => '先联系客户',
+            'due_at' => now()->addHour(),
+            'status' => 'pending',
+            'notification_status' => 'pending',
+            'dedupe_key' => hash('sha256', 'compact-ui-first'),
+        ]);
+        $second = Reminder::query()->create([
+            'customer_id' => $this->customer->id,
+            'assigned_to' => $this->user->id,
+            'created_by' => $this->user->id,
+            'source_type' => 'custom',
+            'reminder_type' => 'custom',
+            'title' => '第二个提醒',
+            'suggestion' => '再联系客户',
+            'due_at' => now()->addHours(2),
+            'status' => 'pending',
+            'notification_status' => 'pending',
+            'dedupe_key' => hash('sha256', 'compact-ui-second'),
+        ]);
+
+        $component = Livewire::actingAs($this->user)->test(ReminderCenter::class);
+
+        $component->assertSet('activeReminderId', null)
+            ->assertSet('actionMode', '')
+            ->assertSee('href="'.route('customers.show', $this->customer->id).'"', false)
+            ->assertDontSee(__('reminders.center.complete_notes'))
+            ->assertDontSee(__('reminders.center.snooze_until'))
+            ->assertDontSee(__('reminders.center.snooze_reason'))
+            ->assertDontSee(__('reminders.center.transfer_to'));
+
+        $component->call('openAction', $first->id, 'complete')
+            ->assertSet('activeReminderId', $first->id)
+            ->assertSet('actionMode', 'complete')
+            ->assertSee(__('reminders.center.complete_notes'))
+            ->assertDontSee(__('reminders.center.snooze_until'));
+
+        $component->call('openAction', $second->id, 'snooze')
+            ->assertSet('activeReminderId', $second->id)
+            ->assertSet('actionMode', 'snooze')
+            ->assertSee(__('reminders.center.snooze_until'))
+            ->assertSee(__('reminders.center.snooze_reason'))
+            ->assertDontSee(__('reminders.center.complete_notes'))
+            ->assertDontSee(__('reminders.center.transfer_to'));
+
+        $component->call('openAction', $first->id, 'transfer')
+            ->assertSet('activeReminderId', $first->id)
+            ->assertSet('actionMode', 'transfer')
+            ->assertSee(__('reminders.center.transfer_to'))
+            ->assertDontSee(__('reminders.center.snooze_until'))
+            ->assertDontSee(__('reminders.center.snooze_reason'));
+
+        $component->call('openAction', $second->id, 'cancel')
+            ->assertSet('activeReminderId', $second->id)
+            ->assertSet('actionMode', 'cancel')
+            ->assertSee(__('reminders.center.complete_notes'))
+            ->assertDontSee(__('reminders.center.snooze_until'))
+            ->assertDontSee(__('reminders.center.transfer_to'));
+
+        $component->call('closeAction')
+            ->assertSet('activeReminderId', null)
+            ->assertSet('actionMode', '')
+            ->assertDontSee('data-test="reminder-action-form"', false);
+    }
+
+    public function test_reminder_center_orders_reminders_by_due_time(): void
+    {
+        $later = Reminder::query()->create([
+            'customer_id' => $this->customer->id,
+            'assigned_to' => $this->user->id,
+            'created_by' => $this->user->id,
+            'source_type' => 'custom',
+            'reminder_type' => 'custom',
+            'title' => 'later reminder',
+            'due_at' => now()->addHours(2),
+            'priority' => 1,
+            'status' => 'pending',
+            'notification_status' => 'pending',
+            'dedupe_key' => hash('sha256', 'chronological-later'),
+        ]);
+        $earlier = Reminder::query()->create([
+            'customer_id' => $this->customer->id,
+            'assigned_to' => $this->user->id,
+            'created_by' => $this->user->id,
+            'source_type' => 'custom',
+            'reminder_type' => 'custom',
+            'title' => 'earlier reminder',
+            'due_at' => now()->addHour(),
+            'priority' => 5,
+            'status' => 'pending',
+            'notification_status' => 'pending',
+            'dedupe_key' => hash('sha256', 'chronological-earlier'),
+        ]);
+
+        $page = app(ReminderWorkspace::class)->paginate($this->user, false);
+
+        $this->assertSame([$earlier->id, $later->id], $page->getCollection()->pluck('id')->all());
+    }
+
+    public function test_reminder_center_can_filter_overdue_reminders_by_business_group(): void
+    {
+        $groupId = (int) AgentBusinessGroupAssignment::query()->where('agent_id', $this->agent->id)->value('business_group_id');
+        $otherGroupId = app(BusinessGroupManagementGateway::class)->create('REMINDER-OTHER', 'Other reminder group', $this->admin->id, null)['id'];
+        $otherAgent = Agent::query()->create([
+            'agent_type_code_id' => AgentTypeCode::query()->where('code', 'JG')->value('id'),
+            'code' => 'REM-OTHER',
+            'name' => '其他提醒代理商',
+            'cooperation_status' => 'active',
+        ]);
+        app(AgentBusinessGroupAssignmentGateway::class)->assign($otherAgent->id, $otherGroupId, '2026-01-01', null, 'Reminder group filter test', $this->admin->id, null);
+        $otherCustomer = Customer::query()->create([
+            'code' => 'REMIND-OTHER',
+            'name' => '其他提醒客户',
+            'source_agent_id' => $otherAgent->id,
+            'owner_id' => $this->admin->id,
+        ]);
+        $groupReminder = Reminder::query()->create([
+            'customer_id' => $this->customer->id,
+            'assigned_to' => $this->user->id,
+            'created_by' => $this->user->id,
+            'source_type' => 'custom',
+            'reminder_type' => 'custom',
+            'title' => '业务组逾期提醒',
+            'due_at' => now()->subHour(),
+            'status' => 'pending',
+            'notification_status' => 'pending',
+            'dedupe_key' => hash('sha256', 'group-overdue'),
+        ]);
+        Reminder::query()->create([
+            'customer_id' => $otherCustomer->id,
+            'assigned_to' => $this->admin->id,
+            'created_by' => $this->admin->id,
+            'source_type' => 'custom',
+            'reminder_type' => 'custom',
+            'title' => '其他业务组逾期提醒',
+            'due_at' => now()->subHour(),
+            'status' => 'pending',
+            'notification_status' => 'pending',
+            'dedupe_key' => hash('sha256', 'other-group-overdue'),
+        ]);
+
+        $page = app(ReminderWorkspace::class)->paginate($this->admin, false, null, true, $groupId);
+        $this->assertSame([$groupReminder->id], $page->getCollection()->pluck('id')->all());
+        Livewire::actingAs($this->admin)->test(ReminderCenter::class)
+            ->assertSet('businessGroupId', '')
+            ->set('businessGroupId', (string) $groupId)
+            ->set('overdue', true)
+            ->assertSee('业务组逾期提醒')
+            ->assertDontSee('其他业务组逾期提醒');
     }
 
     public function test_korean_user_sees_localized_reminder_pages(): void
@@ -257,8 +731,7 @@ class PhaseFiveReminderTest extends TestCase
         $order = Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => Institution::query()->firstOrFail()->id,
-            'channel' => 'direct',
-            'direct_sales_source_id' => $this->source->id,
+            'agent_id' => $this->agent->id,
             'project_name' => '피부 관리',
             'amount_krw' => 10000,
             'completed_on' => '2026-08-01',
@@ -291,8 +764,7 @@ class PhaseFiveReminderTest extends TestCase
 
         $this->actingAs($this->user)->get(route('reminders.index'))
             ->assertOk()
-            ->assertSee('시술 후 1일차 후속 관리')
-            ->assertSee('회복 상태를 확인합니다')
+            ->assertSee('시술 후 7일차 후속 관리')
             ->assertDontSee('术后第 1 天跟进');
     }
 
@@ -414,6 +886,93 @@ class PhaseFiveReminderTest extends TestCase
         $this->assertDatabaseHas('reminders', [
             'customer_id' => $this->customer->id,
             'title' => '创建后的提醒',
+        ]);
+    }
+
+    public function test_reminder_create_only_offers_active_accepted_assignees_and_rejects_invalid_assignees(): void
+    {
+        $inactive = User::factory()->create([
+            'name' => 'inactive-reminder-assignee',
+            'is_active' => false,
+            'invitation_status' => 'accepted',
+        ]);
+        $pending = User::factory()->create([
+            'name' => 'pending-reminder-assignee',
+            'is_active' => true,
+            'invitation_status' => 'pending',
+        ]);
+
+        $this->actingAs($this->user);
+        $component = Livewire::test(ReminderCreate::class)
+            ->assertSee($this->user->name)
+            ->assertDontSee($inactive->name)
+            ->assertDontSee($pending->name);
+
+        $component
+            ->set('customerId', (string) $this->customer->id)
+            ->set('assignedTo', (string) $inactive->id)
+            ->set('title', 'invalid inactive assignee')
+            ->set('dueAt', CarbonImmutable::now()->addDay()->format('Y-m-d\\TH:i'))
+            ->call('save')
+            ->assertHasErrors('assignedTo');
+
+        $component
+            ->set('assignedTo', (string) $pending->id)
+            ->call('save')
+            ->assertHasErrors('assignedTo');
+    }
+
+    public function test_reminder_transfer_only_offers_and_accepts_eligible_assignees(): void
+    {
+        $inactive = User::factory()->create([
+            'name' => 'inactive-transfer-assignee',
+            'is_active' => false,
+            'invitation_status' => 'accepted',
+        ]);
+        $pending = User::factory()->create([
+            'name' => 'pending-transfer-assignee',
+            'is_active' => true,
+            'invitation_status' => 'pending',
+        ]);
+        $reminder = Reminder::query()->create([
+            'customer_id' => $this->customer->id,
+            'assigned_to' => $this->user->id,
+            'created_by' => $this->user->id,
+            'source_type' => 'custom',
+            'reminder_type' => 'custom',
+            'title' => 'transfer eligibility reminder',
+            'due_at' => now()->addDay(),
+            'status' => 'pending',
+            'notification_status' => 'pending',
+            'dedupe_key' => hash('sha256', 'transfer-eligibility'),
+        ]);
+
+        $this->actingAs($this->user);
+        $component = Livewire::test(ReminderCenter::class)
+            ->call('openAction', $reminder->id, 'transfer')
+            ->assertSee($this->user->name)
+            ->assertSee($this->other->name)
+            ->assertDontSee($inactive->name)
+            ->assertDontSee($pending->name);
+
+        $component
+            ->set('assigneeId', (string) $inactive->id)
+            ->call('transfer', $reminder->id);
+
+        $this->assertDatabaseHas('reminders', [
+            'id' => $reminder->id,
+            'assigned_to' => $this->user->id,
+            'status' => 'pending',
+        ]);
+
+        $component
+            ->set('assigneeId', (string) $this->other->id)
+            ->call('transfer', $reminder->id);
+
+        $this->assertDatabaseHas('reminders', [
+            'id' => $reminder->id,
+            'assigned_to' => $this->other->id,
+            'status' => 'transferred',
         ]);
     }
 

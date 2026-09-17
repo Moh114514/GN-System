@@ -2,6 +2,7 @@
 
 namespace App\Modules\DataImport\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Application\Contracts\AgentImportGateway;
 use App\Modules\Agent\Application\Contracts\ReferenceConfigurationImportGateway as AgentReferences;
 use App\Modules\Config\Application\Contracts\ReferenceConfigurationImportGateway as ConfigReferences;
@@ -25,7 +26,6 @@ final readonly class ReferenceConfigurationImportParser
     private const PROFILES = [
         '代理商类型' => ImportProfile::AgentType,
         '机构及机构别名' => ImportProfile::Institution,
-        '直销来源' => ImportProfile::DirectSalesSource,
         '政策体系' => ImportProfile::PolicySystem,
         '政策等级' => ImportProfile::PolicyGrade,
         '机构费率规则' => ImportProfile::CommissionRule,
@@ -40,6 +40,7 @@ final readonly class ReferenceConfigurationImportParser
         private ConfigReferences $config,
         private ImportIssueRecorder $issues,
         private ImportStageTracker $stages,
+        private BusinessClock $clock,
     ) {}
 
     public function parse(ImportBatch $batch): void
@@ -69,7 +70,7 @@ final readonly class ReferenceConfigurationImportParser
                 $present = $spreadsheet->getSheetNames();
                 $missing = array_values(array_diff(array_keys(self::PROFILES), $present));
                 if ($missing !== []) {
-                    throw new InvalidArgumentException('缺少工作表：'.implode('、', $missing).'。请使用下载示例保留全部八个工作表。');
+                    throw new InvalidArgumentException('缺少工作表：'.implode('、', $missing).'。请使用下载示例保留全部七个工作表。');
                 }
 
                 $preflight = ['format' => 'XLSX', 'sheets' => []];
@@ -165,11 +166,6 @@ final readonly class ReferenceConfigurationImportParser
                     'aliases' => $this->aliases($raw['别名']),
                     'is_active' => $this->boolean($raw['启用'], '启用'),
                 ],
-                ImportProfile::DirectSalesSource => [
-                    'code' => $this->code($raw['代码'], '代码', 2, 6),
-                    'name' => $this->required($raw['名称'], '名称'),
-                    'is_active' => $this->boolean($raw['启用'], '启用'),
-                ],
                 ImportProfile::PolicySystem => [
                     'name' => $this->required($raw['名称'], '名称'),
                     'is_active' => $this->boolean($raw['启用'], '启用'),
@@ -177,7 +173,6 @@ final readonly class ReferenceConfigurationImportParser
                 ImportProfile::PolicyGrade => [
                     'policy_system' => $this->required($raw['政策体系'], '政策体系'),
                     'name' => $this->required($raw['等级名称'], '等级名称'),
-                    'monthly_threshold_krw' => $this->integer($raw['月业绩门槛KRW'], '月业绩门槛KRW', 0),
                     'sort_order' => $this->integer($raw['排序'], '排序', 0, 65535),
                     'is_active' => $this->boolean($raw['启用'], '启用'),
                 ],
@@ -268,7 +263,7 @@ final readonly class ReferenceConfigurationImportParser
 
     private function validateBusinessDates(ImportBatch $batch): void
     {
-        $currentMonth = CarbonImmutable::now()->startOfMonth();
+        $currentMonth = $this->clock->now()->startOfMonth();
         $nextMonth = $currentMonth->addMonthNoOverflow();
         $historical = $batch->operation_mode === ImportOperationMode::HistoricalCorrection;
         $cooperationMonths = $batch->rows()
@@ -375,7 +370,7 @@ final readonly class ReferenceConfigurationImportParser
     private function uniqueKey(ImportProfile $profile, array $data): string
     {
         return match ($profile) {
-            ImportProfile::AgentType, ImportProfile::Institution, ImportProfile::DirectSalesSource, ImportProfile::Agent => (string) $data['code'],
+            ImportProfile::AgentType, ImportProfile::Institution, ImportProfile::Agent => (string) $data['code'],
             ImportProfile::PolicySystem => (string) $data['name'],
             ImportProfile::PolicyGrade => "{$data['policy_system']}|{$data['name']}",
             ImportProfile::CommissionRule => "{$data['policy_system']}|{$data['policy_grade']}|{$data['institution_code']}|{$data['effective_month']}",

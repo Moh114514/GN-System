@@ -18,6 +18,10 @@ class AgentList extends Component
     /** @var array<string, array<string, string>> */
     protected array $queryString = [
         'search' => ['except' => ''],
+        'status' => ['except' => ''],
+        'typeCodeId' => ['except' => ''],
+        'policySystemId' => ['except' => ''],
+        'policyGradeId' => ['except' => ''],
     ];
 
     public string $status = '';

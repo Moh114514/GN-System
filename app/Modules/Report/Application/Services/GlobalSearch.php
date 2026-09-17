@@ -3,6 +3,7 @@
 namespace App\Modules\Report\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\ReportAgentReader;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Customer\Application\Contracts\ReportCustomerReader;
 
 final readonly class GlobalSearch
@@ -11,6 +12,7 @@ final readonly class GlobalSearch
         private ReportCustomerReader $customers,
         private ReportAgentReader $agents,
         private ReportSearch $orders,
+        private AccessContextResolver $access,
     ) {}
 
     /**
@@ -48,7 +50,9 @@ final readonly class GlobalSearch
                 'total' => $orders['page']->total,
                 'items' => $orders['rows'],
             ],
-            'agents' => $includeAgents ? $this->agents->globalSearch($query, $limit) : null,
+            'agents' => $includeAgents && ! $this->access->current()->isCustomerService()
+                ? $this->agents->globalSearch($query, $limit)
+                : ($includeAgents ? ['total' => 0, 'items' => []] : null),
         ];
     }
 }

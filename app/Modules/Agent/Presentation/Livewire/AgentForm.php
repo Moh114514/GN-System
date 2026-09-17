@@ -2,6 +2,7 @@
 
 namespace App\Modules\Agent\Presentation\Livewire;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Application\Data\AgentProfileData;
 use App\Modules\Agent\Application\Services\AgentDirectory;
 use App\Modules\Agent\Application\Services\AgentManager;
@@ -55,12 +56,12 @@ class AgentForm extends Component
     /** @var array<string, mixed> */
     public array $options = [];
 
-    public function mount(AgentDirectory $directory, ?int $agent = null): void
+    public function mount(AgentDirectory $directory, BusinessClock $clock, ?int $agent = null): void
     {
         $this->options = $directory->options();
         $this->agentId = $agent;
         if ($agent === null) {
-            $this->cooperationStartedOn = now()->toDateString();
+            $this->cooperationStartedOn = $clock->now()->toDateString();
 
             return;
         }
@@ -77,7 +78,7 @@ class AgentForm extends Component
         $this->policyGradeId = (string) ($profile['policy_grade_id'] ?? '');
         $this->hasCurrentGrade = $profile['policy_grade_id'] !== null;
         $this->correctionEffectiveMonth = $this->cooperationStartedOn === ''
-            ? now()->startOfMonth()->toDateString()
+            ? $clock->now()->startOfMonth()->toDateString()
             : CarbonImmutable::parse($this->cooperationStartedOn)->startOfMonth()->toDateString();
         $this->notes = (string) ($profile['notes'] ?? '');
     }

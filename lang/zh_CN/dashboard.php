@@ -3,6 +3,7 @@
 return [
     'title' => '数据看板',
     'controls' => [
+        'bd_commission' => 'BD季度提成',
         'actions' => '看板操作',
         'range' => '统计区间',
         'custom_range' => '自定义日期区间',
@@ -48,13 +49,17 @@ return [
         'conversion' => '建档至复购转化率',
     ],
     'panels' => [
-        'trend' => '月度营收与订单趋势',
+        'trend' => '营收与订单趋势',
         'period' => '统计周期',
         'monthly' => '月度',
         'revenue_krw' => '营收（KRW）',
         'orders_count' => '订单数（单）',
         'no_transactions' => '当前区间暂无成交数据',
         'promotion_ranking' => '代理商推广费排行',
+        'institution_revenue' => '机构营收对比',
+        'institution_revenue_month' => '本月各机构销售额',
+        'no_institution_revenue' => '当前区间暂无机构营收数据',
+        'no_institution_revenue_month' => '本月暂无机构销售数据',
         'view_all' => '查看全部',
         'no_promotion_fee' => '当前区间暂无推广费',
         'lifecycle' => '客户生命周期概览',
@@ -121,7 +126,6 @@ return [
         'missing_agent' => '未知代理商',
         'missing_customer' => '未知客户',
         'missing_institution' => '未知机构',
-        'missing_direct_source' => '未知直销来源',
         'unassigned' => '未分配',
     ],
 ];

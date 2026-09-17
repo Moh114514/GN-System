@@ -2,14 +2,10 @@
 
 namespace App\Modules\Settlement\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
-use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
-use App\Modules\Order\Application\Contracts\SettlementOrderReader;
-use App\Modules\Settlement\Application\Exceptions\StructuredSettlementFailure;
-use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
-use App\Modules\Settlement\Infrastructure\Models\SettlementGradeSuggestion;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRunMember;
 use Brick\Math\BigDecimal;
@@ -22,14 +18,20 @@ use Illuminate\Support\Str;
 
 final readonly class SettlementWorkflow
 {
+    /** @var list<string> */
+    private const DOCUMENTABLE_STATUSES = ['approved', 'settled'];
+
+    /** @var list<string> */
+    private const HISTORICAL_DOCUMENTABLE_STATUSES = ['paid', 'reconciled'];
+
     public function __construct(
         private SettlementDocumentGenerator $documents,
-        private SettlementAgentGateway $agents,
         private AuditRecorder $audit,
         private SettlementGenerator $generator,
-        private SettlementOrderReader $orders,
+        private SettlementCalculationService $calculation,
         private SettlementRunSummaryUpdater $summary,
         private SettlementFreshnessChecker $freshness,
+        private BusinessClock $clock,
     ) {}
 
     public function reject(int $settlementId, string $reason, int $actorId, ?string $ipAddress): void
@@ -51,10 +53,14 @@ final readonly class SettlementWorkflow
         $this->record($settlement, 'settlements.audit.rejected', 'rejected', $actorId, $ipAddress);
     }
 
-    public function approve(int $settlementId, string $exchangeRate, int $actorId, ?string $ipAddress): void
+    public function approve(int $settlementId, string $exchangeRate, int $actorId, ?string $ipAddress, string $currency = 'CNY'): void
     {
-        $rate = $this->normaliseRate($exchangeRate);
-        DB::transaction(function () use ($settlementId, $rate, $actorId, $ipAddress): void {
+        $currency = strtoupper(trim($currency));
+        if (! in_array($currency, ['KRW', 'CNY'], true)) {
+            throw new DomainException(__('settlements.errors.invalid_currency'));
+        }
+        $rate = $currency === 'CNY' ? $this->normaliseRate($exchangeRate) : null;
+        DB::transaction(function () use ($settlementId, $rate, $actorId, $ipAddress, $currency): void {
             $settlement = Settlement::query()->lockForUpdate()->findOrFail($settlementId);
             if (! in_array($settlement->status, ['pending_review', 'rejected'], true)) {
                 throw new DomainException(__('settlements.errors.invalid_approval_status'));
@@ -63,6 +69,25 @@ final readonly class SettlementWorkflow
                 throw new DomainException(__('settlements.errors.generation_required'));
             }
             $this->assertFresh($settlement);
+            if ($currency === 'KRW') {
+                $settlement->update([
+                    'settlement_currency' => 'KRW',
+                    'exchange_rate' => null,
+                    'exchange_rate_krw_per_cny' => null,
+                    'exchange_rate_date' => null,
+                    'exchange_rate_source' => null,
+                    'payout_amount_cny_fen' => 0,
+                    'exchange_rate_manual_override' => false,
+                    'status' => 'approved',
+                    'reviewed_by' => $actorId,
+                    'reviewed_at' => now(),
+                    'rejection_reason' => null,
+                ]);
+                $this->documents->generate($settlement->fresh());
+                $this->record($settlement->fresh(), 'settlements.audit.approved', 'approved', $actorId, $ipAddress, ['settlement_currency' => 'KRW']);
+
+                return;
+            }
             $manualOverride = $settlement->exchange_rate_quote_status !== 'available'
                 || $settlement->exchange_rate_krw_per_cny === null
                 || (string) $settlement->exchange_rate_krw_per_cny !== (string) $rate;
@@ -73,7 +98,11 @@ final readonly class SettlementWorkflow
                 ->toInt();
             $settlement->update([
                 'status' => 'approved',
+                'settlement_currency' => 'CNY',
+                'exchange_rate' => (string) $rate,
                 'exchange_rate_krw_per_cny' => (string) $rate,
+                'exchange_rate_date' => $settlement->exchange_rate_date?->toDateString() ?? $this->clock->now()->toDateString(),
+                'exchange_rate_source' => $settlement->exchange_rate_source ?: ($manualOverride ? 'manual' : $settlement->exchange_rate_quote_source),
                 'exchange_rate_manual_override' => $manualOverride,
                 'payout_amount_cny_fen' => $payoutFen,
                 'reviewed_by' => $actorId,
@@ -100,7 +129,7 @@ final readonly class SettlementWorkflow
             $this->assertFresh($settlement);
             $settlement->update([
                 'status' => 'settled',
-                'settled_on' => now()->toDateString(),
+                'settled_on' => $this->clock->now()->toDateString(),
                 'settled_by' => $actorId,
                 'confirmed_at' => now(),
             ]);
@@ -135,12 +164,8 @@ final readonly class SettlementWorkflow
             $itemsRemoved = 0;
             $documentsRemoved = 0;
             if ($targetStatus === 'pending_review') {
-                if (SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->where('status', 'accepted')->exists()) {
-                    throw new DomainException(__('settlements.errors.accepted_grade_blocks_correction'));
-                }
                 $itemsRemoved = DB::table('settlement_items')->where('settlement_id', $settlement->id)->delete();
                 $documentsRemoved = $this->documents->discard((int) $settlement->id);
-                SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->delete();
                 SettlementRunMember::query()
                     ->where('settlement_id', $settlement->id)
                     ->where('outcome', 'generated')
@@ -155,7 +180,7 @@ final readonly class SettlementWorkflow
             $attributes = match ($targetStatus) {
                 'settled' => [
                     'status' => 'settled',
-                    'settled_on' => now()->toDateString(),
+                    'settled_on' => $this->clock->now()->toDateString(),
                     'settled_by' => $actorId,
                     'confirmed_at' => now(),
                 ],
@@ -206,7 +231,9 @@ final readonly class SettlementWorkflow
     public function regenerateDocuments(int $settlementId): void
     {
         $settlement = Settlement::query()->findOrFail($settlementId);
-        if (! in_array($settlement->status, ['approved', 'settled'], true)) {
+        $historicalDocumentStatus = in_array($settlement->status, self::HISTORICAL_DOCUMENTABLE_STATUSES, true)
+            && $settlement->generation_status === 'not_applicable';
+        if (! in_array($settlement->status, self::DOCUMENTABLE_STATUSES, true) && ! $historicalDocumentStatus) {
             throw new DomainException(__('settlements.errors.only_approved_documents'));
         }
         $this->documents->generate($settlement);
@@ -230,10 +257,6 @@ final readonly class SettlementWorkflow
             if ($settlement->generation_status !== 'generated' || $settlement->settlement_run_id === null) {
                 throw new DomainException(__('settlements.refresh.errors.generation_required'));
             }
-            if (SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->where('status', 'accepted')->exists()) {
-                throw new DomainException(__('settlements.errors.accepted_grade_blocks_correction'));
-            }
-
             $before = [
                 'item_count' => (int) $settlement->item_count,
                 'total_consumption' => (int) $settlement->total_consumption_krw,
@@ -255,19 +278,11 @@ final readonly class SettlementWorkflow
 
             $periodStart = CarbonImmutable::parse($settlement->period_start);
             $periodEnd = CarbonImmutable::parse($settlement->period_end);
-            $orders = $this->orders->completedForAgent((int) $settlement->agent_id, $periodStart, $periodEnd);
-            $orderIds = array_values(array_map(static fn ($order): int => $order->orderId, $orders));
-            $commissions = empty($orderIds)
-                ? collect()
-                : OrderCommission::query()->whereIn('order_id', $orderIds)->get()->keyBy('order_id');
-            foreach ($orders as $order) {
-                if (! $commissions->has($order->orderId)) {
-                    throw new StructuredSettlementFailure('settlements.failure_reasons.missing_commission_snapshot', ['order_id' => $order->orderId]);
-                }
-            }
-
-            $totalConsumption = (int) array_sum(array_map(static fn ($order): int => $order->amountKrw, $orders));
-            $totalCommission = (int) $commissions->sum('amount_krw');
+            $calculation = $this->calculation->calculate((int) $settlement->agent_id, $periodStart, $periodEnd);
+            $orders = $calculation['orders'];
+            $commissions = $calculation['commissions'];
+            $totalConsumption = $calculation['total_consumption_krw'];
+            $totalCommission = $calculation['total_commission_krw'];
             $now = now();
             $snapshot = is_array($settlement->snapshot) ? $settlement->snapshot : [];
             $snapshot['generated_at'] = $now->toIso8601String();
@@ -281,7 +296,7 @@ final readonly class SettlementWorkflow
             ]);
             DB::table('settlement_items')->where('settlement_id', $settlement->id)->delete();
             foreach ($orders as $order) {
-                $commission = $commissions->get($order->orderId);
+                $commission = $commissions[$order->orderId];
                 DB::table('settlement_items')->insert([
                     'settlement_id' => $settlement->id,
                     'order_commission_id' => $commission->id,
@@ -293,25 +308,12 @@ final readonly class SettlementWorkflow
                             'id' => $order->orderId,
                             'customer_id' => $order->customerId,
                             'project_name' => $order->projectName,
+                            'occurred_on' => $order->completedOn->toDateString(),
                             'completed_on' => $order->completedOn->toDateString(),
                         ],
                     ], JSON_THROW_ON_ERROR),
                     'created_at' => $now,
                     'updated_at' => $now,
-                ]);
-            }
-
-            $agent = $this->agents->forMonth((int) $settlement->agent_id, $periodEnd);
-            $recommended = $this->agents->recommendation((int) $settlement->agent_id, $periodEnd, $totalCommission);
-            SettlementGradeSuggestion::query()->where('settlement_id', $settlement->id)->delete();
-            if ($recommended->currentGradeId !== $agent->currentGradeId) {
-                SettlementGradeSuggestion::query()->create([
-                    'settlement_id' => $settlement->id,
-                    'agent_id' => $settlement->agent_id,
-                    'current_grade_id' => $agent->currentGradeId,
-                    'recommended_grade_id' => $recommended->currentGradeId,
-                    'monthly_commission_krw' => $totalCommission,
-                    'status' => 'pending',
                 ]);
             }
 
@@ -432,32 +434,6 @@ final readonly class SettlementWorkflow
                 ipAddress: $ipAddress,
                 messageKey: 'settlements.audit.recovery_batch_created',
             );
-        });
-    }
-
-    public function reviewSuggestion(int $suggestionId, bool $accept, string $reason, int $actorId): void
-    {
-        DB::transaction(function () use ($suggestionId, $accept, $reason, $actorId): void {
-            $suggestion = SettlementGradeSuggestion::query()->lockForUpdate()->findOrFail($suggestionId);
-            if ($suggestion->status !== 'pending') {
-                throw new DomainException(__('settlements.errors.grade_suggestion_processed'));
-            }
-            if ($accept) {
-                $settlement = Settlement::query()->findOrFail($suggestion->settlement_id);
-                $this->agents->scheduleGrade(
-                    (int) $suggestion->agent_id,
-                    (int) $suggestion->recommended_grade_id,
-                    CarbonImmutable::parse($settlement->period_end)->addMonthNoOverflow()->startOfMonth(),
-                    $actorId,
-                    trim($reason) === '' ? '月结等级建议人工批准' : trim($reason),
-                );
-            }
-            $suggestion->update([
-                'status' => $accept ? 'accepted' : 'rejected',
-                'reviewed_by' => $actorId,
-                'reviewed_at' => now(),
-                'review_reason' => trim($reason) ?: null,
-            ]);
         });
     }
 

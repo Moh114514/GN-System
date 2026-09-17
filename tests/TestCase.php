@@ -15,6 +15,11 @@ abstract class TestCase extends BaseTestCase
         $this->withoutMiddleware(PreventRequestForgery::class);
     }
 
+    protected function tearDown(): void
+    {
+        parent::tearDown();
+    }
+
     protected function skipUnlessFortifyHas(string $feature, ?string $message = null): void
     {
         if (! Features::enabled($feature)) {

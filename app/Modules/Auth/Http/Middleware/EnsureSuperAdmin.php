@@ -13,7 +13,7 @@ class EnsureSuperAdmin
      */
     public function handle(Request $request, Closure $next): Response
     {
-        abort_unless($request->user()?->is_super_admin, Response::HTTP_FORBIDDEN);
+        abort_unless($request->user()?->isSuperAdmin(), Response::HTTP_FORBIDDEN);
 
         return $next($request);
     }

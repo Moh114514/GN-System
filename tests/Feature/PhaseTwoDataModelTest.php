@@ -8,46 +8,177 @@ use App\Modules\Customer\Infrastructure\Models\CustomerContact;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Database\QueryException;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Tests\TestCase;
 
 class PhaseTwoDataModelTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_reference_data_and_channel_constraints_are_installed(): void
+    public function test_reference_data_and_agent_constraints_are_installed(): void
     {
         $this->seed(PhaseTwoReferenceDataSeeder::class);
 
         $this->assertDatabaseHas('agent_type_codes', ['code' => 'KR', 'is_system' => true]);
         $this->assertDatabaseHas('institutions', ['code' => 'BLANCHE']);
-        $this->assertDatabaseHas('customer_statuses', ['name' => '沉默待唤醒']);
-        $this->assertDatabaseCount('customer_status_transitions', 6);
+        $this->assertDatabaseHas('customer_statuses', ['key' => 'treatment_completed', 'name' => '施术结束']);
+        $this->assertDatabaseCount('customer_statuses', 3);
+        $this->assertDatabaseCount('customer_status_transitions', 2);
 
         $this->expectException(QueryException::class);
         DB::table('customers')->insert([
             'code' => 'INVALID-000001',
             'name' => '约束测试',
-            'original_channel' => 'direct',
             'source_agent_id' => null,
-            'source_direct_sales_id' => null,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
     }
 
-    public function test_sensitive_contact_is_encrypted_and_can_be_matched_by_blind_index(): void
+    public function test_customer_lifecycle_migration_only_removes_legacy_lifecycle_reminders(): void
     {
         $this->seed(PhaseTwoReferenceDataSeeder::class);
-        DB::table('direct_sales_sources')->insert([
-            'code' => 'ZX',
-            'name' => '自然直销',
+        $agentId = $this->createTestAgent();
+        $customerId = (int) DB::table('customers')->insertGetId([
+            'code' => 'LIFECYCLE-000001',
+            'name' => '生命周期迁移测试客户',
+            'source_agent_id' => $agentId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $migration = require database_path('migrations/2026_08_18_000100_simplify_customer_lifecycle.php');
+        $migration->down();
+
+        $legacyStageId = (int) DB::table('customer_lifecycle_stages')->insertGetId([
+            'key' => 'legacy_lifecycle',
+            'name' => '旧生命周期',
+            'sort_order' => 90,
             'is_active' => true,
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        $sourceId = (int) DB::table('direct_sales_sources')->value('id');
+        $legacyStatusId = (int) DB::table('customer_statuses')->insertGetId([
+            'stage_id' => $legacyStageId,
+            'key' => 'legacy_status',
+            'name' => '旧状态',
+            'sort_order' => 10,
+            'is_active' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $legacyRuleId = (int) DB::table('reminder_rules')->insertGetId([
+            'name' => '旧生命周期规则',
+            'trigger_type' => 'status_change',
+            'trigger_config' => json_encode(['status_id' => $legacyStatusId], JSON_THROW_ON_ERROR),
+            'scope_type' => 'all_customers',
+            'scope_config' => '{}',
+            'title' => '旧生命周期提醒',
+            'priority' => 3,
+            'is_active' => true,
+            'is_system' => true,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $legacyTemplateId = (int) DB::table('reminder_templates')->insertGetId([
+            'name' => '术后 1 天',
+            'title' => '旧术后提醒模板',
+            'default_trigger_type' => 'date_offset',
+            'default_trigger_config' => json_encode(['field' => 'completed_on', 'offset_days' => 1], JSON_THROW_ON_ERROR),
+            'is_system' => true,
+            'is_active' => true,
+            'system_key' => 'post_treatment_1',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $appointmentReminderId = (int) DB::table('reminders')->insertGetId([
+            'customer_id' => $customerId,
+            'source_type' => 'system',
+            'reminder_type' => 'appointment',
+            'title' => '预约提醒',
+            'due_at' => now()->addDay(),
+            'dedupe_key' => str_repeat('a', 64),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $postTreatmentReminderId = (int) DB::table('reminders')->insertGetId([
+            'customer_id' => $customerId,
+            'template_id' => $legacyTemplateId,
+            'source_type' => 'system',
+            'reminder_type' => 'post_treatment',
+            'title' => '旧术后提醒',
+            'due_at' => now()->addDay(),
+            'dedupe_key' => str_repeat('b', 64),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $ruleReminderId = (int) DB::table('reminders')->insertGetId([
+            'customer_id' => $customerId,
+            'rule_id' => $legacyRuleId,
+            'source_type' => 'rule',
+            'reminder_type' => 'status_change',
+            'title' => '旧规则提醒',
+            'due_at' => now()->addDay(),
+            'dedupe_key' => str_repeat('c', 64),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $appointmentEventId = (int) DB::table('reminder_events')->insertGetId([
+            'reminder_id' => $appointmentReminderId,
+            'event' => 'created',
+            'properties' => '{}',
+            'occurred_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('reminder_events')->insert([
+            [
+                'reminder_id' => $postTreatmentReminderId,
+                'event' => 'created',
+                'properties' => '{}',
+                'occurred_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'reminder_id' => $ruleReminderId,
+                'event' => 'created',
+                'properties' => '{}',
+                'occurred_at' => now(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+        ]);
+
+        $migration->up();
+
+        $this->assertDatabaseHas('reminders', ['id' => $appointmentReminderId, 'reminder_type' => 'appointment']);
+        $this->assertDatabaseHas('reminder_events', ['id' => $appointmentEventId, 'reminder_id' => $appointmentReminderId]);
+        $this->assertDatabaseMissing('reminders', ['id' => $postTreatmentReminderId]);
+        $this->assertDatabaseMissing('reminders', ['id' => $ruleReminderId]);
+        $this->assertDatabaseMissing('reminder_rules', ['id' => $legacyRuleId]);
+        $this->assertDatabaseMissing('reminder_templates', ['id' => $legacyTemplateId]);
+        $this->assertDatabaseMissing('reminder_events', ['reminder_id' => $postTreatmentReminderId]);
+        $this->assertDatabaseMissing('reminder_events', ['reminder_id' => $ruleReminderId]);
+        $this->assertDatabaseCount('customer_statuses', 3);
+        $this->assertDatabaseMissing('customer_statuses', ['id' => $legacyStatusId]);
+    }
+
+    public function test_sensitive_contact_is_encrypted_and_can_be_matched_by_blind_index(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $agentId = (int) DB::table('agents')->insertGetId([
+            'agent_type_code_id' => DB::table('agent_type_codes')->where('code', 'JG')->value('id'),
+            'code' => 'TEST-JG',
+            'name' => '测试代理商',
+            'cooperation_status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
         $gateway = app(CustomerImportGateway::class);
         $customerId = $gateway->upsertCustomer(new CustomerImportData(
@@ -56,10 +187,8 @@ class PhaseTwoDataModelTest extends TestCase
             name: '测试客户',
             gender: null,
             birthDate: CarbonImmutable::parse('2000-01-01'),
-            originalChannel: 'direct',
-            sourceAgentId: null,
-            sourceDirectSalesId: $sourceId,
-            statusName: '意向',
+            sourceAgentId: $agentId,
+            statusName: '已预约',
             wechatAddedOn: null,
             contactValue: '010-1234-5678',
             identityDocument: 'P1234567',
@@ -73,5 +202,199 @@ class PhaseTwoDataModelTest extends TestCase
         $this->assertStringNotContainsString('010-1234-5678', $raw);
         $this->assertSame('010-1234-5678', CustomerContact::query()->firstOrFail()->value_encrypted);
         $this->assertSame([$customerId], $gateway->duplicateCandidateIds('01012345678', 'P1234567'));
+    }
+
+    public function test_missing_import_status_keeps_existing_status_and_is_nullable_for_new_customers(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $agentId = $this->createTestAgent();
+        $gateway = app(CustomerImportGateway::class);
+        $bookedId = (int) DB::table('customer_statuses')->where('key', 'booked')->value('id');
+
+        $gateway->upsertCustomer($this->customerImportData($agentId, 'NULL-000001', null));
+        $this->assertDatabaseHas('customers', [
+            'code' => 'NULL-000001',
+            'current_status_id' => null,
+        ]);
+
+        $gateway->upsertCustomer($this->customerImportData($agentId, 'KNOWN-000001', '已预约'));
+        $gateway->upsertCustomer($this->customerImportData($agentId, 'KNOWN-000001', null));
+
+        $this->assertDatabaseHas('customers', [
+            'code' => 'KNOWN-000001',
+            'current_status_id' => $bookedId,
+        ]);
+    }
+
+    public function test_unknown_import_status_is_rejected_instead_of_becoming_null(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $agentId = $this->createTestAgent();
+        $gateway = app(CustomerImportGateway::class);
+
+        try {
+            $gateway->upsertCustomer($this->customerImportData($agentId, 'UNKNOWN-000001', '不存在的状态'));
+            $this->fail('Expected an unknown customer status to abort the import.');
+        } catch (\RuntimeException $exception) {
+            $this->assertSame('找不到客户状态：不存在的状态', $exception->getMessage());
+        }
+
+        $this->assertDatabaseMissing('customers', ['code' => 'UNKNOWN-000001']);
+    }
+
+    public function test_direct_sales_removal_migration_refuses_legacy_direct_customer_rows(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $this->addLegacySalesColumns();
+        $agentId = $this->createTestAgent();
+
+        DB::table('customers')->insert([
+            'code' => 'DIRECT-000001',
+            'name' => '历史直销客户',
+            'source_agent_id' => $agentId,
+            'original_channel' => 'direct',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $migration = require database_path('migrations/2026_08_14_000100_remove_direct_sales_business.php');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('found 1 direct customer row');
+        $migration->up();
+    }
+
+    public function test_direct_sales_removal_migration_refuses_legacy_direct_order_rows(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $this->addLegacySalesColumns();
+        $agentId = $this->createTestAgent();
+        $customerId = (int) DB::table('customers')->insertGetId([
+            'code' => 'AGENT-000001',
+            'name' => '代理商客户',
+            'source_agent_id' => $agentId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        DB::table('orders')->insert([
+            'customer_id' => $customerId,
+            'institution_id' => DB::table('institutions')->value('id'),
+            'agent_id' => $agentId,
+            'project_name' => '历史直销订单',
+            'amount_krw' => 100,
+            'channel' => 'direct',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $migration = require database_path('migrations/2026_08_14_000100_remove_direct_sales_business.php');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('found 0 direct customer row(s) and 1 direct order row(s)');
+        $migration->up();
+    }
+
+    public function test_direct_sales_removal_migration_refuses_rows_without_agent_ownership(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $this->addLegacySalesColumns();
+        $agentId = $this->createTestAgent();
+
+        DB::statement('ALTER TABLE customers ALTER COLUMN source_agent_id DROP NOT NULL');
+        $missingAgentCustomerId = (int) DB::table('customers')->insertGetId([
+            'code' => 'MISSING-000001',
+            'name' => '缺少代理商客户',
+            'source_agent_id' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::statement('ALTER TABLE orders ALTER COLUMN agent_id DROP NOT NULL');
+        DB::table('orders')->insert([
+            'customer_id' => $missingAgentCustomerId,
+            'institution_id' => DB::table('institutions')->value('id'),
+            'agent_id' => null,
+            'project_name' => '缺少代理商订单',
+            'amount_krw' => 100,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $migration = require database_path('migrations/2026_08_14_000100_remove_direct_sales_business.php');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('found 1 customer row(s) and 1 order row(s) without an agent');
+        $migration->up();
+    }
+
+    public function test_direct_sales_removal_migration_drops_legacy_schema_without_business_rows(): void
+    {
+        $this->addLegacySalesColumns();
+        $migration = require database_path('migrations/2026_08_14_000100_remove_direct_sales_business.php');
+
+        $migration->up();
+
+        $this->assertFalse(Schema::hasColumn('customers', 'original_channel'));
+        $this->assertFalse(Schema::hasColumn('customers', 'source_direct_sales_id'));
+        $this->assertFalse(Schema::hasColumn('orders', 'channel'));
+        $this->assertFalse(Schema::hasColumn('orders', 'direct_sales_source_id'));
+        $this->assertFalse(Schema::hasTable('direct_sales_sources'));
+    }
+
+    public function test_direct_sales_removal_migration_cannot_be_rolled_back(): void
+    {
+        $migration = require database_path('migrations/2026_08_14_000100_remove_direct_sales_business.php');
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('irreversible');
+        $migration->down();
+    }
+
+    private function addLegacySalesColumns(): void
+    {
+        Schema::create('direct_sales_sources', function (Blueprint $table): void {
+            $table->id();
+            $table->string('code', 6);
+            $table->string('name');
+        });
+        Schema::table('customers', function (Blueprint $table): void {
+            $table->string('original_channel', 16)->nullable();
+            $table->unsignedBigInteger('source_direct_sales_id')->nullable();
+        });
+        Schema::table('orders', function (Blueprint $table): void {
+            $table->string('channel', 16)->nullable();
+            $table->unsignedBigInteger('direct_sales_source_id')->nullable();
+        });
+    }
+
+    private function createTestAgent(): int
+    {
+        return (int) DB::table('agents')->insertGetId([
+            'agent_type_code_id' => DB::table('agent_type_codes')->where('code', 'KR')->value('id'),
+            'code' => 'PR1-TEST',
+            'name' => 'PR1 测试代理商',
+            'cooperation_status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+    }
+
+    private function customerImportData(int $agentId, string $code, ?string $statusName): CustomerImportData
+    {
+        return new CustomerImportData(
+            code: $code,
+            legacyCode: null,
+            name: '导入客户',
+            gender: null,
+            birthDate: null,
+            sourceAgentId: $agentId,
+            statusName: $statusName,
+            wechatAddedOn: null,
+            contactValue: null,
+            identityDocument: null,
+            projectIntention: null,
+            notes: null,
+            importBatchId: '00000000-0000-0000-0000-000000000001',
+        );
     }
 }

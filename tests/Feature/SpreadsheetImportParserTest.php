@@ -6,7 +6,6 @@ use App\Models\User;
 use App\Modules\Agent\Application\Contracts\AgentImportGateway;
 use App\Modules\Agent\Infrastructure\Models\Agent;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
-use App\Modules\Customer\Infrastructure\Models\DirectSalesSource;
 use App\Modules\DataImport\Application\Services\ImportTemplateGenerator;
 use App\Modules\DataImport\Application\Services\SpreadsheetImportParser;
 use App\Modules\DataImport\Domain\ImportBatchStatus;
@@ -382,18 +381,12 @@ CSV;
         $row = $batch->rows()->firstOrFail();
         $this->assertSame(ImportRowStatus::Error, $row->status);
         $this->assertStringContainsString('SZ-JG-0001', implode(' ', $row->errors ?? []));
-        $this->assertStringContainsString('WEB-000001', implode(' ', $row->errors ?? []));
     }
 
     public function test_generated_simulation_workbook_is_recognized_and_validated(): void
     {
         Storage::fake('local');
         $this->seed(PhaseTwoReferenceDataSeeder::class);
-        DirectSalesSource::query()->create([
-            'code' => 'WEB',
-            'name' => '官网',
-            'is_active' => true,
-        ]);
         $user = User::factory()->superAdmin()->withTwoFactor()->create();
         $batch = ImportBatch::query()->create([
             'created_by' => $user->id,

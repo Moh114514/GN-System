@@ -22,7 +22,9 @@
 - [ADR-0005：日常业务的同步 Application 契约](adr/0005-daily-application-contracts.md)
 - [ADR-0006：订单完成与推广费核算的同步 Application 契约](adr/0006-synchronous-order-commission-contract.md)
 - [ADR-0007：月结批处理与员工提醒一致性](adr/0007-phase-five-settlement-reminder-processing.md)
+- [ADR-0008：用户 Locale 偏好](adr/0008-localization-locale-preference.md)
 - [ADR-0009：月结批次成员关系与历史月结来源](adr/0009-settlement-run-members-and-historical-sources.md)
+- [ADR-0010：正式订单事实、业务日期与 BD 季度提成历史快照](adr/0010-formal-order-facts-and-bd-commission-history.md)
 
 ## 模块实现
 
@@ -31,7 +33,9 @@
 - [Phase 4 代理商与推广费核算](modules/phase-four-agent-commission.md)
 - [Phase 5 月结、结算单与主动提醒](modules/phase-five-settlement-reminder.md)
 - [Phase 6 多维查询、数据看板与配置中心](modules/phase-six-reporting-configuration.md)
+- [Phase 6 BD 季度提成](modules/phase-six-bd-quarterly-commission.md)
 - [订单中心](modules/order-management.md)
+- [Auth 与权限](modules/auth-permissions.md)
 
 Accepted ADR 记录已经生效的长期决策。若 ADR 与代码不一致，应把它作为需要处理的
 偏差，而不是假装代码已经符合 ADR。
@@ -57,6 +61,7 @@ Accepted ADR 记录已经生效的长期决策。若 ADR 与代码不一致，�
 - [GN-System 小白运维指南](operations/beginner-operations-guide.md)
 - [GN-System 完整运维手册](operations/operations-manual.md)
 - [UAT 测试版本与正式发布流程](operations/release-management.md)
+- [PR7 UAT 迁移与发布收尾手册](operations/pr7-uat-migration-runbook.md)
 - [局域网离线镜像部署](operations/offline-deployment.md)
 - [Phase 5 UAT 验收手册](operations/phase-five-uat-acceptance.md)
 - [局域网生产部署与恢复](operations/production-deployment.md)

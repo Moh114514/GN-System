@@ -2,6 +2,7 @@
 
 namespace App\Modules\Agent\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Application\Contracts\ReferenceConfigurationImportGateway;
 use App\Modules\Agent\Domain\AgentCodeNormalizer;
 use App\Modules\Agent\Infrastructure\Models\Agent;
@@ -16,7 +17,11 @@ use RuntimeException;
 
 final readonly class DatabaseReferenceConfigurationImportGateway implements ReferenceConfigurationImportGateway
 {
-    public function __construct(private AgentCodeNormalizer $normalizer, private AuditRecorder $audit) {}
+    public function __construct(
+        private AgentCodeNormalizer $normalizer,
+        private AuditRecorder $audit,
+        private BusinessClock $clock,
+    ) {}
 
     public function referenceKeys(): array
     {
@@ -64,7 +69,6 @@ final readonly class DatabaseReferenceConfigurationImportGateway implements Refe
                 'name' => $row['name'],
             ]);
             $grade->fill([
-                'monthly_threshold_krw' => $row['monthly_threshold_krw'],
                 'sort_order' => $row['sort_order'],
                 'is_active' => $row['is_active'],
             ]);
@@ -119,7 +123,7 @@ final readonly class DatabaseReferenceConfigurationImportGateway implements Refe
      */
     public function createInitialGradeAssignments(array $rows, int $actorId, string $batchId): array
     {
-        $currentMonth = CarbonImmutable::now()->startOfMonth();
+        $currentMonth = $this->clock->now()->startOfMonth();
         $remaining = [];
 
         foreach ($rows as $row) {
@@ -173,7 +177,7 @@ final readonly class DatabaseReferenceConfigurationImportGateway implements Refe
 
     public function upsertGradeAssignments(array $rows, int $actorId, string $batchId): void
     {
-        $currentMonth = CarbonImmutable::now()->startOfMonth();
+        $currentMonth = $this->clock->now()->startOfMonth();
         $nextMonth = $currentMonth->addMonthNoOverflow();
 
         foreach ($rows as $row) {
@@ -239,7 +243,7 @@ final readonly class DatabaseReferenceConfigurationImportGateway implements Refe
                 ->where('name', $row['policy_grade'])
                 ->firstOrFail();
             $month = CarbonImmutable::parse($row['effective_month'])->startOfMonth();
-            $currentMonth = CarbonImmutable::now()->startOfMonth();
+            $currentMonth = $this->clock->now()->startOfMonth();
             if (! $month->lt($currentMonth)) {
                 throw new DomainException(__('historical_correction.agents.historical_grade_month_invalid'));
             }

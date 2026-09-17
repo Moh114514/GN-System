@@ -3,9 +3,13 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Agent\Application\Contracts\AgentBusinessGroupAssignmentGateway;
+use App\Modules\Auth\Application\Contracts\BusinessGroupManagementGateway;
 use App\Modules\Auth\Application\Contracts\UserManagementGateway;
+use App\Modules\Auth\Domain\UserRole;
 use App\Modules\Auth\Infrastructure\Notifications\InternalUserInvitationNotification;
 use App\Modules\Config\Application\Services\ConfigurationCatalogManager;
+use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Application\Contracts\ConfigurationHistoryGateway as CustomerConfigurationHistory;
 use App\Modules\Customer\Domain\BlindIndex;
 use App\Modules\Customer\Infrastructure\Models\Customer;
@@ -29,7 +33,6 @@ use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Schema;
@@ -54,15 +57,11 @@ class PhaseSixReportingConfigurationTest extends TestCase
     {
         parent::setUp();
         $this->seed(PhaseTwoReferenceDataSeeder::class);
-        $this->user = User::factory()->create();
+        $this->user = User::factory()->create(['role' => UserRole::BdManager]);
+        $groups = app(BusinessGroupManagementGateway::class);
+        $groupId = $groups->create('P6-TEST', 'Phase Six test group', $this->user->id, null)['id'];
+        $groups->assignMember($groupId, $this->user->id, '2026-01-01', null, 'Phase Six test scope', $this->user->id, null);
         $this->institutionId = (int) DB::table('institutions')->value('id');
-        $sourceId = (int) DB::table('direct_sales_sources')->insertGetId([
-            'code' => 'P6WEB',
-            'name' => 'Phase Six Web',
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
         $this->agentId = (int) DB::table('agents')->insertGetId([
             'agent_type_code_id' => DB::table('agent_type_codes')->value('id'),
             'code' => 'P6-AGENT',
@@ -71,12 +70,12 @@ class PhaseSixReportingConfigurationTest extends TestCase
             'created_at' => now(),
             'updated_at' => now(),
         ]);
-        $statusId = (int) CustomerStatus::query()->where('key', 'interested')->value('id');
+        app(AgentBusinessGroupAssignmentGateway::class)->assign($this->agentId, $groupId, '2026-01-01', null, 'Phase Six test scope', $this->user->id, null);
+        $statusId = (int) CustomerStatus::query()->where('key', 'booked')->value('id');
         $this->customer = Customer::query()->create([
-            'code' => 'WEB-000001',
+            'code' => 'P6-AGENT-0001',
             'name' => 'Phase Six Customer',
-            'original_channel' => 'direct',
-            'source_direct_sales_id' => $sourceId,
+            'source_agent_id' => $this->agentId,
             'current_status_id' => $statusId,
             'owner_id' => $this->user->id,
         ]);
@@ -100,8 +99,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
         Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => $this->institutionId,
-            'channel' => 'direct',
-            'direct_sales_source_id' => DB::table('direct_sales_sources')->value('id'),
+            'agent_id' => $this->agentId,
             'project_name' => 'Skin Care',
             'treatment_project_snapshot' => 'Skin Care',
             'amount_krw' => 1200000,
@@ -115,8 +113,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
         Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => $this->institutionId,
-            'channel' => 'direct',
-            'direct_sales_source_id' => DB::table('direct_sales_sources')->value('id'),
+            'agent_id' => $this->agentId,
             'project_name' => 'Other',
             'amount_krw' => 1,
             'completed_on' => '2026-06-01',
@@ -152,13 +149,51 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->assertSame(0, $missing['page']->total);
     }
 
+    public function test_report_project_filter_matches_any_order_item_project(): void
+    {
+        $order = Order::query()->create([
+            'customer_id' => $this->customer->id,
+            'institution_id' => $this->institutionId,
+            'agent_id' => $this->agentId,
+            'project_name' => '水光针',
+            'treatment_project_snapshot' => '水光针',
+            'amount_krw' => 900000,
+            'completed_on' => '2026-07-15',
+            'completed_at' => CarbonImmutable::parse('2026-07-15 14:30:00', 'Asia/Shanghai'),
+            'completion_precision' => 'datetime',
+            'owner_id' => $this->user->id,
+            'status' => 'completed',
+        ]);
+        $order->items()->createMany([
+            [
+                'project_snapshot' => '水光针',
+                'quantity' => '1',
+                'unit_price_krw' => 500000,
+                'amount_krw' => 500000,
+            ],
+            [
+                'project_snapshot' => 'Botox',
+                'quantity' => '1',
+                'unit_price_krw' => 400000,
+                'amount_krw' => 400000,
+            ],
+        ]);
+
+        $this->actingAs($this->user);
+        $result = app(ReportSearch::class)->paginate([
+            'project_name' => 'Botox',
+        ], 50, 1);
+
+        $this->assertSame(1, $result['page']->total);
+        $this->assertSame($order->id, $result['rows'][0]['id']);
+    }
+
     public function test_topbar_enter_search_groups_all_authorized_result_types(): void
     {
         Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => $this->institutionId,
             'agent_id' => $this->agentId,
-            'channel' => 'agent',
             'project_name' => 'Phase Six Project',
             'treatment_project_snapshot' => 'Phase Six Project',
             'amount_krw' => 660000,
@@ -186,7 +221,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->assertOk()
             ->assertSee('Phase Six Customer')
             ->assertSee('Phase Six Project')
-            ->assertDontSee('查看全部代理商');
+            ->assertSee('查看全部代理商');
 
         $koUser = User::factory()->create(['preferred_locale' => 'ko_KR']);
         $this->actingAs($koUser)->get(route('global-search', ['q' => 'Phase Six']))
@@ -284,8 +319,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
         Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => $this->institutionId,
-            'channel' => 'direct',
-            'direct_sales_source_id' => DB::table('direct_sales_sources')->value('id'),
+            'agent_id' => $this->agentId,
             'project_name' => 'Queued Export Project',
             'amount_krw' => 100,
             'completed_on' => '2026-07-30',
@@ -320,14 +354,15 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $order = Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => $this->institutionId,
-            'channel' => 'direct',
-            'direct_sales_source_id' => DB::table('direct_sales_sources')->value('id'),
+            'agent_id' => $this->agentId,
             'project_name' => 'Dashboard Project',
             'amount_krw' => 880000,
             'completed_on' => '2026-07-30',
+            'occurred_on' => '2026-07-30',
             'completed_at' => CarbonImmutable::now(),
             'completion_precision' => 'datetime',
             'owner_id' => $this->user->id,
+            'record_status' => 'active',
             'status' => 'completed',
         ]);
         OrderCommission::query()->create([
@@ -356,11 +391,15 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->assertSame(880000, $snapshot['metrics']['completed_amount']['value']);
         $this->assertSame(1, $snapshot['metrics']['overdue_customers']['value']);
         $this->assertCount(8, $snapshot['charts']);
-        $this->assertSame(1, $snapshot['panels']['pending_reminders']);
+        $this->assertArrayNotHasKey('pending_reminders', $snapshot['panels']);
         $this->assertSame(880000, $snapshot['panels']['monthly_revenue_orders'][0]['value']);
         $this->assertSame(1, $snapshot['panels']['monthly_revenue_orders'][0]['orders']);
-        $this->assertSame('Phase Six Customer', $snapshot['panels']['today_tasks'][0]['customer_name']);
-        $this->assertSame('Phase Six Customer', $snapshot['panels']['recent_customers'][0]['name']);
+        $this->assertSame(880000, $snapshot['charts']['institution_revenue'][0]['value']);
+        $this->assertSame($this->institutionId, $snapshot['charts']['institution_revenue'][0]['id']);
+        $this->assertSame('2026-07', $snapshot['panels']['institution_revenue_month']);
+        $this->assertArrayNotHasKey('today_tasks', $snapshot['panels']);
+        $this->assertArrayNotHasKey('recent_customers', $snapshot['panels']);
+        $this->assertArrayNotHasKey('lifecycle', $snapshot['panels']);
 
         $html = app(DashboardExportGenerator::class)->generate($this->user, 'html', $snapshot);
         $pdf = app(DashboardExportGenerator::class)->generate($this->user, 'pdf', $snapshot);
@@ -377,25 +416,38 @@ class PhaseSixReportingConfigurationTest extends TestCase
         );
         Storage::disk('local')->assertExists($html->path);
         Storage::disk('local')->assertExists($pdf->path);
-        $this->assertNotEmpty(
-            File::glob(storage_path('framework/cache/dompdf/fonts/gn_cjk_*.ufm')),
-        );
+        $this->assertFileIsReadable((string) config('reporting.pdf.font_regular_path'));
+        $this->assertFileIsReadable((string) config('reporting.pdf.font_bold_path'));
+        $this->assertStringEndsWith('GNSystemSans-Regular.ttf', (string) config('reporting.pdf.font_regular_path'));
+        $this->assertStringEndsWith('GNSystemSans-Bold.ttf', (string) config('reporting.pdf.font_bold_path'));
+        $this->assertGreaterThan(0, Storage::disk('local')->size($pdf->path));
 
         $this->actingAs($this->user)->get(route('dashboard'))
             ->assertOk()
             ->assertSee('数据看板')
-            ->assertSee('月度营收与订单趋势')
+            ->assertSee('营收与订单趋势')
             ->assertSee('代理商推广费排行')
-            ->assertSee('客户生命周期概览')
-            ->assertSee('今日待办提醒')
-            ->assertSee('最近客户记录')
+            ->assertSee('本月各机构销售额')
             ->assertSee('最近月结进度')
             ->assertSee('data-dashboard-chart="monthly_revenue_orders"', false)
             ->assertDontSee('data-dashboard-export', false)
             ->assertDontSee('PNG')
             ->assertDontSee('$refs.dashboard', false)
             ->assertDontSee('crm-report-chart-grid', false)
-            ->assertDontSee('演示数据');
+            ->assertDontSee('演示数据')
+            ->assertSee('href="'.e(route('reports.search', ['completedFrom' => '2026-07-01', 'completedTo' => '2026-07-30'])).'"', false)
+            ->assertSee('href="'.e(route('customers.index', ['createdFrom' => '2026-07-01', 'createdTo' => '2026-07-30'])).'"', false)
+            ->assertSee('href="'.e(route('reports.institution-sales', ['month' => '2026-07'])).'"', false)
+            ->assertSee('href="'.e(route('reminders.index')).'"', false)
+            ->assertDontSee('href="'.e(route('settlements.index')).'"', false)
+            ->assertDontSee('href="'.e(route('agents.index')).'"', false);
+
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $this->actingAs($admin)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('href="'.e(route('settlements.index')).'"', false)
+            ->assertSee('href="'.e(route('agents.show', $this->agentId)).'"', false)
+            ->assertSee('href="'.e(route('reports.institution-sales.show', ['institution' => $this->institutionId, 'month' => '2026-07'])).'"', false);
 
         foreach (['html', 'pdf'] as $format) {
             $component = Livewire::actingAs($this->user)->test(Dashboard::class);
@@ -410,6 +462,26 @@ class PhaseSixReportingConfigurationTest extends TestCase
             $component->assertRedirect(route('reports.exports.download', $componentExport));
             Storage::disk('local')->assertExists($componentExport->path);
         }
+    }
+
+    public function test_dashboard_includes_active_institutions_without_sales_for_super_admin(): void
+    {
+        $zeroSalesInstitution = Institution::query()->create([
+            'code' => 'P6-ZERO',
+            'name' => 'Phase Six Zero Sales Institution',
+            'is_active' => true,
+        ]);
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $range = app(DashboardRangeFactory::class)->make('month');
+
+        $this->actingAs($admin);
+        $snapshot = app(DashboardService::class)->snapshot($range, true)->toArray();
+        $zeroSalesRow = collect($snapshot['charts']['institution_revenue'])
+            ->firstWhere('id', $zeroSalesInstitution->id);
+
+        $this->assertIsArray($zeroSalesRow);
+        $this->assertSame(0, $zeroSalesRow['value']);
+        $this->assertSame('Phase Six Zero Sales Institution', $zeroSalesRow['key']);
     }
 
     public function test_export_failures_store_safe_keys_and_localize_recent_exports(): void
@@ -469,8 +541,8 @@ class PhaseSixReportingConfigurationTest extends TestCase
             $this->assertNotSame($zhExport->id, $koExport->id);
             $this->assertSame('zh_CN', $zhExport->data_snapshot['locale']);
             $this->assertSame('ko_KR', $koExport->data_snapshot['locale']);
-            $this->assertSame('意向', $zhExport->data_snapshot['panels']['recent_customers'][0]['status_name']);
-            $this->assertSame('관심', $koExport->data_snapshot['panels']['recent_customers'][0]['status_name']);
+            $this->assertArrayNotHasKey('recent_customers', $zhExport->data_snapshot['panels']);
+            $this->assertArrayNotHasKey('recent_customers', $koExport->data_snapshot['panels']);
             $this->assertSame(2, ReportExport::query()->where('kind', 'dashboard')->count());
             $this->assertStringContainsString('<html lang="zh-CN">', Storage::disk('local')->get($zhExport->path));
             $this->assertStringContainsString('GN-System 数据看板', Storage::disk('local')->get($zhExport->path));
@@ -502,7 +574,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->assertFalse($invitedUser->fresh()->is_active);
         $this->assertSame(2, $invitedUser->fresh()->session_version);
 
-        $status = CustomerStatus::query()->where('key', 'interested')->firstOrFail();
+        $status = CustomerStatus::query()->where('key', 'booked')->firstOrFail();
         $history = app(CustomerConfigurationHistory::class);
         $snapshotId = $history->capture($admin->id);
         $status->update(['name' => 'Changed']);
@@ -538,8 +610,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $order = Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => $this->institutionId,
-            'channel' => 'direct',
-            'direct_sales_source_id' => DB::table('direct_sales_sources')->value('id'),
+            'agent_id' => $this->agentId,
             'project_name' => 'Historical Project',
             'amount_krw' => 1,
             'completed_on' => '2026-07-01',
@@ -548,6 +619,9 @@ class PhaseSixReportingConfigurationTest extends TestCase
             'owner_id' => $this->user->id,
             'status' => 'completed',
         ]);
+        $pr4Migration = require database_path('migrations/2026_08_24_000200_add_institution_return_order_facts.php');
+        $order->update(['occurred_on' => null]);
+        $pr4Migration->down();
         $migration = require database_path('migrations/2026_07_30_030000_add_phase_six_reporting_and_configuration.php');
 
         $migration->down();
@@ -607,9 +681,8 @@ class PhaseSixReportingConfigurationTest extends TestCase
 
         foreach ([
             'configuration.catalog',
-            'configuration.users',
+            'configuration.users-and-notifications',
             'configuration.history',
-            'direct-sales-sources.index',
         ] as $route) {
             $this->actingAs($admin)->get(route($route))
                 ->assertOk()

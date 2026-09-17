@@ -2,13 +2,18 @@ FROM postgres:16-bookworm AS postgres-client
 
 FROM debian:bookworm-slim AS cjk-font
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends fonts-noto-cjk python3-fonttools \
-    && python3 -c "from fontTools.ttLib import TTCollection; font = TTCollection('/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc').fonts[0]; assert all(ord(char) in font.getBestCmap() for char in '中한가123GN-System'); font.save('/tmp/NotoSansCJK-Regular.otf')" \
-    && mkdir -p /usr/local/share/fonts/gn-system \
-    && cp /tmp/NotoSansCJK-Regular.otf /usr/local/share/fonts/gn-system/NotoSansCJK-Regular.otf \
+RUN apt-get -o Acquire::Retries=5 update \
+    && apt-get -o Acquire::Retries=5 install -y --no-install-recommends fonts-noto-cjk python3-fonttools \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+COPY scripts/build-cjk-font.py /tmp/build-cjk-font.py
+
+RUN python3 /tmp/build-cjk-font.py /tmp/GNSystemSans-Regular.ttf /tmp/GNSystemSans-Bold.ttf \
+    && mkdir -p /usr/local/share/fonts/gn-system \
+    && cp /tmp/GNSystemSans-Regular.ttf /usr/local/share/fonts/gn-system/GNSystemSans-Regular.ttf \
+    && cp /tmp/GNSystemSans-Bold.ttf /usr/local/share/fonts/gn-system/GNSystemSans-Bold.ttf
+
 
 FROM php:8.3-fpm-bookworm AS php-base
 
@@ -25,6 +30,7 @@ RUN apt-get -o Acquire::Retries=5 update \
         libpq-dev \
         libzip-dev \
         postgresql-client \
+        poppler-utils \
         unzip \
     && docker-php-ext-configure gd --with-jpeg \
     && docker-php-ext-install -j"$(nproc)" bcmath gd intl pcntl pdo_pgsql zip \
@@ -35,7 +41,8 @@ RUN apt-get -o Acquire::Retries=5 update \
 
 COPY --from=postgres-client /usr/lib/postgresql/16/bin/pg_dump /usr/local/bin/pg_dump
 COPY --from=postgres-client /usr/lib/postgresql/16/bin/pg_restore /usr/local/bin/pg_restore
-COPY --from=cjk-font /usr/local/share/fonts/gn-system/NotoSansCJK-Regular.otf /usr/local/share/fonts/gn-system/NotoSansCJK-Regular.otf
+COPY --from=cjk-font /usr/local/share/fonts/gn-system/GNSystemSans-Regular.ttf /usr/local/share/fonts/gn-system/GNSystemSans-Regular.ttf
+COPY --from=cjk-font /usr/local/share/fonts/gn-system/GNSystemSans-Bold.ttf /usr/local/share/fonts/gn-system/GNSystemSans-Bold.ttf
 
 RUN groupmod -o -g "${APP_GID}" www-data \
     && usermod -o -u "${APP_UID}" -g www-data www-data

@@ -2,7 +2,6 @@
 
 namespace Database\Seeders;
 
-use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -18,14 +17,7 @@ class DatabaseSeeder extends Seeder
         $this->call(PhaseTwoReferenceDataSeeder::class);
 
         if (app()->environment('local')) {
-            $this->call(PhaseTwoDemoDataSeeder::class);
-
-            User::query()->firstOrCreate([
-                'email' => 'test@example.com',
-            ], [
-                'name' => 'Test User',
-                'password' => 'password',
-            ]);
+            $this->call(DevelopmentScenarioSeeder::class);
         }
     }
 }

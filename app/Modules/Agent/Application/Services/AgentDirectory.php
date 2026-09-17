@@ -2,11 +2,13 @@
 
 namespace App\Modules\Agent\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Infrastructure\Models\Agent;
 use App\Modules\Agent\Infrastructure\Models\AgentGradeAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Agent\Infrastructure\Models\PolicyGrade;
 use App\Modules\Agent\Infrastructure\Models\PolicySystem;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Customer\Application\Contracts\AgentCustomerPortfolioReader;
 use App\Modules\Order\Application\Contracts\DailyOrderGateway;
 use Carbon\CarbonImmutable;
@@ -18,6 +20,8 @@ final readonly class AgentDirectory
     public function __construct(
         private AgentCustomerPortfolioReader $customers,
         private DailyOrderGateway $orders,
+        private BusinessClock $clock,
+        private AccessContextResolver $access,
     ) {}
 
     /** @return LengthAwarePaginator<int, array<string, mixed>> */
@@ -30,6 +34,10 @@ final readonly class AgentDirectory
         int $perPage = 20,
     ): LengthAwarePaginator {
         $query = Agent::query();
+        $context = $this->access->current();
+        if (! $context->isSuperAdmin()) {
+            $query->whereKey($context->agentIds);
+        }
         $search = trim($search);
         if ($search !== '') {
             $query->where(fn ($builder) => $builder
@@ -43,7 +51,7 @@ final readonly class AgentDirectory
             $query->where('agent_type_code_id', $typeCodeId);
         }
         if ($policySystemId !== null || $policyGradeId !== null) {
-            $month = CarbonImmutable::now()->startOfMonth();
+            $month = $this->currentMonth();
             $currentAssignments = DB::table('agent_grade_assignments as current_assignment')
                 ->join('policy_grades as current_grade', 'current_grade.id', '=', 'current_assignment.policy_grade_id')
                 ->select('current_assignment.agent_id')
@@ -124,10 +132,13 @@ final readonly class AgentDirectory
     /** @return array<string, mixed> */
     public function profile(int $agentId): array
     {
-        $agent = Agent::query()->findOrFail($agentId);
+        $context = $this->access->current();
+        $agent = Agent::query()
+            ->when(! $context->isSuperAdmin(), fn ($query) => $query->whereKey($context->agentIds))
+            ->findOrFail($agentId);
         $assignment = AgentGradeAssignment::query()
             ->where('agent_id', $agentId)
-            ->whereDate('effective_month', '<=', CarbonImmutable::now()->startOfMonth())
+            ->whereDate('effective_month', '<=', $this->currentMonth())
             ->latest('effective_month')
             ->first();
         $grade = $assignment === null ? null : PolicyGrade::query()->find($assignment->policy_grade_id);
@@ -160,7 +171,7 @@ final readonly class AgentDirectory
     /** @return array<int, array<string, mixed>> */
     private function gradeHistory(int $agentId): array
     {
-        $month = CarbonImmutable::now()->startOfMonth();
+        $month = $this->currentMonth();
         $assignments = AgentGradeAssignment::query()
             ->where('agent_id', $agentId)
             ->with(['policyGrade.policySystem'])
@@ -198,7 +209,7 @@ final readonly class AgentDirectory
         }
         $rows = DB::table('agent_grade_assignments')
             ->whereIn('agent_id', $agentIds)
-            ->whereDate('effective_month', '<=', CarbonImmutable::now()->startOfMonth())
+            ->whereDate('effective_month', '<=', $this->currentMonth())
             ->orderByDesc('effective_month')
             ->get();
         $result = [];
@@ -210,5 +221,10 @@ final readonly class AgentDirectory
         }
 
         return $result;
+    }
+
+    private function currentMonth(): CarbonImmutable
+    {
+        return $this->clock->now()->startOfMonth();
     }
 }

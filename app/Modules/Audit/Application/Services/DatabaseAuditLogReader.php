@@ -20,8 +20,8 @@ final class DatabaseAuditLogReader implements AuditLogReader
     private const SAFE_SCALAR_PROPERTIES = [
         'user_id', 'role', 'invitation_status', 'code', 'automatic_code', 'policy_grade_id',
         'next_policy_grade_id', 'target_snapshot_id', 'stage_count', 'status_count', 'followup_id',
-        'type', 'followed_up_on', 'source', 'due_at', 'status', 'settlement_id', 'channel',
-        'agent_id', 'direct_sales_source_id', 'institution_id', 'customer_id', 'amount_krw',
+        'type', 'followed_up_on', 'source', 'due_at', 'status', 'settlement_id',
+        'agent_id', 'institution_id', 'customer_id', 'amount_krw',
         'rate_bps', 'effective_month', 'effective_from', 'effective_until', 'completed_on',
         'completion_precision', 'ip_address', 'reason', 'exchange_rate_krw_per_cny',
         'exchange_rate_quote_source', 'exchange_rate_quoted_at', 'exchange_rate_manual_override',
@@ -31,8 +31,8 @@ final class DatabaseAuditLogReader implements AuditLogReader
     /** @var array<int, string> */
     private const SAFE_ATTRIBUTE_PROPERTIES = [
         'id', 'code', 'agent_type_code_id', 'cooperation_status', 'policy_grade_id', 'rate_bps',
-        'effective_month', 'effective_from', 'effective_until', 'is_active', 'status', 'channel',
-        'agent_id', 'direct_sales_source_id', 'institution_id', 'customer_id', 'amount_krw',
+        'effective_month', 'effective_from', 'effective_until', 'is_active', 'status',
+        'agent_id', 'institution_id', 'customer_id', 'amount_krw',
         'completed_on', 'completed_at', 'completion_precision', 'created_at', 'updated_at',
     ];
 

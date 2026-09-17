@@ -9,9 +9,7 @@ final readonly class DailyOrderData
     public function __construct(
         public int $customerId,
         public int $institutionId,
-        public string $channel,
-        public ?int $agentId,
-        public ?int $directSalesSourceId,
+        public int $agentId,
         public string $projectName,
         public int $amountKrw,
         public string $status,

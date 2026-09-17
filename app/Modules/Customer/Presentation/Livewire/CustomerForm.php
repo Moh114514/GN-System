@@ -10,6 +10,7 @@ use Carbon\CarbonImmutable;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
 
@@ -24,11 +25,9 @@ class CustomerForm extends Component
 
     public string $birthDate = '';
 
-    public string $channel = 'agent';
-
     public string $sourceAgentId = '';
 
-    public string $sourceDirectSalesId = '';
+    public string $ownerId = '';
 
     public string $contact = '';
 
@@ -40,7 +39,7 @@ class CustomerForm extends Component
 
     public string $institutionId = '';
 
-    public string $arrivalDate = '';
+    public string $arrivalAt = '';
 
     public string $translatorName = '';
 
@@ -67,9 +66,10 @@ class CustomerForm extends Component
     public function mount(CustomerDirectory $directory, ?int $customer = null): void
     {
         $this->options = $directory->options();
+        $this->options['users'] = $directory->ownerCandidates();
         $this->customerId = $customer;
         if ($customer === null) {
-            $this->arrivalDate = now()->toDateString();
+            $this->ownerId = (string) Auth::id();
 
             return;
         }
@@ -78,9 +78,7 @@ class CustomerForm extends Component
         $this->name = (string) $profile['name'];
         $this->gender = (string) ($profile['gender'] ?? '');
         $this->birthDate = (string) ($profile['birth_date'] ?? '');
-        $this->channel = (string) $profile['original_channel'];
         $this->sourceAgentId = (string) ($profile['source_agent_id'] ?? '');
-        $this->sourceDirectSalesId = (string) ($profile['source_direct_sales_id'] ?? '');
         $this->contact = (string) ($profile['contact'] ?? '');
         $this->identityDocument = (string) ($profile['identity_document'] ?? '');
         $this->projectIntention = (string) ($profile['project_intention'] ?? '');
@@ -92,13 +90,13 @@ class CustomerForm extends Component
 
     public function refreshCode(CustomerProfileManager $manager): void
     {
-        $sourceId = $this->channel === 'agent' ? (int) $this->sourceAgentId : (int) $this->sourceDirectSalesId;
+        $sourceId = (int) $this->sourceAgentId;
         if ($sourceId < 1) {
             $this->addError('confirmedCode', __('customers.form.validation.select_source'));
 
             return;
         }
-        $this->confirmedCode = $manager->previewCode($this->channel, $sourceId);
+        $this->confirmedCode = $manager->previewCode($sourceId);
         $this->codeConfirmed = false;
     }
 
@@ -108,9 +106,7 @@ class CustomerForm extends Component
             'name' => ['required', 'string', 'max:255'],
             'gender' => ['nullable', 'string', 'max:16'],
             'birthDate' => ['required', 'date'],
-            'channel' => ['required', 'in:agent,direct'],
-            'sourceAgentId' => [$this->channel === 'agent' ? 'required' : 'nullable', 'integer'],
-            'sourceDirectSalesId' => [$this->channel === 'direct' ? 'required' : 'nullable', 'integer'],
+            'sourceAgentId' => ['required', 'integer'],
             'contact' => ['required', 'string', 'max:255'],
             'identityDocument' => ['required', 'string', 'max:255'],
             'projectIntention' => ['required', 'string', 'max:255'],
@@ -118,8 +114,13 @@ class CustomerForm extends Component
         ];
         if ($this->customerId === null) {
             $rules += [
+                'ownerId' => [
+                    'required',
+                    'integer',
+                    Rule::in(array_map('intval', array_column($this->options['users'] ?? [], 'id'))),
+                ],
                 'institutionId' => ['required', 'integer'],
-                'arrivalDate' => ['required', 'date'],
+                'arrivalAt' => ['required', 'date_format:Y-m-d\\TH:i'],
                 'translatorName' => ['nullable', 'string', 'max:255'],
                 'confirmedCode' => ['required', 'string', 'max:48'],
                 'codeConfirmed' => ['accepted'],
@@ -143,9 +144,7 @@ class CustomerForm extends Component
             name: $this->name,
             gender: $this->gender === '' ? null : $this->gender,
             birthDate: CarbonImmutable::parse($this->birthDate),
-            originalChannel: $this->channel,
-            sourceAgentId: $this->channel === 'agent' ? (int) $this->sourceAgentId : null,
-            sourceDirectSalesId: $this->channel === 'direct' ? (int) $this->sourceDirectSalesId : null,
+            sourceAgentId: (int) $this->sourceAgentId,
             contactValue: $this->contact,
             identityDocument: $this->identityDocument,
             projectIntention: $this->projectIntention,
@@ -170,18 +169,16 @@ class CustomerForm extends Component
             $customerId = $manager->create(
                 profile: $profile,
                 institutionId: (int) $this->institutionId,
-                arrivalDate: CarbonImmutable::parse($this->arrivalDate),
+                arrivalAt: CarbonImmutable::parse($this->arrivalAt, (string) config('app.timezone')),
                 translatorName: $this->translatorName === '' ? null : $this->translatorName,
                 actorId: $actorId,
+                ownerId: (int) $this->ownerId,
                 confirmedCode: $this->confirmedCode,
                 automaticCode: $this->automaticCode,
                 ipAddress: request()->ip(),
             );
         } catch (CustomerCodeChanged) {
-            $this->confirmedCode = $manager->previewCode(
-                $this->channel,
-                $this->channel === 'agent' ? (int) $this->sourceAgentId : (int) $this->sourceDirectSalesId,
-            );
+            $this->confirmedCode = $manager->previewCode((int) $this->sourceAgentId);
             $this->codeConfirmed = false;
             $this->addError('confirmedCode', __('customers.form.validation.code_changed'));
 

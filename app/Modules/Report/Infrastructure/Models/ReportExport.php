@@ -12,7 +12,7 @@ use Illuminate\Support\Carbon;
  * @property string $kind
  * @property string $format
  * @property string $status
- * @property array<string, int|string|null> $criteria_snapshot
+ * @property array<string, mixed> $criteria_snapshot
  * @property array<string, mixed>|null $data_snapshot
  * @property string|null $failure_reason
  * @property string|null $failure_reason_key

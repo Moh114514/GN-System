@@ -2,6 +2,9 @@
 
 namespace App\Modules\Agent;
 
+use App\Modules\Agent\Application\Contracts\AgentAccessScopeReader;
+use App\Modules\Agent\Application\Contracts\AgentBusinessAttributionReader;
+use App\Modules\Agent\Application\Contracts\AgentBusinessGroupAssignmentGateway;
 use App\Modules\Agent\Application\Contracts\AgentCommissionContextReader;
 use App\Modules\Agent\Application\Contracts\AgentImportGateway;
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
@@ -9,6 +12,9 @@ use App\Modules\Agent\Application\Contracts\ConfigurationHistoryGateway;
 use App\Modules\Agent\Application\Contracts\ReferenceConfigurationImportGateway;
 use App\Modules\Agent\Application\Contracts\ReportAgentReader;
 use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
+use App\Modules\Agent\Application\Services\DatabaseAgentAccessScopeReader;
+use App\Modules\Agent\Application\Services\DatabaseAgentBusinessAttributionReader;
+use App\Modules\Agent\Application\Services\DatabaseAgentBusinessGroupAssignmentGateway;
 use App\Modules\Agent\Application\Services\DatabaseAgentCommissionContextReader;
 use App\Modules\Agent\Application\Services\DatabaseAgentImportGateway;
 use App\Modules\Agent\Application\Services\DatabaseAgentReferenceReader;
@@ -31,6 +37,9 @@ class AgentServiceProvider extends ServiceProvider
         $this->app->bind(AgentReferenceReader::class, DatabaseAgentReferenceReader::class);
         $this->app->bind(ReferenceConfigurationImportGateway::class, DatabaseReferenceConfigurationImportGateway::class);
         $this->app->bind(AgentCommissionContextReader::class, DatabaseAgentCommissionContextReader::class);
+        $this->app->bind(AgentBusinessGroupAssignmentGateway::class, DatabaseAgentBusinessGroupAssignmentGateway::class);
+        $this->app->bind(AgentBusinessAttributionReader::class, DatabaseAgentBusinessAttributionReader::class);
+        $this->app->bind(AgentAccessScopeReader::class, DatabaseAgentAccessScopeReader::class);
         $this->app->bind(SettlementAgentGateway::class, DatabaseSettlementAgentGateway::class);
         $this->app->bind(ReportAgentReader::class, DatabaseReportAgentReader::class);
         $this->app->bind(ConfigurationHistoryGateway::class, DatabaseConfigurationHistoryGateway::class);
@@ -38,10 +47,12 @@ class AgentServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        Route::middleware(['web', 'auth', 'verified', 'super-admin', 'super-admin.2fa'])->group(function (): void {
+        Route::middleware(['web', 'auth', 'verified', 'agent.read', 'super-admin.2fa'])->group(function (): void {
             Route::get('/agents', AgentList::class)->name('agents.index');
-            Route::get('/agents/create', AgentForm::class)->name('agents.create');
             Route::get('/agents/{agent}', AgentDetail::class)->whereNumber('agent')->name('agents.show');
+        });
+        Route::middleware(['web', 'auth', 'verified', 'super-admin', 'super-admin.2fa'])->group(function (): void {
+            Route::get('/agents/create', AgentForm::class)->name('agents.create');
             Route::get('/agents/{agent}/edit', AgentForm::class)->whereNumber('agent')->name('agents.edit');
             Route::get('/admin/agent-configuration', AgentConfiguration::class)->name('agent-configuration.index');
         });

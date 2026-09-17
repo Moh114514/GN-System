@@ -51,8 +51,23 @@ final class AccountInvitationController extends Controller
                 Password::broker(config('fortify.passwords'))->deleteToken($locked);
             });
 
-            return response(view('pages::auth.account-invitation-success', ['email' => $user->email])->render());
+            $request->session()->put('account_invitation.accepted_email', $user->email);
+
+            return redirect()->route('account.invitation.accepted');
         });
+    }
+
+    public function accepted(Request $request): Response
+    {
+        $email = $request->session()->get('account_invitation.accepted_email');
+        abort_unless(is_string($email) && $email !== '', 404);
+
+        $user = User::query()->where('email', $email)->first();
+        abort_unless($user instanceof User, 404);
+
+        return $this->renderForUser($user, 'pages::auth.account-invitation-success', [
+            'email' => $user->email,
+        ]);
     }
 
     private function resolveUser(string $email, string $token): User

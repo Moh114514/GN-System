@@ -2,6 +2,7 @@
 
 namespace App\Modules\Settlement\Jobs;
 
+use App\Modules\Settlement\Application\Services\SettlementFailureRecorder;
 use App\Modules\Settlement\Application\Services\SettlementGenerator;
 use Illuminate\Bus\Batchable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -49,14 +50,16 @@ class GenerateAgentSettlement implements ShouldQueue
 
     public function failed(Throwable $exception): void
     {
+        $recorder = app(SettlementFailureRecorder::class);
+
         if ($this->memberId !== null) {
-            app(SettlementGenerator::class)->markFailed((string) $this->memberId, $exception);
+            $recorder->record((string) $this->memberId, $exception);
 
             return;
         }
 
         if ($this->runId !== null && $this->agentId !== null) {
-            app(SettlementGenerator::class)->markFailed($this->runId, $this->agentId, $exception);
+            $recorder->record($this->runId, $exception, $this->agentId);
         }
     }
 }

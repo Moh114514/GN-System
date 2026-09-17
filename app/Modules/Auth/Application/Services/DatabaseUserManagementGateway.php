@@ -3,9 +3,11 @@
 namespace App\Modules\Auth\Application\Services;
 
 use App\Infrastructure\Localization\SupportedLocale;
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Auth\Application\Contracts\UserManagementGateway;
+use App\Modules\Auth\Domain\UserRole;
 use App\Modules\Auth\Infrastructure\Notifications\InternalUserInvitationNotification;
 use App\Modules\Auth\Infrastructure\Notifications\UserPasswordResetNotification;
 use DomainException;
@@ -16,7 +18,10 @@ use Throwable;
 
 final readonly class DatabaseUserManagementGateway implements UserManagementGateway
 {
-    public function __construct(private AuditRecorder $audit) {}
+    public function __construct(
+        private AuditRecorder $audit,
+        private BusinessClock $clock,
+    ) {}
 
     public function users(): array
     {
@@ -25,7 +30,10 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
                 'id' => (int) $user->id,
                 'name' => (string) $user->name,
                 'email' => (string) $user->email,
-                'is_super_admin' => (bool) $user->is_super_admin,
+                'dingtalk_mention_type' => $user->dingtalk_mention_type,
+                'dingtalk_mention_value' => $user->dingtalk_mention_value,
+                'role' => $user->roleValue()->value,
+                'is_super_admin' => $user->isSuperAdmin(),
                 'is_active' => (bool) $user->is_active,
                 'invitation_status' => (string) $user->invitation_status,
                 'invitation_sent_at' => $user->invitation_sent_at?->format('Y-m-d H:i'),
@@ -34,6 +42,21 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
 
     public function invite(string $name, string $email, bool $isSuperAdmin, int $actorId, ?string $ipAddress): array
     {
+        return $this->inviteWithRole(
+            $name,
+            $email,
+            $isSuperAdmin ? UserRole::SuperAdmin->value : UserRole::CustomerService->value,
+            $actorId,
+            $ipAddress,
+        );
+    }
+
+    public function inviteWithRole(string $name, string $email, string $role, int $actorId, ?string $ipAddress): array
+    {
+        $userRole = UserRole::tryFrom($role);
+        if ($userRole === null) {
+            throw new DomainException(__('auth.errors.user_role_invalid'));
+        }
         $inviter = User::query()->find($actorId);
         $preferredLocale = $inviter?->preferredLocale() ?? SupportedLocale::default()->value;
 
@@ -42,14 +65,15 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
             'email' => mb_strtolower(trim($email)),
             'password' => Str::password(48),
             'preferred_locale' => $preferredLocale,
-            'is_super_admin' => $isSuperAdmin,
+            'is_super_admin' => $userRole === UserRole::SuperAdmin,
+            'role' => $userRole,
             'is_active' => true,
             'invitation_status' => 'pending',
         ]);
         $status = $this->sendInvitation($user);
         $this->audit->record(
             description: '内部用户已创建并发送邀请',
-            properties: ['user_id' => $user->id, 'role' => $isSuperAdmin ? 'super_admin' : 'internal', 'invitation_status' => $status],
+            properties: ['user_id' => $user->id, 'role' => $userRole->value, 'invitation_status' => $status],
             causerId: $actorId,
             subject: $user,
             logName: 'auth-user-management',
@@ -114,17 +138,39 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
 
     public function changeRole(int $userId, bool $isSuperAdmin, int $actorId, ?string $ipAddress): void
     {
-        DB::transaction(function () use ($userId, $isSuperAdmin, $actorId, $ipAddress): void {
+        $this->setRole($userId, $isSuperAdmin ? UserRole::SuperAdmin->value : UserRole::CustomerService->value, $actorId, $ipAddress);
+    }
+
+    public function setRole(int $userId, string $role, int $actorId, ?string $ipAddress): void
+    {
+        $newRole = UserRole::tryFrom($role);
+        if ($newRole === null) {
+            throw new DomainException(__('auth.errors.user_role_invalid'));
+        }
+
+        DB::transaction(function () use ($userId, $newRole, $actorId, $ipAddress): void {
             $user = User::query()->lockForUpdate()->findOrFail($userId);
-            if ($user->is_super_admin && ! $isSuperAdmin && $user->is_active
+            $currentRole = $user->roleValue();
+            if ($currentRole === UserRole::SuperAdmin && $newRole !== UserRole::SuperAdmin && $user->is_active
                 && $this->activeSuperAdminCountForUpdate() <= 1) {
                 throw new DomainException(__('auth.errors.last_super_admin_role'));
             }
-            $before = (bool) $user->is_super_admin;
-            $user->update(['is_super_admin' => $isSuperAdmin]);
+            if ($currentRole !== $newRole && DB::table('business_group_memberships')
+                ->where('user_id', $user->id)
+                ->where(function ($query): void {
+                    $query->whereNull('effective_until')->orWhereDate('effective_until', '>=', $this->clock->now()->toDateString());
+                })
+                ->exists()) {
+                throw new DomainException(__('auth.errors.user_role_has_active_membership'));
+            }
+            $before = $currentRole->value;
+            $user->update([
+                'role' => $newRole,
+                'is_super_admin' => $newRole === UserRole::SuperAdmin,
+            ]);
             $this->audit->record(
                 description: '内部用户角色已调整',
-                properties: ['before' => $before, 'after' => $isSuperAdmin],
+                properties: ['before' => $before, 'after' => $newRole->value],
                 causerId: $actorId,
                 subject: $user,
                 logName: 'auth-user-management',
@@ -141,7 +187,7 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
                 throw new DomainException(__('auth.errors.current_account_disable'));
             }
             $user = User::query()->lockForUpdate()->findOrFail($userId);
-            if ($user->is_super_admin && $user->is_active && ! $active
+            if ($user->isSuperAdmin() && $user->is_active && ! $active
                 && $this->activeSuperAdminCountForUpdate() <= 1) {
                 throw new DomainException(__('auth.errors.last_super_admin_disable'));
             }
@@ -168,6 +214,46 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
         });
     }
 
+    public function setDingTalkMention(int $userId, ?string $dingtalkMentionType, ?string $dingtalkMentionValue, int $actorId, ?string $ipAddress): void
+    {
+        $dingtalkMentionType = trim((string) $dingtalkMentionType);
+        $dingtalkMentionValue = trim((string) $dingtalkMentionValue);
+        if ($dingtalkMentionType !== '' && ! in_array($dingtalkMentionType, ['user_id', 'mobile'], true)) {
+            throw new DomainException(__('auth.errors.dingtalk_mention_type_invalid'));
+        }
+        if ($dingtalkMentionValue !== '' && $dingtalkMentionType === '') {
+            throw new DomainException(__('auth.errors.dingtalk_mention_type_required'));
+        }
+        if ($dingtalkMentionValue !== '' && mb_strlen($dingtalkMentionValue) > 255) {
+            throw new DomainException(__('auth.errors.dingtalk_mention_value_too_long'));
+        }
+        if ($dingtalkMentionValue !== '' && ! $this->isValidDingTalkMentionValue($dingtalkMentionType, $dingtalkMentionValue)) {
+            throw new DomainException(__('auth.errors.dingtalk_mention_value_invalid'));
+        }
+        $user = User::query()->findOrFail($userId);
+        $before = [
+            'type' => $user->dingtalk_mention_type,
+            'value' => $user->dingtalk_mention_value,
+        ];
+        $user->update([
+            'dingtalk_mention_type' => $dingtalkMentionValue === '' ? null : $dingtalkMentionType,
+            'dingtalk_mention_value' => $dingtalkMentionValue === '' ? null : $dingtalkMentionValue,
+        ]);
+        $this->audit->record(
+            description: __('auth.audit.dingtalk_mention_updated'),
+            properties: [
+                'user_id' => $userId,
+                'before' => $before,
+                'after' => ['type' => $user->dingtalk_mention_type, 'value' => $user->dingtalk_mention_value],
+            ],
+            causerId: $actorId,
+            subject: $user,
+            logName: 'auth-user-management',
+            event: 'dingtalk_mention_updated',
+            ipAddress: $ipAddress,
+        );
+    }
+
     private function sendInvitation(User $user): string
     {
         try {
@@ -189,10 +275,23 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
         return count(
             User::query()
                 ->where('is_active', true)
-                ->where('is_super_admin', true)
+                ->where(function ($query): void {
+                    $query->where('role', UserRole::SuperAdmin->value)->orWhere('is_super_admin', true);
+                })
                 ->lockForUpdate()
                 ->get(['id'])
                 ->all(),
         );
+    }
+
+    private function isValidDingTalkMentionValue(string $type, string $value): bool
+    {
+        if (preg_match('/[\x00-\x1F\x7F]/', $value) === 1) {
+            return false;
+        }
+
+        return $type === 'mobile'
+            ? preg_match('/^\d{6,20}$/D', $value) === 1
+            : preg_match('/^[A-Za-z0-9][A-Za-z0-9._:\/+-]{0,254}$/D', $value) === 1;
     }
 }

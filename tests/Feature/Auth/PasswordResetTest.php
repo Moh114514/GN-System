@@ -161,11 +161,19 @@ class PasswordResetTest extends TestCase
             ->assertOk()
             ->assertSee('account/invitation/'.$token, false);
 
-        $this->actingAs($admin)->post(route('account.invitation.store', $token), [
+        $response = $this->actingAs($admin)->post(route('account.invitation.store', $token), [
             'email' => $invited->email,
             'password' => 'password',
             'password_confirmation' => 'password',
-        ])->assertOk()->assertSee($invited->email);
+        ]);
+        $response->assertRedirect(route('account.invitation.accepted', absolute: false));
+
+        $this->get(route('account.invitation.accepted'))
+            ->assertOk()
+            ->assertSee($invited->email);
+        $this->get(route('account.invitation.accepted'))
+            ->assertOk()
+            ->assertSee($invited->email);
 
         $this->assertAuthenticatedAs($admin);
         $this->assertSame('accepted', $invited->refresh()->invitation_status);
@@ -385,7 +393,9 @@ class PasswordResetTest extends TestCase
             'email' => $user->email,
             'password' => 'password',
             'password_confirmation' => 'password',
-        ])->assertOk();
+        ])->assertRedirect(route('account.invitation.accepted', absolute: false));
+
+        $this->get(route('account.invitation.accepted'))->assertOk()->assertSee($user->email);
 
         $this->get(route('account.invitation', ['token' => $token, 'email' => $user->email]))
             ->assertNotFound();

@@ -156,7 +156,7 @@ final readonly class DatabaseAgentImportGateway implements AgentImportGateway
             );
             $grade = PolicyGrade::query()->firstOrCreate(
                 ['policy_system_id' => $system->id, 'name' => $data->policyGrade],
-                ['monthly_threshold_krw' => 0, 'is_active' => true, 'import_batch_id' => $data->importBatchId],
+                ['is_active' => true, 'import_batch_id' => $data->importBatchId],
             );
             DB::table('agent_grade_assignments')->updateOrInsert(
                 ['agent_id' => $agent->id, 'effective_month' => $data->gradeEffectiveMonth->startOfMonth()],

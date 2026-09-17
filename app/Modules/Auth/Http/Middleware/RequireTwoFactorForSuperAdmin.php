@@ -16,7 +16,7 @@ class RequireTwoFactorForSuperAdmin
     {
         $user = $request->user();
 
-        if ($user?->is_super_admin && $user->two_factor_confirmed_at === null) {
+        if ($user?->isSuperAdmin() && $user->two_factor_confirmed_at === null) {
             return redirect()
                 ->route('security.edit')
                 ->with('status', __('auth.middleware.two_factor_required'));

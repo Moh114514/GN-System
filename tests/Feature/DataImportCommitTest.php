@@ -66,7 +66,10 @@ class DataImportCommitTest extends TestCase
         $this->assertNotNull($batch->fresh()->completed_at);
         $this->assertDatabaseHas('agents', ['code' => 'SZ-JG']);
         $this->assertDatabaseHas('customers', ['code' => 'SZ-JG-0001']);
-        $this->assertDatabaseHas('orders', ['amount_krw' => 12000000, 'channel' => 'agent']);
+        $this->assertDatabaseHas('orders', [
+            'amount_krw' => 12000000,
+            'agent_id' => Agent::query()->where('code', 'SZ-JG')->value('id'),
+        ]);
         $this->assertDatabaseHas('order_commissions', ['amount_krw' => 1350000, 'rate_bps' => 1125]);
 
         app(ImportBatchRollback::class)->rollback($batch->fresh(), $user->id);

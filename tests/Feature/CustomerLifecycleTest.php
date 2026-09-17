@@ -4,8 +4,11 @@ namespace Tests\Feature;
 
 use App\Models\User;
 use App\Modules\Agent\Infrastructure\Models\Agent;
+use App\Modules\Agent\Infrastructure\Models\AgentBusinessGroupAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Infrastructure\Models\BusinessGroup;
+use App\Modules\Auth\Infrastructure\Models\BusinessGroupMembership;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Application\Data\CustomerProfileData;
 use App\Modules\Customer\Application\Exceptions\CustomerCodeChanged;
@@ -14,12 +17,22 @@ use App\Modules\Customer\Application\Services\CustomerFollowupManager;
 use App\Modules\Customer\Application\Services\CustomerProfileManager;
 use App\Modules\Customer\Application\Services\CustomerStatusManager;
 use App\Modules\Customer\Infrastructure\Models\Customer;
+use App\Modules\Customer\Infrastructure\Models\CustomerLifecycleStage;
+use App\Modules\Customer\Infrastructure\Models\CustomerNumberSequence;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
-use App\Modules\Customer\Infrastructure\Models\DirectSalesSource;
+use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
+use App\Modules\Customer\Infrastructure\Models\CustomerStatusTransition;
+use App\Modules\Customer\Presentation\Livewire\CustomerDetail;
+use App\Modules\Customer\Presentation\Livewire\CustomerForm;
 use App\Modules\Customer\Presentation\Livewire\CustomerList;
+use App\Modules\Customer\Presentation\Livewire\CustomerOverview;
+use App\Modules\Order\Infrastructure\Models\Appointment;
+use App\Modules\Order\Presentation\Livewire\CustomerOrderRegistration;
+use App\Modules\Reminder\Infrastructure\Models\Reminder;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 use Livewire\Livewire;
 use Mockery;
@@ -34,15 +47,29 @@ class CustomerLifecycleTest extends TestCase
 
     private Agent $agent;
 
-    private DirectSalesSource $directSource;
-
     private Institution $institution;
+
+    private BusinessGroup $businessGroup;
 
     protected function setUp(): void
     {
         parent::setUp();
         $this->seed(PhaseTwoReferenceDataSeeder::class);
         $this->user = User::factory()->create();
+        $this->businessGroup = BusinessGroup::query()->create([
+            'code' => 'TEST-GROUP',
+            'name' => '测试业务组',
+            'is_active' => true,
+            'created_by' => $this->user->id,
+        ]);
+        BusinessGroupMembership::query()->create([
+            'business_group_id' => $this->businessGroup->id,
+            'user_id' => $this->user->id,
+            'member_role' => 'customer_service',
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $this->user->id,
+            'reason' => 'lifecycle test scope',
+        ]);
         $type = AgentTypeCode::query()->where('code', 'JG')->firstOrFail();
         $this->agent = Agent::query()->create([
             'agent_type_code_id' => $type->id,
@@ -50,10 +77,12 @@ class CustomerLifecycleTest extends TestCase
             'name' => '测试代理商',
             'cooperation_status' => 'active',
         ]);
-        $this->directSource = DirectSalesSource::query()->create([
-            'code' => 'WEB',
-            'name' => '官网',
-            'is_active' => true,
+        AgentBusinessGroupAssignment::query()->create([
+            'agent_id' => $this->agent->id,
+            'business_group_id' => $this->businessGroup->id,
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $this->user->id,
+            'reason' => 'lifecycle test scope',
         ]);
         $this->institution = Institution::query()->firstOrFail();
     }
@@ -61,13 +90,23 @@ class CustomerLifecycleTest extends TestCase
     public function test_agent_customer_creation_is_atomic_and_audited(): void
     {
         $manager = app(CustomerProfileManager::class);
-        $code = $manager->previewCode('agent', $this->agent->id);
+        $owner = User::factory()->create(['name' => '指定负责人']);
+        BusinessGroupMembership::query()->create([
+            'business_group_id' => $this->businessGroup->id,
+            'user_id' => $owner->id,
+            'member_role' => 'customer_service',
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $this->user->id,
+            'reason' => 'lifecycle test scope',
+        ]);
+        $code = $manager->previewCode($this->agent->id);
         $customerId = $manager->create(
-            profile: $this->profile('agent'),
+            profile: $this->profile(),
             institutionId: $this->institution->id,
-            arrivalDate: CarbonImmutable::parse('2026-08-01'),
+            arrivalAt: CarbonImmutable::parse('2026-08-01 15:30'),
             translatorName: '金翻译',
             actorId: $this->user->id,
+            ownerId: $owner->id,
             confirmedCode: $code,
             automaticCode: true,
             ipAddress: '127.0.0.1',
@@ -77,33 +116,91 @@ class CustomerLifecycleTest extends TestCase
         $this->assertDatabaseHas('customers', [
             'id' => $customerId,
             'code' => 'TEST-JG-0001',
-            'owner_id' => $this->user->id,
+            'owner_id' => $owner->id,
+            'current_status_id' => CustomerStatus::query()->where('key', 'booked')->value('id'),
         ]);
         $this->assertDatabaseHas('appointments', [
             'customer_id' => $customerId,
             'institution_id' => $this->institution->id,
+            'scheduled_at' => '2026-08-01 15:30:00',
+            'owner_id' => $owner->id,
             'status' => 'scheduled',
         ]);
         $this->assertDatabaseHas('customer_status_histories', [
             'customer_id' => $customerId,
+            'changed_by' => $this->user->id,
             'reason' => '客户建档',
         ]);
         $this->assertDatabaseHas('activity_log', [
             'log_name' => 'customer',
             'subject_id' => $customerId,
+            'causer_id' => $this->user->id,
             'event' => 'created',
         ]);
+    }
+
+    public function test_customer_number_preview_self_heals_from_existing_customer_codes(): void
+    {
+        Customer::query()->create([
+            'code' => 'TEST-JG-0007',
+            'name' => '历史导入客户',
+            'source_agent_id' => $this->agent->id,
+        ]);
+        CustomerNumberSequence::query()->where('prefix', $this->agent->code)->delete();
+
+        $manager = app(CustomerProfileManager::class);
+
+        $this->assertSame('TEST-JG-0008', $manager->previewCode($this->agent->id));
+        $customerId = $manager->create(
+            profile: $this->profile('新客户'),
+            institutionId: $this->institution->id,
+            arrivalAt: CarbonImmutable::parse('2026-08-02 09:45'),
+            translatorName: null,
+            actorId: $this->user->id,
+            ownerId: $this->user->id,
+            confirmedCode: 'TEST-JG-0008',
+            automaticCode: true,
+            ipAddress: null,
+        );
+
+        $this->assertDatabaseHas('customers', ['id' => $customerId, 'code' => 'TEST-JG-0008']);
+        $this->assertDatabaseHas('customer_number_sequences', ['prefix' => 'TEST-JG', 'last_number' => 8]);
+    }
+
+    public function test_customer_code_duplicate_error_uses_the_form_translation(): void
+    {
+        $existingId = $this->createCustomer();
+        $existingCode = Customer::query()->findOrFail($existingId)->code;
+
+        try {
+            app(CustomerProfileManager::class)->create(
+                profile: $this->profile('重复编号客户'),
+                institutionId: $this->institution->id,
+                arrivalAt: CarbonImmutable::parse('2026-08-03 10:00'),
+                translatorName: null,
+                actorId: $this->user->id,
+                ownerId: $this->user->id,
+                confirmedCode: $existingCode,
+                automaticCode: false,
+                ipAddress: null,
+            );
+            $this->fail('Expected duplicate customer code validation.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(__('customers.form.validation.code_exists'), $exception->errors()['confirmedCode'][0]);
+            $this->assertNotSame('customers.validation.code_exists', $exception->errors()['confirmedCode'][0]);
+        }
     }
 
     public function test_stale_generated_code_requires_new_confirmation(): void
     {
         $manager = app(CustomerProfileManager::class);
-        $staleCode = $manager->previewCode('direct', $this->directSource->id);
+        $staleCode = $manager->previewCode($this->agent->id);
         $manager->create(
-            $this->profile('direct'),
+            $this->profile(),
             $this->institution->id,
             CarbonImmutable::parse('2026-08-01'),
             null,
+            $this->user->id,
             $this->user->id,
             $staleCode,
             true,
@@ -112,10 +209,11 @@ class CustomerLifecycleTest extends TestCase
 
         $this->expectException(CustomerCodeChanged::class);
         $manager->create(
-            $this->profile('direct', '第二位客户'),
+            $this->profile('第二位客户'),
             $this->institution->id,
             CarbonImmutable::parse('2026-08-02'),
             null,
+            $this->user->id,
             $this->user->id,
             $staleCode,
             true,
@@ -139,47 +237,241 @@ class CustomerLifecycleTest extends TestCase
     {
         $customerId = $this->createCustomer();
         $manager = app(CustomerStatusManager::class);
-        $quoted = CustomerStatus::query()->where('key', 'quoted')->firstOrFail();
         $booked = CustomerStatus::query()->where('key', 'booked')->firstOrFail();
-        $interested = CustomerStatus::query()->where('key', 'interested')->firstOrFail();
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+        $completed = CustomerStatus::query()->where('key', 'treatment_completed')->firstOrFail();
 
         try {
-            $manager->change($customerId, $booked->id, '尝试越级', $this->user, null);
+            $manager->change($customerId, $completed->id, '尝试越级', $this->user, null);
             $this->fail('Expected a validation exception for a skipped transition.');
         } catch (ValidationException) {
-            $this->assertDatabaseHas('customers', ['id' => $customerId, 'current_status_id' => $interested->id]);
+            $this->assertDatabaseHas('customers', ['id' => $customerId, 'current_status_id' => $booked->id]);
         }
 
-        $manager->change($customerId, $quoted->id, '客户已完成报价', $this->user, null);
-        $this->assertDatabaseHas('customers', ['id' => $customerId, 'current_status_id' => $quoted->id]);
+        $manager->change($customerId, $arrived->id, '客户已到院', $this->user, null);
+        $this->assertDatabaseHas('customers', ['id' => $customerId, 'current_status_id' => $arrived->id]);
 
         $this->expectException(ValidationException::class);
-        $manager->change($customerId, $interested->id, '普通用户尝试回退', $this->user, null);
+        $manager->change($customerId, $booked->id, '普通用户尝试回退', $this->user, null);
+    }
+
+    public function test_status_flow_can_initialize_a_customer_without_a_current_status(): void
+    {
+        $customerId = $this->createCustomer();
+        Customer::query()->whereKey($customerId)->update(['current_status_id' => null]);
+        $target = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+
+        $this->actingAs($this->user)->get(route('customers.show', $customerId))->assertOk();
+        Livewire::actingAs($this->user)
+            ->test(CustomerDetail::class, ['customer' => $customerId])
+            ->set('targetStatusId', (string) $target->id)
+            ->set('statusReason', '补录历史客户状态')
+            ->call('changeStatus')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('customers', [
+            'id' => $customerId,
+            'current_status_id' => $target->id,
+        ]);
+        $history = CustomerStatusHistory::query()
+            ->where('customer_id', $customerId)
+            ->where('to_status_id', $target->id)
+            ->latest('id')
+            ->firstOrFail();
+        $this->assertNull($history->from_status_id);
+        $this->assertSame('补录历史客户状态', $history->reason);
+    }
+
+    public function test_customer_detail_uses_an_inline_order_registration_modal_with_the_appointment_institution(): void
+    {
+        $customerId = $this->createCustomer();
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+        app(CustomerStatusManager::class)->change($customerId, $arrived->id, '客户已到院', $this->user, null);
+
+        $response = $this->actingAs($this->user)->get(route('customers.show', $customerId));
+
+        $response->assertOk()
+            ->assertSee(__('customers.detail.actions.register_order'))
+            ->assertSee(__('orders.registration.title'))
+            ->assertSee($this->institution->name)
+            ->assertSee('customer-order-registration', false)
+            ->assertDontSee('href="'.route('customers.orders', $customerId).'"', false);
+    }
+
+    public function test_customer_detail_keeps_completed_appointment_history_visible(): void
+    {
+        $customerId = $this->createCustomer();
+        Appointment::query()->where('customer_id', $customerId)->update(['status' => 'completed']);
+
+        $this->actingAs($this->user)->get(route('customers.show', $customerId))
+            ->assertOk()
+            ->assertSee(__('orders.appointment_schedule.title'))
+            ->assertSee('2026-08-01 00:00');
+    }
+
+    public function test_treatment_completed_cannot_be_set_from_the_manual_status_form(): void
+    {
+        $customerId = $this->createCustomer();
+        $manager = app(CustomerStatusManager::class);
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+        $completed = CustomerStatus::query()->where('key', 'treatment_completed')->firstOrFail();
+
+        $manager->change($customerId, $arrived->id, '客户已到院', $this->user, null);
+
+        try {
+            $manager->change($customerId, $completed->id, '施术完成', $this->user, null);
+            $this->fail('Expected manual treatment completion to be rejected.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(
+                __('customers.form.validation.treatment_completed_requires_order'),
+                $exception->errors()['targetStatusId'][0],
+            );
+        }
+
+        $this->assertDatabaseHas('customers', [
+            'id' => $customerId,
+            'current_status_id' => $arrived->id,
+        ]);
+        $this->assertDatabaseCount('reminders', 0);
+    }
+
+    public function test_status_flow_marks_current_completed_and_available_nodes_without_edit_controls(): void
+    {
+        $customerId = $this->createCustomer();
+        $directory = app(CustomerDirectory::class);
+        $flow = $directory->statusFlow($customerId);
+
+        $this->assertSame(1, count($flow['stages']));
+        $this->assertSame(3, count($flow['statuses']));
+        $this->assertSame(2, count($flow['transitions']));
+        $this->assertSame(
+            ['customer_lifecycle'],
+            collect($flow['stages'])->pluck('key')->all(),
+        );
+        $this->assertSame('current', collect($flow['statuses'])->firstWhere('key', 'booked')['state']);
+        $this->assertSame('available', collect($flow['statuses'])->firstWhere('key', 'arrived')['state']);
+        $this->assertSame('unavailable', collect($flow['statuses'])->firstWhere('key', 'treatment_completed')['state']);
+        $this->assertContains(
+            CustomerStatus::query()->where('key', 'arrived')->value('id'),
+            $flow['available_next_status_ids'],
+        );
+        $this->assertFalse(collect($flow['transitions'])->firstWhere('to_status_id', CustomerStatus::query()->where('key', 'arrived')->value('id'))['visited']);
+
+        CustomerStatus::query()->where('key', 'booked')->update(['is_active' => false]);
+        $flow = $directory->statusFlow($customerId);
+        $this->assertSame('current_inactive', collect($flow['statuses'])->firstWhere('key', 'booked')['state']);
+        CustomerStatus::query()->where('key', 'booked')->update(['is_active' => true]);
+
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+        app(CustomerStatusManager::class)->change($customerId, $arrived->id, '客户已到院', $this->user, null);
+        $booked = CustomerStatus::query()->where('key', 'booked')->firstOrFail();
+        $bookedToArrived = CustomerStatusTransition::query()
+            ->where('from_status_id', $booked->id)
+            ->where('to_status_id', $arrived->id)
+            ->firstOrFail();
+        CustomerLifecycleStage::query()->where('key', 'customer_lifecycle')->update(['is_active' => false]);
+        $flow = $directory->statusFlow($customerId);
+
+        $this->assertSame($arrived->id, $flow['current_status_id']);
+        $this->assertSame('completed', collect($flow['statuses'])->firstWhere('key', 'booked')['state']);
+        $this->assertSame('current', collect($flow['statuses'])->firstWhere('key', 'arrived')['state']);
+        $this->assertSame('available', collect($flow['statuses'])->firstWhere('key', 'treatment_completed')['state']);
+        $this->assertSame('inactive', collect($flow['stages'])->firstWhere('key', 'customer_lifecycle')['state']);
+        $this->assertTrue(collect($flow['transitions'])->firstWhere('to_status_id', $arrived->id)['visited']);
+
+        $bookedToArrived->update(['is_active' => false]);
+        $flow = $directory->statusFlow($customerId);
+        $historicalTransition = collect($flow['transitions'])->firstWhere('id', $bookedToArrived->id);
+        $this->assertFalse($historicalTransition['is_active']);
+        $this->assertTrue($historicalTransition['visited']);
+
+        CustomerStatus::query()->where('key', 'arrived')->update(['is_active' => false]);
+        $flow = $directory->statusFlow($customerId);
+
+        $this->assertSame('current_inactive', collect($flow['statuses'])->firstWhere('key', 'arrived')['state']);
+        $this->assertSame('available', collect($flow['statuses'])->firstWhere('key', 'treatment_completed')['state']);
+
+        $response = $this->actingAs($this->user)->get(route('customers.show', $customerId));
+        $response->assertOk()
+            ->assertSee(__('customers.detail.status_flow.heading'))
+            ->assertSee('data-test="customer-status-flow"', false)
+            ->assertSee('data-status-stepper', false)
+            ->assertSee('data-status-key="arrived" data-status-state="current_inactive"', false)
+            ->assertSee('data-status-key="treatment_completed" data-status-state="available"', false)
+            ->assertSee('data-transition-visited="true"', false)
+            ->assertDontSee('data-flow-history-transitions', false)
+            ->assertDontSee('wire:click="changeStatus"', false);
     }
 
     public function test_super_admin_can_rollback_and_configuration_is_protected(): void
     {
         $customerId = $this->createCustomer();
         $manager = app(CustomerStatusManager::class);
-        $quoted = CustomerStatus::query()->where('key', 'quoted')->firstOrFail();
-        $interested = CustomerStatus::query()->where('key', 'interested')->firstOrFail();
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+        $booked = CustomerStatus::query()->where('key', 'booked')->firstOrFail();
         $admin = User::factory()->superAdmin()->withTwoFactor()->create();
 
-        $manager->change($customerId, $quoted->id, '报价完成', $this->user, null);
-        $manager->change($customerId, $interested->id, '主管确认退回重新联系', $admin, null);
+        $manager->change($customerId, $arrived->id, '客户已到院', $this->user, null);
+        $appointment = Appointment::query()->where('customer_id', $customerId)->firstOrFail();
+        $this->assertSame('arrived', $appointment->refresh()->status);
+        $manager->change($customerId, $booked->id, '主管确认退回已预约', $admin, null);
+        $this->assertSame('scheduled', $appointment->refresh()->status);
         $this->assertDatabaseHas('customer_status_histories', [
             'customer_id' => $customerId,
-            'from_status_id' => $quoted->id,
-            'to_status_id' => $interested->id,
+            'from_status_id' => $arrived->id,
+            'to_status_id' => $booked->id,
             'changed_by' => $admin->id,
         ]);
 
         $this->actingAs($this->user)->get(route('customer-statuses.index'))->assertForbidden();
         $this->actingAs($admin)->get(route('customer-statuses.index'))
             ->assertOk()
-            ->assertSee('生命周期状态配置')
+            ->assertSee('客户状态配置')
             ->assertSee('返回配置中心')
             ->assertSee('href="'.route('configuration.index').'"', false);
+    }
+
+    public function test_lifecycle_configuration_only_updates_display_names_and_keeps_structure_locked(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $manager = app(CustomerStatusManager::class);
+        $configuration = $manager->configuration();
+        $configuration[0]['name'] = '客户生命周期（自定义）';
+        $configuration[0]['sort_order'] = 999;
+        $configuration[0]['is_active'] = false;
+        foreach ($configuration[0]['statuses'] as $index => &$status) {
+            $status['name'] .= '（自定义）';
+            $status['sort_order'] = 999 - $index;
+            $status['is_active'] = false;
+            $status['to_status_ids'] = [];
+            $status['stage_id'] = $configuration[0]['id'];
+        }
+        unset($status);
+
+        $manager->saveConfiguration(
+            stages: [[
+                'id' => $configuration[0]['id'],
+                'key' => $configuration[0]['key'],
+                'name' => $configuration[0]['name'],
+                'sort_order' => $configuration[0]['sort_order'],
+                'is_active' => $configuration[0]['is_active'],
+            ]],
+            statuses: $configuration[0]['statuses'],
+            actor: $admin,
+            ipAddress: null,
+        );
+
+        $this->assertDatabaseHas('customer_lifecycle_stages', [
+            'key' => 'customer_lifecycle',
+            'name' => '客户生命周期（自定义）',
+            'sort_order' => 10,
+            'is_active' => true,
+        ]);
+        $this->assertDatabaseHas('customer_statuses', ['key' => 'booked', 'name' => '已预约（自定义）', 'sort_order' => 10, 'is_active' => true]);
+        $this->assertDatabaseHas('customer_statuses', ['key' => 'arrived', 'name' => '已到院（自定义）', 'sort_order' => 20, 'is_active' => true]);
+        $this->assertDatabaseHas('customer_statuses', ['key' => 'treatment_completed', 'name' => '施术结束（自定义）', 'sort_order' => 30, 'is_active' => true]);
+        $this->assertDatabaseCount('customer_status_transitions', 2);
+        $this->assertDatabaseHas('activity_log', ['log_name' => 'customer-configuration', 'event' => 'updated']);
     }
 
     public function test_customer_list_masks_sensitive_values_and_supports_exact_contact_search(): void
@@ -194,10 +486,56 @@ class CustomerLifecycleTest extends TestCase
             ->assertSee(__('customers.list.create'))
             ->assertSee('138****5678')
             ->assertDontSee('13800005678')
-            ->assertDontSee('P123456');
+            ->assertDontSee('P123456')
+            ->assertSee('aria-label="建档起始日期"', false)
+            ->assertSee('aria-label="建档截止日期"', false)
+            ->assertSee('rounded-full border-transparent bg-zinc-100', false)
+            ->assertDontSee('<label for="customers-created-from"', false);
         $this->assertSame(2, substr_count($response->getContent(), __('customers.list.all_statuses')));
         $this->assertSame(2, substr_count($response->getContent(), __('customers.list.all_agents')));
         $this->assertSame(2, substr_count($response->getContent(), __('customers.list.all_institutions')));
+    }
+
+    public function test_customer_management_renders_the_customer_overview_as_a_separate_component(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-08-10 12:00:00', 'Asia/Shanghai'));
+        try {
+            $customerId = $this->createCustomer('工作台客户');
+            DB::table('reminders')->insert([
+                'customer_id' => $customerId,
+                'assigned_to' => $this->user->id,
+                'created_by' => $this->user->id,
+                'source_type' => 'manual',
+                'reminder_type' => 'manual',
+                'title' => '工作台提醒',
+                'priority' => 3,
+                'due_at' => CarbonImmutable::now(),
+                'status' => 'pending',
+                'notification_status' => 'pending',
+                'dedupe_key' => hash('sha256', 'customer-overview'),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            Livewire::actingAs($this->user)
+                ->test(CustomerOverview::class)
+                ->assertSee(__('customers.overview.title'))
+                ->assertSee(__('customers.overview.pending_followups'))
+                ->assertSee(__('customers.overview.today_tasks'))
+                ->assertSee(__('customers.overview.lifecycle'))
+                ->assertSee(__('customers.overview.recent_customers'))
+                ->assertSee('工作台客户')
+                ->assertSee('1');
+
+            $this->actingAs($this->user)
+                ->get(route('customers.index'))
+                ->assertOk()
+                ->assertSee('data-customer-overview', false)
+                ->assertSee(__('customers.overview.title'))
+                ->assertSee('工作台客户');
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
     }
 
     public function test_korean_locale_localizes_default_statuses_and_timeline_without_translating_custom_status_names(): void
@@ -206,31 +544,31 @@ class CustomerLifecycleTest extends TestCase
         app()->setLocale('ko_KR');
         $directory = app(CustomerDirectory::class);
 
-        $this->assertSame('관심', $directory->profile($customerId)['current_status']);
-        $this->assertSame('관심', collect($directory->options()['statuses'])->firstWhere('key', 'interested')['name']);
+        $this->assertSame('예약 완료', $directory->profile($customerId)['current_status']);
+        $this->assertSame('예약 완료', collect($directory->options()['statuses'])->firstWhere('key', 'booked')['name']);
 
-        $quoted = CustomerStatus::query()->where('key', 'quoted')->firstOrFail();
-        app(CustomerStatusManager::class)->change($customerId, $quoted->id, '견적 전달', $this->user, null);
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+        app(CustomerStatusManager::class)->change($customerId, $arrived->id, '도착 확인', $this->user, null);
         $timeline = $directory->timeline($customerId, 'status');
-        $changed = collect($timeline)->first(fn (array $event): bool => str_contains($event['content'], '견적 전달'));
+        $changed = collect($timeline)->first(fn (array $event): bool => str_contains($event['content'], '도착 확인'));
         $this->assertSame('상태 변경', $changed['title']);
-        $this->assertStringContainsString('관심 → 견적 완료', $changed['content']);
+        $this->assertStringContainsString('예약 완료 → 내원 완료', $changed['content']);
 
-        CustomerStatus::query()->where('key', 'interested')->update(['name' => '自定义意向']);
-        $this->assertSame('自定义意向', collect($directory->options()['statuses'])->firstWhere('key', 'interested')['name']);
+        CustomerStatus::query()->where('key', 'booked')->update(['name' => '自定义预约']);
+        $this->assertSame('自定义预约', collect($directory->options()['statuses'])->firstWhere('key', 'booked')['name']);
     }
 
     public function test_korean_locale_localizes_customer_status_validation_errors(): void
     {
         app()->setLocale('ko_KR');
         $customerId = $this->createCustomer();
-        $quoted = CustomerStatus::query()->where('key', 'quoted')->firstOrFail();
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
 
         try {
-            app(CustomerStatusManager::class)->change($customerId, $quoted->id, '', $this->user, null);
+            app(CustomerStatusManager::class)->change($customerId, $arrived->id, '', $this->user, null);
             $this->fail('Expected a validation exception for an empty reason.');
         } catch (ValidationException $exception) {
-            $this->assertSame(__('customers.validation.status_reason_required'), $exception->errors()['statusReason'][0]);
+            $this->assertSame(__('customers.form.validation.status_reason_required'), $exception->errors()['statusReason'][0]);
         }
     }
 
@@ -242,13 +580,47 @@ class CustomerLifecycleTest extends TestCase
             ->set('statusId', '1')
             ->set('agentId', (string) $this->agent->id)
             ->set('institutionId', (string) $this->institution->id)
+            ->set('ownerId', (string) $this->user->id)
+            ->set('createdFrom', '2026-08-01')
+            ->set('createdTo', '2026-08-31')
             ->set('perPage', 50)
             ->call('clearFilters')
             ->assertSet('search', '')
             ->assertSet('statusId', '')
             ->assertSet('agentId', '')
             ->assertSet('institutionId', '')
+            ->assertSet('ownerId', '')
+            ->assertSet('createdFrom', '')
+            ->assertSet('createdTo', '')
             ->assertSet('perPage', 20);
+    }
+
+    public function test_customer_list_can_filter_by_creation_date_range(): void
+    {
+        $outside = $this->createCustomer('范围外客户');
+        Customer::query()->findOrFail($outside)->update(['created_at' => CarbonImmutable::parse('2026-07-31 23:59:59', 'Asia/Shanghai')]);
+        $inside = $this->createCustomer('范围内客户');
+        Customer::query()->findOrFail($inside)->update(['created_at' => CarbonImmutable::parse('2026-08-01 00:00:00', 'Asia/Shanghai')]);
+
+        $page = app(CustomerDirectory::class)->paginate([
+            'created_from' => '2026-08-01',
+            'created_to' => '2026-08-01',
+        ], 20);
+
+        $this->assertSame([$inside], $page->getCollection()->pluck('id')->all());
+        Livewire::actingAs($this->user)
+            ->test(CustomerList::class)
+            ->set('createdFrom', '2026-08-01')
+            ->set('createdTo', '2026-08-01')
+            ->assertSee('范围内客户')
+            ->assertDontSee('范围外客户');
+
+        Livewire::actingAs($this->user)
+            ->test(CustomerList::class)
+            ->set('createdFrom', '2026-08-02')
+            ->set('createdTo', '2026-08-01')
+            ->assertSee(__('customers.list.validation.created_range'))
+            ->assertSee(__('customers.list.empty'));
     }
 
     public function test_sensitive_edit_requires_confirmation_and_is_audited(): void
@@ -259,9 +631,7 @@ class CustomerLifecycleTest extends TestCase
             name: '修改后的客户',
             gender: '女',
             birthDate: CarbonImmutable::parse('1990-01-01'),
-            originalChannel: 'agent',
             sourceAgentId: $this->agent->id,
-            sourceDirectSalesId: null,
             contactValue: '13900001234',
             identityDocument: 'P654321',
             projectIntention: '皮肤管理',
@@ -314,12 +684,13 @@ class CustomerLifecycleTest extends TestCase
 
         try {
             $manager->create(
-                $this->profile('agent'),
+                $this->profile(),
                 $this->institution->id,
                 CarbonImmutable::parse('2026-08-01'),
                 null,
                 $this->user->id,
-                $manager->previewCode('agent', $this->agent->id),
+                $this->user->id,
+                $manager->previewCode($this->agent->id),
                 true,
                 null,
             );
@@ -340,6 +711,8 @@ class CustomerLifecycleTest extends TestCase
         $this->actingAs($this->user)->get(route('customers.create'))
             ->assertOk()
             ->assertSee(__('customers.form.create_heading'))
+            ->assertSee(__('customers.form.fields.arrival_at'))
+            ->assertSee('type="datetime-local"', false)
             ->assertSee(__('customers.form.back_to_list'))
             ->assertSee('href="'.route('customers.index').'"', false);
         $this->actingAs($this->user)->get(route('customers.show', $customerId))
@@ -348,9 +721,12 @@ class CustomerLifecycleTest extends TestCase
             ->assertSee('<dd class="mt-1 font-semibold">测试客户</dd>', false)
             ->assertSee(__('customers.detail.profile.code'))
             ->assertSee(__('customers.detail.profile.created_at'))
+            ->assertSee(__('customers.detail.status_flow.heading'))
             ->assertSee($this->user->name)
             ->assertSee(__('customers.detail.back'))
-            ->assertSee('href="'.route('customers.index').'"', false);
+            ->assertSee('href="'.route('customers.index').'"', false)
+            ->assertSee('data-page-back', false)
+            ->assertSee('data-page-back-path="/customers"', false);
         $this->actingAs($this->user)->get(route('customers.edit', $customerId))
             ->assertOk()
             ->assertSee(__('customers.form.edit_heading'))
@@ -365,40 +741,131 @@ class CustomerLifecycleTest extends TestCase
         $koAdmin = User::factory()->superAdmin()->withTwoFactor()->create(['preferred_locale' => 'ko_KR']);
         $this->actingAs($koAdmin)->get(route('customer-statuses.index'))
             ->assertOk()
-            ->assertSee('라이프사이클 상태 설정')
+            ->assertSee('고객 상태 설정')
             ->assertSee('설정 센터로 돌아가기')
-            ->assertDontSee('生命周期状态配置');
-        $this->actingAs($koAdmin)->get(route('direct-sales-sources.index'))
-            ->assertOk()
-            ->assertSee('직접 판매 소스 설정')
-            ->assertDontSee('直销来源配置');
+            ->assertDontSee('客户状态配置');
     }
 
-    private function createCustomer(): int
+    public function test_arrival_updates_appointment_and_cancels_pending_arrival_reminder(): void
+    {
+        $customerId = $this->createCustomer();
+        $appointment = Appointment::query()->where('customer_id', $customerId)->firstOrFail();
+        Reminder::query()->create([
+            'customer_id' => $customerId,
+            'appointment_id' => $appointment->id,
+            'assigned_to' => $this->user->id,
+            'source_type' => 'system',
+            'reminder_type' => 'appointment',
+            'title' => '到院前一天联系客户',
+            'due_at' => '2026-08-01 18:00:00',
+            'status' => 'pending',
+            'notification_status' => 'sent',
+            'dedupe_key' => hash('sha256', 'arrival-reminder-test'),
+        ]);
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+
+        app(CustomerStatusManager::class)->change($customerId, $arrived->id, '客户已到院', $this->user, null);
+
+        $this->assertSame('arrived', $appointment->refresh()->status);
+        $this->assertDatabaseHas('reminders', [
+            'appointment_id' => $appointment->id,
+            'status' => 'cancelled',
+            'notification_status' => 'sent',
+        ]);
+    }
+
+    public function test_order_registration_refreshes_when_customer_arrives_without_a_full_page_reload(): void
+    {
+        $customerId = $this->createCustomer();
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+        $component = Livewire::actingAs($this->user)
+            ->test(CustomerOrderRegistration::class, ['customerId' => $customerId])
+            ->assertSee(__('orders.errors.customer_not_arrived'));
+
+        app(CustomerStatusManager::class)->change($customerId, $arrived->id, '客户已到院', $this->user, null);
+
+        $component->dispatch('customer-status-updated', customerId: $customerId)
+            ->assertDontSee(__('orders.errors.customer_not_arrived'));
+    }
+
+    public function test_customer_form_defaults_owner_and_only_lists_eligible_internal_users(): void
+    {
+        $eligible = User::factory()->create(['name' => '可选负责人']);
+        BusinessGroupMembership::query()->create([
+            'business_group_id' => $this->businessGroup->id,
+            'user_id' => $eligible->id,
+            'member_role' => 'customer_service',
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $this->user->id,
+            'reason' => 'lifecycle test scope',
+        ]);
+        $inactive = User::factory()->create(['name' => '停用负责人', 'is_active' => false]);
+        $pending = User::factory()->create(['name' => '待接受负责人', 'invitation_status' => 'pending']);
+
+        Livewire::actingAs($this->user)
+            ->test(CustomerForm::class)
+            ->assertSet('ownerId', (string) $this->user->id)
+            ->assertSet('arrivalAt', '')
+            ->assertSee($this->user->name)
+            ->assertSee($eligible->name)
+            ->assertDontSee($inactive->name)
+            ->assertDontSee($pending->name)
+            ->set('ownerId', $inactive->id)
+            ->call('save')
+            ->assertHasErrors(['ownerId']);
+    }
+
+    public function test_customer_creation_rejects_an_ineligible_owner_before_writing_anything(): void
+    {
+        $inactive = User::factory()->create(['is_active' => false]);
+        $manager = app(CustomerProfileManager::class);
+
+        try {
+            $manager->create(
+                profile: $this->profile(),
+                institutionId: $this->institution->id,
+                arrivalAt: CarbonImmutable::parse('2026-08-01'),
+                translatorName: null,
+                actorId: $this->user->id,
+                ownerId: $inactive->id,
+                confirmedCode: $manager->previewCode($this->agent->id),
+                automaticCode: true,
+                ipAddress: null,
+            );
+            $this->fail('Expected an ineligible owner validation error.');
+        } catch (ValidationException $exception) {
+            $this->assertSame(__('customers.form.validation.owner_unavailable'), $exception->errors()['ownerId'][0]);
+        }
+
+        $this->assertDatabaseCount('customers', 0);
+        $this->assertDatabaseCount('appointments', 0);
+        $this->assertDatabaseCount('activity_log', 0);
+    }
+
+    private function createCustomer(string $name = '测试客户'): int
     {
         $manager = app(CustomerProfileManager::class);
 
         return $manager->create(
-            $this->profile('agent'),
+            $this->profile($name),
             $this->institution->id,
             CarbonImmutable::parse('2026-08-01'),
             null,
             $this->user->id,
-            $manager->previewCode('agent', $this->agent->id),
+            $this->user->id,
+            $manager->previewCode($this->agent->id),
             true,
             null,
         );
     }
 
-    private function profile(string $channel, string $name = '测试客户'): CustomerProfileData
+    private function profile(string $name = '测试客户'): CustomerProfileData
     {
         return new CustomerProfileData(
             name: $name,
             gender: '女',
             birthDate: CarbonImmutable::parse('1990-01-01'),
-            originalChannel: $channel,
-            sourceAgentId: $channel === 'agent' ? $this->agent->id : null,
-            sourceDirectSalesId: $channel === 'direct' ? $this->directSource->id : null,
+            sourceAgentId: $this->agent->id,
             contactValue: '13800005678',
             identityDocument: 'P123456',
             projectIntention: '皮肤管理',

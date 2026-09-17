@@ -1,128 +1,161 @@
 import * as echarts from 'echarts';
 
-const localizedDatePicker = ({ value = '', locale = 'zh_CN' } = {}) => ({
-    open: false,
-    iso: '',
-    viewDate: new Date(),
-    locale,
-    labels: {
-        ...(locale === 'ko_KR' ? {
-            placeholder: '날짜 선택',
-            clear: '지우기',
-            today: '오늘',
-            previousMonth: '이전 달',
-            nextMonth: '다음 달',
-        } : {
-            placeholder: '选择日期',
-            clear: '清除',
-            today: '今天',
-            previousMonth: '上个月',
-            nextMonth: '下个月',
-        }),
-    },
-    init() {
-        this.iso = this.normalize(value) || this.normalize(this.$refs.value?.value || '');
-        this.viewDate = this.parse(this.iso) || new Date();
-        this.syncFromInput();
-        this.observer = new MutationObserver(() => this.syncFromInput());
-        this.observer.observe(this.$refs.value, { attributes: true, attributeFilter: ['value'] });
-    },
-    get intlLocale() {
-        return this.locale === 'ko_KR' ? 'ko-KR' : 'zh-CN';
-    },
-    get displayValue() {
-        const date = this.parse(this.iso);
-        return date ? new Intl.DateTimeFormat(this.intlLocale, { dateStyle: 'medium' }).format(date) : '';
-    },
-    get monthLabel() {
-        return new Intl.DateTimeFormat(this.intlLocale, { year: 'numeric', month: 'long' }).format(this.viewDate);
-    },
-    get weekdays() {
-        const formatter = new Intl.DateTimeFormat(this.intlLocale, { weekday: 'short' });
-        return Array.from({ length: 7 }, (_, index) => formatter.format(new Date(2024, 0, 7 + index)));
-    },
-    get calendarDays() {
-        const year = this.viewDate.getFullYear();
-        const month = this.viewDate.getMonth();
-        const firstDay = new Date(year, month, 1);
-        const startOffset = firstDay.getDay();
-        const first = new Date(year, month, 1 - startOffset);
+const pageNavigationStorageScope = document.body?.dataset.pageNavigationScope || 'guest';
+const pageNavigationStoragePrefix = `gn-page-navigation:${pageNavigationStorageScope}:`;
 
-        return Array.from({ length: 42 }, (_, index) => {
-            const date = new Date(first.getFullYear(), first.getMonth(), first.getDate() + index);
-            return {
-                iso: this.format(date),
-                day: date.getDate(),
-                currentMonth: date.getMonth() === month,
-                selected: this.format(date) === this.iso,
-            };
+if ('scrollRestoration' in window.history) {
+    window.history.scrollRestoration = 'manual';
+}
+
+function pageNavigationStorageKey(type, url) {
+    return `${pageNavigationStoragePrefix}${type}:${encodeURIComponent(url)}`;
+}
+
+function resolvePageNavigationUrl(value) {
+    if (! value) {
+        return null;
+    }
+
+    try {
+        return new URL(value instanceof URL ? value.href : value, window.location.href);
+    } catch {
+        return null;
+    }
+}
+
+function savePageScrollPosition(url = window.location.href) {
+    try {
+        sessionStorage.setItem(
+            pageNavigationStorageKey('scroll', url),
+            JSON.stringify({ top: window.scrollY }),
+        );
+    } catch {
+        // Storage can be unavailable in private browsing; navigation still works normally.
+    }
+}
+
+function readPageScrollPosition(url = window.location.href) {
+    try {
+        const value = JSON.parse(sessionStorage.getItem(pageNavigationStorageKey('scroll', url)) || 'null');
+
+        return Number.isFinite(value?.top) ? value.top : null;
+    } catch {
+        return null;
+    }
+}
+
+function savePageReturnContext(targetUrl) {
+    try {
+        const storageKey = pageNavigationStorageKey('return', targetUrl);
+        const existing = JSON.parse(sessionStorage.getItem(storageKey) || '[]');
+        const contexts = Array.isArray(existing) ? existing : (existing ? [existing] : []);
+        const next = [window.location.href, ...contexts.filter((url) => url !== window.location.href)].slice(0, 8);
+
+        sessionStorage.setItem(
+            storageKey,
+            JSON.stringify(next),
+        );
+    } catch {
+        // Storage can be unavailable in private browsing; the explicit route remains available.
+    }
+}
+
+function applyPageReturnContext() {
+    const pageBack = document.querySelector('[data-page-back]');
+    const fallbackPath = pageBack?.dataset.pageBackPath;
+
+    if (! pageBack || ! fallbackPath) {
+        return;
+    }
+
+    try {
+        const storageKey = pageNavigationStorageKey('return', window.location.href);
+        const stored = JSON.parse(sessionStorage.getItem(storageKey) || '[]');
+        const contexts = Array.isArray(stored) ? stored : (stored ? [stored] : []);
+        const sourceIndex = contexts.findIndex((url) => {
+            const source = resolvePageNavigationUrl(url);
+
+            return source?.origin === window.location.origin && source.pathname === fallbackPath;
         });
-    },
-    normalize(value) {
-        return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && this.parse(value) ? value : '';
-    },
-    parse(value) {
-        if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-            return null;
+        const source = resolvePageNavigationUrl(contexts[sourceIndex]);
+
+        if (! source || sourceIndex < 0) {
+            return;
         }
-        const [year, month, day] = value.split('-').map(Number);
-        const date = new Date(year, month - 1, day);
-        return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day ? date : null;
-    },
-    format(date) {
-        return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
-    },
-    syncFromInput() {
-        const next = this.normalize(this.$refs.value?.value || '');
-        if (next !== this.iso) {
-            this.iso = next;
-            this.viewDate = this.parse(next) || this.viewDate;
+
+        pageBack.setAttribute('href', source.href);
+        // Keep the source stack so an intermediate edit page can return to this
+        // detail page without losing the original list filters and scroll state.
+    } catch {
+        // Storage can be unavailable in private browsing; the explicit route remains available.
+    }
+}
+
+let pageNavigationVersion = 0;
+
+function restorePageScrollPosition(navigationVersion) {
+    const top = readPageScrollPosition();
+
+    if (top === null) {
+        return;
+    }
+
+    let attempts = 0;
+    const restore = () => {
+        if (navigationVersion !== pageNavigationVersion) {
+            return;
         }
-    },
-    toggle() {
-        this.open = !this.open;
-        if (this.open) {
-            this.viewDate = this.parse(this.iso) || new Date();
+
+        const documentHeight = Math.max(
+            document.documentElement?.scrollHeight || 0,
+            document.body?.scrollHeight || 0,
+        );
+        const maxScrollTop = Math.max(0, documentHeight - window.innerHeight);
+
+        // Livewire can finish replacing the page after `livewire:navigated`.
+        // Wait until the new layout is tall enough, otherwise scrollTo clamps
+        // the requested position to zero and the list stays at the top.
+        if (maxScrollTop < top && attempts < 40) {
+            attempts += 1;
+            window.setTimeout(restore, 100);
+            return;
         }
-    },
-    close() {
-        this.open = false;
-    },
-    goMonth(offset) {
-        this.viewDate = new Date(this.viewDate.getFullYear(), this.viewDate.getMonth() + offset, 1);
-    },
-    selectDay(value) {
-        this.setValue(value);
-    },
-    today() {
-        this.setValue(this.format(new Date()));
-    },
-    clear() {
-        this.setValue('');
-    },
-    setValue(value) {
-        const next = this.normalize(value);
-        this.iso = next;
-        this.viewDate = this.parse(next) || this.viewDate;
-        this.$refs.value.value = next;
-        this.$refs.value.dispatchEvent(new Event('input', { bubbles: true }));
-        this.$refs.value.dispatchEvent(new Event('change', { bubbles: true }));
-        this.close();
-    },
+
+        window.scrollTo({ top, left: 0, behavior: 'auto' });
+    };
+
+    window.requestAnimationFrame(() => window.requestAnimationFrame(restore));
+}
+
+let pageScrollSaveTimer = null;
+
+window.addEventListener('scroll', () => {
+    if (pageScrollSaveTimer !== null) {
+        return;
+    }
+
+    pageScrollSaveTimer = window.setTimeout(() => {
+        pageScrollSaveTimer = null;
+        savePageScrollPosition();
+    }, 100);
+}, { passive: true });
+
+window.addEventListener('pagehide', () => savePageScrollPosition());
+
+document.addEventListener('livewire:navigate', (event) => {
+    const target = resolvePageNavigationUrl(event.detail?.url);
+
+    savePageScrollPosition();
+    if (target && target.origin === window.location.origin) {
+        savePageReturnContext(target.href);
+    }
 });
 
-window.localizedDatePicker = localizedDatePicker;
-
-const registerLocalizedDatePicker = () => {
-    if (window.Alpine && typeof window.Alpine.data === 'function') {
-        window.Alpine.data('localizedDatePicker', localizedDatePicker);
-    }
-};
-
-registerLocalizedDatePicker();
-document.addEventListener('alpine:init', registerLocalizedDatePicker);
-document.addEventListener('livewire:init', registerLocalizedDatePicker);
-document.addEventListener('livewire:navigated', registerLocalizedDatePicker);
+document.addEventListener('livewire:navigated', () => {
+    pageNavigationVersion += 1;
+    applyPageReturnContext();
+    restorePageScrollPosition(pageNavigationVersion);
+});
 
 if (typeof window.__gnStartAlpine === 'function') {
     const startAlpine = window.__gnStartAlpine;

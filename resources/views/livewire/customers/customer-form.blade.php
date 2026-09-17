@@ -24,35 +24,30 @@
                     <flux:select.option value="男">{{ __('customers.form.fields.male') }}</flux:select.option>
                     <flux:select.option value="其他">{{ __('customers.form.fields.other') }}</flux:select.option>
                 </flux:select>
-                <x-localized-date-picker wire:model="birthDate" :value="$birthDate" :label="__('customers.form.fields.birth_date')" required />
+                <x-date-time-picker wire:model="birthDate" :value="$birthDate" :label="__('customers.form.fields.birth_date')" required />
                 <flux:input wire:model="projectIntention" :label="__('customers.form.fields.project_intention')" required />
                 <flux:input wire:model="contact" :label="__('customers.form.fields.contact')" required />
                 <flux:input wire:model="identityDocument" :label="__('customers.form.fields.identity_document')" required />
+                @if (! $customerId)
+                    <flux:select wire:model="ownerId" :label="__('customers.form.fields.owner')" required>
+                        <flux:select.option value="">{{ __('customers.form.select') }}</flux:select.option>
+                        @foreach ($options['users'] as $user)
+                            <flux:select.option value="{{ $user['id'] }}">{{ $user['name'] }}</flux:select.option>
+                        @endforeach
+                    </flux:select>
+                @endif
             </div>
         </section>
 
         <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
             <h3 class="text-lg font-semibold">{{ __('customers.form.sections.source') }}</h3>
             <div class="mt-5 grid gap-5 md:grid-cols-2">
-                <flux:select wire:model.live="channel" :label="__('customers.form.fields.customer_source')">
-                    <flux:select.option value="agent">{{ __('customers.form.fields.agent') }}</flux:select.option>
-                    <flux:select.option value="direct">{{ __('customers.form.fields.direct') }}</flux:select.option>
+                <flux:select wire:model="sourceAgentId" :label="__('customers.form.fields.source_agent')" required>
+                    <flux:select.option value="">{{ __('customers.form.select') }}</flux:select.option>
+                    @foreach ($options['agents'] as $agent)
+                        <flux:select.option value="{{ $agent['id'] }}">{{ $agent['code'] }} · {{ $agent['name'] }}</flux:select.option>
+                    @endforeach
                 </flux:select>
-                @if ($channel === 'agent')
-                    <flux:select wire:model="sourceAgentId" :label="__('customers.form.fields.source_agent')" required>
-                        <flux:select.option value="">{{ __('customers.form.select') }}</flux:select.option>
-                        @foreach ($options['agents'] as $agent)
-                            <flux:select.option value="{{ $agent['id'] }}">{{ $agent['code'] }} · {{ $agent['name'] }}</flux:select.option>
-                        @endforeach
-                    </flux:select>
-                @else
-                    <flux:select wire:model="sourceDirectSalesId" :label="__('customers.form.fields.direct_source')" required>
-                        <flux:select.option value="">{{ __('customers.form.select') }}</flux:select.option>
-                        @foreach ($options['direct_sources'] as $source)
-                            <flux:select.option value="{{ $source['id'] }}">{{ $source['code'] }} · {{ $source['name'] }}</flux:select.option>
-                        @endforeach
-                    </flux:select>
-                @endif
 
                 @if ($customerId)
                     <flux:input wire:model="confirmedCode" :label="__('customers.form.fields.customer_code_immutable')" disabled />
@@ -81,7 +76,7 @@
                             <flux:select.option value="{{ $institution['id'] }}">{{ $institution['name'] }}</flux:select.option>
                         @endforeach
                     </flux:select>
-                    <x-localized-date-picker wire:model="arrivalDate" :value="$arrivalDate" :label="__('customers.form.fields.arrival_date')" required />
+                    <x-date-time-picker wire:model="arrivalAt" :value="$arrivalAt" mode="datetime" :label="__('customers.form.fields.expected_arrival_at')" required />
                     <flux:input wire:model="translatorName" :label="__('customers.form.fields.translator')" />
                 </div>
             </section>

@@ -9,7 +9,6 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property int $id
  * @property int $policy_system_id
  * @property string $name
- * @property int $monthly_threshold_krw
  * @property int $sort_order
  * @property bool $is_active
  */

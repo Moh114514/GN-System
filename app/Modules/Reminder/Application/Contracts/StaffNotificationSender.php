@@ -6,5 +6,6 @@ interface StaffNotificationSender
 {
     public function enabled(): bool;
 
-    public function send(string $title, string $text, ?string $link = null): void;
+    /** @param list<array{type: 'user_id'|'mobile', value: string}> $recipients */
+    public function send(string $title, string $text, ?string $link = null, array $recipients = []): void;
 }

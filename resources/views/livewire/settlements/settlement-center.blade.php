@@ -1,18 +1,23 @@
 <div>
+    @php($canManageSettlements = auth()->user()?->isSuperAdmin())
+    @php($centerPeriodQuery = $selectedPeriodEnd !== '' ? ['selectedPeriodEnd' => $selectedPeriodEnd] : [])
     <section class="crm-section-header">
         <div>
             <h2 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ __('settlements.titles.center') }}</h2>
             <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ __('settlements.center.description') }}</p>
         </div>
-        <flux:button wire:click="generate" icon="play" variant="primary">{{ __('settlements.center.generate_latest') }}</flux:button>
+        @if ($canManageSettlements)<flux:button wire:click="generate" icon="play" variant="primary">{{ __('settlements.center.generate_latest') }}</flux:button>@endif
     </section>
 
-    <section class="mb-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
+    @if ($canManageSettlements)<section class="mb-6 rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <h3 class="font-semibold">{{ __('settlements.center.cycle_configuration') }}</h3>
         <p class="mt-1 text-sm text-zinc-500">{{ __('settlements.center.cycle_description') }}</p>
-        <form wire:submit="saveConfiguration" class="mt-4 grid items-end gap-3 sm:grid-cols-4">
-            <flux:input wire:model="boundaryDay" type="number" min="1" max="28" :label="__('settlements.center.boundary_day')" required />
-            <flux:input wire:model="triggerTime" type="time" :label="__('settlements.center.trigger_time')" required />
+        <form wire:submit="saveConfiguration" class="mt-4 grid items-end gap-3 sm:grid-cols-3">
+            <div class="rounded-xl border border-zinc-200 px-3 py-2 dark:border-zinc-700">
+                <div class="text-xs text-zinc-500">{{ __('settlements.center.period_natural_month') }}</div>
+                <div class="mt-1 font-semibold">{{ __('settlements.center.generation_day') }}</div>
+            </div>
+            <x-date-time-picker wire:model="triggerTime" :value="$triggerTime" mode="time" :label="__('settlements.center.trigger_time')" required />
             <flux:checkbox wire:model="confirmConfigurationChange" :label="__('settlements.center.confirm_old_config')" />
             <flux:button type="submit">{{ __('settlements.center.save_next_config') }}</flux:button>
         </form>
@@ -31,25 +36,51 @@
             <flux:button class="sm:mt-6" type="submit" variant="primary">{{ __('settlements.center.generate_historical') }}</flux:button>
         </form>
         @error('historicalPeriodEnd')<p class="mt-2 text-sm text-red-700 dark:text-red-300">{{ $message }}</p>@enderror
-    </section>
+    </section>@endif
+
+    @if ($previewResults !== [])
+        <section class="mb-6 rounded-2xl border border-teal-200 bg-teal-50 p-5 shadow-sm dark:border-teal-900 dark:bg-teal-950/30">
+            <h3 class="font-semibold">{{ __('settlements.center.preview_title') }}</h3>
+            <p class="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{{ __('settlements.center.preview_description') }}</p>
+            <div class="crm-table-wrap mt-4"><table class="crm-table"><thead><tr><th>{{ __('settlements.center.agent') }}</th><th>{{ __('settlements.center.orders') }}</th><th>{{ __('settlements.center.consumption') }}</th><th>{{ __('settlements.center.commission') }}</th><th>{{ __('settlements.center.status') }}</th></tr></thead><tbody>
+                @foreach ($previewResults as $preview)
+                    <tr><td>{{ $preview['agent'] }}</td><td>{{ $preview['order_count'] }}</td><td>₩ {{ number_format($preview['consumption_krw']) }}</td><td>₩ {{ number_format($preview['commission_krw']) }}</td><td>{{ $preview['error'] ?? __('settlements.center.preview_ready') }}</td></tr>
+                @endforeach
+            </tbody></table></div>
+        </section>
+    @endif
 
     <section class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900" wire:poll.10s>
-        <div class="flex items-center justify-between"><h3 class="font-semibold">{{ __('settlements.center.runs') }}</h3></div>
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div class="flex items-center gap-3"><h3 class="font-semibold">{{ __('settlements.center.runs') }}</h3><flux:button wire:click="preview" size="sm" variant="ghost">{{ __('settlements.center.preview') }}</flux:button></div>
+            @if ($availablePeriods->isNotEmpty())
+                <flux:select class="sm:min-w-80" wire:model.live="selectedPeriodEnd" :label="__('settlements.center.selected_period')" size="sm">
+                    @foreach ($availablePeriods as $period)
+                        <flux:select.option value="{{ $period->period_end->toDateString() }}">{{ $period->period_start->format('Y-m-d') }} {{ __('settlements.labels.date_to') }} {{ $period->period_end->format('Y-m-d') }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            @endif
+        </div>
         <div class="crm-table-wrap mt-4"><table class="crm-table">
             <thead><tr><th>{{ __('settlements.center.period') }}</th><th>{{ __('settlements.center.progress') }}</th><th>{{ __('settlements.center.consumption_commission') }}</th><th>{{ __('settlements.center.status') }}</th><th></th></tr></thead>
             <tbody>
             @forelse ($runs as $run)
                 @php($isCollapsed = in_array((string) $run->id, $collapsedRunIds, true))
+                @php($queueState = $queueStates[(string) $run->id] ?? ['anomalous' => false, 'pending_members' => 0, 'failed_jobs' => 0, 'pending_jobs' => 0])
                 <tr wire:key="settlement-run-{{ $run->id }}" class="cursor-pointer" wire:click="toggleRun('{{ $run->id }}')" wire:keydown.enter="toggleRun('{{ $run->id }}')" wire:keydown.space.prevent="toggleRun('{{ $run->id }}')" tabindex="0" role="button" aria-label="{{ __($isCollapsed ? 'settlements.center.expand' : 'settlements.center.collapse') }}{{ __('settlements.center.runs') }}">
                     <td>{{ $run->period_start->format('Y-m-d') }} {{ __('settlements.labels.date_to') }} {{ $run->period_end->format('Y-m-d') }}<div class="text-xs text-zinc-500">{{ ['manual' => __('settlements.center.manual'), 'historical' => __('settlements.center.historical_manual'), 'scheduled' => __('settlements.center.scheduled')][$run->trigger_source] ?? $run->trigger_source }}</div></td>
                     <td>{{ $run->processed_agents + $run->existing_agents + $run->failed_agents }}/{{ $run->total_agents }}<div class="text-xs text-zinc-500">{{ __('settlements.center.generated_count', ['count' => $run->processed_agents]) }} · {{ __('settlements.center.existing_count', ['count' => $run->existing_agents]) }}</div><div class="text-xs text-red-600">{{ __('settlements.center.failed_count', ['count' => $run->failed_agents]) }}</div></td>
                     <td>₩{{ number_format($run->total_consumption_krw) }}<div class="text-xs text-zinc-500">{{ __('settlements.detail.commission') }} ₩{{ number_format($run->total_commission_krw) }}</div></td>
-                    <td>{{ __('settlements.run_statuses.'.$run->status) }}<div class="text-xs text-zinc-500">{{ __('settlements.center.dingtalk', ['status' => __('settlements.notification_statuses.'.$run->notification_status)]) }}</div></td>
+                    <td>{{ $queueState['anomalous'] ? __('settlements.queue_recovery.status') : __('settlements.run_statuses.'.$run->status) }}<div class="text-xs text-zinc-500">{{ __('settlements.center.dingtalk', ['status' => __('settlements.notification_statuses.'.$run->notification_status)]) }}</div></td>
                     <td class="space-x-2" x-on:keydown.stop>
                         <button type="button" class="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-sm font-semibold text-zinc-700 hover:bg-zinc-100" wire:click.stop="toggleRun('{{ $run->id }}')" aria-expanded="{{ $isCollapsed ? 'false' : 'true' }}">
                             <flux:icon :name="$isCollapsed ? 'chevron-right' : 'chevron-down'" class="size-4" aria-hidden="true" />
                             <span>{{ __($isCollapsed ? 'settlements.center.expand' : 'settlements.center.collapse') }}</span>
                         </button>
+                        @if ($queueState['anomalous'] && $queueState['pending_members'] > 0)
+                            <span class="text-sm font-semibold text-amber-700">{{ __('settlements.queue_recovery.batch_failed', ['count' => $queueState['failed_jobs']]) }}</span>
+                            <flux:button wire:click.stop="redispatchPending('{{ $run->id }}')" size="sm" variant="ghost">{{ __('settlements.queue_recovery.redispatch_pending') }}</flux:button>
+                        @endif
                         @if ($run->failed_agents > 0)
                             <a class="text-sm font-semibold text-red-700 hover:underline" href="{{ route('settlements.runs.failures', $run->id) }}" wire:navigate x-on:click.stop>{{ __('settlements.center.view_failures', ['count' => $run->failed_agents]) }}</a>
                             <flux:button wire:click.stop="retry('{{ $run->id }}')" size="sm" variant="ghost">{{ __('settlements.center.retry_failed') }}</flux:button>
@@ -66,24 +97,48 @@
                             <tr class="bg-zinc-50/70 dark:bg-zinc-800/40">
                                 <td colspan="2">
                                     @if ($settlement)
-                                        <a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $settlement->id) }}" wire:navigate>{{ $agentDisplay['code'] ?? '' }} {{ $agentDisplay['name'] ?? __('settlements.labels.unknown_agent').' #'.$member->agent_id }}</a>
+                                        <a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', ['settlement' => $settlement->id] + $centerPeriodQuery) }}" wire:navigate>{{ $agentDisplay['code'] ?? '' }} {{ $agentDisplay['name'] ?? __('settlements.labels.unknown_agent').' #'.$member->agent_id }}</a>
                                     @else
                                         <span class="font-semibold">{{ $agentDisplay['code'] ?? '' }} {{ $agentDisplay['name'] ?? __('settlements.labels.unknown_agent').' #'.$member->agent_id }}</span>
                                     @endif
                                 </td>
                                 <td>{{ __('settlements.center.outcome_'.$member->outcome) }}</td>
                                 <td>{{ $settlement ? __('settlements.detail.commission').' ₩'.number_format($settlement->total_commission_krw) : ($member->error_message_key ? __($member->error_message_key, $member->error_parameters ?? []) : '—') }}</td>
-                                <td>{{ __('settlements.center.member_status_'.$member->outcome) }}</td>
+                                <td>
+                                    {{ __('settlements.center.member_status_'.$member->outcome) }}
+                                    @if ($settlement)
+                                        @php($documents = $documentsBySettlement[(string) $settlement->id] ?? [])
+                                        <div class="mt-1 flex flex-wrap gap-2">
+                                            @foreach ($documents as $document)
+                                                <a class="text-xs font-semibold text-teal-700 hover:underline" href="{{ route('settlements.documents.download', $document->id) }}" x-on:click.stop>{{ __('settlements.detail.download_document', ['format' => strtoupper($document->format)]) }}</a>
+                                            @endforeach
+                                            @if (count($documents) < 2 && (in_array($settlement->status, ['approved', 'settled'], true) || (in_array($settlement->status, ['paid', 'reconciled'], true) && $settlement->generation_status === 'not_applicable')))
+                                                <flux:button wire:click.stop="regenerateDocuments({{ $settlement->id }})" size="sm" variant="ghost">{{ __('settlements.detail.documents_regenerate') }}</flux:button>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </td>
                             </tr>
                         @endforeach
                     @else
                         @foreach ($run->settlements as $settlement)
                             <tr class="bg-zinc-50/70 dark:bg-zinc-800/40">
                                 @php($agentDisplay = $legacyDisplays[$settlement->id] ?? ['code' => '', 'name' => __('settlements.labels.unknown_agent').' #'.$settlement->agent_id])
-                                <td colspan="2"><a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', $settlement->id) }}" wire:navigate>{{ $agentDisplay['code'] }} {{ $agentDisplay['name'] }}</a></td>
+                                <td colspan="2"><a class="font-semibold text-teal-700 hover:underline" href="{{ route('settlements.show', ['settlement' => $settlement->id] + $centerPeriodQuery) }}" wire:navigate>{{ $agentDisplay['code'] }} {{ $agentDisplay['name'] }}</a></td>
                                 <td>{{ __('settlements.center.outcome_generated') }}</td>
                                 <td>{{ __('settlements.detail.commission') }} ₩{{ number_format($settlement->total_commission_krw) }}</td>
-                                <td>{{ __('settlements.center.member_status_generated') }}</td>
+                                <td>
+                                    {{ __('settlements.center.member_status_generated') }}
+                                    @php($documents = $documentsBySettlement[(string) $settlement->id] ?? [])
+                                    <div class="mt-1 flex flex-wrap gap-2">
+                                        @foreach ($documents as $document)
+                                            <a class="text-xs font-semibold text-teal-700 hover:underline" href="{{ route('settlements.documents.download', $document->id) }}" x-on:click.stop>{{ __('settlements.detail.download_document', ['format' => strtoupper($document->format)]) }}</a>
+                                        @endforeach
+                                        @if (count($documents) < 2 && (in_array($settlement->status, ['approved', 'settled'], true) || (in_array($settlement->status, ['paid', 'reconciled'], true) && $settlement->generation_status === 'not_applicable')))
+                                            <flux:button wire:click.stop="regenerateDocuments({{ $settlement->id }})" size="sm" variant="ghost">{{ __('settlements.detail.documents_regenerate') }}</flux:button>
+                                        @endif
+                                    </div>
+                                </td>
                             </tr>
                         @endforeach
                     @endif

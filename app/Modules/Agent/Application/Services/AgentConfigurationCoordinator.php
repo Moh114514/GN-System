@@ -70,8 +70,6 @@ final readonly class AgentConfigurationCoordinator
         $query = PolicyGrade::query();
 
         match ($sort) {
-            'threshold_asc' => $query->orderBy('monthly_threshold_krw')->orderBy('name'),
-            'threshold_desc' => $query->orderByDesc('monthly_threshold_krw')->orderBy('name'),
             'name_asc' => $query->orderBy('name'),
             'name_desc' => $query->orderByDesc('name'),
             'sort_desc' => $query->orderByDesc('sort_order')->orderBy('name'),

@@ -42,11 +42,7 @@ class PhaseTwoReferenceDataSeeder extends Seeder
         }
 
         $stages = [
-            ['key' => 'first_contact', 'name' => '首次接触', 'sort_order' => 10],
-            ['key' => 'booking', 'name' => '预约确认', 'sort_order' => 20],
-            ['key' => 'arrival', 'name' => '到院接待', 'sort_order' => 30],
-            ['key' => 'followup', 'name' => '后续跟进', 'sort_order' => 40],
-            ['key' => 'operations', 'name' => '运营管理', 'sort_order' => 50],
+            ['key' => 'customer_lifecycle', 'name' => '客户生命周期', 'sort_order' => 10],
         ];
 
         foreach ($stages as $stage) {
@@ -58,13 +54,9 @@ class PhaseTwoReferenceDataSeeder extends Seeder
 
         $stageIds = DB::table('customer_lifecycle_stages')->pluck('id', 'key');
         $statuses = [
-            ['key' => 'interested', 'name' => '意向', 'stage' => 'first_contact', 'sort_order' => 10],
-            ['key' => 'quoted', 'name' => '已报价', 'stage' => 'first_contact', 'sort_order' => 20],
-            ['key' => 'booked', 'name' => '已预约', 'stage' => 'booking', 'sort_order' => 30],
-            ['key' => 'arrived', 'name' => '已到院', 'stage' => 'arrival', 'sort_order' => 40],
-            ['key' => 'returned_home', 'name' => '已回国', 'stage' => 'followup', 'sort_order' => 50],
-            ['key' => 'dormant', 'name' => '沉默待唤醒', 'stage' => 'operations', 'sort_order' => 60],
-            ['key' => 'lost', 'name' => '已流失', 'stage' => 'operations', 'sort_order' => 70],
+            ['key' => 'booked', 'name' => '已预约', 'stage' => 'customer_lifecycle', 'sort_order' => 10],
+            ['key' => 'arrived', 'name' => '已到院', 'stage' => 'customer_lifecycle', 'sort_order' => 20],
+            ['key' => 'treatment_completed', 'name' => '施术结束', 'stage' => 'customer_lifecycle', 'sort_order' => 30],
         ];
 
         foreach ($statuses as $status) {

@@ -2,38 +2,46 @@
 
 namespace App\Modules\Reminder\Application\Services;
 
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
+use App\Modules\Customer\Application\Contracts\ReminderCustomerReader;
+use App\Modules\Customer\Application\Data\ReminderCustomerData;
 use App\Modules\Reminder\Application\Contracts\ReportReminderReader;
-use App\Modules\Reminder\Infrastructure\Models\FollowupRecord;
 use App\Modules\Reminder\Infrastructure\Models\Reminder;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 
 final class DatabaseReportReminderReader implements ReportReminderReader
 {
+    public function __construct(private readonly AccessContextResolver $access) {}
+
     public function dashboard(CarbonImmutable $from, CarbonImmutable $to): array
     {
-        $due = Reminder::query()->whereBetween('due_at', [$from, $to]);
+        $due = $this->scopedReminders()->whereBetween('due_at', [$from, $to]);
         $dueCount = (clone $due)->count();
         $completedCount = (clone $due)->where('status', 'completed')->count();
-        $today = CarbonImmutable::now('Asia/Shanghai');
-        $pending = Reminder::query()
-            ->whereIn('status', ['pending', 'snoozed'])
-            ->where('due_at', '<=', $to);
 
         return [
-            'overdue_customers' => (clone $pending)
+            'overdue_customers' => $this->scopedReminders()
+                ->whereIn('status', ['pending', 'snoozed'])
+                ->where('due_at', '<=', $to)
                 ->distinct('customer_id')
                 ->count('customer_id'),
-            'pending_reminders' => (clone $pending)->count(),
             'followup_completion_rate' => $dueCount === 0
                 ? 0.0
                 : round($completedCount / $dueCount * 100, 2),
-            'followup_customers' => FollowupRecord::query()
-                ->where('followed_up_on', '<=', $to->toDateString())
-                ->distinct('customer_id')
-                ->count('customer_id'),
-            'today_tasks' => Reminder::query()
+        ];
+    }
+
+    public function overview(CarbonImmutable $now): array
+    {
+        return [
+            'pending_reminders' => $this->scopedReminders()
                 ->whereIn('status', ['pending', 'snoozed'])
-                ->whereBetween('due_at', [$today->startOfDay(), $today->endOfDay()])
+                ->where('due_at', '<=', $now)
+                ->count(),
+            'today_tasks' => $this->scopedReminders()
+                ->whereIn('status', ['pending', 'snoozed'])
+                ->whereBetween('due_at', [$now->startOfDay(), $now->endOfDay()])
                 ->orderBy('due_at')
                 ->orderByDesc('priority')
                 ->limit(5)
@@ -55,5 +63,71 @@ final class DatabaseReportReminderReader implements ReportReminderReader
                 })
                 ->all(),
         ];
+    }
+
+    public function teamOverview(array $ownerIds, CarbonImmutable $now): array
+    {
+        $ownerIds = array_values(array_unique(array_filter(array_map('intval', $ownerIds), fn (int $id): bool => $id > 0)));
+        if ($ownerIds === []) {
+            return ['pending' => 0, 'overdue' => 0, 'owners' => []];
+        }
+
+        $pending = $this->scopedReminders()
+            ->whereIn('assigned_to', $ownerIds)
+            ->whereIn('status', ['pending', 'snoozed', 'transferred']);
+        $rows = (clone $pending)
+            ->selectRaw('assigned_to::int as owner_id, COUNT(*)::int as pending, COUNT(*) FILTER (WHERE due_at < ?)::int as overdue', [$now])
+            ->groupBy('assigned_to')
+            ->get();
+        $owners = [];
+        foreach ($ownerIds as $ownerId) {
+            $owners[$ownerId] = ['pending' => 0, 'overdue' => 0];
+        }
+        foreach ($rows as $row) {
+            $ownerId = (int) $row->getAttribute('owner_id');
+            if (isset($owners[$ownerId])) {
+                $owners[$ownerId] = [
+                    'pending' => (int) $row->getAttribute('pending'),
+                    'overdue' => (int) $row->getAttribute('overdue'),
+                ];
+            }
+        }
+
+        return [
+            'pending' => (clone $pending)->count(),
+            'overdue' => (clone $pending)->where('due_at', '<', $now)->count(),
+            'owners' => $owners,
+        ];
+    }
+
+    /** @return Builder<Reminder> */
+    private function scopedReminders(): Builder
+    {
+        $query = Reminder::query();
+        $context = $this->access->current();
+        if ($context->isSuperAdmin()) {
+            return $query;
+        }
+        $query->where(function ($scope) use ($context): void {
+            if ($context->userId !== null) {
+                $scope->where('assigned_to', $context->userId)->orWhere('created_by', $context->userId);
+            }
+            if ($context->isBdManager()) {
+                $ids = $this->customerIds();
+                if ($ids !== []) {
+                    $scope->orWhereIn('customer_id', $ids);
+                }
+            }
+        });
+
+        return $query;
+    }
+
+    /** @return list<int> */
+    private function customerIds(): array
+    {
+        $customers = app(ReminderCustomerReader::class)->candidates();
+
+        return array_map(static fn (ReminderCustomerData $customer): int => $customer->id, $customers);
     }
 }

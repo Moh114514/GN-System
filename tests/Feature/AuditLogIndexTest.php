@@ -138,14 +138,14 @@ class AuditLogIndexTest extends TestCase
     {
         $admin = User::factory()->superAdmin()->withTwoFactor()->create();
 
-        $this->actingAs($admin)->get(route('configuration.users'))
+        $this->actingAs($admin)->get(route('configuration.users-and-notifications'))
             ->assertOk()
             ->assertSee('查看全局审计日志')
             ->assertSee('href="'.route('audit-logs.index').'"', false)
             ->assertSee('data-test="topbar-date-control"', false)
-            ->assertSee('crm-localized-date-picker', false)
+            ->assertSee('crm-date-time-picker', false)
             ->assertSee('name="date"', false)
-            ->assertDontSee('type="date"', false)
+            ->assertSee('type="date"', false)
             ->assertSee('data-test="reminder-notification-button"', false)
             ->assertDontSee('calendar-days', false);
     }

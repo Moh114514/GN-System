@@ -2,10 +2,10 @@
 
 namespace App\Modules\DataImport\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Application\Contracts\ReferenceConfigurationImportGateway as AgentReferences;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Config\Application\Contracts\ReferenceConfigurationImportGateway as ConfigReferences;
-use App\Modules\Customer\Application\Contracts\ReferenceConfigurationImportGateway as CustomerReferences;
 use App\Modules\DataImport\Application\Exceptions\DryRunRollback;
 use App\Modules\DataImport\Domain\ImportBatchStatus;
 use App\Modules\DataImport\Domain\ImportOperationMode;
@@ -25,12 +25,12 @@ final readonly class ReferenceConfigurationImportCommitter
 {
     public function __construct(
         private ConfigReferences $config,
-        private CustomerReferences $customers,
         private AgentReferences $agents,
         private CommissionConfigurationGateway $commissions,
         private AuditRecorder $audit,
         private ImportIssueRecorder $issues,
         private ImportStageTracker $stages,
+        private BusinessClock $clock,
     ) {}
 
     public function dryRun(ImportBatch $batch): void
@@ -111,10 +111,6 @@ final readonly class ReferenceConfigurationImportCommitter
             $this->rows($batch, ImportProfile::Institution),
             $batch->id,
         );
-        $this->customers->upsertDirectSalesSources(
-            $this->rows($batch, ImportProfile::DirectSalesSource),
-            $batch->id,
-        );
         $this->agents->upsertAgentTypes(
             $this->rows($batch, ImportProfile::AgentType),
             $batch->id,
@@ -135,7 +131,7 @@ final readonly class ReferenceConfigurationImportCommitter
             }
             $effectiveMonth = CarbonImmutable::parse((string) $row['effective_month']);
             if ($batch->operation_mode === ImportOperationMode::HistoricalCorrection) {
-                if (! $effectiveMonth->startOfMonth()->lt(CarbonImmutable::now()->startOfMonth())) {
+                if (! $effectiveMonth->startOfMonth()->lt($this->clock->now()->startOfMonth())) {
                     throw new RuntimeException(__('settlements.errors.historical_rate_month_invalid'));
                 }
                 $this->commissions->importHistoricalCorrectionRule(new HistoricalCommissionRuleData(

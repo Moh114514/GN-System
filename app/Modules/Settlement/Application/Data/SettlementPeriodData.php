@@ -13,5 +13,7 @@ final readonly class SettlementPeriodData
         public string $triggerTime,
         public string $timezone,
         public ?int $configurationId,
+        public ?int $generationDay = null,
+        public ?CarbonImmutable $closedAt = null,
     ) {}
 }

@@ -2,6 +2,7 @@
 
 namespace App\Modules\Settlement\Application\Services;
 
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Settlement\Application\Contracts\ReportSettlementReader;
 use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
@@ -11,12 +12,17 @@ use Illuminate\Support\Facades\DB;
 
 final class DatabaseReportSettlementReader implements ReportSettlementReader
 {
+    public function __construct(private readonly AccessContextResolver $access) {}
+
     public function dashboard(array $orderMonths, CarbonImmutable $asOf): array
     {
         $orderIds = array_map('intval', array_keys($orderMonths));
         $commissions = $orderIds === []
             ? collect()
             : OrderCommission::query()->whereIn('order_id', $orderIds)->get();
+        if (! $this->access->current()->isSuperAdmin()) {
+            $commissions = $commissions->whereIn('agent_id', $this->access->current()->agentIds)->values();
+        }
         $monthly = [];
         foreach ($commissions as $commission) {
             $month = $orderMonths[(int) $commission->order_id] ?? null;
@@ -33,12 +39,14 @@ final class DatabaseReportSettlementReader implements ReportSettlementReader
                 $query->where('settlement.confirmed_at', '<=', $asOf)
                     ->orWhere('settlement.settled_on', '<=', $asOf->toDateString());
             })
+            ->when(! $this->access->current()->isSuperAdmin(), fn ($query) => $query->whereIn('settlement.agent_id', $this->access->current()->agentIds))
             ->pluck('item.order_commission_id');
 
         return [
             'promotion_fee' => (int) $commissions->sum('amount_krw'),
             'pending_settlement' => (int) OrderCommission::query()
                 ->where('created_at', '<=', $asOf)
+                ->when(! $this->access->current()->isSuperAdmin(), fn ($query) => $query->whereIn('agent_id', $this->access->current()->agentIds))
                 ->whereNotIn('id', $settledCommissionIds)
                 ->sum('amount_krw'),
             'agent_ranking' => $commissions->groupBy('agent_id')
@@ -82,7 +90,9 @@ final class DatabaseReportSettlementReader implements ReportSettlementReader
             ];
         }
 
-        $settlements = Settlement::query()->where('settlement_run_id', $run->id)->get();
+        $settlements = Settlement::query()->where('settlement_run_id', $run->id)
+            ->when(! $this->access->current()->isSuperAdmin(), fn ($query) => $query->whereIn('agent_id', $this->access->current()->agentIds))
+            ->get();
         $settledAmount = (int) $settlements
             ->whereIn('status', ['settled', 'paid'])
             ->sum('total_commission_krw');

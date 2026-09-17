@@ -2,7 +2,12 @@
 
 namespace App\Modules\Reminder\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
+use App\Modules\Agent\Application\Contracts\AgentAccessScopeReader;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
+use App\Modules\Auth\Application\Contracts\BusinessGroupReferenceReader;
+use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
 use App\Modules\Customer\Application\Contracts\ReminderCustomerReader;
 use App\Modules\Customer\Application\Data\ReminderCustomerData;
 use App\Modules\Reminder\Infrastructure\Models\Reminder;
@@ -18,7 +23,12 @@ final readonly class ReminderWorkspace
 {
     public function __construct(
         private ReminderCustomerReader $customers,
+        private InternalUserReferenceReader $users,
         private ReminderContentPresenter $content,
+        private BusinessClock $clock,
+        private AccessContextResolver $access,
+        private AgentAccessScopeReader $agentScope,
+        private BusinessGroupReferenceReader $groups,
     ) {}
 
     /** @return array<int, ReminderCustomerData> */
@@ -33,22 +43,71 @@ final readonly class ReminderWorkspace
         return collect($this->customers->candidates())->pluck('name', 'id')->all();
     }
 
-    /** @return LengthAwarePaginator<int, Reminder> */
-    public function paginate(User $user, bool $history, ?string $type = null): LengthAwarePaginator
+    /** @return list<array{id: int, name: string}> */
+    public function assigneeCandidates(): array
     {
+        $users = $this->users->eligibleUsers();
+        $context = $this->access->current();
+        if ($context->isSuperAdmin()) {
+            return $users;
+        }
+        if (! $context->hasEffectiveBusinessScope()) {
+            return [];
+        }
+        $allowed = [...$context->groupUserIds, $context->userId];
+
+        return array_values(array_filter($users, fn (array $user): bool => in_array((int) $user['id'], $allowed, true)));
+    }
+
+    public function isEligibleAssignee(int $id): bool
+    {
+        return collect($this->assigneeCandidates())->contains(fn (array $user): bool => (int) $user['id'] === $id);
+    }
+
+    /** @return LengthAwarePaginator<int, Reminder> */
+    public function paginate(User $user, bool $history, ?string $type = null, bool $overdueOnly = false, ?int $businessGroupId = null): LengthAwarePaginator
+    {
+        $customerIds = $businessGroupId === null ? null : $this->customerIdsForBusinessGroup($businessGroupId);
         /** @var LengthAwarePaginator<int, Reminder> $page */
         $page = $this->visible(Reminder::query(), $user)
             ->when($history, fn (Builder $query) => $query->whereIn('status', ['completed', 'cancelled']))
             ->when(! $history, fn (Builder $query) => $query->whereIn('status', ['pending', 'snoozed', 'transferred']))
             ->when($type !== null && $type !== '', fn (Builder $query) => $query->where('reminder_type', $type))
-            ->orderBy('priority')
+            ->when($overdueOnly && ! $history, fn (Builder $query) => $query->where('due_at', '<', $this->clock->now()))
+            ->when($customerIds !== null && $customerIds === [], fn (Builder $query) => $query->whereRaw('1 = 0'))
+            ->when($customerIds !== null && $customerIds !== [], fn (Builder $query) => $query->whereIn('customer_id', $customerIds))
             ->orderBy('due_at')
+            ->orderBy('priority')
+            ->orderBy('id')
             ->paginate(30);
         $page->setCollection($page->getCollection()->map(
             fn (Reminder $reminder): Reminder => $this->content->applyToReminder($reminder),
         ));
 
         return $page;
+    }
+
+    /** @return list<int> */
+    private function customerIdsForBusinessGroup(int $businessGroupId): array
+    {
+        $context = $this->access->current();
+        abort_unless(
+            $context->isSuperAdmin()
+                ? $this->groups->exists($businessGroupId, true)
+                : in_array($businessGroupId, $context->businessGroupIds, true),
+            404,
+        );
+        $agentIds = $this->agentScope->agentIdsForBusinessGroups([$businessGroupId], $this->clock->now()->toDateString());
+        if ($agentIds === []) {
+            return [];
+        }
+
+        return collect($this->customers->candidates())
+            ->filter(fn (ReminderCustomerData $customer): bool => $customer->sourceAgentId !== null && in_array($customer->sourceAgentId, $agentIds, true))
+            ->pluck('id')
+            ->map(fn (mixed $id): int => (int) $id)
+            ->values()
+            ->all();
     }
 
     /** @param array<string, mixed>|null $recurrence */
@@ -64,8 +123,10 @@ final readonly class ReminderWorkspace
         int $actorId,
     ): int {
         $this->customers->byId($customerId);
-        User::query()->findOrFail($assignedTo);
-        if ($dueAt->isBefore(CarbonImmutable::now())) {
+        if (! $this->isEligibleAssignee($assignedTo)) {
+            throw new DomainException(__('reminders.errors.assignee_unavailable'));
+        }
+        if ($dueAt->isBefore($this->clock->now())) {
             throw new DomainException(__('reminders.errors.custom_due_past'));
         }
         if ($recurrence !== null && ! in_array($recurrence['unit'] ?? null, ['day', 'week', 'month'], true)) {
@@ -104,7 +165,7 @@ final readonly class ReminderWorkspace
             }
             $reminder->update([
                 'status' => 'completed',
-                'completed_at' => now(),
+                'completed_at' => $this->clock->now(),
                 'completed_by' => $actor->id,
                 'notes' => $this->nullable($notes) ?? $reminder->notes,
             ]);
@@ -115,7 +176,7 @@ final readonly class ReminderWorkspace
 
     public function snooze(int $id, CarbonImmutable $until, string $reason, User $actor): void
     {
-        if (trim($reason) === '' || $until->isBefore(CarbonImmutable::now())) {
+        if (trim($reason) === '' || $until->isBefore($this->clock->now())) {
             throw new DomainException(__('reminders.errors.snooze_reason_and_future'));
         }
         $reminder = $this->findVisible($id, $actor);
@@ -126,7 +187,9 @@ final readonly class ReminderWorkspace
 
     public function transfer(int $id, int $assigneeId, User $actor): void
     {
-        User::query()->findOrFail($assigneeId);
+        if (! $this->isEligibleAssignee($assigneeId)) {
+            throw new DomainException(__('reminders.errors.assignee_unavailable'));
+        }
         $reminder = $this->findVisible($id, $actor);
         $before = $reminder->assigned_to;
         $reminder->update(['status' => 'transferred', 'assigned_to' => $assigneeId, 'notification_status' => 'pending']);
@@ -144,12 +207,14 @@ final readonly class ReminderWorkspace
     }
 
     /** @return array<string, int> */
-    public function completionStats(): array
+    public function completionStats(User $user): array
     {
+        $visible = fn () => $this->visible(Reminder::query(), $user);
+
         return [
-            'completed' => Reminder::query()->where('status', 'completed')->count(),
-            'pending' => Reminder::query()->whereIn('status', ['pending', 'snoozed', 'transferred'])->count(),
-            'overdue' => Reminder::query()->whereIn('status', ['pending', 'snoozed', 'transferred'])->where('due_at', '<', now())->count(),
+            'completed' => $visible()->where('status', 'completed')->count(),
+            'pending' => $visible()->whereIn('status', ['pending', 'snoozed', 'transferred'])->count(),
+            'overdue' => $visible()->whereIn('status', ['pending', 'snoozed', 'transferred'])->where('due_at', '<', $this->clock->now())->count(),
         ];
     }
 
@@ -167,12 +232,20 @@ final readonly class ReminderWorkspace
      */
     private function visible(Builder $query, User $user): Builder
     {
-        if ($user->is_super_admin) {
+        $context = $this->access->forUser($user);
+        if ($context->isSuperAdmin()) {
             return $query;
         }
 
-        return $query->where(function (Builder $inner) use ($user): void {
+        return $query->where(function (Builder $inner) use ($user, $context): void {
             $inner->where('assigned_to', $user->id)->orWhere('created_by', $user->id);
+            if ($context->isBdManager()) {
+                $customerIds = $this->access->using($context, fn (): array => collect($this->customers->candidates())
+                    ->pluck('id')->map(fn ($id): int => (int) $id)->all());
+                if ($customerIds !== []) {
+                    $inner->orWhereIn('customer_id', $customerIds);
+                }
+            }
         });
     }
 

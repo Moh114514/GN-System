@@ -12,7 +12,5 @@ interface SettlementAgentGateway
 
     public function forMonth(int $agentId, CarbonImmutable $month): SettlementAgentData;
 
-    public function recommendation(int $agentId, CarbonImmutable $month, int $commissionKrw): SettlementAgentData;
-
     public function scheduleGrade(int $agentId, int $gradeId, CarbonImmutable $effectiveMonth, int $actorId, string $reason): void;
 }

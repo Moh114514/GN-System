@@ -26,7 +26,7 @@ class GlobalSearchPage extends Component
 
         return view('livewire.reports.global-search', [
             'query' => $query,
-            'results' => $search->search($query, $user->is_super_admin),
+            'results' => $search->search($query, $user->isSuperAdmin() || $user->isBdManager()),
         ])->title(__('search.title'));
     }
 }

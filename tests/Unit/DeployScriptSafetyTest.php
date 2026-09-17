@@ -97,12 +97,28 @@ final class DeployScriptSafetyTest extends TestCase
         }
 
         $root = dirname(__DIR__, 2);
-        foreach (['deploy/reset-uat.sh', 'deploy/reload-config.sh'] as $relativePath) {
+        foreach (['deploy/deploy.sh', 'deploy/reset-uat.sh', 'deploy/reload-config.sh'] as $relativePath) {
             $output = [];
             $exitCode = 0;
             exec('bash -n '.escapeshellarg($root.'/'.$relativePath), $output, $exitCode);
 
             self::assertSame(0, $exitCode, implode(PHP_EOL, $output));
         }
+    }
+
+    public function test_release_deploy_migrates_and_clears_caches_before_starting_application(): void
+    {
+        $script = file_get_contents(dirname(__DIR__, 2).'/deploy/deploy.sh');
+
+        self::assertIsString($script);
+        $migration = strpos($script, 'php artisan migrate --force --isolated --no-interaction');
+        $clear = strpos($script, 'php artisan optimize:clear --no-interaction');
+        $start = strpos($script, 'up -d --remove-orphans');
+
+        self::assertIsInt($migration);
+        self::assertIsInt($clear);
+        self::assertIsInt($start);
+        self::assertGreaterThan($migration, $clear);
+        self::assertGreaterThan($clear, $start);
     }
 }

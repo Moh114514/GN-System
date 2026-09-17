@@ -14,7 +14,7 @@
             </flux:select>
             @if ($preset === 'custom')
                 <div class="crm-dashboard-custom-range" role="group" aria-label="{{ __('dashboard.controls.custom_range') }}">
-                    <x-localized-date-picker
+                    <x-date-time-picker
                         id="dashboard-custom-from"
                         wire:model="customFrom"
                         :value="$customFrom"
@@ -23,7 +23,7 @@
                         size="sm"
                     />
                     <span class="crm-dashboard-date-separator" aria-hidden="true">—</span>
-                    <x-localized-date-picker
+                    <x-date-time-picker
                         id="dashboard-custom-to"
                         wire:model="customTo"
                         :value="$customTo"
@@ -54,40 +54,26 @@
             $metricDefinitions = [
                 ['revenue', __('dashboard.metrics.revenue'), true, 'banknotes', 'teal', 'M0,22 Q15,8 30,18 T60,12 T90,20 T110,8'],
                 ['new_customers', __('dashboard.metrics.new_customers'), false, 'users', 'teal', 'M0,20 Q15,14 30,16 T60,10 T90,14 T110,6'],
-                ['pending_reminders', __('dashboard.metrics.pending_reminders'), false, 'bell-alert', 'amber', 'M0,10 Q15,18 30,12 T60,22 T90,16 T110,24'],
                 ['promotion_fee', __('dashboard.metrics.promotion_fee'), true, 'briefcase', 'blue', 'M0,24 Q15,16 30,20 T60,14 T90,18 T110,10'],
                 ['repurchase_rate', __('dashboard.metrics.repurchase_rate'), false, 'arrow-path', 'purple', 'M0,18 Q15,14 30,12 T60,16 T90,10 T110,6'],
-            ];
-            $lifecycleDefinitions = [
-                'registered' => [__('dashboard.lifecycle.registered'), 'clipboard-document', 'teal'],
-                'appointed' => [__('dashboard.lifecycle.appointed'), 'calendar-days', 'blue'],
-                'arrived' => [__('dashboard.lifecycle.arrived'), 'building-office-2', 'purple'],
-                'followed_up' => [__('dashboard.lifecycle.followed_up'), 'phone', 'amber'],
-                'repeat' => [__('dashboard.lifecycle.repeat'), 'arrow-path', 'green'],
-            ];
-            $statusTones = [
-                'registered' => 'gray',
-                'potential' => 'gray',
-                'interested' => 'blue',
-                'quoted' => 'blue',
-                'appointment' => 'blue',
-                'appointed' => 'blue',
-                'booked' => 'blue',
-                'arrived' => 'purple',
-                'treatment' => 'teal',
-                'treated' => 'teal',
-                'followup' => 'amber',
-                'returned_home' => 'amber',
-                'repeat' => 'green',
-                'dormant' => 'gray',
-                'lost' => 'red',
             ];
             $ranking = array_slice($snapshot['charts']['agent_promotion_ranking'], 0, 5);
             $rankingTotal = array_sum(array_column($ranking, 'value'));
             $rankingMax = max(1, ...array_column($ranking ?: [['value' => 0]], 'value'));
-            $lifecycle = $snapshot['panels']['lifecycle'];
-            $repeatLifecycle = collect($lifecycle)->firstWhere('key', 'repeat');
             $settlement = $snapshot['panels']['settlement_progress'];
+            $rangeFrom = \Carbon\CarbonImmutable::parse($snapshot['range']['from'])->setTimezone('Asia/Shanghai')->toDateString();
+            $rangeTo = \Carbon\CarbonImmutable::parse($snapshot['range']['to'])->setTimezone('Asia/Shanghai')->toDateString();
+            $reportRange = ['completedFrom' => $rangeFrom, 'completedTo' => $rangeTo];
+            $institutionRevenue = $snapshot['charts']['institution_revenue'] ?? [];
+            $institutionRevenueTotal = array_sum(array_column($institutionRevenue, 'value'));
+            $institutionRevenueMax = max(1, ...array_column($institutionRevenue ?: [['value' => 0]], 'value'));
+            $institutionMonth = (string) ($snapshot['panels']['institution_revenue_month'] ?? '');
+            $metricLinks = [
+                'revenue' => route('reports.search', $reportRange),
+                'new_customers' => route('customers.index', ['createdFrom' => $rangeFrom, 'createdTo' => $rangeTo]),
+                'promotion_fee' => auth()->user()->is_super_admin ? route('settlements.index') : null,
+                'repurchase_rate' => route('reports.search', $reportRange),
+            ];
         @endphp
 
         <div
@@ -97,10 +83,6 @@
                 @foreach ($metricDefinitions as [$key, $label, $money, $icon, $tone, $spark])
                     @php
                         $metric = match ($key) {
-                            'pending_reminders' => [
-                                'value' => $snapshot['panels']['pending_reminders'],
-                                'change' => null,
-                            ],
                             'promotion_fee' => [
                                 'value' => $snapshot['panels']['promotion_fee'],
                                 'change' => null,
@@ -111,8 +93,13 @@
                             ],
                             default => $snapshot['metrics'][$key],
                         };
+                        $metricLink = $metricLinks[$key] ?? null;
                     @endphp
-                    <article class="crm-metric">
+                    @if ($metricLink)
+                        <a class="crm-metric" href="{{ $metricLink }}" wire:navigate aria-label="{{ $label }}">
+                    @else
+                        <article class="crm-metric">
+                    @endif
                         <span class="crm-metric-icon tone-{{ $tone }}"><flux:icon :name="$icon" /></span>
                         <span class="crm-metric-label">{{ $label }} <span title="{{ __('dashboard.metrics.actual') }}">ⓘ</span></span>
                         <strong class="crm-number">
@@ -136,7 +123,11 @@
                         <svg class="crm-spark tone-{{ $tone }}" viewBox="0 0 110 32" aria-hidden="true">
                             <path d="{{ $spark }}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
                         </svg>
-                    </article>
+                    @if ($metricLink)
+                        </a>
+                    @else
+                        </article>
+                    @endif
                 @endforeach
             </section>
 
@@ -144,10 +135,8 @@
                 <article class="crm-card crm-trend-card">
                     <header class="crm-card-header">
                         <h2>{{ __('dashboard.panels.trend') }}</h2>
-                        <div class="crm-tabs" aria-label="{{ __('dashboard.panels.period') }}">
-                            <button type="button" class="is-active">{{ __('dashboard.panels.monthly') }}</button>
-                        </div>
                     </header>
+                    <a class="crm-card-link" href="{{ route('reports.search', $reportRange) }}" wire:navigate>{{ __('dashboard.panels.view_details') }} <span>›</span></a>
                     <div class="crm-chart-legend">
                         <span><i class="tone-teal"></i>{{ __('dashboard.panels.revenue_krw') }}</span>
                         <span><i class="tone-blue is-round"></i>{{ __('dashboard.panels.orders_count') }}</span>
@@ -167,7 +156,9 @@
                 <article class="crm-card">
                     <header class="crm-card-header">
                         <h2>{{ __('dashboard.panels.promotion_ranking') }}</h2>
-                        <a class="crm-card-link" href="{{ route('agents.index') }}" wire:navigate>{{ __('dashboard.panels.view_all') }} <span>›</span></a>
+                        @if (auth()->user()->is_super_admin)
+                            <a class="crm-card-link" href="{{ route('agents.index') }}" wire:navigate>{{ __('dashboard.panels.view_all') }} <span>›</span></a>
+                        @endif
                     </header>
                     <div class="crm-rank-list">
                         @forelse ($ranking as $index => $agent)
@@ -180,7 +171,11 @@
                                 <span class="crm-rank-number {{ $index < 3 ? 'is-top' : '' }}">{{ $index + 1 }}</span>
                                 <span class="crm-mini-logo tone-{{ $tones[$index % count($tones)] }}">{{ mb_substr($agent['key'], 0, 1) }}</span>
                                 <span class="crm-rank-name">
-                                    <strong>{{ $agent['key'] }}</strong>
+                                    @if (auth()->user()->is_super_admin && isset($agent['id']))
+                                        <a class="font-semibold text-teal-700 hover:underline" href="{{ route('agents.show', $agent['id']) }}" wire:navigate>{{ $agent['key'] }}</a>
+                                    @else
+                                        <strong>{{ $agent['key'] }}</strong>
+                                    @endif
                                     <span><i style="width: {{ number_format($width, 1, '.', '') }}%"></i></span>
                                 </span>
                                 <span class="crm-rank-value">
@@ -194,87 +189,40 @@
                     </div>
                 </article>
 
-                <article class="crm-card">
+                <article class="crm-card" data-test="institution-revenue-panel">
                     <header class="crm-card-header">
-                        <h2>{{ __('dashboard.panels.lifecycle') }}</h2>
+                        <h2>{{ __('dashboard.panels.institution_revenue_month') }}</h2>
+                        <a class="crm-card-link" href="{{ route('reports.institution-sales', ['month' => $institutionMonth]) }}" wire:navigate>{{ __('dashboard.panels.view_details') }} <span>›</span></a>
                     </header>
-                    <div class="crm-funnel">
-                        @foreach ($lifecycle as $stage)
-                            @php([$stageLabel, $stageIcon, $stageTone] = $lifecycleDefinitions[$stage['key']])
-                            <div class="crm-funnel-row">
-                                <span class="crm-funnel-icon tone-{{ $stageTone }}"><flux:icon :name="$stageIcon" /></span>
-                                <span class="crm-funnel-track">
-                                    <i class="tone-{{ $stageTone }}" style="width: {{ max(0, min(100, $stage['percentage'])) }}%"><b>{{ $stageLabel }}</b></i>
-                                </span>
-                                <strong class="crm-number">{{ number_format($stage['value']) }}</strong>
-                                <small>{{ number_format($stage['percentage'], 1) }}%</small>
-                            </div>
-                        @endforeach
-                    </div>
-                    <div class="crm-conversion">
-                        <span>{{ __('dashboard.lifecycle.conversion') }}</span>
-                        <strong>{{ number_format(data_get($repeatLifecycle, 'percentage', 0), 1) }}%</strong>
-                    </div>
-                </article>
-            </section>
-
-            <section class="crm-dashboard-grid crm-dashboard-grid-bottom">
-                <article class="crm-card">
-                    <header class="crm-card-header">
-                        <h2>{{ __('dashboard.panels.today_tasks') }} <span class="crm-pill tone-red">{{ count($snapshot['panels']['today_tasks']) }}</span></h2>
-                        <a class="crm-card-link" href="{{ route('reminders.index') }}" wire:navigate>{{ __('dashboard.panels.view_all') }} <span>›</span></a>
-                    </header>
-                    <div class="crm-task-list">
-                        @forelse ($snapshot['panels']['today_tasks'] as $task)
-                            <div class="crm-task">
-                                <time class="crm-number">{{ $task['time'] }}</time>
-                                <span class="crm-task-avatar">{{ mb_substr($task['customer_name'], 0, 1) }}</span>
-                                <strong>{{ $task['customer_name'] }} · {{ $task['title'] }}</strong>
-                                <span class="crm-pill tone-{{ $task['priority'] >= 4 ? 'red' : ($task['priority'] >= 3 ? 'amber' : 'teal') }}">{{ $task['tag'] }}</span>
-                            </div>
+                    <div class="space-y-4" data-institution-revenue>
+                        @forelse ($institutionRevenue as $institution)
+                            @php
+                                $share = $institutionRevenueTotal === 0 ? 0 : $institution['value'] / $institutionRevenueTotal * 100;
+                                $width = $institution['value'] / $institutionRevenueMax * 100;
+                            @endphp
+                            <a
+                                class="group block"
+                                data-institution-revenue-row
+                                href="{{ route('reports.institution-sales.show', ['institution' => $institution['id'], 'month' => $institutionMonth]) }}"
+                                wire:navigate
+                            >
+                                <div class="flex items-center justify-between gap-3 text-xs">
+                                    <span class="truncate font-semibold text-zinc-700 group-hover:text-teal-700 dark:text-zinc-200 dark:group-hover:text-teal-300">{{ $institution['key'] }}</span>
+                                    <span class="shrink-0 tabular-nums text-zinc-500 dark:text-zinc-400">₩ {{ number_format($institution['value']) }} · {{ number_format($share, 1) }}%</span>
+                                </div>
+                                <div class="mt-1.5 h-2 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800" aria-hidden="true">
+                                    <span class="block h-full rounded-full bg-teal-500 transition-all" style="width: {{ number_format($width, 2, '.', '') }}%"></span>
+                                </div>
+                            </a>
                         @empty
-                            <div class="crm-panel-empty"><flux:icon name="check-circle" />{{ __('dashboard.panels.no_tasks') }}</div>
+                            <div class="crm-panel-empty"><flux:icon name="building-office" />{{ __('dashboard.panels.no_institution_revenue_month') }}</div>
                         @endforelse
                     </div>
                 </article>
 
-                <article class="crm-card crm-customer-card">
-                    <header class="crm-card-header">
-                        <h2>{{ __('dashboard.panels.recent_customers') }}</h2>
-                        <a class="crm-card-link" href="{{ route('customers.index') }}" wire:navigate>{{ __('dashboard.panels.view_all') }} <span>›</span></a>
-                    </header>
-                    <div class="crm-table-wrap">
-                        <table class="crm-table">
-                            <thead>
-                                <tr>
-                                    <th>{{ __('dashboard.panels.customer_code') }}</th>
-                                    <th>{{ __('dashboard.panels.name') }}</th>
-                                    <th>{{ __('dashboard.panels.source') }}</th>
-                                    <th>{{ __('dashboard.panels.current_status') }}</th>
-                                    <th>{{ __('dashboard.panels.created_date') }}</th>
-                                    <th>{{ __('dashboard.panels.owner') }}</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @forelse ($snapshot['panels']['recent_customers'] as $customer)
-                                    <tr>
-                                        <td>
-                                            <a class="crm-customer-id crm-number" href="{{ route('customers.show', $customer['id']) }}" wire:navigate>{{ $customer['code'] }}</a>
-                                        </td>
-                                        <td><strong>{{ $customer['name'] }}</strong></td>
-                                        <td>{{ $customer['source_name'] }}</td>
-                                        <td><span class="crm-pill tone-{{ $statusTones[$customer['status_key']] ?? 'gray' }}">{{ $customer['status_name'] }}</span></td>
-                                        <td class="crm-number">{{ $customer['created_on'] }}</td>
-                                        <td>{{ $customer['owner_name'] }}</td>
-                                    </tr>
-                                @empty
-                                    <tr><td colspan="6" class="crm-table-empty">{{ __('dashboard.panels.no_customers') }}</td></tr>
-                                @endforelse
-                            </tbody>
-                        </table>
-                    </div>
-                </article>
+            </section>
 
+            <section class="crm-dashboard-grid crm-dashboard-grid-bottom">
                 <article class="crm-card">
                     <header class="crm-card-header">
                         <h2>{{ __('dashboard.panels.settlement') }}</h2>
@@ -311,16 +259,6 @@
             </section>
 
             <footer class="crm-dashboard-footer">
-                <div>
-                    <span>{{ __('dashboard.panels.status_legend') }}</span>
-                    <span><i class="tone-green"></i>{{ __('dashboard.statuses.repeat') }}</span>
-                    <span><i class="tone-blue"></i>{{ __('dashboard.statuses.appointed') }}</span>
-                    <span><i class="tone-purple"></i>{{ __('dashboard.statuses.arrived') }}</span>
-                    <span><i class="tone-teal"></i>{{ __('dashboard.statuses.treated') }}</span>
-                    <span><i class="tone-amber"></i>{{ __('dashboard.statuses.followup') }}</span>
-                    <span><i class="tone-red"></i>{{ __('dashboard.statuses.lost') }}</span>
-                    <span><i class="tone-gray"></i>{{ __('dashboard.statuses.registered') }}</span>
-                </div>
                 <span>
                     {{ __('dashboard.panels.updated_at') }}
                     {{ \Carbon\CarbonImmutable::parse($snapshot['generated_at'])->setTimezone('Asia/Shanghai')->format('Y-m-d H:i:s') }}

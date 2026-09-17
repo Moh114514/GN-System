@@ -2,7 +2,7 @@
 
 namespace App\Modules\Reminder\Presentation\Livewire;
 
-use App\Models\User;
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Reminder\Application\Services\ReminderContentPresenter;
 use App\Modules\Reminder\Application\Services\ReminderRuleManager;
 use App\Modules\Reminder\Application\Services\ReminderWorkspace;
@@ -40,7 +40,7 @@ class ReminderCreate extends Component
 
     public string $templateName = '';
 
-    public function mount(ReminderRuleManager $rules): void
+    public function mount(ReminderRuleManager $rules, BusinessClock $clock): void
     {
         $rules->ensureSystemTemplates();
         $requestedCustomer = request()->integer('customer');
@@ -48,7 +48,7 @@ class ReminderCreate extends Component
             $this->customerId = (string) $requestedCustomer;
         }
         $this->assignedTo = (string) Auth::id();
-        $this->dueAt = now()->addDay()->setTime(9, 0)->format('Y-m-d\TH:i');
+        $this->dueAt = $clock->now()->addDay()->setTime(9, 0)->format('Y-m-d\TH:i');
     }
 
     public function updatedTemplateId(): void
@@ -75,6 +75,11 @@ class ReminderCreate extends Component
             'recurrenceInterval' => ['required_if:recurrenceUnit,day,week,month', 'integer', 'min:1', 'max:365'],
             'templateName' => ['required_if:saveAsTemplate,true', 'nullable', 'string', 'max:255'],
         ]);
+        if (! $workspace->isEligibleAssignee((int) $this->assignedTo)) {
+            $this->addError('assignedTo', __('reminders.errors.assignee_unavailable'));
+
+            return;
+        }
         try {
             $workspace->createCustom(
                 customerId: (int) $this->customerId,
@@ -112,7 +117,7 @@ class ReminderCreate extends Component
 
         return view('livewire.reminders.reminder-create', [
             'customers' => $workspace->customerCandidates(),
-            'users' => User::query()->orderBy('name')->get(['id', 'name']),
+            'users' => $workspace->assigneeCandidates(),
             'templates' => $templates,
         ])->title(__('reminders.titles.create'));
     }

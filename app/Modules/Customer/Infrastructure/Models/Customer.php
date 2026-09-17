@@ -2,6 +2,7 @@
 
 namespace App\Modules\Customer\Infrastructure\Models;
 
+use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -13,10 +14,10 @@ use Illuminate\Support\Carbon;
  * @property string $code
  * @property string|null $legacy_code
  * @property string $name
- * @property string $original_channel
  * @property int|null $source_agent_id
- * @property int|null $source_direct_sales_id
  * @property int|null $current_status_id
+ * @property CarbonImmutable|null $treatment_completed_at
+ * @property CarbonImmutable|null $arrived_at
  * @property string|null $import_batch_id
  * @property Carbon|null $birth_date
  * @property Carbon|null $created_at
@@ -31,6 +32,8 @@ class Customer extends Model
         return [
             'birth_date' => 'date',
             'wechat_added_on' => 'date',
+            'treatment_completed_at' => 'immutable_datetime',
+            'arrived_at' => 'immutable_datetime',
         ];
     }
 

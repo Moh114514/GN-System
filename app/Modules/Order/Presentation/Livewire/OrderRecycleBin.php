@@ -18,8 +18,6 @@ class OrderRecycleBin extends Component
 
     public string $statusFilter = '';
 
-    public string $channelFilter = '';
-
     public string $institutionFilter = '';
 
     public string $agentFilter = '';
@@ -33,7 +31,6 @@ class OrderRecycleBin extends Component
     protected array $queryString = [
         'search' => ['except' => ''],
         'statusFilter' => ['except' => ''],
-        'channelFilter' => ['except' => ''],
         'institutionFilter' => ['except' => ''],
         'agentFilter' => ['except' => ''],
         'perPage' => ['except' => 20],
@@ -47,14 +44,14 @@ class OrderRecycleBin extends Component
 
     public function updated(string $property): void
     {
-        if (in_array($property, ['search', 'statusFilter', 'channelFilter', 'institutionFilter', 'agentFilter', 'perPage'], true)) {
+        if (in_array($property, ['search', 'statusFilter', 'institutionFilter', 'agentFilter', 'perPage'], true)) {
             $this->resetPage();
         }
     }
 
     public function clearFilters(): void
     {
-        $this->reset('search', 'statusFilter', 'channelFilter', 'institutionFilter', 'agentFilter');
+        $this->reset('search', 'statusFilter', 'institutionFilter', 'agentFilter');
         $this->perPage = 20;
         $this->resetPage();
     }
@@ -65,7 +62,6 @@ class OrderRecycleBin extends Component
         $orders = $workspace->paginate([
             'search' => $this->search,
             'status' => $this->statusFilter,
-            'channel' => $this->channelFilter,
             'institution_id' => $this->institutionFilter === '' ? null : (int) $this->institutionFilter,
             'agent_id' => $this->agentFilter === '' ? null : (int) $this->agentFilter,
         ], in_array($this->perPage, [20, 50, 100], true) ? $this->perPage : 20, true, true);

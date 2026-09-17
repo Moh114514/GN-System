@@ -27,16 +27,12 @@ class CustomerStatusConfiguration extends Component
     {
         $this->validate([
             'stages.*.id' => ['required', 'integer'],
+            'stages.*.key' => ['required', 'in:customer_lifecycle'],
             'stages.*.name' => ['required', 'string', 'max:255'],
-            'stages.*.sort_order' => ['required', 'integer', 'min:0'],
-            'stages.*.is_active' => ['boolean'],
             'statuses.*.id' => ['required', 'integer'],
+            'statuses.*.key' => ['required', 'in:booked,arrived,treatment_completed'],
             'statuses.*.name' => ['required', 'string', 'max:255'],
             'statuses.*.stage_id' => ['required', 'integer'],
-            'statuses.*.sort_order' => ['required', 'integer', 'min:0'],
-            'statuses.*.is_active' => ['boolean'],
-            'statuses.*.to_status_ids' => ['array'],
-            'statuses.*.to_status_ids.*' => ['integer'],
         ]);
         $manager->saveConfiguration($this->stages, $this->statuses, Auth::user(), request()->ip());
         $this->loadConfiguration($manager);

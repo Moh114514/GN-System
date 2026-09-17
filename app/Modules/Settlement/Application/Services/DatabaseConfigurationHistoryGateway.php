@@ -49,9 +49,15 @@ final readonly class DatabaseConfigurationHistoryGateway implements Configuratio
             foreach ([
                 'commission_rules' => ['policy_grade_id', 'institution_id', 'rate_bps', 'effective_month', 'is_active', 'import_batch_id', 'created_at', 'updated_at'],
                 'agent_commission_overrides' => ['agent_id', 'institution_id', 'rate_bps', 'effective_from', 'effective_until', 'reason', 'approved_by', 'import_batch_id', 'created_at', 'updated_at'],
-                'settlement_configurations' => ['boundary_day', 'trigger_time', 'timezone', 'effective_from', 'created_by', 'created_at', 'updated_at'],
+                'settlement_configurations' => ['boundary_day', 'generation_day', 'trigger_time', 'timezone', 'effective_from', 'created_by', 'created_at', 'updated_at'],
             ] as $table => $columns) {
                 $rows = $target[$table] ?? [];
+                if ($table === 'settlement_configurations') {
+                    $rows = array_map(static fn (array $row): array => [
+                        ...$row,
+                        'generation_day' => $row['generation_day'] ?? null,
+                    ], $rows);
+                }
                 if ($rows !== []) {
                     DB::table($table)->upsert($rows, ['id'], $columns);
                 }

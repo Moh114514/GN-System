@@ -6,22 +6,14 @@ final class CustomerLabelLocalizer
 {
     /** @var array<string, string> */
     private const DEFAULT_STAGES = [
-        'first_contact' => '首次接触',
-        'booking' => '预约确认',
-        'arrival' => '到院接待',
-        'followup' => '后续跟进',
-        'operations' => '运营管理',
+        'customer_lifecycle' => '客户生命周期',
     ];
 
     /** @var array<string, string> */
     private const DEFAULT_STATUSES = [
-        'interested' => '意向',
-        'quoted' => '已报价',
         'booked' => '已预约',
         'arrived' => '已到院',
-        'returned_home' => '已回国',
-        'dormant' => '沉默待唤醒',
-        'lost' => '已流失',
+        'treatment_completed' => '施术结束',
     ];
 
     public function stage(string $key, ?string $name): string

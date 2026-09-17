@@ -3,6 +3,7 @@
 namespace App\Modules\Agent\Infrastructure\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 /**
@@ -30,5 +31,11 @@ class Agent extends Model
             'cooperation_started_on' => 'date',
             'cooperation_ended_on' => 'date',
         ];
+    }
+
+    /** @return HasMany<AgentBusinessGroupAssignment, $this> */
+    public function businessGroupAssignments(): HasMany
+    {
+        return $this->hasMany(AgentBusinessGroupAssignment::class);
     }
 }

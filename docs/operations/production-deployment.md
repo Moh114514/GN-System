@@ -80,7 +80,8 @@ RC 标签 `vX.Y.Z-rc.N` 通过完整门禁后构建 GHCR 镜像；UAT 验收通�
 或安装依赖。
 
 `deploy/deploy.sh` 会检查环境、记录旧版本、执行部署前全量备份、进入维护状态、
-拉取镜像、执行 `migrate --force --isolated`、启动服务，并等待三个健康接口通过。
+拉取镜像、执行 `migrate --force --isolated` 和 `optimize:clear`、启动服务、重启 Queue Worker，
+并等待三个健康接口通过。
 为它预留 5～10 分钟维护窗口。
 
 当前脚本固定执行镜像拉取，尚未支持离线参数。若 Production 未来需要采用局域网离线

@@ -22,8 +22,8 @@ class PhaseTwoDemoDataSeederTest extends TestCase
             'code' => 'DM01-JG-0001',
             'name' => '【模拟】渠道客户01-01',
         ]);
-        $this->assertDatabaseHas('orders', ['channel' => 'direct']);
-        $this->assertDatabaseHas('orders', ['channel' => 'agent']);
+        $this->assertDatabaseCount('orders', 144);
+        $this->assertDatabaseMissing('orders', ['agent_id' => null]);
         $this->assertDatabaseHas('settlements', ['status' => 'paid']);
         $this->assertDatabaseHas('settlements', ['snapshot->source' => 'demo_data']);
     }
@@ -31,12 +31,11 @@ class PhaseTwoDemoDataSeederTest extends TestCase
     private function assertDemoCounts(): void
     {
         $this->assertDatabaseCount('agents', 12);
-        $this->assertDatabaseCount('direct_sales_sources', 3);
         $this->assertDatabaseCount('customers', 144);
         $this->assertDatabaseCount('customer_contacts', 144);
         $this->assertDatabaseCount('customer_identity_documents', 144);
         $this->assertDatabaseCount('appointments', 144);
         $this->assertDatabaseCount('orders', 144);
-        $this->assertDatabaseCount('order_commissions', 100);
+        $this->assertDatabaseCount('order_commissions', 144);
     }
 }

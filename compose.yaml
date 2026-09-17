@@ -91,7 +91,7 @@ services:
 
   queue:
     <<: *app-base
-    command: php artisan queue:work redis --sleep=3 --tries=3 --timeout=90
+    command: php artisan queue:listen redis --sleep=3 --tries=3 --timeout=90
     depends_on:
       app:
         condition: service_healthy

@@ -43,6 +43,7 @@ final class AuditMessageCatalog
         'audit.messages.source_status_changed',
         'audit.messages.historical_import_completed',
         'audit.messages.historical_import_rolled_back',
+        'audit.messages.historical_order_attribution_backfilled',
         'audit.messages.import_row_adjudicated',
         'audit.messages.reference_import_completed',
         'audit.messages.reminder_rule_saved',

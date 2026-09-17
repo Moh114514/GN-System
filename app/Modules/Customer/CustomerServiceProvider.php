@@ -6,23 +6,24 @@ use App\Modules\Customer\Application\Contracts\AgentCustomerPortfolioReader;
 use App\Modules\Customer\Application\Contracts\ConfigurationHistoryGateway;
 use App\Modules\Customer\Application\Contracts\CustomerImportGateway;
 use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
-use App\Modules\Customer\Application\Contracts\ReferenceConfigurationImportGateway;
+use App\Modules\Customer\Application\Contracts\CustomerTreatmentCompletionGateway;
 use App\Modules\Customer\Application\Contracts\ReminderCustomerReader;
 use App\Modules\Customer\Application\Contracts\ReportCustomerReader;
 use App\Modules\Customer\Application\Services\DatabaseAgentCustomerPortfolioReader;
 use App\Modules\Customer\Application\Services\DatabaseConfigurationHistoryGateway;
 use App\Modules\Customer\Application\Services\DatabaseCustomerImportGateway;
 use App\Modules\Customer\Application\Services\DatabaseCustomerOrderReferenceReader;
-use App\Modules\Customer\Application\Services\DatabaseReferenceConfigurationImportGateway;
+use App\Modules\Customer\Application\Services\DatabaseCustomerTreatmentCompletionGateway;
 use App\Modules\Customer\Application\Services\DatabaseReminderCustomerReader;
 use App\Modules\Customer\Application\Services\DatabaseReportCustomerReader;
 use App\Modules\Customer\Presentation\Livewire\CustomerDetail;
 use App\Modules\Customer\Presentation\Livewire\CustomerForm;
 use App\Modules\Customer\Presentation\Livewire\CustomerList;
+use App\Modules\Customer\Presentation\Livewire\CustomerOverview;
 use App\Modules\Customer\Presentation\Livewire\CustomerStatusConfiguration;
-use App\Modules\Customer\Presentation\Livewire\DirectSalesSourceConfiguration;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
+use Livewire\Livewire;
 
 class CustomerServiceProvider extends ServiceProvider
 {
@@ -30,15 +31,17 @@ class CustomerServiceProvider extends ServiceProvider
     {
         $this->app->bind(CustomerImportGateway::class, DatabaseCustomerImportGateway::class);
         $this->app->bind(CustomerOrderReferenceReader::class, DatabaseCustomerOrderReferenceReader::class);
+        $this->app->bind(CustomerTreatmentCompletionGateway::class, DatabaseCustomerTreatmentCompletionGateway::class);
         $this->app->bind(AgentCustomerPortfolioReader::class, DatabaseAgentCustomerPortfolioReader::class);
         $this->app->bind(ReminderCustomerReader::class, DatabaseReminderCustomerReader::class);
-        $this->app->bind(ReferenceConfigurationImportGateway::class, DatabaseReferenceConfigurationImportGateway::class);
         $this->app->bind(ReportCustomerReader::class, DatabaseReportCustomerReader::class);
         $this->app->bind(ConfigurationHistoryGateway::class, DatabaseConfigurationHistoryGateway::class);
     }
 
     public function boot(): void
     {
+        Livewire::component('customer-overview', CustomerOverview::class);
+
         Route::middleware(['web', 'auth', 'verified', 'super-admin.2fa'])->group(function (): void {
             Route::get('/customers', CustomerList::class)->name('customers.index');
             Route::get('/customers/create', CustomerForm::class)->name('customers.create');
@@ -46,8 +49,6 @@ class CustomerServiceProvider extends ServiceProvider
             Route::get('/customers/{customer}/edit', CustomerForm::class)->whereNumber('customer')->name('customers.edit');
             Route::middleware('super-admin')->get('/admin/customer-statuses', CustomerStatusConfiguration::class)
                 ->name('customer-statuses.index');
-            Route::middleware('super-admin')->get('/admin/direct-sales-sources', DirectSalesSourceConfiguration::class)
-                ->name('direct-sales-sources.index');
         });
     }
 }

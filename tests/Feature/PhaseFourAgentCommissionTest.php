@@ -2,20 +2,23 @@
 
 namespace Tests\Feature;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Agent\Application\Data\AgentProfileData;
 use App\Modules\Agent\Application\Services\AgentDirectory;
 use App\Modules\Agent\Application\Services\AgentManager;
 use App\Modules\Agent\Application\Services\DatabaseReferenceConfigurationImportGateway;
 use App\Modules\Agent\Infrastructure\Models\Agent;
+use App\Modules\Agent\Infrastructure\Models\AgentBusinessGroupAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentGradeAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Agent\Infrastructure\Models\PolicyGrade;
 use App\Modules\Agent\Infrastructure\Models\PolicySystem;
 use App\Modules\Agent\Presentation\Livewire\AgentList;
+use App\Modules\Auth\Infrastructure\Models\BusinessGroup;
+use App\Modules\Auth\Infrastructure\Models\BusinessGroupMembership;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Infrastructure\Models\Customer;
-use App\Modules\Customer\Infrastructure\Models\DirectSalesSource;
 use App\Modules\Order\Application\Contracts\DailyOrderGateway;
 use App\Modules\Order\Application\Data\DailyOrderData;
 use App\Modules\Order\Infrastructure\Models\Order;
@@ -27,6 +30,7 @@ use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Spatie\Activitylog\Models\Activity;
@@ -35,6 +39,19 @@ use Tests\TestCase;
 class PhaseFourAgentCommissionTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_agent_grade_threshold_migration_removes_legacy_column_and_can_restore_it(): void
+    {
+        $migration = require base_path('database/migrations/2026_08_27_000300_remove_agent_grade_thresholds.php');
+
+        $this->assertFalse(Schema::hasColumn('policy_grades', 'monthly_threshold_krw'));
+
+        $migration->down();
+        $this->assertTrue(Schema::hasColumn('policy_grades', 'monthly_threshold_krw'));
+
+        $migration->up();
+        $this->assertFalse(Schema::hasColumn('policy_grades', 'monthly_threshold_krw'));
+    }
 
     private User $user;
 
@@ -55,11 +72,24 @@ class PhaseFourAgentCommissionTest extends TestCase
         $this->seed(PhaseTwoReferenceDataSeeder::class);
         $this->user = User::factory()->create();
         $this->admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $businessGroup = BusinessGroup::query()->create([
+            'code' => 'TEST-GROUP',
+            'name' => '测试业务组',
+            'is_active' => true,
+            'created_by' => $this->admin->id,
+        ]);
+        BusinessGroupMembership::query()->create([
+            'business_group_id' => $businessGroup->id,
+            'user_id' => $this->user->id,
+            'member_role' => 'customer_service',
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $this->admin->id,
+            'reason' => 'phase four test scope',
+        ]);
         $system = PolicySystem::query()->create(['name' => '代理商计划', 'is_active' => true]);
         $this->grade = PolicyGrade::query()->create([
             'policy_system_id' => $system->id,
             'name' => '黄金',
-            'monthly_threshold_krw' => 0,
             'sort_order' => 10,
             'is_active' => true,
         ]);
@@ -70,6 +100,13 @@ class PhaseFourAgentCommissionTest extends TestCase
             'name' => '测试代理商',
             'cooperation_started_on' => '2026-01-01',
             'cooperation_status' => 'active',
+        ]);
+        AgentBusinessGroupAssignment::query()->create([
+            'agent_id' => $this->agent->id,
+            'business_group_id' => $businessGroup->id,
+            'effective_from' => '2026-01-01',
+            'assigned_by' => $this->admin->id,
+            'reason' => 'phase four test scope',
         ]);
         AgentGradeAssignment::query()->create([
             'agent_id' => $this->agent->id,
@@ -82,7 +119,6 @@ class PhaseFourAgentCommissionTest extends TestCase
         $this->customer = Customer::query()->create([
             'code' => 'TEST-JG-0001',
             'name' => '订单测试客户',
-            'original_channel' => 'agent',
             'source_agent_id' => $this->agent->id,
             'owner_id' => $this->user->id,
         ]);
@@ -103,7 +139,7 @@ class PhaseFourAgentCommissionTest extends TestCase
 
     public function test_completed_agent_order_is_atomic_audited_and_snapshotted(): void
     {
-        $orderId = app(DailyOrderGateway::class)->create($this->orderData('agent', 'completed', 10005));
+        $orderId = app(DailyOrderGateway::class)->create($this->orderData('completed', 10005));
         $commission = OrderCommission::query()->where('order_id', $orderId)->firstOrFail();
 
         $this->assertSame(1251, (int) $commission->amount_krw);
@@ -145,7 +181,7 @@ class PhaseFourAgentCommissionTest extends TestCase
             'approved_by' => $this->admin->id,
         ]);
 
-        $orderId = app(DailyOrderGateway::class)->create($this->orderData('agent', 'completed', 10000));
+        $orderId = app(DailyOrderGateway::class)->create($this->orderData('completed', 10000));
         $commission = OrderCommission::query()->where('order_id', $orderId)->firstOrFail();
 
         $this->assertSame(1600, (int) $commission->amount_krw);
@@ -156,7 +192,7 @@ class PhaseFourAgentCommissionTest extends TestCase
     public function test_missing_rule_rolls_completion_back_and_duplicate_completion_is_idempotent(): void
     {
         $gateway = app(DailyOrderGateway::class);
-        $pendingId = $gateway->create($this->orderData('agent', 'pending', 10000));
+        $pendingId = $gateway->create($this->orderData('pending', 10000));
         CommissionRule::query()->delete();
 
         try {
@@ -181,35 +217,11 @@ class PhaseFourAgentCommissionTest extends TestCase
         $this->assertSame('2026-07-28', Order::query()->findOrFail($pendingId)->completed_on?->format('Y-m-d'));
     }
 
-    public function test_direct_order_has_no_commission_and_paused_agent_is_blocked(): void
+    public function test_paused_agent_is_blocked(): void
     {
-        $direct = DirectSalesSource::query()->create(['code' => 'WEB', 'name' => '官网', 'is_active' => true]);
-        $directCustomer = Customer::query()->create([
-            'code' => 'WEB-000001',
-            'name' => '直销客户',
-            'original_channel' => 'direct',
-            'source_direct_sales_id' => $direct->id,
-        ]);
-        $orderId = app(DailyOrderGateway::class)->create(new DailyOrderData(
-            customerId: $directCustomer->id,
-            institutionId: $this->institution->id,
-            channel: 'direct',
-            agentId: null,
-            directSalesSourceId: $direct->id,
-            projectName: '直销项目',
-            amountKrw: 10000,
-            status: 'completed',
-            completedOn: CarbonImmutable::parse('2026-07-28'),
-            translatorName: null,
-            notes: null,
-            ownerId: $this->user->id,
-            ipAddress: null,
-        ));
-        $this->assertDatabaseMissing('order_commissions', ['order_id' => $orderId]);
-
         $this->agent->update(['cooperation_status' => 'paused']);
         $this->expectException(DomainException::class);
-        app(DailyOrderGateway::class)->create($this->orderData('agent', 'pending', 10000));
+        app(DailyOrderGateway::class)->create($this->orderData('pending', 10000));
     }
 
     public function test_agent_number_is_immutable_and_termination_is_permanent(): void
@@ -354,7 +366,6 @@ class PhaseFourAgentCommissionTest extends TestCase
         $next = PolicyGrade::query()->create([
             'policy_system_id' => $this->grade->policy_system_id,
             'name' => '白金',
-            'monthly_threshold_krw' => 0,
             'sort_order' => 20,
             'is_active' => true,
         ]);
@@ -379,6 +390,43 @@ class PhaseFourAgentCommissionTest extends TestCase
         $this->assertSame($this->grade->id, app(AgentDirectory::class)->profile($this->agent->id)['policy_grade_id']);
     }
 
+    public function test_agent_directory_uses_business_clock_for_current_grade_and_history(): void
+    {
+        $next = PolicyGrade::query()->create([
+            'policy_system_id' => $this->grade->policy_system_id,
+            'name' => '黑钻',
+            'sort_order' => 20,
+            'is_active' => true,
+        ]);
+        AgentGradeAssignment::query()->create([
+            'agent_id' => $this->agent->id,
+            'policy_grade_id' => $next->id,
+            'effective_month' => '2026-08-01',
+            'approved_by' => $this->admin->id,
+            'reason' => '模拟时间升级',
+        ]);
+
+        $clock = app(BusinessClock::class);
+        $clock->set(CarbonImmutable::parse('2026-08-10 10:00'));
+
+        try {
+            $profile = app(AgentDirectory::class)->profile($this->agent->id);
+            $this->assertSame($next->id, $profile['policy_grade_id']);
+            $this->assertSame('2026-08-01', $profile['grade_effective_month']);
+            $history = collect($profile['grade_history'])->keyBy('policy_grade');
+            $this->assertSame('current', $history['黑钻']['status']);
+            $this->assertSame('historical', $history['黄金']['status']);
+
+            $row = app(AgentDirectory::class)
+                ->paginate('', '', policyGradeId: $next->id)
+                ->getCollection()
+                ->firstWhere('id', $this->agent->id);
+            $this->assertSame('黑钻', $row['grade']);
+        } finally {
+            $clock->disable();
+        }
+    }
+
     public function test_normal_grade_import_never_overwrites_current_or_schedules_missing_grade(): void
     {
         $gateway = app(DatabaseReferenceConfigurationImportGateway::class);
@@ -399,7 +447,6 @@ class PhaseFourAgentCommissionTest extends TestCase
         $nextGrade = PolicyGrade::query()->create([
             'policy_system_id' => $this->grade->policy_system_id,
             'name' => '白金',
-            'monthly_threshold_krw' => 0,
             'sort_order' => 20,
             'is_active' => true,
         ]);
@@ -452,6 +499,8 @@ class PhaseFourAgentCommissionTest extends TestCase
 
     public function test_phase_four_pages_enforce_roles_and_navigation(): void
     {
+        app(DailyOrderGateway::class)->create($this->orderData('pending', 10005));
+
         $this->actingAs($this->user)->get(route('agents.index'))->assertForbidden();
         $this->actingAs($this->admin)->get(route('agents.index'))
             ->assertOk()
@@ -465,7 +514,9 @@ class PhaseFourAgentCommissionTest extends TestCase
             ->assertSee('当前等级')
             ->assertSee('返回代理商管理')
             ->assertSee('href="'.route('agents.index').'"', false)
-            ->assertSee(__('agents.detail.grade_history'));
+            ->assertSee(__('agents.detail.grade_history'))
+            ->assertSee('关联客户')
+            ->assertDontSee('来源客户');
         $this->actingAs($this->admin)->get(route('agent-configuration.index'))
             ->assertOk()
             ->assertSee('代理商与推广费配置')
@@ -473,10 +524,11 @@ class PhaseFourAgentCommissionTest extends TestCase
             ->assertSee('href="'.route('configuration.index').'"', false);
         $this->actingAs($this->user)->get(route('customers.orders', $this->customer->id))
             ->assertOk()
-            ->assertSee('<span class="font-semibold">订单测试客户</span>', false)
+            ->assertSee('订单测试客户')
             ->assertSee('返回客户详情')
             ->assertSee('href="'.route('customers.show', $this->customer->id).'"', false)
-            ->assertDontSee('completionDate');
+            ->assertDontSee('completionDate')
+            ->assertDontSee('orders.fields.channel');
     }
 
     public function test_korean_admin_sees_translated_agent_list_labels(): void
@@ -494,6 +546,10 @@ class PhaseFourAgentCommissionTest extends TestCase
             ->assertSee('설정 센터로 돌아가기')
             ->assertSee('에이전시 및 수수료 설정')
             ->assertDontSee('代理商与推广费配置');
+        $this->actingAs($this->admin)->get(route('agents.show', $this->agent->id))
+            ->assertOk()
+            ->assertSee('관련 고객')
+            ->assertDontSee('유입 고객');
     }
 
     public function test_agent_list_filters_by_type_current_policy_system_and_current_grade(): void
@@ -503,7 +559,6 @@ class PhaseFourAgentCommissionTest extends TestCase
         $secondGrade = PolicyGrade::query()->create([
             'policy_system_id' => $secondSystem->id,
             'name' => '白金合伙人',
-            'monthly_threshold_krw' => 0,
             'sort_order' => 10,
             'is_active' => true,
         ]);
@@ -540,14 +595,12 @@ class PhaseFourAgentCommissionTest extends TestCase
             ->assertSet('policyGradeId', '');
     }
 
-    private function orderData(string $channel, string $status, int $amountKrw): DailyOrderData
+    private function orderData(string $status, int $amountKrw): DailyOrderData
     {
         return new DailyOrderData(
             customerId: $this->customer->id,
             institutionId: $this->institution->id,
-            channel: $channel,
-            agentId: $channel === 'agent' ? $this->agent->id : null,
-            directSalesSourceId: null,
+            agentId: $this->agent->id,
             projectName: '皮肤管理',
             amountKrw: $amountKrw,
             status: $status,

@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -31,10 +33,9 @@ class ConfigurationNavigationTest extends TestCase
             ->assertSee('机构与字典')
             ->assertSee('href="'.route('customer-statuses.index').'"', false)
             ->assertSee('href="'.route('configuration.catalog').'"', false)
-            ->assertSee('href="'.route('direct-sales-sources.index').'"', false)
             ->assertSee('href="'.route('agent-configuration.index').'"', false)
             ->assertSee('href="'.route('reminder-configuration.index').'"', false)
-            ->assertSee('href="'.route('configuration.users').'"', false)
+            ->assertSee('href="'.route('configuration.users-and-notifications').'"', false)
             ->assertSee('href="'.route('configuration.history').'"', false)
             ->assertSee('数据导入与迁移')
             ->assertSee('href="'.route('configuration.data-maintenance').'"', false)
@@ -58,16 +59,52 @@ class ConfigurationNavigationTest extends TestCase
             ->assertOk()
             ->assertSee('<html lang="ko-KR"', false)
             ->assertSee('설정 센터')
-            ->assertSee('내부 사용자 및 권한');
+            ->assertSee(__('config.center.cards.users.title'));
 
-        $this->actingAs($admin)->get(route('configuration.users'))
+        $this->actingAs($admin)->get(route('configuration.users-and-notifications'))
             ->assertOk()
             ->assertSee('내부 사용자 관리')
             ->assertSee('설정 센터로 돌아가기')
             ->assertSee('href="'.route('configuration.index').'"', false)
             ->assertSee('wire:navigate', false)
             ->assertSee('수락됨')
-            ->assertDontSee('accepted');
+            ->assertDontSee('accepted')
+            ->assertDontSee('config.user_management.actions.save_dingtalk');
+    }
+
+    public function test_user_management_uses_a_localized_dingtalk_save_label(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create(['preferred_locale' => 'zh_CN']);
+
+        $this->actingAs($admin)->get(route('configuration.users-and-notifications'))
+            ->assertOk()
+            ->assertSee('保存')
+            ->assertDontSee('config.user_management.actions.save_dingtalk');
+    }
+
+    public function test_users_and_notifications_page_combines_the_two_configuration_tabs(): void
+    {
+        $user = User::factory()->create();
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+
+        $this->actingAs($user)->get(route('configuration.users-and-notifications'))->assertForbidden();
+
+        $this->actingAs($admin)->get(route('configuration.users-and-notifications'))
+            ->assertOk()
+            ->assertSee('data-test="users-and-notifications-tab-users"', false)
+            ->assertSee('data-test="users-and-notifications-tab-notifications"', false)
+            ->assertSee(__('config.user_management.invite_heading'))
+            ->assertSee(__('config.user_management.audit_link'))
+            ->assertSee(__('config.back_to_configuration'))
+            ->assertSee('href="'.route('configuration.index').'"', false);
+
+        $this->actingAs($admin)->get(route('configuration.users-and-notifications', ['tab' => 'notifications']))
+            ->assertOk()
+            ->assertSee(__('config.notification_recipients.internal_heading'))
+            ->assertSee(__('config.notification_recipients.dingtalk_heading'));
+
+        $this->actingAs($admin)->get(route('configuration.users'))->assertRedirect(route('configuration.users-and-notifications', ['tab' => 'users']));
+        $this->actingAs($admin)->get(route('configuration.notifications'))->assertRedirect(route('configuration.users-and-notifications', ['tab' => 'notifications']));
     }
 
     public function test_primary_navigation_is_ordered_and_hides_admin_links_for_normal_users(): void
@@ -78,7 +115,7 @@ class ConfigurationNavigationTest extends TestCase
         $adminNavigation = $adminMatches['navigation'] ?? '';
 
         $this->assertMatchesRegularExpression(
-            '/<nav class="crm-nav">.*?<span>总览<\/span>.*?<span>主动提醒<\/span>.*?<span>客户管理<\/span>.*?<span>订单<\/span>.*?<span>多维查询<\/span>.*?<span>代理商<\/span>.*?<span>月结中心<\/span>.*?<span>配置中心<\/span>.*?<\/nav>/s',
+            '/<nav class="crm-nav">.*?<span>总览<\/span>.*?<span>主动提醒<\/span>.*?<span>客户管理<\/span>.*?<span>订单<\/span>.*?<span>多维查询<\/span>.*?<span>团队管理<\/span>.*?<span>代理商<\/span>.*?<span>月结中心<\/span>.*?<span>配置中心<\/span>.*?<\/nav>/s',
             $adminContent,
         );
         $this->assertStringNotContainsString('数据迁移', $adminNavigation);
@@ -93,6 +130,7 @@ class ConfigurationNavigationTest extends TestCase
             $userContent,
         );
         $this->assertStringNotContainsString('代理商', $userNavigation);
+        $this->assertStringNotContainsString('团队管理', $userNavigation);
         $this->assertStringNotContainsString('月结中心', $userNavigation);
         $this->assertStringNotContainsString('配置中心', $userNavigation);
     }
@@ -124,6 +162,41 @@ class ConfigurationNavigationTest extends TestCase
             ->assertSee('class="crm-nav-group-head is-active"', false)
             ->assertSee('data-test="configuration-subnav-data-maintenance"', false)
             ->assertSee('class="crm-subnav-item is-active"', false);
+    }
+
+    public function test_time_travel_page_is_admin_only_and_returns_to_configuration_center(): void
+    {
+        $user = User::factory()->create();
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+
+        $this->actingAs($user)->get(route('configuration.time-travel'))->assertForbidden();
+
+        $this->actingAs($admin)->get(route('configuration.time-travel'))
+            ->assertOk()
+            ->assertSee(__('config.time_travel.title'))
+            ->assertSee(__('config.time_travel.set_and_execute'))
+            ->assertSee(__('config.back_to_configuration'))
+            ->assertSee('href="'.route('configuration.index').'"', false)
+            ->assertSee('type="date"', false)
+            ->assertSee('type="time"', false)
+            ->assertSee('data-test="configuration-subnav-time-travel"', false);
+    }
+
+    public function test_active_time_travel_is_visible_on_every_authenticated_page_with_restore_action(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $clock = app(BusinessClock::class);
+        $clock->set(CarbonImmutable::parse('2026-09-10 10:00:00', 'Asia/Shanghai'));
+
+        $this->actingAs($admin)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('data-test="business-clock-warning"', false)
+            ->assertSee(__('navigation.restore_real_time'))
+            ->assertSee('action="'.route('configuration.time-travel.disable').'"', false);
+
+        $this->actingAs($admin)->post(route('configuration.time-travel.disable'))
+            ->assertRedirect(route('configuration.time-travel'));
+        $this->assertFalse($clock->isActive());
     }
 
     public function test_data_import_pages_keep_configuration_navigation_open_and_highlight_data_maintenance(): void

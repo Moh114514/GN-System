@@ -169,7 +169,7 @@ final readonly class ImportBatchCommitter
         foreach ($this->rows($batch, ImportProfile::CustomerFollowup) as $row) {
             $data = $row->normalized_data ?? [];
             $code = $this->requiredString($data, 'code');
-            [$channel, $agentId, $directSourceId] = $this->sourceFromCustomerCode($code);
+            $agentId = $this->agentIdFromCustomerCode($code);
 
             if ($this->customers->resolveCustomerId($code) === null) {
                 $candidates = $this->customers->duplicateCandidateIds(
@@ -188,9 +188,7 @@ final readonly class ImportBatchCommitter
                 name: $this->requiredString($data, 'name'),
                 gender: $this->nullableString($data['gender'] ?? null),
                 birthDate: $this->carbon($data['birth_date'] ?? null),
-                originalChannel: $channel,
                 sourceAgentId: $agentId,
-                sourceDirectSalesId: $directSourceId,
                 statusName: $this->nullableString($data['status'] ?? null),
                 wechatAddedOn: $this->carbon($data['wechat_added_on'] ?? null),
                 contactValue: $this->nullableString($data['contact'] ?? null),
@@ -209,9 +207,7 @@ final readonly class ImportBatchCommitter
                 $orderId = $this->orders->upsertOrder(new OrderImportData(
                     customerId: $customerId,
                     institutionId: $institutionId,
-                    channel: $channel,
                     agentId: $agentId,
-                    directSalesSourceId: $directSourceId,
                     projectName: $projectName,
                     amountKrw: $amountKrw,
                     scheduledAt: $this->carbon($data['scheduled_on'] ?? null),
@@ -260,9 +256,7 @@ final readonly class ImportBatchCommitter
                     name: $this->requiredString($data, 'customer_name'),
                     gender: null,
                     birthDate: null,
-                    originalChannel: 'agent',
                     sourceAgentId: $agentId,
-                    sourceDirectSalesId: null,
                     statusName: null,
                     wechatAddedOn: null,
                     contactValue: $this->nullableString($data['contact'] ?? null),
@@ -276,9 +270,7 @@ final readonly class ImportBatchCommitter
             $orderId = $this->orders->upsertOrder(new OrderImportData(
                 customerId: $customerId,
                 institutionId: $this->institutionId($this->requiredString($data, 'institution')),
-                channel: 'agent',
                 agentId: $agentId,
-                directSalesSourceId: null,
                 projectName: $this->requiredString($data, 'project_name'),
                 amountKrw: (int) $data['amount_krw'],
                 scheduledAt: $this->carbon($data['scheduled_on'] ?? null),
@@ -346,18 +338,8 @@ final readonly class ImportBatchCommitter
             ->cursor();
     }
 
-    /** @return array{string, int|null, int|null} */
-    private function sourceFromCustomerCode(string $code): array
+    private function agentIdFromCustomerCode(string $code): int
     {
-        if (preg_match('/^([A-Z0-9]{2,6})-\d{6}$/', $code, $matches) === 1) {
-            $sourceId = $this->customers->resolveDirectSalesSourceId($matches[1]);
-            if ($sourceId === null) {
-                throw new RuntimeException("找不到直销来源代码：{$matches[1]}");
-            }
-
-            return ['direct', null, $sourceId];
-        }
-
         if (preg_match('/^(.+)-\d{4}$/', $code, $matches) !== 1) {
             throw new RuntimeException("无法从客户编号识别来源：{$code}");
         }
@@ -367,7 +349,7 @@ final readonly class ImportBatchCommitter
             throw new RuntimeException("找不到客户来源代理商：{$matches[1]}");
         }
 
-        return ['agent', $agentId, null];
+        return $agentId;
     }
 
     private function institutionId(string $name): int
