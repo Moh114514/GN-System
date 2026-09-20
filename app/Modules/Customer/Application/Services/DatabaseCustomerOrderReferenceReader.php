@@ -71,7 +71,7 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
             ->all();
     }
 
-    /** @return array{id: int, code: string, name: string, source_agent_id: int, owner_id: int|null, current_status_key: string|null, current_status: string|null, arrived_at: string|null} */
+    /** @return array{id: int, code: string, name: string, source_agent_id: int|null, owner_id: int|null, current_status_key: string|null, current_status: string|null, arrived_at: string|null} */
     private function serializeCustomer(Customer $customer): array
     {
         return [
@@ -96,17 +96,18 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
             return Customer::query();
         }
 
-        if (! $context->hasEffectiveBusinessScope()) {
+        if ($context->isDirectCustomerManager()) {
+            return Customer::query()->where('source_type', 'direct')->where('owner_id', $context->userId);
+        }
+
+        if ($context->isCustomerService()) {
+            return Customer::query()->where('owner_id', $context->userId);
+        }
+
+        if (! $context->isBdManager() || $context->agentIds === []) {
             return Customer::query()->whereRaw('1 = 0');
         }
 
-        return Customer::query()->where(function ($query) use ($context): void {
-            if ($context->userId !== null) {
-                $query->where('owner_id', $context->userId);
-            }
-            if ($context->agentIds !== []) {
-                $query->orWhereIn('source_agent_id', $context->agentIds);
-            }
-        });
+        return Customer::query()->where('source_type', 'agent')->whereIn('source_agent_id', $context->agentIds);
     }
 }

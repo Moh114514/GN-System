@@ -51,7 +51,8 @@ final readonly class CustomerStatusManager
             abort_unless(
                 $context->isSuperAdmin()
                 || $context->isBdManager()
-                || ($context->isCustomerService() && (int) $customer->owner_id === (int) $actor->id),
+                || ($context->isCustomerService() && (int) $customer->owner_id === (int) $actor->id)
+                || ($context->isDirectCustomerManager() && (string) $customer->source_type === 'direct' && (int) $customer->owner_id === (int) $actor->id),
                 403,
             );
             $current = $customer->current_status_id === null

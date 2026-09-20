@@ -38,7 +38,8 @@ final readonly class CustomerFollowupManager
             abort_unless(
                 $context->isSuperAdmin()
                 || $context->isBdManager()
-                || ($context->isCustomerService() && (int) $customer->owner_id === $actorId),
+                || ($context->isCustomerService() && (int) $customer->owner_id === $actorId)
+                || ($context->isDirectCustomerManager() && (string) $customer->source_type === 'direct' && (int) $customer->owner_id === $actorId),
                 403,
             );
             $followupId = $this->followups->record(new CustomerFollowupData(

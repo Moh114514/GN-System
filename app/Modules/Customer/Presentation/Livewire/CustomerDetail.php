@@ -213,7 +213,7 @@ class CustomerDetail extends Component
             'customer' => $customer,
             'statusFlow' => $directory->statusFlow($this->customerId),
             'timeline' => $directory->timeline($this->customerId, $this->timelineType),
-            'ownerCandidates' => $transfers->ownerCandidates(),
+            'ownerCandidates' => $transfers->ownerCandidates((string) ($customer['source_type'] ?? 'agent')),
             'transferRequest' => $transfers->pendingForCustomer($this->customerId),
             'rollbackRequest' => $approvals->pendingForCustomer($this->customerId),
         ])->title(__('customers.title.detail'));

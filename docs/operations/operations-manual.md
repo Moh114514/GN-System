@@ -1503,6 +1503,12 @@ The current feature worktree contains the PR3 Customer transfer and lifecycle ap
 
 Before release, manually verify owner Customer Service request/withdrawal, BD approval/rejection/direct/batch transfer, super-admin cross-group transfer, future appointment and unfinished reminder reassignment, historical follow-up creator preservation, repeated arrival timestamp/history behavior, rollback approval, stale/duplicate request rejection, batch atomicity, and the no-order rollback rule. Upgrade app, queue, and scheduler from the same immutable RC because transfer notifications and reminder updates are part of the application release. Rollback follows the normal release rollback procedure; do not manually delete the new tables or edit production data.
 
+## 直客方案 PR2：直客 CRUD 与负责人转移（2026-09-20）
+
+当前 `codex/direct-customer-pr2` 工作区已包含直客列表、建档、编辑、`DC` 编号序列、owner 范围过滤及负责人转移审批。新增 `2026_09_20_000100_allow_direct_customer_owner_transfer.php` migration 仅扩展负责人历史来源约束，允许 `admin_direct`；正式发布前必须按环境分别备份数据库，再由不可变 RC 发布流程执行 migration，不能在 UAT/Production 手工改表或业务代码。
+
+本次只完成本机定向验证，尚未合入 `develop`、创建 RC、部署或完成人工验收。发布前应使用直客负责人、超级管理员、客服和 BD 账号检查直客渠道必填、`DC-000001` 序列、owner 隔离、直接 Livewire 调用拒绝、转移申请/审批、未来预约和未完成提醒换负责人、历史记录保留及通知；本机结果不能替代 UAT/Production 验收。升级时 app、queue、scheduler 必须来自同一 RC，回退使用标准发布回退与已验证备份。
+
 ## PR4 institution return and order facts status (2026-08-24)
 
 The current local `feature/business-groups-and-roles` worktree also contains the institution

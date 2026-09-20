@@ -116,28 +116,33 @@ class AccessScopeTest extends TestCase
             ->assertSee('客户 A')
             ->assertSee('客户 B');
 
+        $this->actingAs($this->bd)->get(route('customers.index'))
+            ->assertOk()
+            ->assertSee('客户 A')
+            ->assertDontSee('客户 B');
+        $this->actingAs($this->owner)->get(route('customers.index'))
+            ->assertOk()
+            ->assertSee('客户 A')
+            ->assertDontSee('客户 B');
+        $this->actingAs($this->peer)->get(route('customers.index'))
+            ->assertOk()
+            ->assertDontSee('客户 A')
+            ->assertDontSee('客户 B');
         foreach ([$this->bd, $this->owner, $this->peer] as $user) {
-            $this->actingAs($user)->get(route('customers.index'))
-                ->assertOk()
-                ->assertSee('客户 A')
-                ->assertDontSee('客户 B');
-            $this->get(route('customers.show', $this->groupBCustomer->id))->assertNotFound();
+            $this->actingAs($user)->get(route('customers.show', $this->groupBCustomer->id))->assertNotFound();
         }
     }
 
     public function test_customer_service_non_owner_gets_no_sensitive_customer_values_and_cannot_export(): void
     {
         $this->actingAs($this->peer);
-        $profile = app(CustomerDirectory::class)->profile($this->groupACustomer->id);
-
-        $this->assertNull($profile['contact']);
-        $this->assertNull($profile['identity_document']);
+        $this->get(route('customers.show', $this->groupACustomer->id))->assertNotFound();
 
         $this->expectException(HttpException::class);
         app(ReportExportManager::class)->queueSearch($this->peer, []);
     }
 
-    public function test_customer_list_supports_scoped_owner_filter_and_customer_service_own_first_order(): void
+    public function test_customer_list_supports_owner_only_customer_service_scope(): void
     {
         $peerCustomer = Customer::query()->create([
             'code' => 'SCOPE-CUSTOMER-A-PEER',
@@ -154,8 +159,8 @@ class AccessScopeTest extends TestCase
         $directory = app(CustomerDirectory::class);
 
         $page = $directory->paginate([], 20);
-        $this->assertSame([$this->groupACustomer->id, $peerCustomer->id], $page->getCollection()->pluck('id')->all());
-        $this->assertSame([$peerCustomer->id], $directory->paginate(['owner_id' => $this->peer->id], 20)->getCollection()->pluck('id')->all());
+        $this->assertSame([$this->groupACustomer->id], $page->getCollection()->pluck('id')->all());
+        $this->assertSame([], $directory->paginate(['owner_id' => $this->peer->id], 20)->getCollection()->pluck('id')->all());
         $this->assertEqualsCanonicalizing(
             [$this->owner->id, $this->peer->id],
             array_column($directory->ownerCandidates(), 'id'),

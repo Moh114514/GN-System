@@ -38,6 +38,8 @@ Customer 继续拥有客户负责人、负责人历史、状态流转和跟进�
 未完成提醒和当前客户负责人，不改写历史跟进创建人。Auth 提供角色与有效业务组范围，Customer
 在 Application 层按 `AccessContext` 过滤客户并在移交、状态回退和敏感字段下载时重新检查权限。
 
+直客方案 PR2 增加 `direct` 来源客户的独立建档、编辑和列表入口。Customer 通过 Auth 的内部用户引用契约取得有效直客负责人，不把直客负责人加入 BD/客服业务组；直客编号使用 `DC` 序列。直客负责人只能访问本人 owner 的直客，转移申请由超级管理员审批，转移仍更新未来预约、未完成提醒和负责人历史，不改写历史跟进创建人。
+
 机构回传形成正式订单及其订单事实由 Order 负责，Customer 通过治疗完成 Application Contract
 完成客户状态变更，不直接创建订单或提醒。负责人、业务组和订单归属的 UAT 映射及抽样步骤见
 [PR7 UAT 迁移与发布收尾手册](../operations/pr7-uat-migration-runbook.md)。

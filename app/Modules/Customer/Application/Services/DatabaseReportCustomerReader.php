@@ -276,20 +276,25 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
             return;
         }
 
-        if (! $context->hasEffectiveBusinessScope()) {
+        if ($context->isDirectCustomerManager()) {
+            $query->where('customers.source_type', 'direct')->where('customers.owner_id', $context->userId);
+
+            return;
+        }
+
+        if ($context->isCustomerService()) {
+            $query->where('customers.owner_id', $context->userId);
+
+            return;
+        }
+
+        if (! $context->isBdManager() || $context->agentIds === []) {
             $query->whereRaw('1 = 0');
 
             return;
         }
 
-        $query->where(function ($scope) use ($context): void {
-            if ($context->userId !== null) {
-                $scope->where('customers.owner_id', $context->userId);
-            }
-            if ($context->agentIds !== []) {
-                $scope->orWhereIn('customers.source_agent_id', $context->agentIds);
-            }
-        });
+        $query->where('customers.source_type', 'agent')->whereIn('customers.source_agent_id', $context->agentIds);
     }
 
     /** @return list<int> */
