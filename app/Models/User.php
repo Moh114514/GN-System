@@ -134,6 +134,11 @@ class User extends Authenticatable implements HasLocalePreference
         return $this->roleValue() === UserRole::CustomerService && ! $this->isSuperAdmin();
     }
 
+    public function isDirectCustomerManager(): bool
+    {
+        return $this->roleValue() === UserRole::DirectCustomerManager && ! $this->isSuperAdmin();
+    }
+
     public function canManageConfiguration(): bool
     {
         return $this->isSuperAdmin();

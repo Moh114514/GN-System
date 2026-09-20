@@ -40,7 +40,7 @@ return [
         'name' => '이름',
         'email' => '이메일',
         'role' => '역할',
-        'roles' => ['super_admin' => '슈퍼 관리자', 'bd_manager' => 'BD 관리자', 'customer_service' => '고객 서비스'],
+        'roles' => ['super_admin' => '슈퍼 관리자', 'bd_manager' => 'BD 관리자', 'customer_service' => '고객 서비스', 'direct_customer_manager' => '직접 고객 담당자'],
         'super_admin' => '슈퍼 관리자',
         'internal_user' => '내부 사용자',
         'create_invitation' => '생성 후 초대 보내기',

@@ -199,8 +199,9 @@ final readonly class CustomerStatusApprovalManager
     {
         $context ??= $this->access->current();
         abort_unless($context->canViewCustomer(
-            $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
-            $customer->owner_id === null ? null : (int) $customer->owner_id,
+            sourceType: (string) $customer->source_type,
+            sourceAgentId: $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
+            ownerId: $customer->owner_id === null ? null : (int) $customer->owner_id,
         ), 404);
     }
 

@@ -48,7 +48,7 @@ return [
         'name' => '姓名',
         'email' => '邮箱',
         'role' => '角色',
-        'roles' => ['super_admin' => '超级管理员', 'bd_manager' => 'BD经理', 'customer_service' => '客服'],
+        'roles' => ['super_admin' => '超级管理员', 'bd_manager' => 'BD经理', 'customer_service' => '客服', 'direct_customer_manager' => '直客负责人'],
         'super_admin' => '超级管理员',
         'internal_user' => '内部用户',
         'create_invitation' => '创建并发送邀请',

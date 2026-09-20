@@ -352,8 +352,9 @@ final readonly class CustomerTransferManager
     {
         $context ??= $this->access->current();
         abort_unless($context->canViewCustomer(
-            $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
-            $customer->owner_id === null ? null : (int) $customer->owner_id,
+            sourceType: (string) $customer->source_type,
+            sourceAgentId: $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
+            ownerId: $customer->owner_id === null ? null : (int) $customer->owner_id,
         ), 404);
     }
 
@@ -368,8 +369,9 @@ final readonly class CustomerTransferManager
         $this->assertVisible($customer, $context);
         abort_unless($context->isSuperAdmin() || $context->isBdManager(), 403);
         abort_unless($context->isSuperAdmin() || $context->canViewCustomer(
-            $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
-            $customer->owner_id === null ? null : (int) $customer->owner_id,
+            sourceType: (string) $customer->source_type,
+            sourceAgentId: $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
+            ownerId: $customer->owner_id === null ? null : (int) $customer->owner_id,
         ), 404);
     }
 

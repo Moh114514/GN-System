@@ -172,8 +172,9 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
     {
         $context = $this->access->current();
         abort_unless($context->canViewOrder(
-            $order->agent_id === null ? null : (int) $order->agent_id,
-            $order->owner_id === null ? null : (int) $order->owner_id,
+            sourceType: (string) $order->source_type,
+            agentId: $order->agent_id === null ? null : (int) $order->agent_id,
+            customerOwnerId: $order->owner_id === null ? null : (int) $order->owner_id,
         ), 404);
     }
 

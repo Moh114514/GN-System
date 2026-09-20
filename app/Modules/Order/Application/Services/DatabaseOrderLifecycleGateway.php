@@ -384,8 +384,9 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
     private function assertVisible(Order $order): void
     {
         abort_unless($this->access->current()->canViewOrder(
-            $order->agent_id === null ? null : (int) $order->agent_id,
-            $order->owner_id === null ? null : (int) $order->owner_id,
+            sourceType: (string) $order->source_type,
+            agentId: $order->agent_id === null ? null : (int) $order->agent_id,
+            customerOwnerId: $order->owner_id === null ? null : (int) $order->owner_id,
         ), 404);
     }
 

@@ -94,7 +94,11 @@ final readonly class CustomerProfileManager
             $ipAddress,
         ): int {
             $context = $this->access->forUser(User::query()->findOrFail($actorId));
-            if (! $context->isSuperAdmin() && ! $context->canViewAgent($profile->sourceAgentId)) {
+            if ($profile->sourceType !== 'agent' || $profile->sourceAgentId === null || $profile->directChannelId !== null) {
+                throw ValidationException::withMessages(['sourceId' => __('customers.form.validation.agent_unavailable')]);
+            }
+            $sourceAgentId = $profile->sourceAgentId;
+            if (! $context->isSuperAdmin() && ! $context->canViewAgent($sourceAgentId)) {
                 throw ValidationException::withMessages(['sourceId' => __('customers.form.validation.agent_unavailable')]);
             }
             if (! $context->isSuperAdmin() && ! in_array($ownerId, $context->groupUserIds, true)) {
@@ -110,7 +114,7 @@ final readonly class CustomerProfileManager
                 ]);
             }
 
-            [$prefix, $digits] = $this->prefixAndDigits($profile->sourceAgentId);
+            [$prefix, $digits] = $this->prefixAndDigits($sourceAgentId);
             CustomerNumberSequence::query()->insertOrIgnore([
                 'prefix' => $prefix,
                 'last_number' => 0,
@@ -143,7 +147,9 @@ final readonly class CustomerProfileManager
                 'name' => trim($profile->name),
                 'gender' => $profile->gender,
                 'birth_date' => $profile->birthDate,
-                'source_agent_id' => $profile->sourceAgentId,
+                'source_type' => $profile->sourceType,
+                'source_agent_id' => $sourceAgentId,
+                'direct_channel_id' => $profile->directChannelId,
                 'current_status_id' => $status->id,
                 'project_intention' => trim($profile->projectIntention),
                 'owner_id' => $ownerId,
@@ -202,10 +208,15 @@ final readonly class CustomerProfileManager
     ): void {
         DB::transaction(function () use ($customerId, $profile, $actorId, $sensitiveChangeConfirmed, $ipAddress): void {
             $context = $this->access->forUser(User::query()->findOrFail($actorId));
+            if ($profile->sourceType !== 'agent' || $profile->sourceAgentId === null || $profile->directChannelId !== null) {
+                throw ValidationException::withMessages(['sourceId' => __('customers.form.validation.agent_unavailable')]);
+            }
+            $sourceAgentId = $profile->sourceAgentId;
             $customer = Customer::query()->lockForUpdate()->findOrFail($customerId);
             abort_unless($context->canViewCustomer(
-                $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
-                $customer->owner_id === null ? null : (int) $customer->owner_id,
+                sourceType: (string) $customer->source_type,
+                sourceAgentId: $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
+                ownerId: $customer->owner_id === null ? null : (int) $customer->owner_id,
             ), 404);
             abort_unless(
                 $context->isSuperAdmin()
@@ -213,7 +224,7 @@ final readonly class CustomerProfileManager
                 || ($context->isCustomerService() && (int) $customer->owner_id === (int) $actorId),
                 403,
             );
-            if (! $context->isSuperAdmin() && ! $context->canViewAgent($profile->sourceAgentId)) {
+            if (! $context->isSuperAdmin() && ! $context->canViewAgent($sourceAgentId)) {
                 throw ValidationException::withMessages(['sourceId' => __('customers.form.validation.agent_unavailable')]);
             }
             $contact = CustomerContact::query()->where('customer_id', $customerId)->where('is_primary', true)->first();
