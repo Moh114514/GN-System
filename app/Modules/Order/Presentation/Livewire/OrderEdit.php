@@ -84,7 +84,9 @@ class OrderEdit extends Component
     {
         $this->validate([
             'institutionId' => ['required', 'integer'],
-            'agentId' => ['required', 'integer'],
+            'agentId' => ($this->orderDetails['source_type'] ?? 'agent') === 'direct'
+                ? ['nullable', 'integer']
+                : ['required', 'integer'],
             'projectName' => ['required', 'string', 'max:255'],
             'amountKrw' => ['required', 'integer', 'min:0'],
             'occurredOn' => [$this->orderDetails['status'] === 'completed' ? 'required' : 'nullable', 'date_format:Y-m-d'],
@@ -101,7 +103,7 @@ class OrderEdit extends Component
             $workspace->updatePending(new OrderUpdateData(
                 orderId: $this->orderId,
                 institutionId: (int) $this->institutionId,
-                agentId: (int) $this->agentId,
+                agentId: $this->agentId === '' ? null : (int) $this->agentId,
                 projectName: $this->projectName,
                 amountKrw: (int) $this->amountKrw,
                 translatorName: $this->translatorName === '' ? null : $this->translatorName,

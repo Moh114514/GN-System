@@ -24,7 +24,9 @@ final readonly class CustomerOrderRegistrationWorkspace
     public function context(int $customerId): array
     {
         $customer = $this->customers->customerForOrder($customerId);
-        $agent = $this->agents->agentsByIds([(int) $customer['source_agent_id']])[(int) $customer['source_agent_id']] ?? null;
+        $agent = $customer['source_agent_id'] === null
+            ? null
+            : ($this->agents->agentsByIds([(int) $customer['source_agent_id']])[(int) $customer['source_agent_id']] ?? null);
         $appointment = $this->appointments->currentAppointmentForRegistration($customerId);
         $activeInstitutions = array_values($this->institutions->activeInstitutions());
         $activeById = [];

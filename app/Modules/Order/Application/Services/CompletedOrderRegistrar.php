@@ -19,7 +19,9 @@ use App\Modules\Reminder\Application\Contracts\AppointmentReminderGateway;
 use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
 use App\Modules\Reminder\Application\Data\CompletedTreatmentData;
 use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
+use App\Modules\Settlement\Application\Contracts\DirectOrderCommissionGateway;
 use App\Modules\Settlement\Application\Data\CompletedOrderCommissionData;
+use App\Modules\Settlement\Application\Data\DirectOrderCommissionData;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Support\Facades\DB;
@@ -33,6 +35,7 @@ final readonly class CompletedOrderRegistrar
         private AgentBusinessAttributionReader $attributions,
         private CustomerTreatmentCompletionGateway $customerCompletion,
         private DailyCommissionGateway $commissions,
+        private DirectOrderCommissionGateway $directCommissions,
         private TreatmentReminderGateway $reminders,
         private CustomerOrderGateway $appointments,
         private AppointmentReminderGateway $appointmentReminders,
@@ -45,7 +48,14 @@ final readonly class CompletedOrderRegistrar
     {
         $customer = $this->customers->customerForOrder($data->customerId);
         $this->assertCustomerCanBeCompleted($customer, $data);
-        $this->assertAgent($data->agentId, (int) $customer['source_agent_id']);
+        $sourceType = (string) $customer['source_type'];
+        if ($sourceType === 'direct') {
+            if ($data->agentId !== null) {
+                throw new DomainException(__('orders.errors.agent_not_allowed_for_direct_customer'));
+            }
+        } else {
+            $this->assertAgent($data->agentId, (int) $customer['source_agent_id']);
+        }
 
         $items = $this->normalizeItems($data->items);
         $totalAmount = array_sum(array_map(static fn (CompletedOrderItemData $item): int => $item->amountKrw, $items));
@@ -55,12 +65,19 @@ final readonly class CompletedOrderRegistrar
 
         $storedPaths = [];
         try {
-            return DB::transaction(function () use ($data, $customer, $items, $totalAmount, &$storedPaths): int {
+            return DB::transaction(function () use ($data, $customer, $sourceType, $items, $totalAmount, &$storedPaths): int {
                 $occurredOn = $data->occurredOn->startOfDay();
-                $attribution = $this->attributions->forAgentOnDate($data->agentId, $occurredOn);
+                $agent = $sourceType === 'agent' && $data->agentId !== null
+                    ? $this->agents->agentById($data->agentId)
+                    : null;
+                $attribution = $sourceType === 'agent' && $data->agentId !== null
+                    ? $this->attributions->forAgentOnDate($data->agentId, $occurredOn)
+                    : null;
+                $ownerId = $data->ownerId ?? ($customer['owner_id'] ?? $data->actorId);
                 $order = Order::query()->create([
                     'customer_id' => $data->customerId,
                     'institution_id' => $data->institutionId,
+                    'source_type' => $sourceType,
                     'agent_id' => $data->agentId,
                     'project_name' => $items[0]->projectName,
                     'amount_krw' => $totalAmount,
@@ -70,13 +87,17 @@ final readonly class CompletedOrderRegistrar
                     'completion_precision' => 'date',
                     'record_status' => 'active',
                     'status' => 'completed',
-                    'owner_id' => $data->ownerId ?? ($customer['owner_id'] ?? $data->actorId),
+                    'owner_id' => $ownerId,
                     'source_return_file_id' => $data->sourceReturnFileId,
                     'treatment_project_snapshot' => $items[0]->projectName,
                     'business_attribution_snapshot' => [
                         'source' => $data->source,
-                        'agent' => $this->agents->agentById($data->agentId),
+                        'agent' => $agent,
                         'business_group' => $attribution,
+                        'direct_channel' => $sourceType === 'direct' ? [
+                            'id' => $customer['direct_channel_id'] ?? null,
+                            'name' => $customer['direct_channel_name'] ?? null,
+                        ] : null,
                         'institution_id' => $data->institutionId,
                         'occurred_on' => $occurredOn->toDateString(),
                         ...$data->sourceMetadata,
@@ -112,15 +133,30 @@ final readonly class CompletedOrderRegistrar
                     ]);
                 }
 
-                $this->commissions->recordForCompletedOrder(new CompletedOrderCommissionData(
-                    orderId: (int) $order->id,
-                    agentId: $data->agentId,
-                    institutionId: $data->institutionId,
-                    orderAmountKrw: $totalAmount,
-                    completedOn: $occurredOn,
-                    actorId: $data->actorId,
-                    ipAddress: $data->ipAddress,
-                ));
+                if ($sourceType === 'direct') {
+                    $this->directCommissions->recordForCompletedOrder(new DirectOrderCommissionData(
+                        orderId: (int) $order->id,
+                        ownerId: (int) $ownerId,
+                        orderAmountKrw: $totalAmount,
+                        completedAt: $occurredOn,
+                        directChannel: [
+                            'id' => $customer['direct_channel_id'] ?? null,
+                            'name' => $customer['direct_channel_name'] ?? null,
+                        ],
+                        actorId: $data->actorId,
+                        ipAddress: $data->ipAddress,
+                    ));
+                } else {
+                    $this->commissions->recordForCompletedOrder(new CompletedOrderCommissionData(
+                        orderId: (int) $order->id,
+                        agentId: (int) $data->agentId,
+                        institutionId: $data->institutionId,
+                        orderAmountKrw: $totalAmount,
+                        completedOn: $occurredOn,
+                        actorId: $data->actorId,
+                        ipAddress: $data->ipAddress,
+                    ));
+                }
                 $this->customerCompletion->completeFromOrder(
                     customerId: $data->customerId,
                     occurredOn: $occurredOn,
@@ -208,9 +244,9 @@ final readonly class CompletedOrderRegistrar
         }
     }
 
-    private function assertAgent(int $agentId, int $customerAgentId): void
+    private function assertAgent(?int $agentId, int $customerAgentId): void
     {
-        if ($agentId < 1 || $agentId !== $customerAgentId) {
+        if ($agentId === null || $agentId < 1 || $agentId !== $customerAgentId) {
             throw new DomainException(__('orders.errors.agent_required'));
         }
         if ($this->agents->agentById($agentId)['cooperation_status'] !== 'active') {

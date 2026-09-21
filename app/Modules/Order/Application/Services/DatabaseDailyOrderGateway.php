@@ -14,7 +14,9 @@ use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
 use App\Modules\Reminder\Application\Data\CompletedTreatmentData;
 use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
+use App\Modules\Settlement\Application\Contracts\DirectOrderCommissionGateway;
 use App\Modules\Settlement\Application\Data\CompletedOrderCommissionData;
+use App\Modules\Settlement\Application\Data\DirectOrderCommissionData;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Database\Eloquent\Collection;
@@ -25,6 +27,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
     public function __construct(
         private AgentReferenceReader $agents,
         private DailyCommissionGateway $commissions,
+        private DirectOrderCommissionGateway $directCommissions,
         private TreatmentReminderGateway $reminders,
         private AuditRecorder $audit,
         private AccessContextResolver $access,
@@ -34,10 +37,18 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
 
     public function create(DailyOrderData $data): int
     {
-        $this->assertOrderAgentAccess($data->agentId);
-        $this->assertAgent($data->agentId);
+        $customer = $this->customers->customerForOrder($data->customerId);
+        $sourceType = (string) $customer['source_type'];
+        if ($sourceType === 'direct') {
+            if ($data->agentId !== null) {
+                throw new DomainException(__('orders.errors.agent_not_allowed_for_direct_customer'));
+            }
+        } else {
+            $this->assertOrderAgentAccess($data->agentId);
+            $this->assertAgent($data->agentId);
+        }
 
-        return DB::transaction(function () use ($data): int {
+        return DB::transaction(function () use ($data, $customer, $sourceType): int {
             if (! in_array($data->status, ['pending', 'completed'], true)) {
                 throw new DomainException(__('orders.errors.invalid_status'));
             }
@@ -47,6 +58,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
             $order = Order::query()->create([
                 'customer_id' => $data->customerId,
                 'institution_id' => $data->institutionId,
+                'source_type' => $sourceType,
                 'agent_id' => $data->agentId,
                 'project_name' => trim($data->projectName),
                 'amount_krw' => $data->amountKrw,
@@ -65,8 +77,12 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
                 'business_attribution_snapshot' => $data->status === 'completed' && $data->completedOn !== null
                     ? [
                         'source' => 'daily_order',
-                        'agent' => $this->agents->agentById($data->agentId),
-                        'business_group' => $this->attributions->forAgentOnDate($data->agentId, $data->completedOn),
+                        'agent' => $sourceType === 'agent' && $data->agentId !== null ? $this->agents->agentById($data->agentId) : null,
+                        'business_group' => $sourceType === 'agent' && $data->agentId !== null ? $this->attributions->forAgentOnDate($data->agentId, $data->completedOn) : null,
+                        'direct_channel' => $sourceType === 'direct' ? [
+                            'id' => $customer['direct_channel_id'] ?? null,
+                            'name' => $customer['direct_channel_name'] ?? null,
+                        ] : null,
                         'occurred_on' => $data->completedOn->toDateString(),
                     ]
                     : null,
@@ -102,7 +118,9 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
             if ($order->status === 'completed') {
                 return (int) $order->id;
             }
-            $this->assertAgent($order->agent_id === null ? 0 : (int) $order->agent_id);
+            if ((string) $order->source_type === 'agent') {
+                $this->assertAgent($order->agent_id === null ? null : (int) $order->agent_id);
+            }
             $before = $order->only(['status', 'completed_on', 'completed_at', 'completion_precision']);
             $order->update([
                 'status' => 'completed',
@@ -114,8 +132,8 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
                 'business_attribution_snapshot' => [
                     ...((array) $order->business_attribution_snapshot),
                     'source' => 'daily_order',
-                    'agent' => $this->agents->agentById((int) $order->agent_id),
-                    'business_group' => $this->attributions->forAgentOnDate((int) $order->agent_id, $completedOn),
+                    'agent' => $order->source_type === 'agent' ? $this->agents->agentById((int) $order->agent_id) : null,
+                    'business_group' => $order->source_type === 'agent' ? $this->attributions->forAgentOnDate((int) $order->agent_id, $completedOn) : null,
                     'occurred_on' => $completedOn->toDateString(),
                 ],
             ]);
@@ -149,9 +167,9 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
         return $this->summaries(Order::query()->where('agent_id', $agentId)->latest('id')->limit(100)->get());
     }
 
-    private function assertAgent(int $agentId): void
+    private function assertAgent(?int $agentId): void
     {
-        if ($agentId < 1) {
+        if ($agentId === null || $agentId < 1) {
             throw new DomainException(__('orders.errors.agent_required'));
         }
         $agent = $this->agents->agentById($agentId);
@@ -180,6 +198,20 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
 
     private function recordCommission(Order $order, CarbonImmutable $completedOn, int $actorId, ?string $ipAddress): void
     {
+        if ((string) $order->source_type === 'direct') {
+            $this->directCommissions->recordForCompletedOrder(new DirectOrderCommissionData(
+                orderId: (int) $order->id,
+                ownerId: (int) $order->owner_id,
+                orderAmountKrw: (int) $order->amount_krw,
+                completedAt: $completedOn,
+                directChannel: data_get($order->business_attribution_snapshot, 'direct_channel'),
+                actorId: $actorId,
+                ipAddress: $ipAddress,
+            ));
+
+            return;
+        }
+
         $this->commissions->recordForCompletedOrder(new CompletedOrderCommissionData(
             orderId: (int) $order->id,
             agentId: (int) $order->agent_id,
@@ -214,21 +246,32 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
             ->get()
             ->keyBy('order_id');
 
-        return $orders->map(function (Order $order) use ($commissions): OrderSummaryData {
+        $directCommissions = DB::table('direct_order_commissions')
+            ->whereIn('order_id', $orders->modelKeys())
+            ->where('status', 'active')
+            ->get()
+            ->keyBy('order_id');
+
+        return $orders->map(function (Order $order) use ($commissions, $directCommissions): OrderSummaryData {
             $commission = $commissions->get($order->id);
+            $directCommission = $directCommissions->get($order->id);
 
             return new OrderSummaryData(
                 id: (int) $order->id,
                 customerId: (int) $order->customer_id,
                 institutionId: (int) $order->institution_id,
-                agentId: (int) $order->agent_id,
+                agentId: $order->agent_id === null ? null : (int) $order->agent_id,
                 projectName: (string) $order->project_name,
                 amountKrw: (int) $order->amount_krw,
                 status: (string) $order->status,
                 occurredOn: $order->occurred_on?->format('Y-m-d'),
                 completedOn: $order->completed_on?->format('Y-m-d'),
-                commissionAmountKrw: $commission === null ? null : (int) $commission->amount_krw,
-                commissionRateBps: $commission === null ? null : (int) $commission->rate_bps,
+                commissionAmountKrw: $order->source_type === 'direct'
+                    ? ($directCommission === null ? null : (int) $directCommission->commission_amount_krw)
+                    : ($commission === null ? null : (int) $commission->amount_krw),
+                commissionRateBps: $order->source_type === 'direct'
+                    ? ($directCommission === null ? null : (int) $directCommission->rate_bps)
+                    : ($commission === null ? null : (int) $commission->rate_bps),
             );
         })->all();
     }

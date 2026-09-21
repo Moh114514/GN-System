@@ -69,6 +69,13 @@
                     </a>
                 @endif
 
+                @if (auth()->user()->isSuperAdmin() || auth()->user()->isDirectCustomerManager())
+                    <a href="{{ route('direct-commissions.index') }}" class="crm-nav-item {{ request()->routeIs('direct-commissions.*') ? 'is-active' : '' }}" wire:navigate>
+                        <flux:icon.banknotes aria-hidden="true" />
+                        <span>{{ __('navigation.direct_commissions') }}</span>
+                    </a>
+                @endif
+
                 @if (auth()->user()->isSuperAdmin())
                     <a href="{{ route('agents.index') }}" class="crm-nav-item {{ request()->routeIs('agents.*') ? 'is-active' : '' }}" wire:navigate>
                         <flux:icon.building-office aria-hidden="true" />

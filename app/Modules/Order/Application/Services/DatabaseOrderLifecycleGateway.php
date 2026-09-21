@@ -14,8 +14,10 @@ use App\Modules\Order\Infrastructure\Models\OrderItem;
 use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
 use App\Modules\Settlement\Application\Contracts\BdCommissionCorrectionGateway;
 use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
+use App\Modules\Settlement\Application\Contracts\DirectOrderCommissionGateway;
 use App\Modules\Settlement\Application\Data\BdCommissionOrderData;
 use App\Modules\Settlement\Application\Data\CompletedOrderCommissionData;
+use App\Modules\Settlement\Application\Data\DirectOrderCommissionData;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
@@ -28,6 +30,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
         private AgentReferenceReader $agents,
         private InstitutionReferenceReader $institutions,
         private DailyCommissionGateway $commissions,
+        private DirectOrderCommissionGateway $directCommissions,
         private TreatmentReminderGateway $reminders,
         private AuditRecorder $audit,
         private AccessContextResolver $access,
@@ -58,10 +61,11 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             if (trim((string) $data->reason) === '') {
                 throw new DomainException(__('orders.errors.order_edit_reason_required'));
             }
-            if ((int) $order->institution_id !== $data->institutionId || (int) $order->agent_id !== $data->agentId) {
+            if ((int) $order->institution_id !== $data->institutionId || $order->agent_id !== $data->agentId) {
                 throw new DomainException(__('orders.errors.immutable_order_reference'));
             }
-            $this->assertEditableReferences($data);
+            $isDirect = (string) $order->source_type === 'direct';
+            $this->assertEditableReferences($data, $isDirect);
 
             $occurredOn = $data->occurredOn ?? ($order->occurred_on === null ? null : CarbonImmutable::parse($order->occurred_on));
             if ($order->status === 'completed' && $occurredOn === null) {
@@ -74,9 +78,13 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             }
 
             if ($order->status === 'completed') {
-                $this->commissions->rollbackForOrder((int) $order->id);
+                if ($isDirect) {
+                    $this->directCommissions->voidForOrder((int) $order->id, $actorId, (string) $data->reason);
+                } else {
+                    $this->commissions->rollbackForOrder((int) $order->id);
+                }
             }
-            $beforeBdCommission = $order->status === 'completed' ? $this->bdCommissionData($order) : null;
+            $beforeBdCommission = $order->status === 'completed' && ! $isDirect ? $this->bdCommissionData($order) : null;
 
             $beforeItems = $order->items()->orderBy('id')->get()->toArray();
             $before = $order->only([
@@ -111,7 +119,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                 'completed_at' => $order->status === 'completed'
                     ? ($order->completed_at?->setDate($occurredOn->year, $occurredOn->month, $occurredOn->day) ?? $occurredOn->startOfDay())
                     : $order->completed_at,
-                'business_attribution_snapshot' => $occurredOn === null
+                'business_attribution_snapshot' => $occurredOn === null || $isDirect
                     ? $order->business_attribution_snapshot
                     : [
                         ...((array) $order->business_attribution_snapshot),
@@ -135,15 +143,27 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             }
 
             if ($order->status === 'completed') {
-                $this->commissions->recordForCompletedOrder(new CompletedOrderCommissionData(
-                    orderId: (int) $order->id,
-                    agentId: (int) $order->agent_id,
-                    institutionId: (int) $order->institution_id,
-                    orderAmountKrw: (int) $order->amount_krw,
-                    completedOn: $occurredOn,
-                    actorId: $actorId,
-                    ipAddress: $ipAddress,
-                ));
+                if ($isDirect) {
+                    $this->directCommissions->recordForCompletedOrder(new DirectOrderCommissionData(
+                        orderId: (int) $order->id,
+                        ownerId: (int) $order->owner_id,
+                        orderAmountKrw: (int) $order->amount_krw,
+                        completedAt: $occurredOn,
+                        directChannel: data_get($order->business_attribution_snapshot, 'direct_channel'),
+                        actorId: $actorId,
+                        ipAddress: $ipAddress,
+                    ));
+                } else {
+                    $this->commissions->recordForCompletedOrder(new CompletedOrderCommissionData(
+                        orderId: (int) $order->id,
+                        agentId: (int) $order->agent_id,
+                        institutionId: (int) $order->institution_id,
+                        orderAmountKrw: (int) $order->amount_krw,
+                        completedOn: $occurredOn,
+                        actorId: $actorId,
+                        ipAddress: $ipAddress,
+                    ));
+                }
                 if ($beforeBdCommission !== null) {
                     $this->bdCommissions->onOrderCorrected(
                         $beforeBdCommission,
@@ -241,8 +261,12 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             }
 
             $before = $order->only(['status', 'completed_on', 'completed_at', 'completion_precision']);
-            $beforeBdCommission = $this->bdCommissionData($order);
-            $this->commissions->rollbackForOrder($orderId);
+            $beforeBdCommission = (string) $order->source_type === 'agent' ? $this->bdCommissionData($order) : null;
+            if ((string) $order->source_type === 'direct') {
+                $this->directCommissions->voidForOrder($orderId, $actorId, $reason);
+            } else {
+                $this->commissions->rollbackForOrder($orderId);
+            }
             $this->reminders->cancelForOrder($orderId, $actorId, $reason);
             $order->update([
                 'status' => 'pending',
@@ -251,7 +275,9 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                 'completed_at' => null,
                 'completion_precision' => 'date',
             ]);
-            $this->bdCommissions->onOrderCorrected($beforeBdCommission, null, $actorId, $ipAddress);
+            if ($beforeBdCommission !== null) {
+                $this->bdCommissions->onOrderCorrected($beforeBdCommission, null, $actorId, $ipAddress);
+            }
             $this->audit->record(
                 description: __('orders.audit.rolled_back'),
                 properties: [
@@ -321,12 +347,19 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
         });
     }
 
-    private function assertEditableReferences(OrderUpdateData $data): void
+    private function assertEditableReferences(OrderUpdateData $data, bool $isDirect): void
     {
         if ($this->institutions->institutionsByIds([$data->institutionId]) === []) {
             throw new DomainException(__('orders.errors.institution_unavailable'));
         }
-        if ($data->agentId < 1) {
+        if ($isDirect) {
+            if ($data->agentId !== null) {
+                throw new DomainException(__('orders.errors.agent_not_allowed_for_direct_customer'));
+            }
+
+            return;
+        }
+        if ($data->agentId === null || $data->agentId < 1) {
             throw new DomainException(__('orders.errors.agent_required'));
         }
         $agent = $this->agents->agentById($data->agentId);

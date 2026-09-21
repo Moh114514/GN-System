@@ -42,13 +42,13 @@ final readonly class OrderManagementWorkspace
         ];
     }
 
-    /** @return array{id: int, code: string, name: string, source_agent_id: int, owner_id: int|null} */
+    /** @return array<string, mixed> */
     public function customer(int $customerId): array
     {
         return $this->customers->customerForOrder($customerId);
     }
 
-    /** @return array<int, array{id: int, code: string, name: string, source_agent_id: int, owner_id: int|null}> */
+    /** @return array<int, array<string, mixed>> */
     public function customerCandidates(string $search): array
     {
         return $this->customers->searchCustomersForOrder($search);
@@ -121,7 +121,9 @@ final readonly class OrderManagementWorkspace
                 'customer_name' => (string) ($customer['name'] ?? __('orders.values.unknown_customer')),
                 'customer_code' => (string) ($customer['code'] ?? __('orders.values.empty')),
                 'institution' => (string) ($institutionLabels[(int) $order->institution_id]['name'] ?? __('orders.values.unknown_institution')),
-                'source' => (string) ($agentLabels[(int) $order->agent_id]['name'] ?? __('orders.values.unknown_agent')),
+                'source' => (string) ($order->source_type === 'direct'
+                    ? ($customer['direct_channel_name'] ?? __('orders.values.direct_customer'))
+                    : ($agentLabels[(int) $order->agent_id]['name'] ?? __('orders.values.unknown_agent'))),
                 'project_name' => (string) $order->project_name,
                 'amount_krw' => (int) $order->amount_krw,
                 'status' => (string) $order->status,
@@ -184,6 +186,7 @@ final readonly class OrderManagementWorkspace
             'customer' => $customer,
             'institution' => $institution,
             'agent' => $agent,
+            'source_type' => (string) $order->source_type,
             'project_name' => (string) $order->project_name,
             'amount_krw' => (int) $order->amount_krw,
             'status' => (string) $order->status,
@@ -316,6 +319,12 @@ final readonly class OrderManagementWorkspace
             return;
         }
 
+        if ($context->isDirectCustomerManager()) {
+            $query->where('source_type', 'direct')->where('owner_id', $context->userId);
+
+            return;
+        }
+
         if (! $context->hasEffectiveBusinessScope()) {
             $query->whereRaw('1 = 0');
 
@@ -323,7 +332,7 @@ final readonly class OrderManagementWorkspace
         }
 
         $query->where(function ($scope) use ($context): void {
-            if ($context->userId !== null) {
+            if ($context->userId !== null && ! $context->isBdManager()) {
                 $scope->where('owner_id', $context->userId);
             }
             if ($context->agentIds !== []) {

@@ -17,7 +17,7 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
 
     public function customerForOrder(int $customerId): array
     {
-        $customer = $this->scoped()->with('currentStatus')->findOrFail($customerId);
+        $customer = $this->scoped()->with(['currentStatus', 'directChannel'])->findOrFail($customerId);
 
         return $this->serializeCustomer($customer);
     }
@@ -25,9 +25,9 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
     public function customersForOrders(array $ids): array
     {
         return $this->scoped()
-            ->with('currentStatus')
+            ->with(['currentStatus', 'directChannel'])
             ->whereKey(array_values(array_unique($ids)))
-            ->get(['id', 'code', 'name', 'source_agent_id', 'owner_id', 'current_status_id', 'arrived_at'])
+            ->get(['id', 'code', 'name', 'source_type', 'source_agent_id', 'direct_channel_id', 'owner_id', 'current_status_id', 'arrived_at'])
             ->mapWithKeys(fn (Customer $customer): array => [
                 (int) $customer->id => $this->serializeCustomer($customer),
             ])
@@ -48,8 +48,8 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
         return $query
             ->latest('updated_at')
             ->limit(max(1, min($limit, 50)))
-            ->with('currentStatus')
-            ->get(['id', 'code', 'name', 'source_agent_id', 'owner_id', 'current_status_id', 'arrived_at'])
+            ->with(['currentStatus', 'directChannel'])
+            ->get(['id', 'code', 'name', 'source_type', 'source_agent_id', 'direct_channel_id', 'owner_id', 'current_status_id', 'arrived_at'])
             ->map(fn (Customer $customer): array => $this->serializeCustomer($customer))
             ->all();
     }
@@ -71,14 +71,17 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
             ->all();
     }
 
-    /** @return array{id: int, code: string, name: string, source_agent_id: int|null, owner_id: int|null, current_status_key: string|null, current_status: string|null, arrived_at: string|null} */
+    /** @return array{id: int, code: string, name: string, source_type: string, source_agent_id: int|null, direct_channel_id: int|null, direct_channel_name: string|null, owner_id: int|null, current_status_key: string|null, current_status: string|null, arrived_at: string|null} */
     private function serializeCustomer(Customer $customer): array
     {
         return [
             'id' => (int) $customer->id,
             'code' => (string) $customer->code,
             'name' => (string) $customer->name,
-            'source_agent_id' => (int) $customer->source_agent_id,
+            'source_type' => (string) $customer->source_type,
+            'source_agent_id' => $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
+            'direct_channel_id' => $customer->direct_channel_id === null ? null : (int) $customer->direct_channel_id,
+            'direct_channel_name' => $customer->directChannel?->name,
             'owner_id' => $customer->owner_id === null ? null : (int) $customer->owner_id,
             'current_status_key' => $customer->currentStatus?->key,
             'current_status' => $customer->currentStatus === null

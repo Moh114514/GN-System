@@ -1,5 +1,12 @@
 # GN-System 完整运维手册
 
+## 当前开发分支状态（2026-09-21）
+
+`codex/direct-customer-follow-up` 已完成直客方案 PR3 的本机代码和自动化验证，新增
+`2026_09_21_000100_create_direct_customer_commissions` migration。该分支尚未合入
+`develop`、创建 RC 或部署到 UAT/Production；服务器不得直接获取或切换到该开发分支。
+正式发布前必须按发布手册备份、执行 migration、核对直客提成规则和历史订单快照，并完成人工验收。
+
 > 当前基线：2026-08-30
 >
 > 适用仓库：`Moh114514/GN-System`
