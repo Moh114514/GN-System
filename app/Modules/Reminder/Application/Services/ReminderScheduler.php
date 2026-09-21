@@ -37,6 +37,7 @@ final readonly class ReminderScheduler
                 completedOn: $order->completedOn,
                 ownerId: $order->ownerId,
                 actorId: $order->ownerId,
+                sourceType: $order->sourceType,
             ));
             $created += Reminder::query()->count() - $before;
         }
@@ -105,6 +106,12 @@ final readonly class ReminderScheduler
 
     private function inScope(ReminderRule $rule, ReminderCustomerData $customer): bool
     {
+        if ($customer->sourceType === 'agent'
+            && $rule->trigger_type === 'date_offset'
+            && ($rule->trigger_config['field'] ?? null) === 'completed_on') {
+            return false;
+        }
+
         $value = $rule->scope_config['value'] ?? null;
 
         return match ($rule->scope_type) {

@@ -26,6 +26,8 @@
 
 `CustomerStatusManager` 在状态变为 `treatment_completed` 时通过 Reminder Application Contract 调度两条被动提醒：术后 7 天和术后 30 天。每条提醒的幂等键由客户、施术结束时间和提醒类型组成；回退后再次设置相同结束时间不会重复创建。
 
+直客方案 PR4 对提醒来源做了显式隔离：预约客户都会收到到店前一天 18:00 和到店当天 09:00 的两条独立提醒；术后 7 天和 30 天提醒仅对 `source_type=direct` 生效，代理商客户即使被 `all_customers` 主动提醒规则覆盖，也不会因 `completed_on` 生成术后类提醒。来源类型通过 Customer/Order 的 Reminder Application Data 传递，不改变 Customer 与 Reminder 的模块边界。
+
 客户的 `treatment_completed_at` 会被保存，作为提醒日期和幂等依据。提醒默认使用客户负责人作为 `assigned_to`；如负责人绑定了钉钉 `user_id` 或 `mobile`，发送钉钉通知时会通过 Webhook 对应的定向字段尝试 @，不会在正文暴露该内部绑定值。
 
 ## 验证

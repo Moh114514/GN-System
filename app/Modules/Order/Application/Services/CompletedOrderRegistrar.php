@@ -174,6 +174,7 @@ final readonly class CompletedOrderRegistrar
                     completedOn: $occurredOn,
                     ownerId: $order->owner_id === null ? null : (int) $order->owner_id,
                     actorId: $data->actorId,
+                    sourceType: $sourceType,
                 ));
 
                 $this->audit->record(

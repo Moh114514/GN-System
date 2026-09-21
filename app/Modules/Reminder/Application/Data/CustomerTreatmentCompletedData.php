@@ -12,5 +12,6 @@ final readonly class CustomerTreatmentCompletedData
         public CarbonImmutable $completedAt,
         public ?int $ownerId,
         public ?int $actorId,
+        public string $sourceType = 'agent',
     ) {}
 }

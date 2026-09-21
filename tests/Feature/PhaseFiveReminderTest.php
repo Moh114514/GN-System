@@ -11,6 +11,7 @@ use App\Modules\Auth\Application\Contracts\BusinessGroupManagementGateway;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Config\Infrastructure\Models\NotificationRecipientConfig;
 use App\Modules\Customer\Infrastructure\Models\Customer;
+use App\Modules\Customer\Infrastructure\Models\DirectCustomerChannel;
 use App\Modules\Order\Application\Services\CustomerAppointmentScheduleWorkspace;
 use App\Modules\Order\Infrastructure\Models\Appointment;
 use App\Modules\Order\Infrastructure\Models\Order;
@@ -90,12 +91,37 @@ class PhaseFiveReminderTest extends TestCase
         parent::tearDown();
     }
 
+    private function useDirectCustomer(): void
+    {
+        $this->customer->update([
+            'source_type' => 'direct',
+            'source_agent_id' => null,
+            'direct_channel_id' => DirectCustomerChannel::query()->firstOrFail()->id,
+        ]);
+        $this->customer->refresh();
+    }
+
+    private function createDirectCustomer(string $code = 'REMIND-DIRECT-0001'): Customer
+    {
+        return Customer::query()->create([
+            'code' => $code,
+            'name' => '直客提醒测试客户',
+            'birth_date' => '1991-08-02',
+            'source_type' => 'direct',
+            'direct_channel_id' => DirectCustomerChannel::query()->firstOrFail()->id,
+            'owner_id' => $this->user->id,
+            'project_intention' => '皮肤管理',
+        ]);
+    }
+
     public function test_completed_treatment_creates_two_idempotent_future_reminders(): void
     {
+        $this->useDirectCustomer();
         $order = Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => Institution::query()->firstOrFail()->id,
-            'agent_id' => $this->agent->id,
+            'agent_id' => null,
+            'source_type' => 'direct',
             'project_name' => '皮肤管理',
             'amount_krw' => 10000,
             'completed_on' => '2026-08-01',
@@ -109,6 +135,7 @@ class PhaseFiveReminderTest extends TestCase
             completedOn: CarbonImmutable::parse('2026-08-01'),
             ownerId: $this->user->id,
             actorId: $this->user->id,
+            sourceType: 'direct',
         );
         $gateway = app(DatabaseTreatmentReminderGateway::class);
         $gateway->schedule($data);
@@ -121,10 +148,12 @@ class PhaseFiveReminderTest extends TestCase
 
     public function test_cancelled_post_treatment_reminders_reactivate_on_order_recompletion(): void
     {
+        $this->useDirectCustomer();
         $order = Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => Institution::query()->firstOrFail()->id,
-            'agent_id' => $this->agent->id,
+            'agent_id' => null,
+            'source_type' => 'direct',
             'project_name' => '提醒复活项目',
             'amount_krw' => 10000,
             'completed_on' => '2026-08-05',
@@ -138,6 +167,7 @@ class PhaseFiveReminderTest extends TestCase
             completedOn: CarbonImmutable::parse('2026-08-05'),
             ownerId: $this->user->id,
             actorId: $this->user->id,
+            sourceType: 'direct',
         );
         $gateway = app(DatabaseTreatmentReminderGateway::class);
         $gateway->schedule($data);
@@ -164,11 +194,12 @@ class PhaseFiveReminderTest extends TestCase
             'status' => 'scheduled',
         ]);
         $scheduler = app(ReminderScheduler::class);
-        $this->assertSame(1, $scheduler->materialize());
+        $this->assertSame(2, $scheduler->materialize());
         $this->assertSame(0, $scheduler->materialize());
         $this->assertDatabaseHas('reminders', ['title' => '到院前一天联系客户', 'due_at' => '2026-08-03 18:00:00', 'assigned_to' => $this->user->id]);
+        $this->assertDatabaseHas('reminders', ['title' => '今日客服联系客户并确认到店', 'due_at' => '2026-08-04 09:00:00', 'assigned_to' => $this->user->id]);
         $this->assertDatabaseHas('reminders', ['notes' => '预计到院时间：2026-08-04 10:00']);
-        $this->assertSame(1, Reminder::query()->count());
+        $this->assertSame(2, Reminder::query()->count());
     }
 
     public function test_scheduler_creates_one_idempotent_compensation_reminder_after_the_previous_day_cutoff(): void
@@ -184,13 +215,58 @@ class PhaseFiveReminderTest extends TestCase
         CarbonImmutable::setTestNow('2026-08-01 20:00:00');
 
         $scheduler = app(ReminderScheduler::class);
-        $this->assertSame(1, $scheduler->materialize());
+        $this->assertSame(2, $scheduler->materialize());
         $this->assertSame(0, $scheduler->materialize());
-        $this->assertDatabaseCount('reminders', 1);
+        $this->assertDatabaseCount('reminders', 2);
         $this->assertDatabaseHas('reminders', [
             'appointment_id' => Appointment::query()->firstOrFail()->id,
             'status' => 'pending',
         ]);
+    }
+
+    public function test_appointment_reminders_cover_agent_and_direct_customers(): void
+    {
+        $institution = Institution::query()->firstOrFail();
+        $directCustomer = $this->createDirectCustomer();
+        foreach ([$this->customer, $directCustomer] as $customer) {
+            Appointment::query()->create([
+                'customer_id' => $customer->id,
+                'institution_id' => $institution->id,
+                'scheduled_at' => '2026-08-04 10:00:00',
+                'owner_id' => $this->user->id,
+                'status' => 'scheduled',
+            ]);
+        }
+
+        $scheduler = app(ReminderScheduler::class);
+        $this->assertSame(4, $scheduler->materialize());
+        $this->assertSame(0, $scheduler->materialize());
+        $this->assertSame(4, Reminder::query()->where('reminder_type', 'appointment')->count());
+        $this->assertSame(2, Reminder::query()->where('customer_id', $this->customer->id)->count());
+        $this->assertSame(2, Reminder::query()->where('customer_id', $directCustomer->id)->count());
+    }
+
+    public function test_post_treatment_reminders_are_limited_to_direct_customers(): void
+    {
+        $institution = Institution::query()->firstOrFail();
+        $directCustomer = $this->createDirectCustomer('REMIND-DIRECT-0002');
+        foreach ([[$this->customer, 'agent', $this->agent->id], [$directCustomer, 'direct', null]] as [$customer, $sourceType, $agentId]) {
+            Order::query()->create([
+                'customer_id' => $customer->id,
+                'institution_id' => $institution->id,
+                'agent_id' => $agentId,
+                'source_type' => $sourceType,
+                'project_name' => '皮肤管理',
+                'amount_krw' => 10000,
+                'completed_on' => '2026-08-01',
+                'owner_id' => $this->user->id,
+                'status' => 'completed',
+            ]);
+        }
+
+        $this->assertSame(2, app(ReminderScheduler::class)->materialize());
+        $this->assertSame(0, Reminder::query()->where('customer_id', $this->customer->id)->where('reminder_type', 'post_treatment')->count());
+        $this->assertSame(2, Reminder::query()->where('customer_id', $directCustomer->id)->where('reminder_type', 'post_treatment')->count());
     }
 
     public function test_arrived_and_completed_appointments_can_be_corrected_without_recreating_arrival_reminders(): void
@@ -718,6 +794,7 @@ class PhaseFiveReminderTest extends TestCase
 
     public function test_system_templates_and_generated_reminders_are_projected_in_korean(): void
     {
+        $this->useDirectCustomer();
         $manager = app(ReminderRuleManager::class);
         $manager->ensureSystemTemplates();
         $template = ReminderTemplate::query()->where('system_key', 'pre_visit_confirmation')->firstOrFail();
@@ -731,7 +808,8 @@ class PhaseFiveReminderTest extends TestCase
         $order = Order::query()->create([
             'customer_id' => $this->customer->id,
             'institution_id' => Institution::query()->firstOrFail()->id,
-            'agent_id' => $this->agent->id,
+            'agent_id' => null,
+            'source_type' => 'direct',
             'project_name' => '피부 관리',
             'amount_krw' => 10000,
             'completed_on' => '2026-08-01',
@@ -745,6 +823,7 @@ class PhaseFiveReminderTest extends TestCase
             completedOn: CarbonImmutable::parse('2026-08-01'),
             ownerId: $this->user->id,
             actorId: $this->user->id,
+            sourceType: 'direct',
         ));
         $this->user->update(['preferred_locale' => 'ko_KR']);
 

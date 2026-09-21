@@ -232,6 +232,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
             completedOn: $completedOn,
             ownerId: $order->owner_id === null ? null : (int) $order->owner_id,
             actorId: $actorId,
+            sourceType: (string) $order->source_type,
         ));
     }
 

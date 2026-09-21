@@ -125,6 +125,7 @@ final readonly class CustomerStatusManager
                     completedAt: $completedAt,
                     ownerId: $customer->owner_id === null ? null : (int) $customer->owner_id,
                     actorId: (int) $actor->id,
+                    sourceType: (string) $customer->source_type,
                 ));
             }
             if ($target->key === 'arrived') {

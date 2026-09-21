@@ -43,6 +43,7 @@ final readonly class DatabaseReminderCustomerReader implements ReminderCustomerR
             wechatAddedOn: $customer->wechat_added_on === null ? null : CarbonImmutable::parse($customer->wechat_added_on),
             createdAt: CarbonImmutable::parse($customer->created_at),
             ownerId: $customer->owner_id === null ? null : (int) $customer->owner_id,
+            sourceType: (string) $customer->source_type,
             sourceAgentId: $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
             agentStatus: $agentStatus,
             statusId: $customer->current_status_id === null ? null : (int) $customer->current_status_id,
