@@ -8,6 +8,7 @@ use App\Modules\Auth\Application\Contracts\BusinessGroupManagementGateway;
 use App\Modules\Auth\Application\Data\AccessContext;
 use App\Modules\Auth\Domain\UserRole;
 use App\Modules\Customer\Domain\CustomerSourceType;
+use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -30,6 +31,18 @@ class DirectCustomerBusinessFoundationTest extends TestCase
         );
         $this->assertSame(UserRole::DirectCustomerManager, UserRole::tryFrom('direct_customer_manager'));
         $this->assertSame(CustomerSourceType::Direct, CustomerSourceType::tryFrom('direct'));
+    }
+
+    public function test_reference_seeder_restores_default_direct_channels_after_business_reset(): void
+    {
+        DB::table('direct_customer_channels')->truncate();
+
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+
+        $this->assertSame(
+            ['xiaohongshu', 'douyin', 'wechat', 'website', 'phone', 'offline', 'referral', 'other'],
+            DB::table('direct_customer_channels')->orderBy('sort_order')->pluck('code')->all(),
+        );
     }
 
     public function test_direct_customer_manager_is_not_a_business_group_member(): void

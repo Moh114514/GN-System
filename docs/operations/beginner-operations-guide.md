@@ -2,7 +2,7 @@
 
 ## 最近一次开发状态（2026-09-23）
 
-直客方案 PR5 已在本机开发分支完成 Dashboard、机构销售与报表权限范围；此前 PR1–PR4 的直客客户、订单、提成和提醒也已实现。PR5 定向测试、完整本地门禁（476 项测试、2944 断言）和前端构建已通过，但尚未发布。不要在服务器上
+直客方案 PR1–PR6 已在本机开发分支完成，包含直客客户、订单、提成、提醒、报表、订单 UI、导航及 UAT reset 代码。PR6 定向测试、完整本地门禁（479 项测试、2976 断言）和前端构建已通过，但尚未发布，UAT reset 也尚未在目标环境执行。不要在服务器上
 直接部署 `codex/direct-customer-follow-up`；待合入 `develop`、创建递增 RC 并按完整发布手册
 完成备份、migration、规则核对和 UAT 验收后，才能进入服务器发布流程。
 
@@ -928,7 +928,7 @@ cd /srv/gn-system/repository
 ./deploy/reload-config.sh uat
 ```
 
-Business-data reset keeps administrator accounts and base configuration. It asks for `RESET gn_system_uat`, makes a backup, clears approved UAT business records and private business files, flushes UAT Redis, restarts services, and checks all three health URLs with the UAT certificate and a bounded 180-second retry for worker heartbeats. For a complete first-time UAT initialization use `./deploy/reset-uat.sh --full` only after confirming the target and accepting that the UAT database will be rebuilt. It also requires the same exact phrase and asks you to create a new administrator.
+Business-data reset keeps administrator accounts and most base configuration. It asks for `RESET gn_system_uat`, makes a backup, clears approved UAT business records and private business files, flushes UAT Redis, restarts services, and checks all three health URLs with the UAT certificate and a bounded 180-second retry for worker heartbeats. It restores the default direct-customer channels, but clears configured direct commission rates; configure those rates again before accepting UAT commission results. For a complete first-time UAT initialization use `./deploy/reset-uat.sh --full` only after confirming the target and accepting that the UAT database will be rebuilt. It also requires the same exact phrase and asks you to create a new administrator.
 
 The reset writes phase audit records after the database cleanup: database cleanup completed, private files cleanup completed, and reset completed. If a later phase fails, it records reset failed and the phase when the audit backend is available.
 

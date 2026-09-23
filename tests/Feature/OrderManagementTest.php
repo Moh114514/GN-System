@@ -20,6 +20,7 @@ use App\Modules\Order\Presentation\Livewire\OrderCenter;
 use App\Modules\Order\Presentation\Livewire\OrderDetail;
 use App\Modules\Order\Presentation\Livewire\OrderEdit;
 use App\Modules\Settlement\Infrastructure\Models\CommissionRule;
+use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -64,10 +65,86 @@ class OrderManagementTest extends TestCase
 
         Livewire::actingAs($user)->test(OrderCenter::class)
             ->assertSee($projectName)
-            ->assertSee('grid grid-cols-1 gap-4 xl:grid-cols-2', false)
+            ->assertSee('grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5', false)
             ->assertSee('line-clamp-2', false)
             ->assertSee('title="'.$projectName.'"', false)
             ->assertDontSee('<table', false)
+            ->assertSee('#'.$order->id);
+    }
+
+    public function test_order_center_filters_by_creation_or_completion_date_in_application_timezone(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent();
+        $customer = $this->customer($agent, $user->id);
+        $inside = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'agent_id' => $agent->id,
+            'project_name' => '日期范围内订单',
+            'amount_krw' => 100000,
+            'status' => 'completed',
+            'owner_id' => $user->id,
+            'occurred_on' => '2026-09-02',
+            'completed_at' => CarbonImmutable::parse('2026-09-02 23:59:59.999999', config('app.timezone')),
+            'created_at' => CarbonImmutable::parse('2026-09-01 00:00:00', config('app.timezone')),
+        ]);
+        $outside = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'agent_id' => $agent->id,
+            'project_name' => '日期范围外订单',
+            'amount_krw' => 200000,
+            'status' => 'completed',
+            'owner_id' => $user->id,
+            'occurred_on' => '2026-09-03',
+            'completed_at' => CarbonImmutable::parse('2026-09-03 00:00:00', config('app.timezone')),
+            'created_at' => CarbonImmutable::parse('2026-09-02 00:00:00', config('app.timezone')),
+        ]);
+
+        $component = Livewire::actingAs($user)->test(OrderCenter::class);
+        $component
+            ->set('dateField', 'created_at')
+            ->set('dateFrom', '2026-09-01')
+            ->set('dateTo', '2026-09-01')
+            ->assertSee('#'.$inside->id)
+            ->assertDontSee('#'.$outside->id);
+        $component
+            ->set('dateTo', '')
+            ->set('dateFrom', '')
+            ->set('dateField', 'completed_at')
+            ->set('dateFrom', '2026-09-02')
+            ->set('dateTo', '2026-09-02')
+            ->assertSee('#'.$inside->id)
+            ->assertDontSee('#'.$outside->id);
+    }
+
+    public function test_completed_order_card_shows_business_date_and_completion_time_separately(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent();
+        $customer = $this->customer($agent, $user->id);
+        $order = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'agent_id' => $agent->id,
+            'project_name' => '独立完成时间订单',
+            'amount_krw' => 100000,
+            'status' => 'completed',
+            'owner_id' => $user->id,
+            'occurred_on' => '2026-09-22',
+            'completed_at' => CarbonImmutable::parse('2026-09-23 14:05:00', config('app.timezone')),
+        ]);
+
+        Livewire::actingAs($user)->test(OrderCenter::class)
+            ->assertSee('消费日期')
+            ->assertSee('2026-09-22')
+            ->assertSee('成交时间')
+            ->assertSee('2026-09-23 14:05')
             ->assertSee('#'.$order->id);
     }
 

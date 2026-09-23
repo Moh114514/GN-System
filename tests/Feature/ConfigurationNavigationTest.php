@@ -114,10 +114,18 @@ class ConfigurationNavigationTest extends TestCase
         preg_match('/<nav class="crm-nav">(?<navigation>.*?)<\/nav>/s', $adminContent, $adminMatches);
         $adminNavigation = $adminMatches['navigation'] ?? '';
 
-        $this->assertMatchesRegularExpression(
-            '/<nav class="crm-nav">.*?<span>总览<\/span>.*?<span>主动提醒<\/span>.*?<span>客户管理<\/span>.*?<span>订单<\/span>.*?<span>多维查询<\/span>.*?<span>团队管理<\/span>.*?<span>代理商<\/span>.*?<span>月结中心<\/span>.*?<span>配置中心<\/span>.*?<\/nav>/s',
-            $adminContent,
+        foreach (['总览', '主动提醒', '客户管理', '订单', '团队管理', '直客提成', '代理商', '月结中心', '多维查询', '机构销售额', '配置中心'] as $label) {
+            $this->assertStringContainsString('<span>'.$label.'</span>', $adminNavigation);
+        }
+        $this->assertStringContainsString('团队概览', $adminNavigation);
+        $this->assertStringContainsString('BD季度提成', $adminNavigation);
+        $this->assertLessThan(
+            strpos($adminNavigation, '<span>多维查询</span>'),
+            strpos($adminNavigation, '<span>月结中心</span>'),
         );
+        $this->assertStringContainsString('data-test="team-nav-group"', $adminNavigation);
+        $this->assertStringContainsString('data-test="team-subnav-overview"', $adminNavigation);
+        $this->assertStringContainsString('data-test="team-subnav-bd-commissions"', $adminNavigation);
         $this->assertStringNotContainsString('数据迁移', $adminNavigation);
 
         $user = User::factory()->create();

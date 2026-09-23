@@ -2,9 +2,9 @@
 
 ## 当前开发分支状态（2026-09-23）
 
-`codex/direct-customer-follow-up` 已完成直客方案 PR5 的本机代码和自动化验证，包含 PR3 的
-`2026_09_21_000100_create_direct_customer_commissions` migration；PR4/PR5 未新增 migration。
-PR5 定向测试和 `composer ci:check`（476 项测试、2944 断言）及 Vite production build 均通过；该分支尚未合入
+`codex/direct-customer-follow-up` 已完成直客方案 PR1–PR6 的本机代码和自动化验证，包含 PR3 的
+`2026_09_21_000100_create_direct_customer_commissions` migration；PR4–PR6 未新增 migration。
+PR6 定向测试和 `composer ci:check`（479 项测试、2976 断言）及 Vite production build 均通过；该分支尚未合入
 `develop`、创建 RC 或部署到 UAT/Production；服务器不得直接获取或切换到该开发分支。
 正式发布前必须按发布手册备份、执行 migration、核对直客提成规则和历史订单快照，并完成人工验收。
 
@@ -1468,7 +1468,7 @@ cd /srv/gn-system/repository
 ./deploy/reload-config.sh uat
 ```
 
-`--business-data` creates a database backup, stops queue and scheduler, invokes `app:reset-uat-data`, removes only the approved private `imports`, `reports`, and `settlements` directories, flushes only the UAT Redis container, restores services, and checks `/up`, `/health`, and `/health/operations`. The checks use `TLS_CERT_PATH`, seed queue/scheduler heartbeats, and retry for up to 180 seconds. It preserves users, institutions, reference configuration, saved queries, and migrations. The application command verifies `APP_ENV`, UAT `APP_URL`, configured PostgreSQL, `current_database()`, and the private storage root before truncating the approved business tables.
+`--business-data` creates a database backup, stops queue and scheduler, invokes `app:reset-uat-data`, removes only the approved private `imports`, `reports`, and `settlements` directories, flushes only the UAT Redis container, restores services, and checks `/up`, `/health`, and `/health/operations`. The checks use `TLS_CERT_PATH`, seed queue/scheduler heartbeats, and retry for up to 180 seconds. It preserves users, institutions, saved queries, migrations, and other base reference configuration. The approved reset list includes `direct_order_commissions`, `direct_commission_rates`, and `direct_customer_channels`; the base seeder restores the default direct-customer channels, but direct commission rates are cleared and must be configured again before UAT commission acceptance. The application command verifies `APP_ENV`, UAT `APP_URL`, configured PostgreSQL, `current_database()`, and the private storage root before truncating the approved business tables.
 
 UAT reset audit events are written by phase after the database transaction so they are not removed when `activity_log` is reset: `database_reset_completed`, `private_files_cleanup_completed`, and `reset_completed`. A failure records `reset_failed` with the failing phase when the audit backend remains available.
 

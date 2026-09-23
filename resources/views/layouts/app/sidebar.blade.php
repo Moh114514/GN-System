@@ -43,30 +43,58 @@
                     <span>{{ __('navigation.orders') }}</span>
                 </a>
 
-                <a href="{{ route('reports.search') }}" class="crm-nav-item {{ request()->routeIs('reports.search', 'reports.exports.*') ? 'is-active' : '' }}" wire:navigate>
-                    <flux:icon.magnifying-glass aria-hidden="true" />
-                    <span>{{ __('navigation.reports') }}</span>
-                </a>
-
-                @if (auth()->user()->isSuperAdmin() || auth()->user()->isBdManager() || auth()->user()->isDirectCustomerManager())
-                    <a href="{{ route('reports.institution-sales') }}" class="crm-nav-item {{ request()->routeIs('reports.institution-sales') ? 'is-active' : '' }}" wire:navigate>
-                        <flux:icon.chart-bar aria-hidden="true" />
-                        <span>{{ __('navigation.institution_sales') }}</span>
-                    </a>
-                @endif
-
                 @if (auth()->user()->isSuperAdmin() || auth()->user()->isBdManager())
-                    <a href="{{ route('team-overview.index') }}" class="crm-nav-item {{ request()->routeIs('team-overview.*') ? 'is-active' : '' }}" wire:navigate>
-                        <flux:icon.user-group aria-hidden="true" />
-                        <span>{{ __('navigation.team_overview') }}</span>
-                    </a>
-                @endif
-
-                @if (auth()->user()->isSuperAdmin() || auth()->user()->isBdManager())
-                    <a href="{{ route('bd-commissions.index') }}" class="crm-nav-item {{ request()->routeIs('bd-commissions.*') ? 'is-active' : '' }}" wire:navigate>
-                        <flux:icon.chart-pie aria-hidden="true" />
-                        <span>{{ __('navigation.bd_commissions') }}</span>
-                    </a>
+                    @php
+                        $teamNavigationActive = request()->routeIs('team-overview.*', 'bd-commissions.*');
+                    @endphp
+                    <div
+                        class="crm-nav-group"
+                        x-data="{ open: @js($teamNavigationActive) }"
+                        data-test="team-nav-group"
+                    >
+                        <div class="crm-nav-group-head {{ $teamNavigationActive ? 'is-active' : '' }}">
+                            <a
+                                href="{{ route('team-overview.index') }}"
+                                class="crm-nav-group-link"
+                                data-test="team-nav-link"
+                                wire:navigate
+                            >
+                                <flux:icon.user-group aria-hidden="true" />
+                                <span>{{ __('navigation.team_management') }}</span>
+                            </a>
+                            <button
+                                type="button"
+                                class="crm-nav-group-toggle"
+                                @click="open = !open"
+                                :aria-expanded="open"
+                                aria-controls="team-subnav"
+                                aria-label="{{ __('navigation.toggle_team') }}"
+                                data-test="team-nav-toggle"
+                            >
+                                <flux:icon.chevron-down class="crm-nav-chevron" x-bind:class="{ 'is-open': open }" aria-hidden="true" />
+                            </button>
+                        </div>
+                        <div
+                            id="team-subnav"
+                            class="crm-subnav-collapse {{ $teamNavigationActive ? 'is-open' : '' }}"
+                            aria-hidden="{{ $teamNavigationActive ? 'false' : 'true' }}"
+                            x-bind:class="{ 'is-open': open }"
+                            x-bind:aria-hidden="(!open).toString()"
+                            @if (! $teamNavigationActive) inert @endif
+                            x-bind:inert="!open"
+                        >
+                            <div class="crm-subnav-collapse-inner">
+                                <div class="crm-subnav">
+                                    <a href="{{ route('team-overview.index') }}" class="crm-subnav-item {{ request()->routeIs('team-overview.*') ? 'is-active' : '' }}" data-test="team-subnav-overview" wire:navigate>
+                                        {{ __('navigation.team_overview_page') }}
+                                    </a>
+                                    <a href="{{ route('bd-commissions.index') }}" class="crm-subnav-item {{ request()->routeIs('bd-commissions.*') ? 'is-active' : '' }}" data-test="team-subnav-bd-commissions" wire:navigate>
+                                        {{ __('navigation.bd_commissions') }}
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 @endif
 
                 @if (auth()->user()->isSuperAdmin() || auth()->user()->isDirectCustomerManager())
@@ -85,6 +113,21 @@
                         <flux:icon.banknotes aria-hidden="true" />
                         <span>{{ __('navigation.settlements') }}</span>
                     </a>
+                @endif
+
+                <a href="{{ route('reports.search') }}" class="crm-nav-item {{ request()->routeIs('reports.search', 'reports.exports.*') ? 'is-active' : '' }}" wire:navigate>
+                    <flux:icon.magnifying-glass aria-hidden="true" />
+                    <span>{{ __('navigation.reports') }}</span>
+                </a>
+
+                @if (auth()->user()->isSuperAdmin() || auth()->user()->isBdManager() || auth()->user()->isDirectCustomerManager())
+                    <a href="{{ route('reports.institution-sales') }}" class="crm-nav-item {{ request()->routeIs('reports.institution-sales') ? 'is-active' : '' }}" wire:navigate>
+                        <flux:icon.chart-bar aria-hidden="true" />
+                        <span>{{ __('navigation.institution_sales') }}</span>
+                    </a>
+                @endif
+
+                @if (auth()->user()->isSuperAdmin())
                     @php
                         $configurationNavigationActive = request()->routeIs(
                             'configuration.*',

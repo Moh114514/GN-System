@@ -119,6 +119,13 @@ return [
         'translator_name' => '翻译姓名',
         'notes' => '备注',
         'status_filter' => '订单状态筛选',
+        'source_filter' => '订单来源筛选',
+        'all_sources' => '全部来源',
+        'date_field' => '日期类型',
+        'created_date' => '创建日期',
+        'completed_date' => '完成日期',
+        'date_from' => '开始日期',
+        'date_to' => '结束日期',
         'all_statuses' => '全部状态',
         'per_page' => ':count 条/页',
         'order' => '订单',
@@ -144,6 +151,7 @@ return [
     ],
     'sources' => [
         'agent' => '代理商',
+        'direct' => '直客',
     ],
     'values' => [
         'empty' => '—',
@@ -167,6 +175,10 @@ return [
         'institution_return_processed' => '机构回传已处理，订单 #:id 已生成。',
     ],
     'errors' => [
+        'date_range' => '结束日期不能早于开始日期。',
+        'invalid_date' => '日期格式无效。',
+        'invalid_date_field' => '订单日期类型无效。',
+        'invalid_source_type' => '订单来源无效。',
         'bd_order_edit_only' => 'Only a BD manager can edit orders in their own scope.',
         'only_editable_order' => 'This order is not editable or has already been locked.',
         'optimistic_lock' => 'The order was updated elsewhere. Reload and try again.',

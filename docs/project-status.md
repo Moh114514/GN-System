@@ -5,8 +5,8 @@
 已实现 UAT 宿主机双层重置、配置重载脚本和非破坏性管理员维护命令。UAT 重置与配置重载均已加入目录、Compose 项目、环境文件权限、UAT URL、数据库名称和 PostgreSQL `current_database()` 防护；真实 UAT/Production 执行结果仍须在目标服务器按运维手册验收，不能由本机静态检查替代。
 
 > 最后核验：2026-09-23
-> 核验依据：当前 `codex/direct-customer-follow-up` 工作区；PR5 定向测试通过，`composer ci:check` 476 项测试/2944 断言通过，Vite production build 通过
-> 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及 PR1–PR7 规划能力继续保持；直客方案 PR1–PR5 已在本机开发分支实现。当前分支尚未合入 `develop`、发布或完成 UAT/Production 验收；直客 migration 的目标环境备份、迁移、抽样核验和人工业务验收仍未完成。
+> 核验依据：当前 `codex/direct-customer-follow-up` 分支；直客方案 PR1–PR6 已提交，PR6 实现与完整本机质量门禁通过
+> 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及 PR1–PR7 规划能力继续保持；直客方案 PR1–PR6 已提交至本机开发分支。当前分支尚未合入 `develop`、发布或完成 UAT/Production 验收；直客 migration 的目标环境备份、迁移、抽样核验和人工业务验收仍未完成。
 
 本页只描述仓库中可以验证的状态。未来规划见 `docs/source/`，不能据此页之外的
 规划内容推断某项能力已经存在。
@@ -16,14 +16,14 @@
 - 当前分支 `codex/direct-customer-follow-up` 已实现直客订单登记、订单来源与渠道快照、负责人和完成时提成比例快照；代理商订单继续使用原有推广费路径。
 - 新增直客提成规则和订单提成表、管理员配置页面、直客负责人个人提成页面；订单完成回退会作废原直客提成，重新完成时按新规则生成新的有效记录。
 - 已补充负责人转移后历史订单保留原负责人、新订单使用新负责人、提成比例历史快照和回退作废验收测试；已通过 PR3 定向测试、模块边界检查和既有代理商提成回归测试。
-- 当前仅完成本机工作区验证，尚未合入 `develop`、推送、创建 RC、部署或完成 UAT/Production migration、备份、抽样核验和人工业务验收。新增 migration 为 `2026_09_21_000100_create_direct_customer_commissions`。
+- 当前仅完成本机开发分支验证，尚未合入 `develop`、创建 RC、部署或完成 UAT/Production migration、备份、抽样核验和人工业务验收。新增 migration 为 `2026_09_21_000100_create_direct_customer_commissions`。
 
 ## 2026-09-21 直客方案 PR4：提醒体系
 
 - 预约提醒现在为独立的到店前一天 18:00 与到店当天 09:00 两条记录；代理商客户和直客均生成，过期时按当前业务时间补偿生成，并分别使用独立去重键。
 - 订单完成和客户状态完成只为 `source_type=direct` 生成术后 7 天、30 天提醒；代理商客户不会生成术后提醒。主动提醒规则在 `all_customers` 范围下也会硬过滤代理商客户的 `completed_on` 术后类规则。
 - 来源类型已通过提醒客户/订单 Application Data 传递到调度器和网关，并补充代理商/直客到店与术后提醒的幂等、来源隔离回归测试。本 PR 未新增 migration、依赖或环境变量。
-- 当前仅完成本机工作区验证，尚未合入 `develop`、推送、创建 RC、部署或完成 UAT/Production 人工验收。
+- 当前仅完成本机开发分支验证，尚未合入 `develop`、创建 RC、部署或完成 UAT/Production 人工验收。
 
 ## 2026-09-23 直客方案 PR5：Dashboard、机构销售与报表范围
 
@@ -32,7 +32,15 @@
 - 机构销售及详情页对超级管理员、有效范围 BD 和直客负责人开放；客服仍拒绝。直客负责人只看到本人 `source_type=direct` 且订单负责人快照为本人的机构销售，详情页隐藏代理商拆分。
 - 多维查询、机构筛选项、订单/提醒聚合及搜索导出按同一角色范围过滤。无 scope 的 BD 不会回退为全量记录；不跨 Customer 模块读取 Model/table，订单历史范围依据完成时 owner/source 快照。
 - 无新增 migration、依赖或环境变量；新增机构销售读取 middleware 和 Reminder Customer ID Contract。定向测试通过：`InstitutionMonthlySalesTest` 10 项/111 断言、`PhaseSixReportingConfigurationTest` 18 项/193 断言；另有客服空范围导出拒绝回归通过。完整 `composer ci:check` 通过（476 项测试/2944 断言，含 PHPStan、Pint、模块边界与文档检查）；`docker compose exec vite npm run build` 通过，包含现有 bundle size 提示。
-- 当前仅本机工作区开发，未推送、合入 `develop`、创建 RC、部署或在 UAT/Production 执行人工验收。
+- 当前仅本机开发分支验证，尚未合入 `develop`、创建 RC、部署或在 UAT/Production 执行人工验收。
+
+## 2026-09-23 直客方案 PR6：订单 UI、导航与 UAT reset
+
+- 订单中心增加来源筛选及按创建/完成时间筛选，按应用时区覆盖开始日和结束日；桌面卡片最多五列，分别标明业务消费日期和系统完成时间。
+- 团队概览及 BD 季度提成收纳进团队管理父菜单，多维查询移动到月结中心之后，路由不变；新增中文/韩文标签。
+- UAT reset 显式清理直客订单提成、费率规则和渠道字典；PhaseTwoReferenceDataSeeder 会恢复默认渠道，费率规则不会自动重建。此 PR 不执行 UAT reset，不新增 migration。
+- 定向测试通过：`OrderManagementTest` 14 项/79 断言、`ConfigurationNavigationTest` 12 项/151 断言、`DirectCustomerBusinessFoundationTest` 5 项/24 断言、`DeployScriptSafetyTest` 5 项/80 断言。完整 `composer ci:check` 通过（479 项测试/2976 断言，含 docs check、Pint、PHPStan 与模块边界）；`docker compose exec vite npm run build` 通过，存在现有 bundle size 提示。
+- 无新增 migration、依赖或环境变量；未执行 UAT reset。仅本机代码验证，不代表 UAT/Production 已验收；PR6 已提交至当前开发分支，尚未合入 `develop`。
 
 ## 2026-09-20 直客方案 PR1：数据模型、角色与 AccessContext
 

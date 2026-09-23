@@ -16,6 +16,8 @@ use App\Modules\Settlement\Application\Contracts\OrderFinancialReader;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 
 final readonly class OrderManagementWorkspace
 {
@@ -55,7 +57,7 @@ final readonly class OrderManagementWorkspace
     }
 
     /**
-     * @param  array{search?: string, status?: string, institution_id?: int|null, agent_id?: int|null}  $filters
+     * @param  array{search?: string, status?: string, institution_id?: int|null, agent_id?: int|null, date_field?: string, date_from?: string, date_to?: string, source_type?: string}  $filters
      * @return LengthAwarePaginator<int, array{
      *     id: int,
      *     customer_id: int,
@@ -98,6 +100,25 @@ final readonly class OrderManagementWorkspace
         }
         if (($filters['agent_id'] ?? null) !== null) {
             $query->where('agent_id', $filters['agent_id']);
+        }
+        $dateField = (string) ($filters['date_field'] ?? 'created_at');
+        if (! in_array($dateField, ['created_at', 'completed_at'], true)) {
+            throw ValidationException::withMessages(['dateField' => __('orders.errors.invalid_date_field')]);
+        }
+        $dateFrom = trim((string) ($filters['date_from'] ?? ''));
+        $dateTo = trim((string) ($filters['date_to'] ?? ''));
+        if ($dateFrom !== '') {
+            $query->where($dateField, '>=', $this->dateBoundary($dateFrom, false, 'dateFrom'));
+        }
+        if ($dateTo !== '') {
+            $query->where($dateField, '<=', $this->dateBoundary($dateTo, true, 'dateTo'));
+        }
+        $sourceType = (string) ($filters['source_type'] ?? '');
+        if ($sourceType !== '') {
+            if (! in_array($sourceType, ['agent', 'direct'], true)) {
+                throw ValidationException::withMessages(['sourceTypeFilter' => __('orders.errors.invalid_source_type')]);
+            }
+            $query->where('source_type', $sourceType);
         }
 
         $page = $query->latest('id')->paginate($perPage);
@@ -339,5 +360,15 @@ final readonly class OrderManagementWorkspace
                 $scope->orWhereIn('agent_id', $context->agentIds);
             }
         });
+    }
+
+    private function dateBoundary(string $date, bool $endOfDay, string $property): Carbon
+    {
+        $boundary = Carbon::createFromFormat('!Y-m-d', $date, (string) config('app.timezone'));
+        if ($boundary === null || $boundary->format('Y-m-d') !== $date) {
+            throw ValidationException::withMessages([$property => __('orders.errors.invalid_date')]);
+        }
+
+        return $endOfDay ? $boundary->endOfDay() : $boundary->startOfDay();
     }
 }

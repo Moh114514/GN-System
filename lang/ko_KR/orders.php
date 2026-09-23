@@ -119,6 +119,13 @@ return [
         'translator_name' => '번역자 이름',
         'notes' => '메모',
         'status_filter' => '주문 상태 필터',
+        'source_filter' => '주문 출처 필터',
+        'all_sources' => '전체 출처',
+        'date_field' => '날짜 유형',
+        'created_date' => '생성 날짜',
+        'completed_date' => '완료 날짜',
+        'date_from' => '시작 날짜',
+        'date_to' => '종료 날짜',
         'all_statuses' => '전체 상태',
         'per_page' => '페이지당 :count건',
         'order' => '주문',
@@ -144,6 +151,7 @@ return [
     ],
     'sources' => [
         'agent' => '에이전트',
+        'direct' => '직접 고객',
     ],
     'values' => [
         'empty' => '—',
@@ -167,6 +175,10 @@ return [
         'institution_return_processed' => '기관 회신이 처리되어 주문 #:id가 생성되었습니다.',
     ],
     'errors' => [
+        'date_range' => '종료 날짜는 시작 날짜보다 빠를 수 없습니다.',
+        'invalid_date' => '날짜 형식이 올바르지 않습니다.',
+        'invalid_date_field' => '주문 날짜 유형이 올바르지 않습니다.',
+        'invalid_source_type' => '주문 출처가 올바르지 않습니다.',
         'bd_order_edit_only' => 'Only a BD manager can edit orders in their own scope.',
         'only_editable_order' => 'This order is not editable or has already been locked.',
         'optimistic_lock' => 'The order was updated elsewhere. Reload and try again.',
