@@ -16,6 +16,8 @@ interface ReportCustomerReader
 
     public function customerIdForPassport(string $passport): ?int;
 
+    public function hasScopedCustomers(): bool;
+
     /**
      * @param  array<int, int>  $ids
      * @return array<int, string>
@@ -32,6 +34,7 @@ interface ReportCustomerReader
      * @return array{
      *   new_customers: int,
      *   active_customers: int,
+     *   total_customers: int,
      *   source_distribution: array<int, array{source_type: string, source_id: int, key: string, value: int}>
      * }
      */

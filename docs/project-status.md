@@ -4,9 +4,9 @@
 
 已实现 UAT 宿主机双层重置、配置重载脚本和非破坏性管理员维护命令。UAT 重置与配置重载均已加入目录、Compose 项目、环境文件权限、UAT URL、数据库名称和 PostgreSQL `current_database()` 防护；真实 UAT/Production 执行结果仍须在目标服务器按运维手册验收，不能由本机静态检查替代。
 
-> 最后核验：2026-09-20
-> 核验依据：当前 `codex/direct-customer-follow-up` 工作区、直客方案 PR1–PR4 定向测试、既有权限/角色/客户生命周期/负责人移交/订单回归测试；完整门禁与前端构建须在 Docker 工具可用后补核
-> 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及 PR1–PR7 规划能力继续保持；直客方案 PR1 已完成数据模型与角色底座，PR2 已完成直客 CRUD、DC 编号、范围过滤、负责人转移与超管审批，PR3 已完成直客订单登记与提成，PR4 已完成来源隔离的到店及术后提醒。当前分支尚未合入 `develop`、发布或完成 UAT/Production 验收；直客 migration 的目标环境备份、迁移、抽样核验和人工业务验收仍未完成。
+> 最后核验：2026-09-23
+> 核验依据：当前 `codex/direct-customer-follow-up` 工作区；PR5 定向测试通过，`composer ci:check` 476 项测试/2944 断言通过，Vite production build 通过
+> 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及 PR1–PR7 规划能力继续保持；直客方案 PR1–PR5 已在本机开发分支实现。当前分支尚未合入 `develop`、发布或完成 UAT/Production 验收；直客 migration 的目标环境备份、迁移、抽样核验和人工业务验收仍未完成。
 
 本页只描述仓库中可以验证的状态。未来规划见 `docs/source/`，不能据此页之外的
 规划内容推断某项能力已经存在。
@@ -24,6 +24,15 @@
 - 订单完成和客户状态完成只为 `source_type=direct` 生成术后 7 天、30 天提醒；代理商客户不会生成术后提醒。主动提醒规则在 `all_customers` 范围下也会硬过滤代理商客户的 `completed_on` 术后类规则。
 - 来源类型已通过提醒客户/订单 Application Data 传递到调度器和网关，并补充代理商/直客到店与术后提醒的幂等、来源隔离回归测试。本 PR 未新增 migration、依赖或环境变量。
 - 当前仅完成本机工作区验证，尚未合入 `develop`、推送、创建 RC、部署或完成 UAT/Production 人工验收。
+
+## 2026-09-23 直客方案 PR5：Dashboard、机构销售与报表范围
+
+- Dashboard 按角色生成服务端隔离快照：客服和直客负责人只获取本人 owner 范围的客户、有效成交订单、成交额、机构销售与提醒；直客负责人另外获取本人有效直客提成。代理商推广费和结算/代理商图表仅在超级管理员及 BD 快照中出现，推广费 UI 显示为红色负数。
+- 代理商业绩排行现按完成、有效的代理商订单成交额汇总；快照字段统一为 `agent_sales_ranking`，缓存升级为 `v8`。Dashboard 导出按当前用户权限和服务端日期区间重建数据，不信任客户端快照。
+- 机构销售及详情页对超级管理员、有效范围 BD 和直客负责人开放；客服仍拒绝。直客负责人只看到本人 `source_type=direct` 且订单负责人快照为本人的机构销售，详情页隐藏代理商拆分。
+- 多维查询、机构筛选项、订单/提醒聚合及搜索导出按同一角色范围过滤。无 scope 的 BD 不会回退为全量记录；不跨 Customer 模块读取 Model/table，订单历史范围依据完成时 owner/source 快照。
+- 无新增 migration、依赖或环境变量；新增机构销售读取 middleware 和 Reminder Customer ID Contract。定向测试通过：`InstitutionMonthlySalesTest` 10 项/111 断言、`PhaseSixReportingConfigurationTest` 18 项/193 断言；另有客服空范围导出拒绝回归通过。完整 `composer ci:check` 通过（476 项测试/2944 断言，含 PHPStan、Pint、模块边界与文档检查）；`docker compose exec vite npm run build` 通过，包含现有 bundle size 提示。
+- 当前仅本机工作区开发，未推送、合入 `develop`、创建 RC、部署或在 UAT/Production 执行人工验收。
 
 ## 2026-09-20 直客方案 PR1：数据模型、角色与 AccessContext
 

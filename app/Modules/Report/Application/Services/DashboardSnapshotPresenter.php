@@ -17,7 +17,7 @@ final class DashboardSnapshotPresenter
                 : __('dashboard.ranges.'.$rangeLabel);
         }
 
-        foreach (['agent_promotion_ranking', 'source_distribution', 'repurchase_rate', 'followup_completion_rate', 'institution_revenue'] as $chart) {
+        foreach (['agent_sales_ranking', 'source_distribution', 'repurchase_rate', 'followup_completion_rate', 'institution_revenue'] as $chart) {
             foreach (($snapshot['charts'][$chart] ?? []) as $index => $row) {
                 if (is_array($row) && isset($row['key'])) {
                     $snapshot['charts'][$chart][$index]['key'] = $this->label((string) $row['key']);

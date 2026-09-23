@@ -48,7 +48,7 @@
                     <span>{{ __('navigation.reports') }}</span>
                 </a>
 
-                @if (auth()->user()->isSuperAdmin() || auth()->user()->isBdManager())
+                @if (auth()->user()->isSuperAdmin() || auth()->user()->isBdManager() || auth()->user()->isDirectCustomerManager())
                     <a href="{{ route('reports.institution-sales') }}" class="crm-nav-item {{ request()->routeIs('reports.institution-sales') ? 'is-active' : '' }}" wire:navigate>
                         <flux:icon.chart-bar aria-hidden="true" />
                         <span>{{ __('navigation.institution_sales') }}</span>

@@ -78,6 +78,11 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
         return $id === null ? null : (int) $id;
     }
 
+    public function hasScopedCustomers(): bool
+    {
+        return $this->scoped(Customer::query())->exists();
+    }
+
     public function namesByIds(array $ids): array
     {
         return $this->scoped(Customer::query())
@@ -110,6 +115,7 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
             ->where('created_at', '<=', $to)
             ->count();
         $sourceDistribution = $this->scoped(Customer::query())
+            ->where('customers.source_type', 'agent')
             ->whereBetween('customers.created_at', [$from, $to])
             ->select([
                 'customers.source_agent_id',
@@ -129,6 +135,7 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
         return [
             'new_customers' => $newCustomers,
             'active_customers' => $activeCustomers,
+            'total_customers' => $activeCustomers,
             'source_distribution' => $sourceDistribution,
         ];
     }
@@ -283,7 +290,7 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
         }
 
         if ($context->isCustomerService()) {
-            $query->where('customers.owner_id', $context->userId);
+            $query->where('customers.source_type', 'agent')->where('customers.owner_id', $context->userId);
 
             return;
         }

@@ -23,9 +23,9 @@ class ReportServiceProvider extends ServiceProvider
         Route::middleware(['web', 'auth', 'verified', 'super-admin.2fa'])->group(function (): void {
             Route::get('/search', GlobalSearchPage::class)->name('global-search');
             Route::get('/reports/search', ReportSearchPage::class)->name('reports.search');
-            Route::middleware('agent.read')->get('/reports/institution-sales', InstitutionMonthlySales::class)
+            Route::middleware('institution-sales.read')->get('/reports/institution-sales', InstitutionMonthlySales::class)
                 ->name('reports.institution-sales');
-            Route::middleware('agent.read')->get('/reports/institution-sales/{institution}', InstitutionMonthlySalesDetail::class)
+            Route::middleware('institution-sales.read')->get('/reports/institution-sales/{institution}', InstitutionMonthlySalesDetail::class)
                 ->whereNumber('institution')
                 ->name('reports.institution-sales.show');
             Route::get('/team-overview', TeamOverview::class)->name('team-overview.index');

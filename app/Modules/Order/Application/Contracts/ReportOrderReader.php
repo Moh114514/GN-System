@@ -26,6 +26,8 @@ interface ReportOrderReader
     /**
      * @return array{
      *   completed_amount: int,
+     *   completed_orders: int,
+     *   completed_customers: int,
      *   repurchase_rate: float,
      *   monthly_consumption: array<int, array{key: string, value: int}>,
      *   monthly_orders: array<int, array{key: string, value: int}>,
@@ -34,6 +36,9 @@ interface ReportOrderReader
      * }
      */
     public function dashboard(CarbonImmutable $from, CarbonImmutable $to): array;
+
+    /** @return list<array{agent_id: int, value: int}> */
+    public function agentSalesRanking(CarbonImmutable $from, CarbonImmutable $to): array;
 
     /** @return list<array{institution_id: int, value: int}> */
     public function institutionRevenue(CarbonImmutable $from, CarbonImmutable $to): array;

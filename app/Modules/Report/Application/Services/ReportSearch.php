@@ -3,6 +3,7 @@
 namespace App\Modules\Report\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\ReportAgentReader;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Config\Application\Contracts\ReportConfigReader;
 use App\Modules\Customer\Application\Contracts\ReportCustomerReader;
 use App\Modules\Order\Application\Contracts\ReportOrderReader;
@@ -18,15 +19,26 @@ final readonly class ReportSearch
         private ReportCustomerReader $customers,
         private ReportAgentReader $agents,
         private ReportConfigReader $config,
+        private AccessContextResolver $access,
     ) {}
 
     /** @return array<string, array<int, array{id: int, name: string}>> */
     public function options(): array
     {
+        $context = $this->access->current();
+        $institutions = $this->config->activeInstitutions();
+        if (! $context->isSuperAdmin()) {
+            $visibleIds = array_fill_keys($this->orders->visibleInstitutionIds(), true);
+            $institutions = array_values(array_filter(
+                $institutions,
+                static fn (array $institution): bool => isset($visibleIds[(int) $institution['id']]),
+            ));
+        }
+
         return [
             'customers' => $this->customers->customerOptions(),
             'agents' => $this->agents->activeAgents(),
-            'institutions' => $this->config->activeInstitutions(),
+            'institutions' => $institutions,
         ];
     }
 

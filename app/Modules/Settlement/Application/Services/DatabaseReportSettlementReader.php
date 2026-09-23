@@ -4,6 +4,7 @@ namespace App\Modules\Settlement\Application\Services;
 
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Settlement\Application\Contracts\ReportSettlementReader;
+use App\Modules\Settlement\Infrastructure\Models\DirectOrderCommission;
 use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
@@ -13,6 +14,19 @@ use Illuminate\Support\Facades\DB;
 final class DatabaseReportSettlementReader implements ReportSettlementReader
 {
     public function __construct(private readonly AccessContextResolver $access) {}
+
+    public function directCommissionDashboard(int $ownerId, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $commissions = DirectOrderCommission::query()
+            ->where('owner_id', $ownerId)
+            ->where('status', 'active')
+            ->whereBetween('completed_at', [$from, $to]);
+
+        return [
+            'commission_amount' => (int) (clone $commissions)->sum('commission_amount_krw'),
+            'order_count' => (int) (clone $commissions)->count(),
+        ];
+    }
 
     public function dashboard(array $orderMonths, CarbonImmutable $asOf): array
     {

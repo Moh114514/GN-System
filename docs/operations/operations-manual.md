@@ -1,10 +1,10 @@
 # GN-System 完整运维手册
 
-## 当前开发分支状态（2026-09-21）
+## 当前开发分支状态（2026-09-23）
 
-`codex/direct-customer-follow-up` 已完成直客方案 PR4 的本机代码和自动化验证，包含 PR3 的
-`2026_09_21_000100_create_direct_customer_commissions` migration；PR4 未新增 migration。
-该分支尚未合入
+`codex/direct-customer-follow-up` 已完成直客方案 PR5 的本机代码和自动化验证，包含 PR3 的
+`2026_09_21_000100_create_direct_customer_commissions` migration；PR4/PR5 未新增 migration。
+PR5 定向测试和 `composer ci:check`（476 项测试、2944 断言）及 Vite production build 均通过；该分支尚未合入
 `develop`、创建 RC 或部署到 UAT/Production；服务器不得直接获取或切换到该开发分支。
 正式发布前必须按发布手册备份、执行 migration、核对直客提成规则和历史订单快照，并完成人工验收。
 

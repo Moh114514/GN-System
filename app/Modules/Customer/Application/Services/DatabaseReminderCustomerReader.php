@@ -23,6 +23,11 @@ final readonly class DatabaseReminderCustomerReader implements ReminderCustomerR
         return $this->scoped()->orderBy('id')->get()->map(fn (Customer $customer): ReminderCustomerData => $this->data($customer))->all();
     }
 
+    public function candidateIds(): array
+    {
+        return $this->scoped()->orderBy('id')->pluck('id')->map(static fn ($id): int => (int) $id)->all();
+    }
+
     public function byId(int $customerId): ReminderCustomerData
     {
         return $this->data($this->scoped()->findOrFail($customerId));

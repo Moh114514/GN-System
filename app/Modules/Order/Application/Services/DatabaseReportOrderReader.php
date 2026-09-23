@@ -57,6 +57,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
     {
         $query = Order::query()
             ->where('status', 'completed')
+            ->where('record_status', 'active')
             ->whereBetween('completed_at', [$from, $to]);
         $this->applyScope($query);
 
@@ -69,7 +70,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
 
     public function dashboard(CarbonImmutable $from, CarbonImmutable $to): array
     {
-        $base = Order::query()->where('status', 'completed')->whereBetween('completed_at', [$from, $to]);
+        $base = Order::query()->where('status', 'completed')->where('record_status', 'active')->whereBetween('completed_at', [$from, $to]);
         $this->applyScope($base);
         $amount = (int) (clone $base)->sum('amount_krw');
         $customerCounts = (clone $base)
@@ -101,12 +102,36 @@ final class DatabaseReportOrderReader implements ReportOrderReader
 
         return [
             'completed_amount' => $amount,
+            'completed_orders' => (clone $base)->count(),
+            'completed_customers' => $purchasers,
             'repurchase_rate' => $purchasers === 0 ? 0.0 : round($repeaters / $purchasers * 100, 2),
             'monthly_consumption' => $monthly,
             'monthly_orders' => $monthlyOrders,
             'institution_revenue' => $this->institutionRevenue($from, $to),
             'lifecycle' => $this->lifecycle($to),
         ];
+    }
+
+    public function agentSalesRanking(CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $query = Order::query()
+            ->where('source_type', 'agent')
+            ->where('status', 'completed')
+            ->where('record_status', 'active')
+            ->whereBetween('completed_at', [$from, $to])
+            ->whereNotNull('agent_id');
+        $this->applyScope($query);
+
+        return $query->select('agent_id')
+            ->selectRaw('SUM(amount_krw)::bigint AS value')
+            ->groupBy('agent_id')
+            ->orderByDesc('value')
+            ->limit(10)
+            ->get()
+            ->map(static fn (Order $row): array => [
+                'agent_id' => (int) $row->agent_id,
+                'value' => (int) $row->getAttribute('value'),
+            ])->values()->all();
     }
 
     /** @return list<array{institution_id: int, value: int}> */
@@ -371,7 +396,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
     /** @return Builder<Order> */
     private function query(ReportQueryData $filters): Builder
     {
-        $query = Order::query()->where('status', 'completed')->whereNotNull('completed_at');
+        $query = Order::query()->where('status', 'completed')->where('record_status', 'active')->whereNotNull('completed_at');
         $this->applyScope($query);
         if ($filters->completedFrom !== null) {
             $query->where('completed_at', '>=', $filters->completedFrom);
@@ -477,20 +502,23 @@ final class DatabaseReportOrderReader implements ReportOrderReader
             return;
         }
 
-        if (! $context->hasEffectiveBusinessScope()) {
+        if ($context->isDirectCustomerManager()) {
+            $query->where('source_type', 'direct')->where('owner_id', $context->userId);
+
+            return;
+        }
+        if ($context->isCustomerService()) {
+            $query->where('source_type', 'agent')->where('owner_id', $context->userId);
+
+            return;
+        }
+        if (! $context->isBdManager() || $context->agentIds === []) {
             $query->whereRaw('1 = 0');
 
             return;
         }
 
-        $query->where(function ($scope) use ($context): void {
-            if ($context->userId !== null) {
-                $scope->where('owner_id', $context->userId);
-            }
-            if ($context->agentIds !== []) {
-                $scope->orWhereIn('agent_id', $context->agentIds);
-            }
-        });
+        $query->where('source_type', 'agent')->whereIn('agent_id', $context->agentIds);
     }
 
     /** @return Builder<Appointment> */
