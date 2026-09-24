@@ -1,9 +1,10 @@
 # GN-System 小白运维指南
 
-## 最近一次开发状态（2026-09-23）
+## 最近一次开发状态（2026-09-24）
 
-直客方案 PR1–PR6 已在本机开发分支完成，包含直客客户、订单、提成、提醒、报表、订单 UI、导航及 UAT reset 代码。PR6 定向测试、完整本地门禁（479 项测试、2976 断言）和前端构建已通过，但尚未发布，UAT reset 也尚未在目标环境执行。不要在服务器上
-直接部署 `codex/direct-customer-follow-up`；待合入 `develop`、创建递增 RC 并按完整发布手册
+直客 PR #41 审查修复已在本机开发分支完成，并新增 `2026_09_24_000100_constrain_direct_commission_rate_periods` migration。
+定向测试、完整本地门禁和前端构建均已通过：完整测试 485 项/3007 断言，Vite 构建成功（597 个模块）。代码尚未发布，UAT reset 和新 migration 均未在目标环境执行。
+不要在服务器上直接部署 `codex/direct-customer-follow-up`；待合入 `develop`、创建递增 RC 并按完整发布手册
 完成备份、migration、规则核对和 UAT 验收后，才能进入服务器发布流程。
 
 > 维护要求：系统状态发生变化时，必须同时核对本指南和[完整运维手册](operations-manual.md)。

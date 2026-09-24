@@ -3,6 +3,7 @@
 namespace App\Modules\Settlement\Application\Services;
 
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
+use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
 use App\Modules\Settlement\Application\Contracts\OrderFinancialReader;
 use App\Modules\Settlement\Infrastructure\Models\DirectOrderCommission;
 use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
@@ -10,9 +11,12 @@ use Illuminate\Support\Facades\DB;
 
 final class DatabaseOrderFinancialReader implements OrderFinancialReader
 {
-    public function __construct(private readonly AccessContextResolver $access) {}
+    public function __construct(
+        private readonly AccessContextResolver $access,
+        private readonly CustomerOrderReferenceReader $customers,
+    ) {}
 
-    public function forOrder(int $orderId): array
+    public function forOrder(int $orderId, int $customerId): array
     {
         $commission = OrderCommission::query()->where('order_id', $orderId)->first();
         $directCommission = DirectOrderCommission::query()->where('order_id', $orderId)->where('status', 'active')->first();
@@ -20,8 +24,7 @@ final class DatabaseOrderFinancialReader implements OrderFinancialReader
             abort_unless($this->access->current()->canViewAgent((int) $commission->agent_id), 404);
         }
         if ($directCommission !== null) {
-            $order = DB::table('orders')->where('id', $orderId)->first();
-            abort_unless($order !== null && $this->access->current()->canViewOrder('direct', null, $order->owner_id === null ? null : (int) $order->owner_id), 404);
+            $this->customers->customerForOrder($customerId);
         }
         $item = DB::table('settlement_items')
             ->join('settlements', 'settlements.id', '=', 'settlement_items.settlement_id')

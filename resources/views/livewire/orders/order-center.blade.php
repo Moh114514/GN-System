@@ -46,6 +46,7 @@
                     @endforeach
                 </flux:menu>
             </flux:dropdown>
+            @if ($options['agents'] !== [])
             <flux:dropdown>
                 <flux:button class="rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">{{ $selectedAgent['name'] ?? __('orders.center.all_agents') }}</flux:button>
                 <flux:menu class="max-h-72 overflow-y-auto">
@@ -55,6 +56,7 @@
                     @endforeach
                 </flux:menu>
             </flux:dropdown>
+            @endif
             <flux:dropdown>
                 <flux:button class="rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">{{ __('orders.fields.per_page', ['count' => $perPage]) }}</flux:button>
                 <flux:menu>

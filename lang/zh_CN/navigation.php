@@ -8,6 +8,7 @@ return [
     'dashboard' => '总览',
     'reminders' => '主动提醒',
     'customers' => '客户管理',
+    'direct_customers' => '直客管理',
     'orders' => '订单',
     'reports' => '多维查询',
     'institution_sales' => '机构销售额',

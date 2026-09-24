@@ -8,6 +8,7 @@ return [
     'dashboard' => '개요',
     'reminders' => '적극 알림',
     'customers' => '고객 관리',
+    'direct_customers' => '직접 고객 관리',
     'orders' => '주문',
     'reports' => '다차원 조회',
     'institution_sales' => '기관 매출',

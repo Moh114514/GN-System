@@ -33,10 +33,19 @@
                     <span>{{ __('navigation.reminders') }}</span>
                 </a>
 
-                <a href="{{ route('customers.index') }}" class="crm-nav-item {{ request()->routeIs('customers.index', 'customers.create', 'customers.show', 'customers.edit') ? 'is-active' : '' }}" wire:navigate>
-                    <flux:icon.users aria-hidden="true" />
-                    <span>{{ __('navigation.customers') }}</span>
-                </a>
+                @unless (auth()->user()->isDirectCustomerManager())
+                    <a href="{{ route('customers.index') }}" class="crm-nav-item {{ request()->routeIs('customers.index', 'customers.create', 'customers.show', 'customers.edit') ? 'is-active' : '' }}" wire:navigate>
+                        <flux:icon.users aria-hidden="true" />
+                        <span>{{ __('navigation.customers') }}</span>
+                    </a>
+                @endunless
+
+                @if (auth()->user()->isSuperAdmin() || auth()->user()->isDirectCustomerManager())
+                    <a href="{{ route('direct-customers.index') }}" class="crm-nav-item {{ request()->routeIs('direct-customers.*') ? 'is-active' : '' }}" wire:navigate>
+                        <flux:icon.users aria-hidden="true" />
+                        <span>{{ __('navigation.direct_customers') }}</span>
+                    </a>
+                @endif
 
                 <a href="{{ route('orders.index') }}" class="crm-nav-item {{ request()->routeIs('orders.*', 'customers.orders') ? 'is-active' : '' }}" wire:navigate>
                     <flux:icon.clipboard-document-list aria-hidden="true" />

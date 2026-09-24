@@ -1,12 +1,13 @@
 # GN-System 完整运维手册
 
-## 当前开发分支状态（2026-09-23）
+## 当前开发分支状态（2026-09-24）
 
-`codex/direct-customer-follow-up` 已完成直客方案 PR1–PR6 的本机代码和自动化验证，包含 PR3 的
-`2026_09_21_000100_create_direct_customer_commissions` migration；PR4–PR6 未新增 migration。
-PR6 定向测试和 `composer ci:check`（479 项测试、2976 断言）及 Vite production build 均通过；该分支尚未合入
-`develop`、创建 RC 或部署到 UAT/Production；服务器不得直接获取或切换到该开发分支。
-正式发布前必须按发布手册备份、执行 migration、核对直客提成规则和历史订单快照，并完成人工验收。
+`codex/direct-customer-follow-up` 已完成 PR #41 审查修复，新增 migration
+`2026_09_24_000100_constrain_direct_commission_rate_periods`，用于限制直客费率历史区间重叠。
+修复将客户当前负责人用于直客业务访问范围，订单完成负责人快照仍用于历史提成；代理商只生成系统预约提醒；
+新登记订单按 `BusinessClock` 记录真实完成时间。定向测试、完整本地门禁和前端构建均通过：完整测试 485 项/3007 断言，PHPStan 检查 527 个文件，Pint 检查 627 个文件；Vite 构建成功（597 个模块）。前端构建提示 JavaScript 主 chunk 超过 500 kB，不影响构建成功。
+该分支尚未合入 `develop`、创建 RC 或部署到 UAT/Production；服务器不得直接获取或切换到该开发分支。
+正式发布前必须按发布手册备份、执行全部未发布 migration，并核对直客提成区间、客户转移范围和历史订单快照。
 
 > 当前基线：2026-08-30
 >
@@ -128,6 +129,7 @@ GitHub CI 和 GHCR 是发布基础设施，不是可登录的业务环境。
 | 2026-08-17，当前 `develop` | 工作区未发布 | PR7 让月结中心默认展示最新已生成周期并支持周期切换，历史归档改用业务日期重叠查询；已结清详情保留文档下载，历史 `paid`/`reconciled` 月结可在只读详情按需生成并下载 Word/PDF | 不新增 migration；UAT 需核对周期下拉、业务日期边界、已结清详情文档下载及历史文档生成后状态不变；本机结果不能替代目标环境验证 |
 | 2026-08-30，`feature/business-groups-and-roles` 工作区 | 工作区未发布 | 修复财务单据 BD 调整金额重复计算；PDF 改用构建时合并的 CJK TrueType 字体、`truetype` 声明和 table 布局；规则配置 UI 改为响应式 12 栏；新增金额回归与 `pdftotext` 文本 smoke test | 不新增 migration、Composer 依赖或环境变量；Docker app 镜像新增字体构建包和 `poppler-utils`，UAT/Production 发布前必须重建并核对镜像中的字体路径、字符 smoke test 及月结/BD 中韩文输出；本机结果不能替代目标环境验证 |
 | 2026-09-07，`feature/institution-sales-drilldown` 工作区 | 工作区未发布 | 机构月度销售额总表补全零订单启用机构，并新增机构销售详情下钻、代理商贡献和订单明细 | 不新增 migration、依赖或环境变量；仅完成本地定向测试，未合入 `develop`，未创建 RC、部署或执行 UAT/Production 人工验收；发布前仍按完整门禁和正常 RC 流程核对 |
+| 2026-09-24，`codex/direct-customer-follow-up` | 工作区未发布 | PR #41 审查修复：直客当前负责人访问范围、直客导航和代理商筛选隔离、代理商提醒规则、订单真实完成时间、直客费率区间约束及角色变更保护 | 新增 `2026_09_24_000100_constrain_direct_commission_rate_periods` migration；本地完整门禁通过（485 项测试/3007 断言、PHPStan 527 文件、Pint 627 文件）且 Vite 构建成功（597 模块）；未合入 `develop`、未创建 RC、未部署，UAT/Production migration 和人工验收待执行 |
 | 2026-09-10，`feature/pr1-order-registration` 工作区 | 工作区未发布 | 方案 PR1 增加客户已到院后的订单一单多项目手工登记、沟通截图/结算小票私有凭证及按客户权限下载；机构 Excel 回传继续保留 | 新增 `2026_09_10_000100_create_order_evidence_files.php` migration 和私有加密文件；发布前必须备份数据库与 `storage/app/private`，按 RC 流程执行 migration，并在 UAT 核对凭证权限、日期/到院校验、事务回滚和订单明细；本机结果不能替代 UAT/Production 验收 |
 | 2026-09-10，`feature/pr1-order-registration` 工作区 | 工作区未发布 | 方案 PR2 将机构 Excel 模板升级为 v2，保留隐藏客户元数据，预填 `arrived_at` 日期，并在回传时强制校验客户已到院及日期一致 | 不新增 migration、依赖或环境变量；仅完成本地自动化验证，未合入 `develop`、创建 RC 或部署；UAT 需核对 v2 可见字段、隐藏元数据签名、日期篡改拒绝、数量/金额解析和旧字段不再出现在模板中 |
 | 2026-09-10，`feature/pr1-order-registration` 工作区 | 工作区未发布 | 方案 PR3 完善机构月度销售额 PDF，读取订单项目明细并支持单机构/全部机构分组 | 不新增 migration、依赖或环境变量；仅完成本地自动化验证，未合入 `develop`、创建 RC 或部署；UAT 需核对机构主题标签、订单/客户/项目明细、机构分组、小计、权限范围和中韩文字体 |

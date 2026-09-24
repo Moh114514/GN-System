@@ -19,4 +19,10 @@ interface CustomerOrderReferenceReader
 
     /** @return array<int, int> */
     public function customerIdsForOrderSearch(string $search): array;
+
+    /** @return array<int, int> IDs of direct customers currently owned by the given user */
+    public function directCustomerIdsForOwner(int $ownerId): array;
+
+    /** @return array<int, int> Agent IDs on agent-source customers currently owned by the given user */
+    public function agentIdsForOwner(int $ownerId): array;
 }

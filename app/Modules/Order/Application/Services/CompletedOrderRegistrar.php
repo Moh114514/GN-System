@@ -67,6 +67,7 @@ final readonly class CompletedOrderRegistrar
         try {
             return DB::transaction(function () use ($data, $customer, $sourceType, $items, $totalAmount, &$storedPaths): int {
                 $occurredOn = $data->occurredOn->startOfDay();
+                $completedAt = $this->clock->now();
                 $agent = $sourceType === 'agent' && $data->agentId !== null
                     ? $this->agents->agentById($data->agentId)
                     : null;
@@ -83,8 +84,8 @@ final readonly class CompletedOrderRegistrar
                     'amount_krw' => $totalAmount,
                     'occurred_on' => $occurredOn,
                     'completed_on' => $occurredOn,
-                    'completed_at' => $occurredOn,
-                    'completion_precision' => 'date',
+                    'completed_at' => $completedAt,
+                    'completion_precision' => 'datetime',
                     'record_status' => 'active',
                     'status' => 'completed',
                     'owner_id' => $ownerId,
@@ -138,7 +139,7 @@ final readonly class CompletedOrderRegistrar
                         orderId: (int) $order->id,
                         ownerId: (int) $ownerId,
                         orderAmountKrw: $totalAmount,
-                        completedAt: $occurredOn,
+                        completedAt: $completedAt,
                         directChannel: [
                             'id' => $customer['direct_channel_id'] ?? null,
                             'name' => $customer['direct_channel_name'] ?? null,

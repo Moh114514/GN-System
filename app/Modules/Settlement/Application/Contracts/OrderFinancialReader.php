@@ -8,5 +8,5 @@ namespace App\Modules\Settlement\Application\Contracts;
 interface OrderFinancialReader
 {
     /** @return array{commission: array<string, mixed>|null, settlement: array<string, mixed>|null} */
-    public function forOrder(int $orderId): array;
+    public function forOrder(int $orderId, int $customerId): array;
 }

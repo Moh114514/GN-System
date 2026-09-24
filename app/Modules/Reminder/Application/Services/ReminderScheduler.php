@@ -106,9 +106,7 @@ final readonly class ReminderScheduler
 
     private function inScope(ReminderRule $rule, ReminderCustomerData $customer): bool
     {
-        if ($customer->sourceType === 'agent'
-            && $rule->trigger_type === 'date_offset'
-            && ($rule->trigger_config['field'] ?? null) === 'completed_on') {
+        if ($customer->sourceType === 'agent') {
             return false;
         }
 

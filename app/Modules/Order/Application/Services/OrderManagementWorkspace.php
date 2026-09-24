@@ -36,8 +36,17 @@ final readonly class OrderManagementWorkspace
     /** @return array<string, array<int, array<string, mixed>>> */
     public function options(): array
     {
+        $context = $this->access->current();
+        $agents = $context->isDirectCustomerManager() || $context->userId === null
+            ? []
+            : array_values($this->agents->activeAgents());
+        if ($context->isCustomerService() && $context->userId !== null) {
+            $ownerAgentIds = array_fill_keys($this->customers->agentIdsForOwner($context->userId), true);
+            $agents = array_values(array_filter($agents, static fn (array $agent): bool => isset($ownerAgentIds[(int) $agent['id']])));
+        }
+
         return [
-            'agents' => array_values($this->agents->activeAgents()),
+            'agents' => $agents,
             'institutions' => array_values($this->institutions->activeInstitutions()),
             'treatment_projects' => $this->dictionary->activeItems('treatment_project'),
             'translator_languages' => $this->dictionary->activeItems('translator_language'),
@@ -200,7 +209,7 @@ final readonly class OrderManagementWorkspace
         $canEdit = ($context->isSuperAdmin() || ($context->isBdManager() && $context->canViewAgent((int) $order->agent_id)))
             && in_array((string) $order->status, ['pending', 'completed'], true)
             && $order->deleted_at === null
-            && ($this->financials->forOrder((int) $order->id)['settlement'] ?? null) === null;
+            && ($this->financials->forOrder((int) $order->id, (int) $order->customer_id)['settlement'] ?? null) === null;
 
         return [
             'id' => (int) $order->id,
@@ -232,7 +241,7 @@ final readonly class OrderManagementWorkspace
                 'size_bytes' => (int) $file->size_bytes,
             ])->all(),
             'can_edit' => $canEdit,
-            'financial' => $this->financials->forOrder((int) $order->id),
+            'financial' => $this->financials->forOrder((int) $order->id, (int) $order->customer_id),
             'reminders' => $this->reminders->forOrder((int) $order->id),
             'audit' => array_map(fn ($entry): array => [
                 'description' => $entry->description,
@@ -341,7 +350,8 @@ final readonly class OrderManagementWorkspace
         }
 
         if ($context->isDirectCustomerManager()) {
-            $query->where('source_type', 'direct')->where('owner_id', $context->userId);
+            $customerIds = $context->userId === null ? [] : $this->customers->directCustomerIdsForOwner($context->userId);
+            $query->where('source_type', 'direct')->whereIn('customer_id', $customerIds);
 
             return;
         }

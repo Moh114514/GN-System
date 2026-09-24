@@ -3,6 +3,7 @@
 namespace App\Modules\Order\Application\Services;
 
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
+use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
 use App\Modules\Order\Application\Contracts\ReportOrderReader;
 use App\Modules\Order\Infrastructure\Models\Appointment;
 use App\Modules\Order\Infrastructure\Models\Order;
@@ -21,7 +22,10 @@ use Illuminate\Support\Facades\DB;
 
 final class DatabaseReportOrderReader implements ReportOrderReader
 {
-    public function __construct(private readonly AccessContextResolver $access) {}
+    public function __construct(
+        private readonly AccessContextResolver $access,
+        private readonly CustomerOrderReferenceReader $customers,
+    ) {}
 
     public function paginate(ReportQueryData $query, int $perPage, int $page): ReportPageData
     {
@@ -503,7 +507,8 @@ final class DatabaseReportOrderReader implements ReportOrderReader
         }
 
         if ($context->isDirectCustomerManager()) {
-            $query->where('source_type', 'direct')->where('owner_id', $context->userId);
+            $customerIds = $context->userId === null ? [] : $this->customers->directCustomerIdsForOwner($context->userId);
+            $query->where('source_type', 'direct')->whereIn('customer_id', $customerIds);
 
             return;
         }

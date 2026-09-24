@@ -71,6 +71,30 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
             ->all();
     }
 
+    public function directCustomerIdsForOwner(int $ownerId): array
+    {
+        return Customer::query()
+            ->where('source_type', 'direct')
+            ->where('owner_id', $ownerId)
+            ->orderBy('id')
+            ->pluck('id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+    }
+
+    public function agentIdsForOwner(int $ownerId): array
+    {
+        return Customer::query()
+            ->where('source_type', 'agent')
+            ->where('owner_id', $ownerId)
+            ->whereNotNull('source_agent_id')
+            ->distinct()
+            ->orderBy('source_agent_id')
+            ->pluck('source_agent_id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+    }
+
     /** @return array{id: int, code: string, name: string, source_type: string, source_agent_id: int|null, direct_channel_id: int|null, direct_channel_name: string|null, owner_id: int|null, current_status_key: string|null, current_status: string|null, arrived_at: string|null} */
     private function serializeCustomer(Customer $customer): array
     {

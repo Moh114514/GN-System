@@ -269,6 +269,36 @@ class PhaseFiveReminderTest extends TestCase
         $this->assertSame(2, Reminder::query()->where('customer_id', $directCustomer->id)->where('reminder_type', 'post_treatment')->count());
     }
 
+    public function test_automatic_reminder_rules_apply_to_direct_customers_but_never_agent_customers(): void
+    {
+        $directCustomer = $this->createDirectCustomer('REMIND-DIRECT-RULES');
+        $rules = app(ReminderRuleManager::class);
+        foreach ([
+            ['fixed_cycle', ['interval_days' => 1, 'time' => '09:00']],
+            ['date_offset', ['field' => 'created_at', 'offset_days' => 0, 'time' => '09:00']],
+            ['date_offset', ['field' => 'birth_date', 'offset_days' => 0, 'time' => '09:00']],
+            ['status_change', ['offset_days' => 0, 'time' => '09:00']],
+        ] as $index => [$triggerType, $triggerConfig]) {
+            $rules->saveRule(
+                id: null,
+                name: '自动规则 '.$index,
+                triggerType: $triggerType,
+                triggerConfig: $triggerConfig,
+                scopeType: 'all_customers',
+                scopeConfig: [],
+                title: '自动规则提醒 '.$index,
+                suggestion: null,
+                priority: 2,
+                actorId: $this->admin->id,
+            );
+        }
+
+        app(ReminderScheduler::class)->materialize();
+
+        $this->assertSame(0, Reminder::query()->where('customer_id', $this->customer->id)->where('source_type', 'rule')->count());
+        $this->assertGreaterThan(0, Reminder::query()->where('customer_id', $directCustomer->id)->where('source_type', 'rule')->count());
+    }
+
     public function test_arrived_and_completed_appointments_can_be_corrected_without_recreating_arrival_reminders(): void
     {
         $institution = Institution::query()->firstOrFail();
@@ -395,6 +425,7 @@ class PhaseFiveReminderTest extends TestCase
 
     public function test_holiday_date_rules_materialize_for_each_date_and_remain_idempotent_across_days(): void
     {
+        $this->useDirectCustomer();
         $manager = app(ReminderRuleManager::class);
         $manager->saveRule(
             null,
@@ -478,6 +509,7 @@ class PhaseFiveReminderTest extends TestCase
 
     public function test_editing_holiday_date_reschedules_pending_reminders_without_touching_history(): void
     {
+        $this->useDirectCustomer();
         $manager = app(ReminderRuleManager::class);
         $manager->saveRule(
             null,
@@ -1057,6 +1089,7 @@ class PhaseFiveReminderTest extends TestCase
 
     public function test_shallow_rule_materializes_birthday_and_template_changes_do_not_rewrite_reminder(): void
     {
+        $this->useDirectCustomer();
         $manager = app(ReminderRuleManager::class);
         $manager->saveRule(
             null,

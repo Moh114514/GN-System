@@ -80,7 +80,10 @@ class DirectCustomerCrudAndTransferTest extends TestCase
         $this->actingAs($this->manager)->get(route('direct-customers.index'))
             ->assertOk()
             ->assertSee('直客 A')
-            ->assertDontSee('直客 B');
+            ->assertDontSee('直客 B')
+            ->assertSee(__('navigation.direct_customers'))
+            ->assertDontSee(__('navigation.customers'))
+            ->assertDontSee(route('customers.create'));
         $this->actingAs($this->manager)->get(route('direct-customers.edit', $customerId))
             ->assertOk()
             ->assertSee(__('customers.direct.form.edit_heading'));
@@ -88,7 +91,9 @@ class DirectCustomerCrudAndTransferTest extends TestCase
             ->assertNotFound();
         $this->actingAs($this->admin)->get(route('direct-customers.create'))
             ->assertOk()
-            ->assertSee(__('customers.direct.form.create_heading'));
+            ->assertSee(__('customers.direct.form.create_heading'))
+            ->assertSee(__('navigation.customers'))
+            ->assertSee(__('navigation.direct_customers'));
 
         Livewire::actingAs($this->manager)
             ->test(DirectCustomerList::class)

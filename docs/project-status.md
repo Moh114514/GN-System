@@ -8,6 +8,14 @@
 > 核验依据：当前 `codex/direct-customer-follow-up` 分支；直客方案 PR1–PR6 已提交，PR6 实现与完整本机质量门禁通过
 > 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及 PR1–PR7 规划能力继续保持；直客方案 PR1–PR6 已提交至本机开发分支。当前分支尚未合入 `develop`、发布或完成 UAT/Production 验收；直客 migration 的目标环境备份、迁移、抽样核验和人工业务验收仍未完成。
 
+## 2026-09-24 PR #41 审查修复（本机分支）
+
+- 直客订单中心、多维查询和机构销售范围改按客户当前负责人解析；订单完成时负责人及直客提成记录仍保留历史快照。代理商客户不再生成通用自动 Reminder Rule，仅保留独立预约到院提醒；手工提醒入口不变。
+- 新登记订单以 `BusinessClock` 记录真实 `completed_at` 并标记 `completion_precision=datetime`；`occurred_on` 仍是业务消费日期，直客费率依据真实完成时点选取。
+- 侧栏增加“直客管理”，直客负责人不显示普通客户管理入口；订单中心和多维查询不向直客负责人返回代理商筛选项。
+- 直客提成规则支持安全插入历史生效日并截断相邻区间；新增数据库唯一及排斥约束防止同日起始和重叠区间。Auth 在离开直客负责人角色前检查名下直客数量，必须先转移客户。
+- 本地测试和完整门禁结果以本轮交付记录为准。该修复仍在本机 `codex/direct-customer-follow-up` 分支，未推送、未合入 `develop`，未在 UAT/Production 运行新 migration 或执行业务验收。
+
 本页只描述仓库中可以验证的状态。未来规划见 `docs/source/`，不能据此页之外的
 规划内容推断某项能力已经存在。
 
@@ -409,3 +417,10 @@ UAT/Production 使用 `queue:work`。本地开发与 UAT/Production 操作手册
 - `feature/institution-sales-drilldown` 将机构月度销售额改为机构经营总表：当前启用机构在目标月份无订单时仍显示客户数、订单数和销售额 0；已停用机构仅在目标月份有有效销售时显示。页面、Excel 和 PDF 继续共用同一份汇总快照，合计不因补零机构改变。
 - 新增 `/reports/institution-sales/{institution}` 详情页，展示机构 KPI、代理商贡献和可筛选分页的订单明细，并链接已有代理商/订单详情页；零订单机构可打开并显示空态。新增读取方法统一复用 `occurred_on`、完成状态、有效记录和权限范围口径。
 - 本轮不新增 migration、依赖或环境配置；已通过 `InstitutionMonthlySalesTest` 定向测试（6 个测试、72 个断言）。仅完成本地 feature 分支验证，未合入 `develop`，未部署或在 UAT/Production 做人工验收。
+
+## 2026-09-24 PR #41 审查修复（本机分支）
+
+- 直客经理的客户、订单、报表范围跟随客户当前负责人；历史订单和提成负责人快照保持不变。代理商自动生成的通用提醒规则被停用，直客规则继续生效；登记完成订单时写入 `BusinessClock` 的实际 `completed_at`，提成按该完成时间确定费率。
+- 直客导航与旧代理商客户入口隔离，直客经理看不到代理商筛选候选项；客服候选项仅来自其访问范围内的代理商客户。存在当前直客归属时，阻止将负责人角色改为其他角色。
+- 新增 migration `2026_09_24_000100_constrain_direct_commission_rate_periods`，禁止直客提成费率有效期重叠并处理回填新规则时的相邻区间边界。本机完整门禁通过：485 项测试/3007 断言、PHPStan 527 文件、Pint 627 文件；`docker compose exec vite npm run build` 成功（597 个模块）。构建输出提示 JS chunk 超过 500 kB。
+- 当前仅在 `codex/direct-customer-follow-up` 本地验证，未合入 `develop`、未创建 RC、未部署，也未在 UAT/Production 运行 migration 或人工验收。发布前必须依 PR7 手册检查迁移前置条件、备份，并按 A→B 客户转移、历史订单/提成、完成时间与费率、提醒、角色变更及各环境配置步骤执行验收。

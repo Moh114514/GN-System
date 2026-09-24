@@ -8,6 +8,7 @@ use App\Modules\Settlement\Application\Contracts\DirectCommissionConfigurationGa
 use App\Modules\Settlement\Infrastructure\Models\DirectCommissionRate;
 use Carbon\CarbonImmutable;
 use DomainException;
+use Illuminate\Support\Facades\DB;
 
 final readonly class DatabaseDirectCommissionConfigurationGateway implements DirectCommissionConfigurationGateway
 {
@@ -66,38 +67,42 @@ final readonly class DatabaseDirectCommissionConfigurationGateway implements Dir
         if ($until !== null && $until->lt($from)) {
             throw new DomainException(__('settlements.direct_commission.errors.period_invalid'));
         }
-        if (DirectCommissionRate::query()->whereDate('effective_from', $from->toDateString())->exists()) {
-            throw new DomainException(__('settlements.direct_commission.errors.effective_date_exists'));
-        }
+        DB::transaction(function () use ($rateBps, $from, $until, $reason, $actorId, $ipAddress): void {
+            DB::select("SELECT pg_advisory_xact_lock(hashtext('direct_commission_rates'))");
+            $rates = DirectCommissionRate::query()->lockForUpdate()->orderBy('effective_from')->get();
+            if ($rates->contains(fn (DirectCommissionRate $rate): bool => $rate->effective_from->isSameDay($from))) {
+                throw new DomainException(__('settlements.direct_commission.errors.effective_date_exists'));
+            }
 
-        $previous = DirectCommissionRate::query()
-            ->whereDate('effective_from', '<', $from->toDateString())
-            ->where(function ($query) use ($from): void {
-                $query->whereNull('effective_until')->orWhereDate('effective_until', '>=', $from->toDateString());
-            })
-            ->latest('effective_from')
-            ->latest('id')
-            ->first();
-        if ($previous !== null) {
-            $previous->update(['effective_until' => $from->subDay()]);
-        }
+            $previous = $rates->filter(fn (DirectCommissionRate $rate): bool => $rate->effective_from->lt($from)
+                && ($rate->effective_until === null || $rate->effective_until->gte($from)))
+                ->last();
+            $next = $rates->first(fn (DirectCommissionRate $rate): bool => $rate->effective_from->gt($from));
+            if ($previous !== null) {
+                $previous->update(['effective_until' => $from->subDay()]);
+            }
+            $effectiveUntil = $until;
+            if ($next !== null && ($effectiveUntil === null || $effectiveUntil->gte($next->effective_from))) {
+                $effectiveUntil = $next->effective_from->subDay();
+            }
 
-        $rate = DirectCommissionRate::query()->create([
-            'rate_bps' => $rateBps,
-            'effective_from' => $from,
-            'effective_until' => $until,
-            'created_by' => $actorId,
-            'reason' => $reason,
-        ]);
-        $this->audit->record(
-            description: __('settlements.direct_commission.audit.rate_saved'),
-            properties: ['after' => $this->serialize($rate), 'previous_id' => $previous?->id],
-            causerId: $actorId,
-            subject: $rate,
-            logName: 'direct-commission-configuration',
-            event: 'rate_saved',
-            ipAddress: $ipAddress,
-        );
+            $rate = DirectCommissionRate::query()->create([
+                'rate_bps' => $rateBps,
+                'effective_from' => $from,
+                'effective_until' => $effectiveUntil,
+                'created_by' => $actorId,
+                'reason' => $reason,
+            ]);
+            $this->audit->record(
+                description: __('settlements.direct_commission.audit.rate_saved'),
+                properties: ['after' => $this->serialize($rate), 'previous_id' => $previous?->id, 'next_id' => $next?->id],
+                causerId: $actorId,
+                subject: $rate,
+                logName: 'direct-commission-configuration',
+                event: 'rate_saved',
+                ipAddress: $ipAddress,
+            );
+        });
     }
 
     /** @return array<string, mixed> */
