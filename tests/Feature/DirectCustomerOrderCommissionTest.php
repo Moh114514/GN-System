@@ -16,9 +16,11 @@ use App\Modules\Customer\Application\Services\CustomerProfileManager;
 use App\Modules\Customer\Application\Services\CustomerTransferManager;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
+use App\Modules\Order\Application\Contracts\DailyOrderGateway;
 use App\Modules\Order\Application\Contracts\OrderLifecycleGateway;
 use App\Modules\Order\Application\Data\CompletedOrderItemData;
 use App\Modules\Order\Application\Data\CompletedOrderRegistrationData;
+use App\Modules\Order\Application\Data\DailyOrderData;
 use App\Modules\Order\Application\Services\CompletedOrderRegistrar;
 use App\Modules\Order\Application\Services\OrderManagementWorkspace;
 use App\Modules\Order\Infrastructure\Models\Order;
@@ -139,6 +141,65 @@ class DirectCustomerOrderCommissionTest extends TestCase
         ]);
     }
 
+    public function test_daily_order_gateway_uses_business_clock_for_direct_completion_time(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-09-23 14:30:00', 'Asia/Shanghai'));
+        $this->actingAs($this->admin);
+        $this->saveRate(300, '2026-09-20');
+        $this->saveRate(500, '2026-09-22');
+        $customerId = $this->createArrivedCustomer($this->manager, '日常网关完成时间客户', '2026-09-20');
+
+        $createCompletedId = app(DailyOrderGateway::class)->create(new DailyOrderData(
+            customerId: $customerId,
+            institutionId: $this->institution->id,
+            agentId: null,
+            projectName: '日常登记项目',
+            amountKrw: 100000,
+            status: 'completed',
+            completedOn: CarbonImmutable::parse('2026-09-20', 'Asia/Shanghai'),
+            translatorName: null,
+            notes: null,
+            ownerId: $this->manager->id,
+            ipAddress: null,
+        ));
+
+        $createdOrder = Order::query()->findOrFail($createCompletedId);
+        $this->assertSame('2026-09-20', $createdOrder->occurred_on?->toDateString());
+        $this->assertSame('2026-09-23 14:30:00', $createdOrder->completed_at?->format('Y-m-d H:i:s'));
+        $this->assertDatabaseHas('direct_order_commissions', [
+            'order_id' => $createCompletedId,
+            'rate_bps' => 500,
+        ]);
+
+        $pendingId = app(DailyOrderGateway::class)->create(new DailyOrderData(
+            customerId: $customerId,
+            institutionId: $this->institution->id,
+            agentId: null,
+            projectName: '日常补录项目',
+            amountKrw: 200000,
+            status: 'pending',
+            completedOn: null,
+            translatorName: null,
+            notes: null,
+            ownerId: $this->manager->id,
+            ipAddress: null,
+        ));
+        app(DailyOrderGateway::class)->complete(
+            $pendingId,
+            CarbonImmutable::parse('2026-09-20', 'Asia/Shanghai'),
+            $this->admin->id,
+            null,
+        );
+
+        $completedOrder = Order::query()->findOrFail($pendingId);
+        $this->assertSame('2026-09-20', $completedOrder->occurred_on?->toDateString());
+        $this->assertSame('2026-09-23 14:30:00', $completedOrder->completed_at?->format('Y-m-d H:i:s'));
+        $this->assertDatabaseHas('direct_order_commissions', [
+            'order_id' => $pendingId,
+            'rate_bps' => 500,
+        ]);
+    }
+
     public function test_backdated_rate_closes_at_the_next_existing_rate(): void
     {
         $this->actingAs($this->admin);
@@ -167,8 +228,23 @@ class DirectCustomerOrderCommissionTest extends TestCase
         $this->assertContains($customerId, app(CustomerOrderReferenceReader::class)->directCustomerIdsForOwner($this->otherManager->id));
         $this->actingAs($this->otherManager);
         $this->assertSame(1, app(OrderManagementWorkspace::class)->paginate([], 20)->total());
-        $this->assertSame($customerId, app(OrderManagementWorkspace::class)->detail($orderId)['customer']['id']);
-        $this->get(route('orders.show', $orderId))->assertOk();
+        $detail = app(OrderManagementWorkspace::class)->detail($orderId);
+        $this->assertSame($customerId, $detail['customer']['id']);
+        $this->assertFalse($detail['financial']['commission_visible']);
+        $this->assertNull($detail['financial']['commission']);
+        $this->get(route('orders.show', $orderId))
+            ->assertOk()
+            ->assertDontSee(__('orders.detail.direct_commission_description'))
+            ->assertDontSee('3,000');
+
+        $this->actingAs($this->admin);
+        $adminDetail = app(OrderManagementWorkspace::class)->detail($orderId);
+        $this->assertTrue($adminDetail['financial']['commission_visible']);
+        $this->assertSame(3000, $adminDetail['financial']['commission']['amount_krw']);
+        $this->get(route('orders.show', $orderId))
+            ->assertOk()
+            ->assertSee(__('orders.detail.direct_commission_title'))
+            ->assertSee('3,000');
         $this->actingAs($this->otherManager);
         $summary = app(InstitutionMonthlySalesService::class)->summary('2026-09');
         $this->assertSame(1, $summary->totalOrders);

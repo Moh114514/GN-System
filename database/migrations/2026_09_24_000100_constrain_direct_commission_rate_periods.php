@@ -15,7 +15,6 @@ return new class extends Migration
             throw new RuntimeException('Cannot constrain direct commission rates: existing effective periods overlap. Resolve the rate history before migrating.');
         }
 
-        DB::statement('CREATE EXTENSION IF NOT EXISTS btree_gist');
         DB::statement("ALTER TABLE direct_commission_rates ADD CONSTRAINT direct_commission_rates_effective_overlap_exclude EXCLUDE USING gist (daterange(effective_from, COALESCE(effective_until + 1, 'infinity'::date), '[)') WITH &&)");
         DB::statement('ALTER TABLE direct_commission_rates ADD CONSTRAINT direct_commission_rates_effective_from_unique UNIQUE (effective_from)');
     }
