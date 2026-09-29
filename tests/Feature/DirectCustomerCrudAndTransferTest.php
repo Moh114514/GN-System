@@ -85,7 +85,8 @@ class DirectCustomerCrudAndTransferTest extends TestCase
             ->assertSee('直客 A')
             ->assertDontSee('直客 B')
             ->assertSee(__('navigation.direct_customers'))
-            ->assertDontSee(__('navigation.customers'))
+            ->assertSee(__('navigation.customer_management'))
+            ->assertDontSee('data-test="customer-subnav-agent"')
             ->assertDontSee(route('customers.create'));
         $this->actingAs($this->manager)->get(route('direct-customers.edit', $customerId))
             ->assertOk()
@@ -95,7 +96,8 @@ class DirectCustomerCrudAndTransferTest extends TestCase
         $this->actingAs($this->admin)->get(route('direct-customers.create'))
             ->assertOk()
             ->assertSee(__('customers.direct.form.create_heading'))
-            ->assertSee(__('navigation.customers'))
+            ->assertSee(__('navigation.customer_management'))
+            ->assertSee(__('navigation.agent_customers'))
             ->assertSee(__('navigation.direct_customers'));
 
         Livewire::actingAs($this->manager)

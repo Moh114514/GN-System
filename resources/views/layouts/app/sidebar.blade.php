@@ -33,19 +33,57 @@
                     <span>{{ __('navigation.reminders') }}</span>
                 </a>
 
-                @unless (auth()->user()->isDirectCustomerManager())
-                    <a href="{{ route('customers.index') }}" class="crm-nav-item {{ request()->routeIs('customers.index', 'customers.create', 'customers.show', 'customers.edit') ? 'is-active' : '' }}" wire:navigate>
-                        <flux:icon.users aria-hidden="true" />
-                        <span>{{ __('navigation.customers') }}</span>
-                    </a>
-                @endunless
-
-                @if (auth()->user()->isSuperAdmin() || auth()->user()->isDirectCustomerManager())
-                    <a href="{{ route('direct-customers.index') }}" class="crm-nav-item {{ request()->routeIs('direct-customers.*') ? 'is-active' : '' }}" wire:navigate>
-                        <flux:icon.users aria-hidden="true" />
-                        <span>{{ __('navigation.direct_customers') }}</span>
-                    </a>
-                @endif
+                @php
+                    $customerNavigationActive = request()->routeIs('customers.index', 'customers.create', 'customers.show', 'customers.edit', 'direct-customers.*');
+                    $canViewAgentCustomers = ! auth()->user()->isDirectCustomerManager();
+                    $canViewDirectCustomers = auth()->user()->isSuperAdmin() || auth()->user()->isDirectCustomerManager();
+                @endphp
+                <div
+                    class="crm-nav-group"
+                    x-data="{ open: @js($customerNavigationActive) }"
+                    data-test="customer-nav-group"
+                >
+                    <div class="crm-nav-group-head {{ $customerNavigationActive ? 'is-active' : '' }}">
+                        <span class="crm-nav-group-link">
+                            <flux:icon.users aria-hidden="true" />
+                            <span>{{ __('navigation.customer_management') }}</span>
+                        </span>
+                        <button
+                            type="button"
+                            class="crm-nav-group-toggle"
+                            @click="open = !open"
+                            :aria-expanded="open"
+                            aria-controls="customer-subnav"
+                            aria-label="{{ __('navigation.toggle_customers') }}"
+                            data-test="customer-nav-toggle"
+                        >
+                            <flux:icon.chevron-down class="crm-nav-chevron" x-bind:class="{ 'is-open': open }" aria-hidden="true" />
+                        </button>
+                    </div>
+                    <div
+                        id="customer-subnav"
+                        class="crm-subnav-collapse {{ $customerNavigationActive ? 'is-open' : '' }}"
+                        aria-hidden="{{ $customerNavigationActive ? 'false' : 'true' }}"
+                        x-bind:aria-hidden="(!open).toString()"
+                        x-bind:inert="!open"
+                        data-test="customer-subnav"
+                    >
+                        <div class="crm-subnav-collapse-inner">
+                            <div class="crm-subnav">
+                                @if ($canViewAgentCustomers)
+                                    <a href="{{ route('customers.index') }}" class="crm-subnav-item {{ request()->routeIs('customers.index', 'customers.create', 'customers.show', 'customers.edit') ? 'is-active' : '' }}" data-test="customer-subnav-agent" wire:navigate>
+                                        <span>{{ __('navigation.agent_customers') }}</span>
+                                    </a>
+                                @endif
+                                @if ($canViewDirectCustomers)
+                                    <a href="{{ route('direct-customers.index') }}" class="crm-subnav-item {{ request()->routeIs('direct-customers.*') ? 'is-active' : '' }}" data-test="customer-subnav-direct" wire:navigate>
+                                        <span>{{ __('navigation.direct_customers') }}</span>
+                                    </a>
+                                @endif
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <a href="{{ route('orders.index') }}" class="crm-nav-item {{ request()->routeIs('orders.*', 'customers.orders') ? 'is-active' : '' }}" wire:navigate>
                     <flux:icon.clipboard-document-list aria-hidden="true" />
