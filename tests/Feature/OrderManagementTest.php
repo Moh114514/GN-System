@@ -138,6 +138,7 @@ class OrderManagementTest extends TestCase
             'owner_id' => $user->id,
             'occurred_on' => '2026-09-22',
             'completed_at' => CarbonImmutable::parse('2026-09-23 14:05:00', config('app.timezone')),
+            'completion_precision' => 'datetime',
         ]);
 
         Livewire::actingAs($user)->test(OrderCenter::class)
@@ -146,6 +147,39 @@ class OrderManagementTest extends TestCase
             ->assertSee('成交时间')
             ->assertSee('2026-09-23 14:05')
             ->assertSee('#'.$order->id);
+        $this->assertSame('agent', app(OrderManagementWorkspace::class)->paginate([], 20)->getCollection()->first()['source_type']);
+    }
+
+    public function test_date_precision_order_card_shows_no_midnight_completion_timestamp(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent();
+        $customer = $this->customer($agent, $user->id);
+        $order = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'agent_id' => $agent->id,
+            'project_name' => '僅有日期精度的歷史訂單',
+            'amount_krw' => 100000,
+            'status' => 'completed',
+            'owner_id' => $user->id,
+            'occurred_on' => '2026-09-22',
+            'completed_at' => CarbonImmutable::parse('2026-09-22 00:00:00', config('app.timezone')),
+            'completion_precision' => 'date',
+        ]);
+
+        Livewire::actingAs($user)->test(OrderCenter::class)
+            ->assertSee('完成日期')
+            ->assertSee('2026-09-22')
+            ->assertDontSee('2026-09-22 00:00')
+            ->assertSee(__('orders.sources.agent').' · '.$agent->name)
+            ->assertSee('→')
+            ->assertDontSee(__('orders.center.view_details'));
+
+        $this->assertSame('date', app(OrderManagementWorkspace::class)->paginate([], 20)->getCollection()->first()['completion_precision']);
+        $this->assertSame((int) $order->id, (int) app(OrderManagementWorkspace::class)->paginate([], 20)->getCollection()->first()['id']);
     }
 
     public function test_order_center_search_matches_any_order_item_project(): void

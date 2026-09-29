@@ -7,7 +7,7 @@ return [
     'brand_tagline' => '전문적 · 안전 · 효율적',
     'dashboard' => '개요',
     'reminders' => '적극 알림',
-    'customers' => '고객 관리',
+    'customers' => '에이전트 고객 관리',
     'direct_customers' => '직접 고객 관리',
     'orders' => '주문',
     'reports' => '다차원 조회',

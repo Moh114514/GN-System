@@ -28,6 +28,7 @@ return [
         'all_agents' => '全部代理商',
         'clear' => '清除',
         'view_details' => '查看详情',
+        'completed_date' => '完成日期',
         'mark_complete' => '标记完成',
         'mark_complete_confirm' => '确认将此订单标记为已完成？完成后会固化推广费和术后提醒，不能在此页面修改。',
         'no_orders' => '没有符合条件的订单。',

@@ -260,13 +260,19 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
             ->get()
             ->keyBy('order_id');
 
-        return $orders->map(function (Order $order) use ($commissions, $directCommissions): OrderSummaryData {
+        $context = $this->access->current();
+
+        return $orders->map(function (Order $order) use ($commissions, $directCommissions, $context): OrderSummaryData {
             $commission = $commissions->get($order->id);
             $directCommission = $directCommissions->get($order->id);
+            $canViewDirectCommission = $context->isSuperAdmin()
+                || ($context->userId !== null && (int) ($directCommission->owner_id ?? 0) === $context->userId);
+            $showDirectCommission = $order->source_type !== 'direct' || $canViewDirectCommission;
 
             return new OrderSummaryData(
                 id: (int) $order->id,
                 customerId: (int) $order->customer_id,
+                sourceType: (string) $order->source_type,
                 institutionId: (int) $order->institution_id,
                 agentId: $order->agent_id === null ? null : (int) $order->agent_id,
                 projectName: (string) $order->project_name,
@@ -274,12 +280,17 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
                 status: (string) $order->status,
                 occurredOn: $order->occurred_on?->format('Y-m-d'),
                 completedOn: $order->completed_on?->format('Y-m-d'),
-                commissionAmountKrw: $order->source_type === 'direct'
+                completionPrecision: (string) $order->completion_precision,
+                commissionAmountKrw: $order->source_type === 'direct' && ! $showDirectCommission
+                    ? null
+                    : ($order->source_type === 'direct'
                     ? ($directCommission === null ? null : (int) $directCommission->commission_amount_krw)
-                    : ($commission === null ? null : (int) $commission->amount_krw),
-                commissionRateBps: $order->source_type === 'direct'
+                    : ($commission === null ? null : (int) $commission->amount_krw)),
+                commissionRateBps: $order->source_type === 'direct' && ! $showDirectCommission
+                    ? null
+                    : ($order->source_type === 'direct'
                     ? ($directCommission === null ? null : (int) $directCommission->rate_bps)
-                    : ($commission === null ? null : (int) $commission->rate_bps),
+                    : ($commission === null ? null : (int) $commission->rate_bps)),
             );
         })->all();
     }

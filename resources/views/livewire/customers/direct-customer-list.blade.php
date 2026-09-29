@@ -17,6 +17,7 @@
         <div class="space-y-4">
             <div class="flex flex-wrap items-center gap-2">
                 <flux:input class="w-full sm:w-72" wire:model.live.debounce.350ms="search" icon="magnifying-glass" :placeholder="__('customers.direct.list.search_placeholder')" size="sm" />
+                @if (auth()->user()->isSuperAdmin())
                 <flux:dropdown>
                     <flux:button class="w-32 rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">{{ $selectedStatus['name'] ?? __('customers.direct.list.all_statuses') }}</flux:button>
                     <flux:menu class="max-h-72 overflow-y-auto">
@@ -26,6 +27,7 @@
                         @endforeach
                     </flux:menu>
                 </flux:dropdown>
+                @endif
                 <flux:dropdown>
                     <flux:button class="w-36 rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">{{ $selectedOwner['name'] ?? __('customers.direct.list.all_owners') }}</flux:button>
                     <flux:menu class="max-h-72 overflow-y-auto">

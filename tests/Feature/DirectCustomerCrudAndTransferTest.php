@@ -3,6 +3,8 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Agent\Infrastructure\Models\Agent;
+use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Auth\Domain\UserRole;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Application\Data\CustomerProfileData;
@@ -10,6 +12,7 @@ use App\Modules\Customer\Application\Services\CustomerProfileManager;
 use App\Modules\Customer\Application\Services\CustomerTransferManager;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerOwnerHistory;
+use App\Modules\Customer\Presentation\Livewire\CustomerList;
 use App\Modules\Customer\Presentation\Livewire\DirectCustomerList;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
@@ -98,7 +101,46 @@ class DirectCustomerCrudAndTransferTest extends TestCase
         Livewire::actingAs($this->manager)
             ->test(DirectCustomerList::class)
             ->assertSee('直客 A')
-            ->assertDontSee('直客 B');
+            ->assertDontSee('直客 B')
+            ->assertDontSee('直客负责人 B')
+            ->assertDontSee('不可见代理商选项');
+        $this->assertArrayNotHasKey('users', Livewire::actingAs($this->manager)->test(DirectCustomerList::class)->get('options'));
+        $this->assertArrayHasKey('users', Livewire::actingAs($this->admin)->test(DirectCustomerList::class)->get('options'));
+    }
+
+    public function test_agent_customer_list_excludes_direct_customers_and_detail_returns_to_matching_list(): void
+    {
+        $directCustomerId = $this->createCustomer($this->manager, '只在直客列表');
+        $agent = Agent::query()->create([
+            'agent_type_code_id' => AgentTypeCode::query()->firstOrFail()->id,
+            'code' => 'AGENT-LIST-41',
+            'name' => '列表代理商',
+            'cooperation_status' => 'active',
+        ]);
+        $agentCustomer = Customer::query()->create([
+            'code' => 'AGENT-CUSTOMER-41',
+            'name' => '只在代理商客户列表',
+            'source_type' => 'agent',
+            'source_agent_id' => $agent->id,
+            'owner_id' => $this->admin->id,
+        ]);
+
+        $this->actingAs($this->admin)->get(route('customers.index'))
+            ->assertOk()
+            ->assertSee('只在代理商客户列表');
+        Livewire::actingAs($this->admin)
+            ->test(CustomerList::class)
+            ->assertSee('只在代理商客户列表')
+            ->assertDontSee('只在直客列表');
+        $this->get(route('customers.show', $directCustomerId))
+            ->assertOk()
+            ->assertSee('href="'.route('direct-customers.index').'"', false)
+            ->assertSee(__('customers.direct.detail.back'));
+        $this->get(route('customers.show', $agentCustomer))
+            ->assertOk()
+            ->assertSee('href="'.route('customers.index').'"', false)
+            ->assertSee(__('customers.detail.back'));
+        $this->assertSame('代理商客户管理', __('customers.title.list'));
     }
 
     public function test_non_direct_roles_cannot_open_direct_customer_pages(): void

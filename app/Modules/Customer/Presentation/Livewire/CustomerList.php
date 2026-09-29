@@ -151,6 +151,7 @@ class CustomerList extends Component
         $customers = $hasDateError
             ? new LengthAwarePaginator([], 0, $perPage, 1, ['path' => request()->url(), 'query' => request()->query()])
             : $directory->paginate([
+                'source_type' => 'agent',
                 'search' => $this->search,
                 'status_id' => $this->statusId === '' ? null : (int) $this->statusId,
                 'agent_id' => $this->agentId === '' ? null : (int) $this->agentId,

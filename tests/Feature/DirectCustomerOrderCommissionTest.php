@@ -22,6 +22,7 @@ use App\Modules\Order\Application\Data\CompletedOrderItemData;
 use App\Modules\Order\Application\Data\CompletedOrderRegistrationData;
 use App\Modules\Order\Application\Data\DailyOrderData;
 use App\Modules\Order\Application\Services\CompletedOrderRegistrar;
+use App\Modules\Order\Application\Services\DailyOrderWorkspace;
 use App\Modules\Order\Application\Services\OrderManagementWorkspace;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Report\Application\Services\InstitutionMonthlySalesService;
@@ -250,6 +251,37 @@ class DirectCustomerOrderCommissionTest extends TestCase
         $this->assertSame(1, $summary->totalOrders);
         $this->assertSame(100000, $summary->totalAmountKrw);
 
+        $this->assertDatabaseHas('direct_order_commissions', [
+            'order_id' => $orderId,
+            'owner_id' => $this->manager->id,
+            'status' => 'active',
+        ]);
+    }
+
+    public function test_customer_orders_hides_historical_direct_commission_after_owner_transfer(): void
+    {
+        $this->actingAs($this->admin);
+        $this->saveRate(300, '2026-09-20');
+        $customerId = $this->createArrivedCustomer($this->manager, '客户订单佣金隔离客户', '2026-09-20');
+        $orderId = $this->register($customerId, 100000, '2026-09-20');
+        app(CustomerTransferManager::class)->direct($customerId, $this->otherManager->id, '负责人交接', $this->admin, null);
+
+        $this->actingAs($this->otherManager);
+        $this->get(route('customers.orders', $customerId))
+            ->assertOk()
+            ->assertDontSee('3,000')
+            ->assertDontSee('3.00%');
+        $newOwnerContext = app(DailyOrderWorkspace::class)->context($customerId);
+        $this->assertNull($newOwnerContext['orders'][0]['commissionAmountKrw']);
+        $this->assertNull($newOwnerContext['orders'][0]['commissionRateBps']);
+
+        $this->actingAs($this->manager);
+        $this->get(route('customers.orders', $customerId))->assertNotFound();
+
+        $this->actingAs($this->admin);
+        $adminContext = app(DailyOrderWorkspace::class)->context($customerId);
+        $this->assertSame(3000, $adminContext['orders'][0]['commissionAmountKrw']);
+        $this->assertSame(300, $adminContext['orders'][0]['commissionRateBps']);
         $this->assertDatabaseHas('direct_order_commissions', [
             'order_id' => $orderId,
             'owner_id' => $this->manager->id,

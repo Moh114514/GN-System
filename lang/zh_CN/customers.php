@@ -2,11 +2,12 @@
 
 return [
     'title' => [
-        'list' => '客户管理',
+        'list' => '代理商客户管理',
         'form' => '客户档案',
         'detail' => '客户详情',
     ],
     'direct' => [
+        'detail' => ['back' => '返回直客管理'],
         'title' => [
             'list' => '直客管理',
             'form' => '直客档案',

@@ -7,7 +7,7 @@ return [
     'brand_tagline' => '专业 · 安全 · 高效',
     'dashboard' => '总览',
     'reminders' => '主动提醒',
-    'customers' => '客户管理',
+    'customers' => '代理商客户管理',
     'direct_customers' => '直客管理',
     'orders' => '订单',
     'reports' => '多维查询',

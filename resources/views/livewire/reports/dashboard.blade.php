@@ -110,7 +110,7 @@
                     @endif
                         <span class="crm-metric-icon tone-{{ $tone }}"><flux:icon :name="$icon" /></span>
                         <span class="crm-metric-label">{{ $label }} <span title="{{ __('dashboard.metrics.actual') }}">ⓘ</span></span>
-                        <strong class="crm-number {{ $key === 'promotion_fee' ? 'text-rose-600' : '' }}">
+                        <strong class="crm-number {{ $key === 'promotion_fee' ? 'is-expense' : '' }}">
                             @if ($key === 'repurchase_rate')
                                 {{ number_format($metric['value'], 1) }}%
                             @elseif ($money)

@@ -216,6 +216,44 @@ final readonly class CustomerDirectory
         ];
     }
 
+    /** @return array<string, mixed> */
+    public function directCustomerOptions(bool $includeOwnerCandidates = false): array
+    {
+        $options = [
+            'institutions' => array_values($this->institutions->activeInstitutions()),
+            'direct_channels' => DirectCustomerChannel::query()
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get(['id', 'code', 'name'])
+                ->map(fn (DirectCustomerChannel $channel): array => [
+                    'id' => (int) $channel->id,
+                    'code' => (string) $channel->code,
+                    'name' => (string) $channel->name,
+                ])->all(),
+            'statuses' => CustomerStatus::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'key', 'name', 'stage_id', 'sort_order'])
+                ->map(fn (CustomerStatus $status): array => [
+                    'id' => $status->id,
+                    'key' => $status->key,
+                    'name' => $this->labels->status((string) $status->key, $status->name),
+                    'stage_id' => $status->stage_id,
+                    'sort_order' => $status->sort_order,
+                ])->all(),
+            'stages' => CustomerLifecycleStage::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'key', 'name', 'sort_order'])
+                ->map(fn (CustomerLifecycleStage $stage): array => [
+                    'id' => $stage->id,
+                    'key' => $stage->key,
+                    'name' => $this->labels->stage((string) $stage->key, $stage->name),
+                    'sort_order' => $stage->sort_order,
+                ])->all(),
+        ];
+        if ($includeOwnerCandidates) {
+            $options['users'] = $this->directOwnerCandidates();
+        }
+
+        return $options;
+    }
+
     /** @return list<array{id: int, name: string}> */
     public function ownerCandidates(): array
     {

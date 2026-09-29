@@ -74,11 +74,13 @@ final readonly class OrderManagementWorkspace
      *     customer_code: string,
      *     institution: string,
      *     source: string,
+     *     source_type: string,
      *     project_name: string,
      *     amount_krw: int,
      *     status: string,
      *     occurred_on: string|null,
      *     completed_at: string|null,
+     *     completion_precision: string,
      *     created_at: string|null
      * }>
      */
@@ -154,11 +156,13 @@ final readonly class OrderManagementWorkspace
                 'source' => (string) ($order->source_type === 'direct'
                     ? ($customer['direct_channel_name'] ?? __('orders.values.direct_customer'))
                     : ($agentLabels[(int) $order->agent_id]['name'] ?? __('orders.values.unknown_agent'))),
+                'source_type' => (string) $order->source_type,
                 'project_name' => (string) $order->project_name,
                 'amount_krw' => (int) $order->amount_krw,
                 'status' => (string) $order->status,
                 'occurred_on' => $order->occurred_on?->format('Y-m-d'),
                 'completed_at' => $order->completed_at?->format('Y-m-d H:i'),
+                'completion_precision' => (string) $order->completion_precision,
                 'created_at' => $order->created_at?->format('Y-m-d H:i'),
             ];
         });

@@ -28,6 +28,7 @@ return [
         'all_agents' => '전체 에이전트',
         'clear' => '지우기',
         'view_details' => '상세 보기',
+        'completed_date' => '완료 날짜',
         'mark_complete' => '완료로 표시',
         'mark_complete_confirm' => '이 주문을 완료로 표시할까요? 완료 후 프로모션 비용과 시술 후 알림이 확정되며 이 화면에서는 수정할 수 없습니다.',
         'no_orders' => '조건에 맞는 주문이 없습니다.',

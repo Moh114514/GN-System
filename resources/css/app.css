@@ -942,6 +942,10 @@ select:focus[data-flux-control] {
     letter-spacing: -.5px;
 }
 
+.crm-metric>strong.is-expense {
+    color: var(--crm-red);
+}
+
 .crm-delta {
     display: inline-flex;
     align-items: center;

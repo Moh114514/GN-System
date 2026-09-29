@@ -1,5 +1,5 @@
 <div>
-    <x-page-back :href="route('customers.index')" :label="__('customers.detail.back')" class="mb-4" />
+    <x-page-back :href="$customer['source_type'] === 'direct' ? route('direct-customers.index') : route('customers.index')" :label="$customer['source_type'] === 'direct' ? __('customers.direct.detail.back') : __('customers.detail.back')" class="mb-4" />
 
     <div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_22rem]">
         <div class="space-y-6">

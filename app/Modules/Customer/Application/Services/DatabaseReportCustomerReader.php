@@ -142,12 +142,15 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
 
     public function overview(CarbonImmutable $asOf): array
     {
-        $base = $this->scoped(Customer::query())->where('customers.created_at', '<=', $asOf);
+        $base = $this->scoped(Customer::query())
+            ->where('customers.source_type', 'agent')
+            ->where('customers.created_at', '<=', $asOf);
         $totalCustomers = (clone $base)->count('customers.id');
+        $agentCustomerIds = (clone $base)->select('customers.id');
         $statusCounts = DB::table('customers')
             ->leftJoin('customer_statuses as status', 'status.id', '=', 'customers.current_status_id')
             ->where('customers.created_at', '<=', $asOf)
-            ->whereIn('customers.id', $this->scopedCustomerIds())
+            ->whereIn('customers.id', $agentCustomerIds)
             ->selectRaw("COALESCE(status.key, 'unset') as status_key, COUNT(*)::int as value")
             ->groupByRaw("COALESCE(status.key, 'unset')")
             ->pluck('value', 'status_key')

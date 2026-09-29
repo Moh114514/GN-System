@@ -75,56 +75,54 @@
         @enderror
         <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             @forelse ($orders as $order)
-                <article wire:key="order-card-{{ $order['id'] }}" class="flex min-w-0 flex-col rounded-xl border border-zinc-300 bg-zinc-50/50 p-4 shadow-sm dark:border-zinc-600 dark:bg-zinc-800/40">
+                <a wire:key="order-card-{{ $order['id'] }}" href="{{ route('orders.show', $order['id']) }}" wire:navigate aria-label="{{ __('orders.fields.order') }} #{{ $order['id'] }}: {{ $order['project_name'] }}" class="group flex h-[230px] min-w-0 flex-col rounded-xl border border-zinc-300 bg-zinc-50/50 p-3 shadow-sm transition hover:border-teal-500 hover:shadow-md dark:border-zinc-600 dark:bg-zinc-800/40">
                     <div class="flex min-w-0 items-start justify-between gap-3">
                         <div class="min-w-0">
-                            <a class="line-clamp-2 overflow-hidden break-words font-semibold leading-5 text-teal-700 hover:underline" title="{{ $order['project_name'] }}" href="{{ route('orders.show', $order['id']) }}" wire:navigate>{{ $order['project_name'] }}</a>
+                            <span class="line-clamp-2 overflow-hidden break-words font-semibold leading-5 text-teal-700 group-hover:underline" title="{{ $order['project_name'] }}">{{ $order['project_name'] }}</span>
                             <div class="mt-1 text-xs text-zinc-500">#{{ $order['id'] }}</div>
                         </div>
                         <span class="crm-pill shrink-0 {{ $order['status'] === 'completed' ? 'tone-green' : ($order['status'] === 'cancelled' ? 'tone-red' : 'tone-amber') }}">{{ ['pending' => __('orders.statuses.pending'), 'completed' => __('orders.statuses.completed'), 'cancelled' => __('orders.statuses.cancelled')][$order['status']] ?? $order['status'] }}</span>
                     </div>
 
-                    <dl class="mt-4 grid gap-2 text-sm">
+                    <dl class="mt-2 grid gap-1.5 text-sm">
                         <div class="min-w-0">
-                            <dt class="text-xs text-zinc-500">{{ __('orders.fields.customer') }}</dt>
-                            <dd class="mt-1 min-w-0">
-                                <a class="line-clamp-2 break-words font-semibold text-teal-700 hover:underline" href="{{ route('customers.show', $order['customer_id']) }}" wire:navigate>{{ $order['customer_name'] }}</a>
-                                <span class="block break-words text-xs text-zinc-500">{{ $order['customer_code'] }}</span>
-                            </dd>
+                            <dt class="sr-only">{{ __('orders.fields.customer') }}</dt>
+                            <dd class="mt-0.5 min-w-0"><span class="line-clamp-2 break-words font-semibold">{{ $order['customer_name'] }}</span><span class="block truncate text-xs text-zinc-500">{{ $order['customer_code'] }}</span></dd>
                         </div>
                         <div class="min-w-0">
                             <dt class="text-xs text-zinc-500">{{ __('orders.fields.institution') }}</dt>
                             <dd class="mt-1 line-clamp-2 break-words font-medium">{{ $order['institution'] }}</dd>
                         </div>
                         <div class="min-w-0">
-                            <dt class="text-xs text-zinc-500">{{ __('orders.sources.agent') }}</dt>
-                            <dd class="mt-1 line-clamp-2 break-words font-medium">{{ $order['source'] }}</dd>
+                            <dt class="sr-only">{{ $order['source_type'] === 'direct' ? __('orders.sources.direct') : __('orders.sources.agent') }}</dt>
+                            <dd class="mt-0.5 truncate text-xs font-medium text-zinc-600 dark:text-zinc-300">{{ $order['source_type'] === 'direct' ? __('orders.sources.direct') : __('orders.sources.agent') }} · {{ $order['source'] }}</dd>
                         </div>
                     </dl>
 
-                    <div class="mt-4 flex flex-wrap items-end justify-between gap-3 border-t border-zinc-200 pt-3 dark:border-zinc-700">
+                    <div class="mt-auto flex flex-wrap items-end justify-between gap-2 border-t border-zinc-200 pt-2 dark:border-zinc-700">
                         <div>
                             <div class="text-xs text-zinc-500">{{ __('orders.fields.transaction_amount') }}</div>
                             <div class="mt-1 text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">₩ {{ number_format($order['amount_krw']) }}</div>
                         </div>
-                        <div class="text-right text-sm">
+                        <div class="text-right text-xs">
                             @if ($order['occurred_on'])
                                 <div class="text-xs text-zinc-500">{{ __('orders.fields.occurred_on') }}</div>
                                 <div class="mt-1 tabular-nums">{{ $order['occurred_on'] }}</div>
                             @endif
-                            @if ($order['status'] === 'completed' && $order['completed_at'])
-                                <div class="{{ $order['occurred_on'] ? 'mt-2' : '' }} text-xs text-zinc-500">{{ __('orders.fields.completed_time') }}</div>
-                                <div class="mt-1 tabular-nums">{{ $order['completed_at'] }}</div>
+                            @if ($order['status'] === 'completed' && $order['completion_precision'] === 'datetime' && $order['completed_at'])
+                                <div class="{{ $order['occurred_on'] ? 'mt-1' : '' }} text-xs text-zinc-500">{{ __('orders.fields.completed_time') }}</div>
+                                <div class="mt-0.5 tabular-nums">{{ $order['completed_at'] }}</div>
+                            @elseif ($order['status'] === 'completed' && $order['completion_precision'] === 'date' && $order['occurred_on'])
+                                <div class="text-xs text-zinc-500">{{ __('orders.fields.completed_date') }}</div>
+                                <div class="mt-0.5 tabular-nums">{{ $order['occurred_on'] }}</div>
                             @elseif ($order['status'] !== 'completed' && ! $order['occurred_on'] && $order['created_at'])
                                 <div class="text-xs text-zinc-500">{{ __('orders.fields.created_at') }}</div>
                                 <div class="mt-1 tabular-nums">{{ $order['created_at'] }}</div>
                             @endif
                         </div>
                     </div>
-                    <div class="mt-4 flex justify-end">
-                        <flux:button href="{{ route('orders.show', $order['id']) }}" wire:navigate variant="ghost" size="sm">{{ __('orders.center.view_details') }} <span aria-hidden="true">→</span></flux:button>
-                    </div>
-                </article>
+                    <span class="mt-1 self-end text-lg leading-none text-zinc-400 transition group-hover:translate-x-0.5 group-hover:text-teal-700" aria-hidden="true">→</span>
+                </a>
             @empty
                 <div class="col-span-full py-10 text-center text-zinc-500">{{ __('orders.center.no_orders') }}</div>
             @endforelse

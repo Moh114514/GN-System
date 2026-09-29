@@ -4,8 +4,8 @@
 
 已实现 UAT 宿主机双层重置、配置重载脚本和非破坏性管理员维护命令。UAT 重置与配置重载均已加入目录、Compose 项目、环境文件权限、UAT URL、数据库名称和 PostgreSQL `current_database()` 防护；真实 UAT/Production 执行结果仍须在目标服务器按运维手册验收，不能由本机静态检查替代。
 
-> 最后核验：2026-09-28
-> 核验依据：当前 `codex/direct-customer-follow-up` 分支和 GitHub PR #41；本地完整门禁及前端构建通过
+> 最后核验：2026-09-29
+> 核验依据：当前 `codex/direct-customer-follow-up` 分支和 GitHub PR #41；本轮本地完整门禁及前端构建通过
 > 当前阶段：Phase 6、订单中心、Phase 5 月结运行关系/历史数据闭环及 PR1–PR7 规划能力继续保持；直客方案 PR1–PR6 及两轮审查修复提交在 open PR #41 中，尚未合入 `develop`、发布或完成 UAT/Production 验收；直客 migration 的目标环境备份、迁移、抽样核验和人工业务验收仍未完成。
 
 ## 2026-09-24 PR #41 首轮审查修复
@@ -21,6 +21,12 @@
 - 订单详情仅向直客提成记录的历史负责人和超级管理员返回直客提成金额与费率。客户转移后的新负责人仍可访问客户及其历史订单，但看不到旧负责人的提成信息；超级管理员可查看全部财务快照。订单详情按来源区分“代理商推广费”和“直客提成”，直客不展示代理商月结状态。
 - `DatabaseDailyOrderGateway` 创建已完成订单和补完待完成订单时，继续按 `occurred_on` 保存消费日期，改用 `BusinessClock` 记录真实 `completed_at`，直客费率按实际完成时间选择。费率区间 migration 移除不需要的 `btree_gist` 扩展创建权限依赖。
 - PR #41 仍为 open，未合入 `develop`；本地完整门禁通过（486 项测试/3022 断言、PHPStan 527 文件、Pint 627 文件、47 个 Markdown/10 个 ADR）且 Vite 构建成功（597 个模块；主 JS chunk 超过 500 kB）。本次审查修复与 PR 描述已同步到 PR #41。UAT/Production migration 及人工验收仍未执行。
+
+## 2026-09-29 PR #41 第三轮审查修复
+
+- 客户订单摘要在 Application 数据出口按直客提成快照负责人过滤金额与费率；新负责人保留历史订单读取权但不读取前负责人的财务数据，超级管理员仍可查看。代理商客户列表和顶部概览只统计/展示 `source_type=agent`，详情返回按钮按客户来源回到对应列表。
+- 直客列表和表单使用专用字典选项；普通直客负责人不再接收负责人候选人数据，管理员选项保留。推广费指标使用 CRM 语义费用样式显示负数。订单中心卡片仍为五列、整卡可打开详情，来源标签按订单来源展示；历史 `date` 精度不显示虚构的午夜时间。
+- 本轮定向测试通过：`DirectCustomerOrderCommissionTest`（9 项/57 断言）、`DirectCustomerCrudAndTransferTest`（6 项/43 断言）、`OrderManagementTest`（15 项/88 断言）、`ConfigurationNavigationTest`（12 项/151 断言）。本地完整门禁通过（489 项测试/3055 断言、PHPStan 527 文件、Pint 627 文件、47 个 Markdown/10 个 ADR）；Vite 构建成功（597 个模块，主 JS chunk 为 1,124.64 kB 并提示超过 500 kB）。UAT/Production 仍未运行 migration 或人工验收。
 
 本页只描述仓库中可以验证的状态。未来规划见 `docs/source/`，不能据此页之外的
 规划内容推断某项能力已经存在。

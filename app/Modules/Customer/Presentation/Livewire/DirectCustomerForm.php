@@ -66,8 +66,7 @@ class DirectCustomerForm extends Component
     public function mount(CustomerDirectory $directory, CustomerProfileManager $manager, ?int $customer = null): void
     {
         abort_unless(Auth::user()?->isSuperAdmin() || Auth::user()?->isDirectCustomerManager(), 403);
-        $this->options = $directory->options();
-        $this->options['users'] = $directory->directOwnerCandidates();
+        $this->options = $directory->directCustomerOptions(Auth::user()->isSuperAdmin());
         $this->customerId = $customer;
 
         if ($customer === null) {
