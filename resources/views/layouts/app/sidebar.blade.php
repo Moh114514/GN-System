@@ -43,28 +43,31 @@
                     x-data="{ open: @js($customerNavigationActive) }"
                     data-test="customer-nav-group"
                 >
-                    <div class="crm-nav-group-head {{ $customerNavigationActive ? 'is-active' : '' }}">
+                    <button
+                        type="button"
+                        class="crm-nav-group-head {{ $customerNavigationActive ? 'is-active' : '' }}"
+                        @click="open = !open"
+                        aria-expanded="{{ $customerNavigationActive ? 'true' : 'false' }}"
+                        :aria-expanded="open"
+                        aria-controls="customer-subnav"
+                        aria-label="{{ __('navigation.toggle_customers') }}"
+                        data-test="customer-nav-toggle"
+                    >
                         <span class="crm-nav-group-link">
                             <flux:icon.users aria-hidden="true" />
                             <span>{{ __('navigation.customer_management') }}</span>
                         </span>
-                        <button
-                            type="button"
-                            class="crm-nav-group-toggle"
-                            @click="open = !open"
-                            :aria-expanded="open"
-                            aria-controls="customer-subnav"
-                            aria-label="{{ __('navigation.toggle_customers') }}"
-                            data-test="customer-nav-toggle"
-                        >
+                        <span class="crm-nav-group-toggle">
                             <flux:icon.chevron-down class="crm-nav-chevron" x-bind:class="{ 'is-open': open }" aria-hidden="true" />
-                        </button>
-                    </div>
+                        </span>
+                    </button>
                     <div
                         id="customer-subnav"
                         class="crm-subnav-collapse {{ $customerNavigationActive ? 'is-open' : '' }}"
                         aria-hidden="{{ $customerNavigationActive ? 'false' : 'true' }}"
+                        x-bind:class="{ 'is-open': open }"
                         x-bind:aria-hidden="(!open).toString()"
+                        @if (! $customerNavigationActive) inert @endif
                         x-bind:inert="!open"
                         data-test="customer-subnav"
                     >
@@ -99,28 +102,24 @@
                         x-data="{ open: @js($teamNavigationActive) }"
                         data-test="team-nav-group"
                     >
-                        <div class="crm-nav-group-head {{ $teamNavigationActive ? 'is-active' : '' }}">
-                            <a
-                                href="{{ route('team-overview.index') }}"
-                                class="crm-nav-group-link"
-                                data-test="team-nav-link"
-                                wire:navigate
-                            >
+                        <button
+                            type="button"
+                            class="crm-nav-group-head {{ $teamNavigationActive ? 'is-active' : '' }}"
+                            @click="open = !open"
+                            aria-expanded="{{ $teamNavigationActive ? 'true' : 'false' }}"
+                            :aria-expanded="open"
+                            aria-controls="team-subnav"
+                            aria-label="{{ __('navigation.toggle_team') }}"
+                            data-test="team-nav-toggle"
+                        >
+                            <span class="crm-nav-group-link">
                                 <flux:icon.user-group aria-hidden="true" />
                                 <span>{{ __('navigation.team_management') }}</span>
-                            </a>
-                            <button
-                                type="button"
-                                class="crm-nav-group-toggle"
-                                @click="open = !open"
-                                :aria-expanded="open"
-                                aria-controls="team-subnav"
-                                aria-label="{{ __('navigation.toggle_team') }}"
-                                data-test="team-nav-toggle"
-                            >
+                            </span>
+                            <span class="crm-nav-group-toggle">
                                 <flux:icon.chevron-down class="crm-nav-chevron" x-bind:class="{ 'is-open': open }" aria-hidden="true" />
-                            </button>
-                        </div>
+                            </span>
+                        </button>
                         <div
                             id="team-subnav"
                             class="crm-subnav-collapse {{ $teamNavigationActive ? 'is-open' : '' }}"
@@ -191,33 +190,28 @@
                         x-data="{ open: @js($configurationNavigationActive) }"
                         data-test="configuration-nav-group"
                     >
-                        <div class="crm-nav-group-head {{ $configurationNavigationActive ? 'is-active' : '' }}">
-                            <a
-                                href="{{ route('configuration.index') }}"
-                                class="crm-nav-group-link"
-                                data-test="configuration-nav-link"
-                                wire:navigate
-                            >
+                        <button
+                            type="button"
+                            class="crm-nav-group-head {{ $configurationNavigationActive ? 'is-active' : '' }}"
+                            @click="open = !open"
+                            aria-expanded="{{ $configurationNavigationActive ? 'true' : 'false' }}"
+                            :aria-expanded="open"
+                            aria-controls="configuration-subnav"
+                            aria-label="{{ __('navigation.toggle_configuration') }}"
+                            data-test="configuration-nav-toggle"
+                        >
+                            <span class="crm-nav-group-link">
                                 <flux:icon.cog-6-tooth aria-hidden="true" />
                                 <span>{{ __('navigation.configuration') }}</span>
-                            </a>
-
-                            <button
-                                type="button"
-                                class="crm-nav-group-toggle"
-                                @click="open = !open"
-                                :aria-expanded="open"
-                                aria-controls="configuration-subnav"
-                                aria-label="{{ __('navigation.toggle_configuration') }}"
-                                data-test="configuration-nav-toggle"
-                            >
+                            </span>
+                            <span class="crm-nav-group-toggle">
                                 <flux:icon.chevron-down
                                     class="crm-nav-chevron"
                                     x-bind:class="{ 'is-open': open }"
                                     aria-hidden="true"
                                 />
-                            </button>
-                        </div>
+                            </span>
+                        </button>
 
                         <div
                             id="configuration-subnav"

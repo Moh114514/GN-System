@@ -164,7 +164,7 @@ class DirectCustomerForm extends Component
             );
             Flux::toast(variant: 'success', text: __('customers.toasts.updated'));
 
-            return $this->redirectRoute('customers.show', ['customer' => $this->customerId], navigate: true);
+            return $this->redirectRoute('direct-customers.show', ['customer' => $this->customerId], navigate: true);
         }
 
         try {
@@ -189,7 +189,7 @@ class DirectCustomerForm extends Component
 
         Flux::toast(variant: 'success', text: __('customers.toasts.created'));
 
-        return $this->redirectRoute('customers.show', ['customer' => $customerId], navigate: true);
+        return $this->redirectRoute('direct-customers.show', ['customer' => $customerId], navigate: true);
     }
 
     public function render(): View

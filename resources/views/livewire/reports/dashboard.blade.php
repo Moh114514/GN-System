@@ -78,7 +78,9 @@
             $institutionMonth = (string) ($snapshot['panels']['institution_revenue_month'] ?? '');
             $metricLinks = [
                 'revenue' => route('reports.search', $reportRange),
-                'new_customers' => route('customers.index', ['createdFrom' => $rangeFrom, 'createdTo' => $rangeTo]),
+                'new_customers' => auth()->user()->isSuperAdmin()
+                    ? null
+                    : route(auth()->user()->isDirectCustomerManager() ? 'direct-customers.index' : 'customers.index', ['createdFrom' => $rangeFrom, 'createdTo' => $rangeTo]),
                 'promotion_fee' => auth()->user()->is_super_admin ? route('settlements.index') : null,
                 'repurchase_rate' => route('reports.search', $reportRange),
             ];

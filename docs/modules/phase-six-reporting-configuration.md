@@ -89,8 +89,7 @@ SVG/表格快照，并保留相同区间、指标和快照生成时间。
 ## 总览数据下钻
 
 PR5 为经营总览的可下钻入口复用现有命名路由和页面权限：营收、复购率及月度营收/订单
-趋势进入多维查询并携带当前 `completedFrom`/`completedTo`；新增客户和最近客户列表进入
-客户管理并携带 `createdFrom`/`createdTo`。客户列表的日期边界按 Asia/Shanghai 的自然日
+趋势进入多维查询并携带当前 `completedFrom`/`completedTo`；新增客户卡片按角色进入对应来源列表：直客负责人进入 `direct-customers.index`，客服和 BD 进入 `customers.index`，并携带 `createdFrom`/`createdTo`。超级管理员的新增客户统计包含代理商客户及直客，卡片保留合计展示但不链接单一来源列表；最近客户仍链接具体客户详情，直客经权限检查转到 `direct-customers.show`。客户列表的日期边界按 Asia/Shanghai 的自然日
 解释；Dashboard 预设区间的下钻也按目标页面现有的日期粒度截止到所选结束日。代理商排行在超级管理员可见时进入对应代理商详情，提醒入口继续复用 Reminder 的
 可见范围，月结入口仅对超级管理员显示；BD 季度提成入口对超级管理员和 BD 开放，BD 只读自身
 归属。看板不新增数据库表、预聚合或权限模型。

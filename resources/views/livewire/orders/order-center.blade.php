@@ -75,7 +75,7 @@
         @enderror
         <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
             @forelse ($orders as $order)
-                <a wire:key="order-card-{{ $order['id'] }}" href="{{ route('orders.show', $order['id']) }}" wire:navigate aria-label="{{ __('orders.fields.order') }} #{{ $order['id'] }}: {{ $order['project_name'] }}" class="group flex h-[230px] min-w-0 flex-col rounded-xl border border-zinc-300 bg-zinc-50/50 p-3 shadow-sm transition hover:border-teal-500 hover:shadow-md dark:border-zinc-600 dark:bg-zinc-800/40">
+                <a wire:key="order-card-{{ $order['id'] }}" href="{{ route('orders.show', $order['id']) }}" wire:navigate aria-label="{{ __('orders.fields.order') }} #{{ $order['id'] }}: {{ $order['project_name'] }}" class="group flex min-h-[230px] min-w-0 flex-col rounded-xl border border-zinc-300 bg-zinc-50/50 p-3 shadow-sm transition hover:border-teal-500 hover:shadow-md dark:border-zinc-600 dark:bg-zinc-800/40">
                     <div class="flex min-w-0 items-start justify-between gap-3">
                         <div class="min-w-0">
                             <span class="line-clamp-2 overflow-hidden break-words font-semibold leading-5 text-teal-700 group-hover:underline" title="{{ $order['project_name'] }}">{{ $order['project_name'] }}</span>

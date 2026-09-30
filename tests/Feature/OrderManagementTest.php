@@ -67,6 +67,8 @@ class OrderManagementTest extends TestCase
             ->assertSee($projectName)
             ->assertSee('grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5', false)
             ->assertSee('line-clamp-2', false)
+            ->assertSee('min-h-[230px]', false)
+            ->assertDontSee(' h-[230px]', false)
             ->assertSee('title="'.$projectName.'"', false)
             ->assertDontSee('<table', false)
             ->assertSee('#'.$order->id);

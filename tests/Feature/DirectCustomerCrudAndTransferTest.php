@@ -8,11 +8,16 @@ use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Auth\Domain\UserRole;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Application\Data\CustomerProfileData;
+use App\Modules\Customer\Application\Services\CustomerDirectory;
 use App\Modules\Customer\Application\Services\CustomerProfileManager;
 use App\Modules\Customer\Application\Services\CustomerTransferManager;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerOwnerHistory;
+use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
+use App\Modules\Customer\Presentation\Livewire\CustomerDetail;
+use App\Modules\Customer\Presentation\Livewire\CustomerForm;
 use App\Modules\Customer\Presentation\Livewire\CustomerList;
+use App\Modules\Customer\Presentation\Livewire\DirectCustomerForm;
 use App\Modules\Customer\Presentation\Livewire\DirectCustomerList;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
@@ -84,6 +89,7 @@ class DirectCustomerCrudAndTransferTest extends TestCase
             ->assertOk()
             ->assertSee('直客 A')
             ->assertDontSee('直客 B')
+            ->assertSee('href="'.route('direct-customers.show', $customerId).'"', false)
             ->assertSee(__('navigation.direct_customers'))
             ->assertSee(__('navigation.customer_management'))
             ->assertDontSee('data-test="customer-subnav-agent"')
@@ -135,6 +141,8 @@ class DirectCustomerCrudAndTransferTest extends TestCase
             ->assertSee('只在代理商客户列表')
             ->assertDontSee('只在直客列表');
         $this->get(route('customers.show', $directCustomerId))
+            ->assertRedirect(route('direct-customers.show', $directCustomerId));
+        $this->get(route('direct-customers.show', $directCustomerId))
             ->assertOk()
             ->assertSee('href="'.route('direct-customers.index').'"', false)
             ->assertSee(__('customers.direct.detail.back'));
@@ -143,6 +151,67 @@ class DirectCustomerCrudAndTransferTest extends TestCase
             ->assertSee('href="'.route('customers.index').'"', false)
             ->assertSee(__('customers.detail.back'));
         $this->assertSame('代理商客户管理', __('customers.title.list'));
+        $this->get(route('direct-customers.show', $agentCustomer))->assertNotFound();
+        $this->get(route('customers.edit', $directCustomerId))->assertNotFound();
+    }
+
+    public function test_direct_customer_details_keep_the_direct_submenu_active_and_use_direct_options(): void
+    {
+        $customerId = $this->createCustomer($this->manager);
+        $otherCustomerId = $this->createCustomer($this->otherManager, '其他负责人直客');
+
+        foreach ([$this->admin, $this->manager] as $user) {
+            $response = $this->actingAs($user)->get(route('direct-customers.show', $customerId))
+                ->assertOk()
+                ->assertSee('href="'.route('direct-customers.index').'"', false)
+                ->assertSee(__('customers.direct.detail.back'));
+            $this->assertMatchesRegularExpression('/<a[^>]*class="crm-subnav-item is-active"[^>]*data-test="customer-subnav-direct"/', $response->getContent());
+            $this->assertDoesNotMatchRegularExpression('/<a[^>]*class="crm-subnav-item is-active"[^>]*data-test="customer-subnav-agent"/', $response->getContent());
+            $this->assertArrayNotHasKey('agents', Livewire::actingAs($user)->test(CustomerDetail::class, ['customer' => $customerId])->get('options'));
+            $this->get(route('direct-customers.edit', $customerId))
+                ->assertOk()->assertSee('href="'.route('direct-customers.show', $customerId).'"', false);
+        }
+        $this->actingAs($this->manager)->get(route('customers.show', $customerId))
+            ->assertRedirect(route('direct-customers.show', $customerId));
+        $this->get(route('direct-customers.show', $otherCustomerId))->assertNotFound();
+        Livewire::actingAs($this->manager)->test(DirectCustomerForm::class, ['customer' => $customerId])
+            ->set('notes', '更新直客备注')->call('save')->assertHasNoErrors()
+            ->assertRedirect(route('direct-customers.show', $customerId));
+    }
+
+    public function test_direct_managers_cannot_open_or_mount_agent_customer_workspaces(): void
+    {
+        $customerId = $this->createCustomer($this->manager);
+        $this->actingAs($this->manager);
+        foreach (['customers.index', 'customers.create', 'customers.edit'] as $name) {
+            $this->get(route($name, $name === 'customers.edit' ? $customerId : []))->assertForbidden();
+        }
+        Livewire::actingAs($this->manager)->test(CustomerList::class)->assertForbidden();
+        Livewire::actingAs($this->manager)->test(CustomerForm::class)->assertForbidden();
+        Livewire::actingAs($this->manager)->test(CustomerForm::class, ['customer' => $customerId])->assertForbidden();
+
+        $this->expectException(HttpException::class);
+        app(CustomerDirectory::class)->options();
+    }
+
+    public function test_direct_customer_status_filter_is_available_to_managers_and_owner_filter_only_to_admins(): void
+    {
+        $includedId = $this->createCustomer($this->manager, '已预约直客');
+        $excludedId = $this->createCustomer($this->manager, '已到院直客');
+        $booked = CustomerStatus::query()->where('key', 'booked')->firstOrFail();
+        $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
+        Customer::query()->whereKey($includedId)->update(['current_status_id' => $booked->id]);
+        Customer::query()->whereKey($excludedId)->update(['current_status_id' => $arrived->id]);
+
+        Livewire::actingAs($this->manager)->test(DirectCustomerList::class)
+            ->assertSee(__('customers.direct.list.all_statuses'))
+            ->assertDontSee(__('customers.direct.list.all_owners'))
+            ->set('statusId', (string) $booked->id)
+            ->assertSee('已预约直客')->assertDontSee('已到院直客');
+        Livewire::actingAs($this->admin)->test(DirectCustomerList::class)
+            ->assertSee(__('customers.direct.list.all_statuses'))
+            ->assertSee(__('customers.direct.list.all_owners'))
+            ->assertSee($this->otherManager->name);
     }
 
     public function test_non_direct_roles_cannot_open_direct_customer_pages(): void
@@ -151,6 +220,9 @@ class DirectCustomerCrudAndTransferTest extends TestCase
 
         $this->actingAs($customerService)->get(route('direct-customers.index'))->assertForbidden();
         $this->actingAs($customerService)->get(route('direct-customers.create'))->assertForbidden();
+        $customerId = $this->createCustomer($this->manager);
+        $this->get(route('direct-customers.show', $customerId))->assertNotFound();
+        $this->get(route('customers.show', $customerId))->assertNotFound();
     }
 
     public function test_direct_manager_transfer_requires_super_admin_approval_and_keeps_history(): void

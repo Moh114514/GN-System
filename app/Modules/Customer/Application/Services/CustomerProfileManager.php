@@ -132,6 +132,7 @@ final readonly class CustomerProfileManager
                 }
                 [$prefix, $digits] = ['DC', 6];
             } else {
+                abort_unless($context->isSuperAdmin() || $context->isBdManager() || $context->isCustomerService(), 403);
                 if ($sourceAgentId === null || $directChannelId !== null) {
                     throw ValidationException::withMessages(['sourceId' => __('customers.form.validation.agent_unavailable')]);
                 }

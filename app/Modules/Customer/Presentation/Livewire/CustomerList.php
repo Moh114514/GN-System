@@ -68,7 +68,7 @@ class CustomerList extends Component
 
     public function mount(CustomerDirectory $directory): void
     {
-        $this->options = $directory->options();
+        $this->options = $directory->options(forCustomerList: true);
     }
 
     public function updated(string $property): void
@@ -139,6 +139,7 @@ class CustomerList extends Component
 
     public function render(CustomerDirectory $directory): View
     {
+        $directory->assertAgentCustomerAccess();
         $hasDateError = false;
         try {
             $this->validate();

@@ -46,11 +46,18 @@ class CustomerDetail extends Component
 
     public function mount(int $customer, CustomerDirectory $directory, BusinessClock $clock): void
     {
-        $directory->profile($customer);
+        $profile = $directory->profile($customer);
+        $isDirectCustomer = $profile['source_type'] === 'direct';
+        if (request()->routeIs('direct-customers.show')) {
+            abort_unless($isDirectCustomer, 404);
+        }
         $this->customerId = $customer;
-        $this->options = $directory->options();
+        $this->options = $isDirectCustomer ? $directory->directCustomerOptions() : $directory->options();
         $this->followedUpOn = $clock->now()->toDateString();
         $this->followupType = __('customers.detail.followup.default_type');
+        if ($isDirectCustomer && request()->routeIs('customers.show')) {
+            $this->redirectRoute('direct-customers.show', ['customer' => $customer], navigate: true);
+        }
     }
 
     public function changeStatus(CustomerStatusManager $manager): void

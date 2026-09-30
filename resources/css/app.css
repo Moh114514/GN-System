@@ -328,10 +328,16 @@ select:focus[data-flux-control] {
     width: 100%;
     min-height: 44px;
     align-items: center;
+    border: 0;
     border-radius: 9px;
+    background: transparent;
+    padding: 0;
     color: var(--crm-ink-secondary);
     font-size: 14px;
     font-weight: 400;
+    line-height: 1.55;
+    text-align: left;
+    cursor: pointer;
     transition:
         background-color 160ms ease-out,
         color 160ms ease-out,
@@ -340,6 +346,13 @@ select:focus[data-flux-control] {
 
 .crm-nav-group-head:hover {
     background-color: var(--crm-line-soft);
+}
+
+.crm-nav-group-head:focus-visible,
+.crm-nav-item:focus-visible,
+.crm-subnav-item:focus-visible {
+    outline: 2px solid var(--crm-primary);
+    outline-offset: 2px;
 }
 
 .crm-nav-group-head.is-active {

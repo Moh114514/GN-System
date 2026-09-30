@@ -17,7 +17,6 @@
         <div class="space-y-4">
             <div class="flex flex-wrap items-center gap-2">
                 <flux:input class="w-full sm:w-72" wire:model.live.debounce.350ms="search" icon="magnifying-glass" :placeholder="__('customers.direct.list.search_placeholder')" size="sm" />
-                @if (auth()->user()->isSuperAdmin())
                 <flux:dropdown>
                     <flux:button class="w-32 rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">{{ $selectedStatus['name'] ?? __('customers.direct.list.all_statuses') }}</flux:button>
                     <flux:menu class="max-h-72 overflow-y-auto">
@@ -27,7 +26,7 @@
                         @endforeach
                     </flux:menu>
                 </flux:dropdown>
-                @endif
+                @if (auth()->user()->isSuperAdmin())
                 <flux:dropdown>
                     <flux:button class="w-36 rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">{{ $selectedOwner['name'] ?? __('customers.direct.list.all_owners') }}</flux:button>
                     <flux:menu class="max-h-72 overflow-y-auto">
@@ -37,6 +36,7 @@
                         @endforeach
                     </flux:menu>
                 </flux:dropdown>
+                @endif
                 @if ($hasFilters)
                     <flux:button wire:click="clearFilters" variant="ghost" size="sm" icon="x-mark">{{ __('customers.direct.list.clear') }}</flux:button>
                 @endif
@@ -60,7 +60,7 @@
                 <tbody>
                     @forelse ($customers as $customer)
                         <tr wire:key="direct-customer-{{ $customer['id'] }}">
-                            <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('customers.show', $customer['id']) }}" wire:navigate>{{ $customer['name'] }}</a><div class="text-xs text-zinc-500">{{ $customer['code'] }}</div></td>
+                            <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('direct-customers.show', $customer['id']) }}" wire:navigate>{{ $customer['name'] }}</a><div class="text-xs text-zinc-500">{{ $customer['code'] }}</div></td>
                             <td>{{ $customer['contact_masked'] }}</td>
                             <td class="font-semibold">{{ $customer['source'] }}</td>
                             <td>{{ $customer['owner'] ?: __('customers.fallback.unset') }}</td>

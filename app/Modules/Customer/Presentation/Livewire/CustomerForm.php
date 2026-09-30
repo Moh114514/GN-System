@@ -75,6 +75,7 @@ class CustomerForm extends Component
         }
 
         $profile = $directory->profile($customer);
+        abort_unless($profile['source_type'] === 'agent', 404);
         $this->name = (string) $profile['name'];
         $this->gender = (string) ($profile['gender'] ?? '');
         $this->birthDate = (string) ($profile['birth_date'] ?? '');
@@ -190,8 +191,10 @@ class CustomerForm extends Component
         return $this->redirectRoute('customers.show', ['customer' => $customerId], navigate: true);
     }
 
-    public function render(): View
+    public function render(CustomerDirectory $directory): View
     {
+        $directory->assertAgentCustomerAccess();
+
         return view('livewire.customers.customer-form')
             ->title(__('customers.title.form'));
     }

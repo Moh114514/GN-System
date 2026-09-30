@@ -23,7 +23,7 @@ class ConfigurationNavigationTest extends TestCase
         $response = $this->actingAs($admin)->get(route('configuration.index'))
             ->assertOk()
             ->assertSee('data-test="configuration-nav-group"', false)
-            ->assertSee('data-test="configuration-nav-link"', false)
+            ->assertSee('data-test="configuration-subnav-overview"', false)
             ->assertSee('data-test="configuration-nav-toggle"', false)
             ->assertSee('class="crm-subnav-collapse is-open"', false)
             ->assertSee('class="crm-subnav-collapse-inner"', false)
@@ -122,6 +122,10 @@ class ConfigurationNavigationTest extends TestCase
         $this->assertStringContainsString('data-test="customer-nav-group"', $adminNavigation);
         $this->assertStringContainsString('data-test="customer-subnav-agent"', $adminNavigation);
         $this->assertStringContainsString('data-test="customer-subnav-direct"', $adminNavigation);
+        preg_match('/<div\s+id="customer-subnav"[^>]*>/s', $adminNavigation, $customerSubnav);
+        $this->assertStringContainsString('x-bind:class="{ \'is-open\': open }"', $customerSubnav[0] ?? '');
+        $this->assertMatchesRegularExpression('/\s+inert(?:\s|>)/', $customerSubnav[0] ?? '');
+        $this->assertMatchesRegularExpression('/<button[^>]*@click="open = !open"[^>]*aria-controls="customer-subnav"[^>]*data-test="customer-nav-toggle"/s', $adminNavigation);
         $this->assertLessThan(
             strpos($adminNavigation, '<span>多维查询</span>'),
             strpos($adminNavigation, '<span>月结中心</span>'),
@@ -174,6 +178,35 @@ class ConfigurationNavigationTest extends TestCase
             ->assertSee('class="crm-nav-group-head is-active"', false)
             ->assertSee('data-test="configuration-subnav-data-maintenance"', false)
             ->assertSee('class="crm-subnav-item is-active"', false);
+    }
+
+    public function test_sidebar_groups_share_full_row_toggles_and_accessible_collapsed_state(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $content = $this->actingAs($admin)->get(route('dashboard'))->assertOk()->getContent();
+
+        foreach (['customer', 'team', 'configuration'] as $group) {
+            preg_match('/<button[^>]*data-test="'.$group.'-nav-toggle"[^>]*>(.*?)<\/button>/s', $content, $toggle);
+            $this->assertNotEmpty($toggle);
+            $this->assertStringContainsString('class="crm-nav-group-head ', $toggle[0]);
+            $this->assertStringContainsString('@click="open = !open"', $toggle[0]);
+            $this->assertStringContainsString('aria-expanded="false"', $toggle[0]);
+            $this->assertStringContainsString(':aria-expanded="open"', $toggle[0]);
+            $this->assertStringContainsString('aria-controls="'.$group.'-subnav"', $toggle[0]);
+            $this->assertMatchesRegularExpression('/class="[^"]*\bcrm-nav-chevron\b[^"]*"/', $toggle[0]);
+            $this->assertStringNotContainsString('<a ', $toggle[0]);
+
+            preg_match('/<div\s+id="'.$group.'-subnav"[^>]*>/s', $content, $subnav);
+            $this->assertNotEmpty($subnav);
+            $this->assertStringContainsString('x-bind:class="{ \'is-open\': open }"', $subnav[0]);
+            $this->assertStringContainsString('aria-hidden="true"', $subnav[0]);
+            $this->assertMatchesRegularExpression('/\s+inert(?:\s|>)/', $subnav[0]);
+            $this->assertStringContainsString('x-bind:inert="!open"', $subnav[0]);
+        }
+
+        foreach (['customers.index', 'team-overview.index', 'configuration.index'] as $route) {
+            $this->assertStringContainsString('href="'.route($route).'"', $content);
+        }
     }
 
     public function test_time_travel_page_is_admin_only_and_returns_to_configuration_center(): void
