@@ -14,7 +14,7 @@ final readonly class CompletedOrderRegistrationData
     public function __construct(
         public int $customerId,
         public int $institutionId,
-        public int $agentId,
+        public ?int $agentId,
         public array $items,
         public CarbonImmutable $occurredOn,
         public int $actorId,

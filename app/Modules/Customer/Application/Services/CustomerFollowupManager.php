@@ -31,13 +31,15 @@ final readonly class CustomerFollowupManager
             $customer = Customer::query()->findOrFail($customerId);
             $context = $this->access->forUser(User::query()->findOrFail($actorId));
             abort_unless($context->canViewCustomer(
-                $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
-                $customer->owner_id === null ? null : (int) $customer->owner_id,
+                sourceType: (string) $customer->source_type,
+                sourceAgentId: $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
+                ownerId: $customer->owner_id === null ? null : (int) $customer->owner_id,
             ), 404);
             abort_unless(
                 $context->isSuperAdmin()
                 || $context->isBdManager()
-                || ($context->isCustomerService() && (int) $customer->owner_id === $actorId),
+                || ($context->isCustomerService() && (int) $customer->owner_id === $actorId)
+                || ($context->isDirectCustomerManager() && (string) $customer->source_type === 'direct' && (int) $customer->owner_id === $actorId),
                 403,
             );
             $followupId = $this->followups->record(new CustomerFollowupData(

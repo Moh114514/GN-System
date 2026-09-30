@@ -16,6 +16,8 @@ use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Application\Services\CustomerDirectory;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
+use App\Modules\Customer\Presentation\Livewire\CustomerForm;
+use App\Modules\Customer\Presentation\Livewire\CustomerList;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Reminder\Application\Services\ReminderWorkspace;
 use App\Modules\Report\Application\Services\DashboardRangeFactory;
@@ -25,6 +27,7 @@ use App\Modules\Report\Application\Services\TeamOverviewService;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
@@ -116,28 +119,56 @@ class AccessScopeTest extends TestCase
             ->assertSee('客户 A')
             ->assertSee('客户 B');
 
+        $this->actingAs($this->bd)->get(route('customers.index'))
+            ->assertOk()
+            ->assertSee('客户 A')
+            ->assertDontSee('客户 B');
+        $this->actingAs($this->owner)->get(route('customers.index'))
+            ->assertOk()
+            ->assertSee('客户 A')
+            ->assertDontSee('客户 B');
+        $this->actingAs($this->peer)->get(route('customers.index'))
+            ->assertOk()
+            ->assertDontSee('客户 A')
+            ->assertDontSee('客户 B');
         foreach ([$this->bd, $this->owner, $this->peer] as $user) {
-            $this->actingAs($user)->get(route('customers.index'))
-                ->assertOk()
-                ->assertSee('客户 A')
-                ->assertDontSee('客户 B');
-            $this->get(route('customers.show', $this->groupBCustomer->id))->assertNotFound();
+            $this->actingAs($user)->get(route('customers.show', $this->groupBCustomer->id))->assertNotFound();
         }
     }
 
     public function test_customer_service_non_owner_gets_no_sensitive_customer_values_and_cannot_export(): void
     {
         $this->actingAs($this->peer);
-        $profile = app(CustomerDirectory::class)->profile($this->groupACustomer->id);
-
-        $this->assertNull($profile['contact']);
-        $this->assertNull($profile['identity_document']);
+        $this->get(route('customers.show', $this->groupACustomer->id))->assertNotFound();
 
         $this->expectException(HttpException::class);
         app(ReportExportManager::class)->queueSearch($this->peer, []);
     }
 
-    public function test_customer_list_supports_scoped_owner_filter_and_customer_service_own_first_order(): void
+    public function test_customer_list_agent_options_follow_owned_customers_without_restricting_creation_candidates(): void
+    {
+        $peerAgent = Agent::query()->create([
+            'agent_type_code_id' => AgentTypeCode::query()->firstOrFail()->id,
+            'code' => 'SCOPE-PEER-ONLY', 'name' => '组内其他客服代理商', 'cooperation_status' => 'active',
+        ]);
+        AgentBusinessGroupAssignment::query()->create([
+            'agent_id' => $peerAgent->id, 'business_group_id' => $this->groupA->id,
+            'effective_from' => '2026-01-01', 'assigned_by' => $this->admin->id, 'reason' => '筛选候选范围测试',
+        ]);
+        Customer::query()->create([
+            'code' => 'SCOPE-PEER-CUSTOMER', 'name' => '组内其他客服客户',
+            'source_agent_id' => $peerAgent->id, 'owner_id' => $this->peer->id,
+        ]);
+        $ownerList = Livewire::actingAs($this->owner)->test(CustomerList::class);
+        $this->assertSame([(int) $this->groupACustomer->source_agent_id], array_column($ownerList->get('options')['agents'], 'id'));
+        $ownerList->assertDontSee($peerAgent->name)->assertDontSee('代理商 B');
+        $this->assertSame([$peerAgent->id], array_column(Livewire::actingAs($this->peer)->test(CustomerList::class)->get('options')['agents'], 'id'));
+        $this->assertContains($peerAgent->id, array_column(Livewire::actingAs($this->owner)->test(CustomerForm::class)->get('options')['agents'], 'id'));
+        $this->assertContains($peerAgent->id, array_column(Livewire::actingAs($this->bd)->test(CustomerList::class)->get('options')['agents'], 'id'));
+        $this->assertCount(3, Livewire::actingAs($this->admin)->test(CustomerList::class)->get('options')['agents']);
+    }
+
+    public function test_customer_list_supports_owner_only_customer_service_scope(): void
     {
         $peerCustomer = Customer::query()->create([
             'code' => 'SCOPE-CUSTOMER-A-PEER',
@@ -154,8 +185,8 @@ class AccessScopeTest extends TestCase
         $directory = app(CustomerDirectory::class);
 
         $page = $directory->paginate([], 20);
-        $this->assertSame([$this->groupACustomer->id, $peerCustomer->id], $page->getCollection()->pluck('id')->all());
-        $this->assertSame([$peerCustomer->id], $directory->paginate(['owner_id' => $this->peer->id], 20)->getCollection()->pluck('id')->all());
+        $this->assertSame([$this->groupACustomer->id], $page->getCollection()->pluck('id')->all());
+        $this->assertSame([], $directory->paginate(['owner_id' => $this->peer->id], 20)->getCollection()->pluck('id')->all());
         $this->assertEqualsCanonicalizing(
             [$this->owner->id, $this->peer->id],
             array_column($directory->ownerCandidates(), 'id'),

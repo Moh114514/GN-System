@@ -1,5 +1,13 @@
 # GN-System 小白运维指南
 
+## 最近一次开发状态（2026-09-30）
+
+直客 PR #41 审查修复仍在 open PR 中，尚未合入 `develop`。订单转移后，旧负责人的直客提成不会显示给新负责人；代理商客户列表只展示代理商来源，直客负责人不能读取其他负责人的候选信息；订单卡片按来源显示，历史日期不补出午夜时间。本轮定向测试通过 101 项/886 断言，本地完整门禁通过（495 项测试/3178 断言），前端构建成功（597 个模块；主 JS chunk 为 1,124.64 kB，超过 500 kB 提示）。
+本轮将客户管理、团队管理、配置中心统一为点击整行展开/收起，具体页面从子菜单进入。直客详情、高亮与返回路径已分开；直客负责人不能打开代理商客户页面，客服列表只显示本人客户涉及的代理商筛选项。新增客户卡按角色进入对应列表，管理员的两类客户合计卡仅展示数字；长订单卡片可自动增高。三个菜单的本机浏览器操作已验证，直客详情与角色权限通过独立测试数据库验证；目标环境仍要用实际账号检查。
+
+本轮没有新增 migration 或环境配置，三套环境沿用相同页面与权限规则。代码尚未发布，UAT reset 和本 PR 已有 migration 均未在目标环境执行。不要在服务器上直接部署 `codex/direct-customer-follow-up`；待合入 `develop`、创建递增 RC 并按完整发布手册
+完成备份、migration、规则核对和 UAT 验收后，才能进入服务器发布流程。
+
 > 维护要求：系统状态发生变化时，必须同时核对本指南和[完整运维手册](operations-manual.md)。
 > 两份文档面向不同读者，但环境、版本、部署状态和已知问题等事实必须保持一致；如果
 > 某次变化不影响其中一份，也要在 Pull Request 中说明已经核对。
@@ -922,7 +930,7 @@ cd /srv/gn-system/repository
 ./deploy/reload-config.sh uat
 ```
 
-Business-data reset keeps administrator accounts and base configuration. It asks for `RESET gn_system_uat`, makes a backup, clears approved UAT business records and private business files, flushes UAT Redis, restarts services, and checks all three health URLs with the UAT certificate and a bounded 180-second retry for worker heartbeats. For a complete first-time UAT initialization use `./deploy/reset-uat.sh --full` only after confirming the target and accepting that the UAT database will be rebuilt. It also requires the same exact phrase and asks you to create a new administrator.
+Business-data reset keeps administrator accounts and most base configuration. It asks for `RESET gn_system_uat`, makes a backup, clears approved UAT business records and private business files, flushes UAT Redis, restarts services, and checks all three health URLs with the UAT certificate and a bounded 180-second retry for worker heartbeats. It restores the default direct-customer channels, but clears configured direct commission rates; configure those rates again before accepting UAT commission results. For a complete first-time UAT initialization use `./deploy/reset-uat.sh --full` only after confirming the target and accepting that the UAT database will be rebuilt. It also requires the same exact phrase and asks you to create a new administrator.
 
 The reset writes phase audit records after the database cleanup: database cleanup completed, private files cleanup completed, and reset completed. If a later phase fails, it records reset failed and the phase when the audit backend is available.
 
@@ -1017,6 +1025,13 @@ verified from this computer.
 当前电脑上的 `feature/business-groups-and-roles` 还包含 PR3 及后续完成的 PR6，但没有推送、合入或部署。PR3 和 PR6 都新增数据库 migration，服务器不能直接手工改表；以后发布时要按正常 RC 流程先备份，再由发布脚本执行 migration，并同时更新 app、queue、scheduler。
 
 上线前需要在 UAT 逐项确认：客服提交/撤回负责人移交，BD 审核、驳回、直接移交和批量移交，超级管理员跨业务组移交，未来预约和未完成提醒换负责人，历史跟进创建人不变，重复到院更新时间且保留历史，状态回退审批，重复/失效申请拒绝，批量操作原子性，以及已有订单后不能普通回退。当前仅完成本地自动化测试，不能把本机结果写成 UAT 或 Production 已验证。
+
+## 直客方案 PR2：直客 CRUD 与负责人转移（2026-09-20）
+
+当前 `codex/direct-customer-pr2` 只在本机开发 Compose 测试库完成直客列表、建档、编辑、`DC` 编号和负责人转移审批验证，尚未合入、发布或完成 UAT/Production 验收。本次新增 migration，正式发布前必须分别备份目标环境数据库，并让标准 RC 流程执行 migration；不要在服务器手工建表、改约束或修改业务代码。
+
+上线前用直客负责人和超级管理员检查渠道必填、编号连续性、只能看到本人直客、客服/BD 不能打开直客页面、转移申请和审批、未来预约/未完成提醒换负责人，以及历史负责人记录不被覆盖。app、queue、scheduler 要一起升级；本机测试不能替代目标环境验收，回退必须使用标准流程和已验证备份。
+
 # PR6 BD季度提成（部署后操作）
 
 这次版本增加了 BD 季度提成表。部署前请先做数据库备份；部署脚本完成 migration 后，登录

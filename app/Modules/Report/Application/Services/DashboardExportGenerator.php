@@ -26,7 +26,13 @@ final class DashboardExportGenerator
     public function generate(User $user, string $format, array $snapshot): ReportExport
     {
         $context = $this->access->forUser($user);
-        abort_unless(! $context->isCustomerService() && $context->hasEffectiveBusinessScope(), 403);
+        abort_unless(
+            $context->isSuperAdmin()
+                || ($context->isBdManager() && $context->hasEffectiveBusinessScope())
+                || ($context->isCustomerService() && $context->userId !== null)
+                || ($context->isDirectCustomerManager() && $context->userId !== null),
+            403,
+        );
         if (in_array($format, ['pdf', 'html'], true) === false) {
             throw new DomainException(__('dashboard.errors.export_format'));
         }

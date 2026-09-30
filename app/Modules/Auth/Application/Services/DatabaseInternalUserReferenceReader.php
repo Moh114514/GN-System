@@ -22,6 +22,23 @@ final class DatabaseInternalUserReferenceReader implements InternalUserReference
             ->all();
     }
 
+    public function eligibleDirectCustomerManagers(): array
+    {
+        return User::query()
+            ->where('is_active', true)
+            ->where('invitation_status', 'accepted')
+            ->where('is_super_admin', false)
+            ->where('role', 'direct_customer_manager')
+            ->orderBy('name')
+            ->get(['id', 'name'])
+            ->map(fn (User $user): array => [
+                'id' => (int) $user->id,
+                'name' => (string) $user->name,
+            ])
+            ->values()
+            ->all();
+    }
+
     public function isEligible(int $id): bool
     {
         return User::query()

@@ -23,6 +23,11 @@ final readonly class DatabaseReminderCustomerReader implements ReminderCustomerR
         return $this->scoped()->orderBy('id')->get()->map(fn (Customer $customer): ReminderCustomerData => $this->data($customer))->all();
     }
 
+    public function candidateIds(): array
+    {
+        return $this->scoped()->orderBy('id')->pluck('id')->map(static fn ($id): int => (int) $id)->all();
+    }
+
     public function byId(int $customerId): ReminderCustomerData
     {
         return $this->data($this->scoped()->findOrFail($customerId));
@@ -43,6 +48,7 @@ final readonly class DatabaseReminderCustomerReader implements ReminderCustomerR
             wechatAddedOn: $customer->wechat_added_on === null ? null : CarbonImmutable::parse($customer->wechat_added_on),
             createdAt: CarbonImmutable::parse($customer->created_at),
             ownerId: $customer->owner_id === null ? null : (int) $customer->owner_id,
+            sourceType: (string) $customer->source_type,
             sourceAgentId: $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
             agentStatus: $agentStatus,
             statusId: $customer->current_status_id === null ? null : (int) $customer->current_status_id,
@@ -59,17 +65,18 @@ final readonly class DatabaseReminderCustomerReader implements ReminderCustomerR
             return Customer::query();
         }
 
-        if (! $context->hasEffectiveBusinessScope()) {
+        if ($context->isDirectCustomerManager()) {
+            return Customer::query()->where('source_type', 'direct')->where('owner_id', $context->userId);
+        }
+
+        if ($context->isCustomerService()) {
+            return Customer::query()->where('owner_id', $context->userId);
+        }
+
+        if (! $context->isBdManager() || $context->agentIds === []) {
             return Customer::query()->whereRaw('1 = 0');
         }
 
-        return Customer::query()->where(function ($query) use ($context): void {
-            if ($context->userId !== null) {
-                $query->where('owner_id', $context->userId);
-            }
-            if ($context->agentIds !== []) {
-                $query->orWhereIn('source_agent_id', $context->agentIds);
-            }
-        });
+        return Customer::query()->where('source_type', 'agent')->whereIn('source_agent_id', $context->agentIds);
     }
 }

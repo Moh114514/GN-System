@@ -368,5 +368,12 @@ return [
         'legacy_unknown' => '历史失败原因无法安全识别，请联系管理员查看受保护的服务日志。',
     ],
     'quote_failures' => ['unavailable' => '暂时无法获取汇率报价，请稍后重试或手动填写。'],
+    'direct_commission' => [
+        'title' => '直客提成', 'back' => '返回Dashboard',
+        'description' => '查看按直客负责人和完成时提成规则计算的个人提成记录。',
+        'rate' => '提成比例', 'order_amount' => '订单金额 KRW', 'commission' => '提成金额 KRW', 'channel' => '直客渠道', 'completed_at' => '完成时间', 'status' => '状态', 'active' => '有效', 'voided' => '已作废', 'empty' => '暂无直客提成记录。',
+        'errors' => ['rate_missing' => '订单完成日期没有生效的直客提成比例，请先配置规则。', 'rate_out_of_range' => '直客提成比例必须在 0% 至 100% 之间。', 'reason_required' => '保存直客提成规则必须填写原因。', 'period_invalid' => '提成规则结束日期不能早于生效日期。', 'effective_date_exists' => '该生效日期已有直客提成规则，历史规则不可覆盖。', 'void_reason_required' => '作废直客提成必须填写原因。'],
+        'audit' => ['rate_saved' => '直客提成规则已保存', 'commission_created' => '直客订单提成已计算', 'commission_voided' => '直客订单提成已作废'],
+    ],
     'failure_fallbacks' => ['agent_code' => '未知', 'agent_name' => '代理商不存在或已删除'],
 ];

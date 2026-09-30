@@ -121,7 +121,9 @@ class CustomerOrderRegistration extends Component
             $orderId = $registrar->register(new CompletedOrderRegistrationData(
                 customerId: $this->customerId,
                 institutionId: (int) $this->institutionId,
-                agentId: (int) $context['customer']['source_agent_id'],
+                agentId: ($context['customer']['source_agent_id'] ?? null) === null
+                    ? null
+                    : (int) $context['customer']['source_agent_id'],
                 items: array_map(
                     static fn (array $item): CompletedOrderItemData => new CompletedOrderItemData(
                         projectName: trim($item['project_name']),

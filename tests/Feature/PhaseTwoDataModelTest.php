@@ -352,6 +352,11 @@ class PhaseTwoDataModelTest extends TestCase
 
     private function addLegacySalesColumns(): void
     {
+        // The current schema has already reinstated the direct-customer source
+        // constraint. Remove it while reconstructing the pre-removal schema so
+        // this test can exercise the historical migration's own safety checks.
+        DB::statement('ALTER TABLE customers DROP CONSTRAINT IF EXISTS customers_source_type_check');
+        DB::statement('ALTER TABLE orders DROP CONSTRAINT IF EXISTS orders_source_type_check');
         Schema::create('direct_sales_sources', function (Blueprint $table): void {
             $table->id();
             $table->string('code', 6);

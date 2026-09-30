@@ -13,6 +13,7 @@ final readonly class ReminderCustomerData
         public ?CarbonImmutable $wechatAddedOn,
         public CarbonImmutable $createdAt,
         public ?int $ownerId,
+        public string $sourceType,
         public ?int $sourceAgentId,
         public ?string $agentStatus,
         public ?int $statusId,

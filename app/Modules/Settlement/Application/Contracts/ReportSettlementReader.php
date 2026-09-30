@@ -6,6 +6,9 @@ use Carbon\CarbonImmutable;
 
 interface ReportSettlementReader
 {
+    /** @return array{commission_amount: int, order_count: int} */
+    public function directCommissionDashboard(int $ownerId, CarbonImmutable $from, CarbonImmutable $to): array;
+
     /**
      * @param  array<int, string>  $orderMonths  order id => YYYY-MM
      * @return array{

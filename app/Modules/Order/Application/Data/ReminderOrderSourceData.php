@@ -12,5 +12,6 @@ final readonly class ReminderOrderSourceData
         public string $projectName,
         public CarbonImmutable $completedOn,
         public ?int $ownerId,
+        public string $sourceType,
     ) {}
 }

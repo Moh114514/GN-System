@@ -99,6 +99,13 @@ final readonly class ReportExportManager
 
     public function startInstitutionMonthlySales(User $user, string $month, ?int $institutionId = null, string $format = 'xlsx'): ReportExport
     {
+        $context = $this->access->current();
+        abort_unless(
+            $context->isSuperAdmin()
+                || ($context->isBdManager() && $context->hasEffectiveBusinessScope())
+                || ($context->isDirectCustomerManager() && $context->userId !== null),
+            403,
+        );
         $this->assertCanExport();
         if (! in_array($format, ['xlsx', 'pdf'], true)) {
             throw new DomainException(__('institution_sales.errors.export_format'));
@@ -201,6 +208,12 @@ final readonly class ReportExportManager
     private function assertCanExport(): void
     {
         $context = $this->access->current();
-        abort_unless(! $context->isCustomerService() && $context->hasEffectiveBusinessScope(), 403);
+        abort_unless(
+            $context->isSuperAdmin()
+                || ($context->isBdManager() && $context->hasEffectiveBusinessScope())
+                || ($context->isCustomerService() && $context->userId !== null && $this->customers->hasScopedCustomers())
+                || ($context->isDirectCustomerManager() && $context->userId !== null && $this->customers->hasScopedCustomers()),
+            403,
+        );
     }
 }

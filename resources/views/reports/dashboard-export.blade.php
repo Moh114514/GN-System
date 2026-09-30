@@ -36,8 +36,8 @@
 </head>
 <body>
     <?php
-        $metricLabels = __('dashboard.export.metric_labels');
-        $chartLabels = __('dashboard.export.chart_labels');
+        $metricLabels = array_intersect_key(__('dashboard.export.metric_labels'), $snapshot['metrics']);
+        $chartLabels = array_intersect_key(__('dashboard.export.chart_labels'), $snapshot['charts']);
     ?>
     <h1>GN-System {{ __('dashboard.export.title') }}</h1>
     <p class="meta">
