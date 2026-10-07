@@ -255,7 +255,7 @@ final readonly class CustomerProfileManager
             if ($isDirect) {
                 if ($sourceAgentId !== null || $profile->directChannelId === null || ! DirectCustomerChannel::query()
                     ->whereKey($profile->directChannelId)
-                    ->where('is_active', true)
+                    ->where(fn ($query) => $query->where('is_active', true)->orWhere('id', $customer->direct_channel_id))
                     ->exists()) {
                     throw ValidationException::withMessages(['directChannelId' => __('customers.form.validation.direct_channel_unavailable')]);
                 }

@@ -23,6 +23,7 @@ use App\Modules\Customer\Presentation\Livewire\CustomerForm;
 use App\Modules\Customer\Presentation\Livewire\CustomerList;
 use App\Modules\Customer\Presentation\Livewire\CustomerOverview;
 use App\Modules\Customer\Presentation\Livewire\CustomerStatusConfiguration;
+use App\Modules\Customer\Presentation\Livewire\DirectCustomerChannelConfiguration;
 use App\Modules\Customer\Presentation\Livewire\DirectCustomerForm;
 use App\Modules\Customer\Presentation\Livewire\DirectCustomerList;
 use Illuminate\Support\Facades\Route;
@@ -48,6 +49,7 @@ class CustomerServiceProvider extends ServiceProvider
         Livewire::component('customer-overview', CustomerOverview::class);
         Livewire::component('direct-customer-list', DirectCustomerList::class);
         Livewire::component('direct-customer-form', DirectCustomerForm::class);
+        Livewire::component('direct-customer-channel-configuration', DirectCustomerChannelConfiguration::class);
 
         Route::middleware(['web', 'auth', 'verified', 'super-admin.2fa'])->group(function (): void {
             Route::get('/customers', CustomerList::class)->name('customers.index');

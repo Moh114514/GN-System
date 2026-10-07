@@ -12,11 +12,13 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Layout;
+use Livewire\Attributes\Locked;
 use Livewire\Component;
 
 #[Layout('layouts.app')]
 class DirectCustomerForm extends Component
 {
+    #[Locked]
     public ?int $customerId = null;
 
     public string $name = '';
@@ -82,6 +84,12 @@ class DirectCustomerForm extends Component
         $this->gender = (string) ($profile['gender'] ?? '');
         $this->birthDate = (string) ($profile['birth_date'] ?? '');
         $this->channelId = (string) ($profile['direct_channel_id'] ?? '');
+        if (! in_array((int) $this->channelId, array_column($this->options['direct_channels'], 'id'), true)) {
+            $this->options['direct_channels'][] = [
+                'id' => (int) $this->channelId,
+                'name' => (string) $profile['direct_channel_name'],
+            ];
+        }
         $this->ownerId = (string) ($profile['owner_id'] ?? '');
         $this->contact = (string) ($profile['contact'] ?? '');
         $this->identityDocument = (string) ($profile['identity_document'] ?? '');
@@ -98,8 +106,9 @@ class DirectCustomerForm extends Component
         $this->codeConfirmed = false;
     }
 
-    public function save(CustomerProfileManager $manager): mixed
+    public function save(CustomerProfileManager $manager, CustomerDirectory $directory): mixed
     {
+        $currentChannelId = $this->customerId === null ? null : $directory->profile($this->customerId)['direct_channel_id'];
         $rules = [
             'name' => ['required', 'string', 'max:255'],
             'gender' => ['nullable', 'string', 'max:16'],
@@ -107,7 +116,8 @@ class DirectCustomerForm extends Component
             'channelId' => [
                 'required',
                 'integer',
-                Rule::exists('direct_customer_channels', 'id')->where('is_active', true),
+                Rule::exists('direct_customer_channels', 'id')
+                    ->where(fn ($query) => $query->where('is_active', true)->orWhere('id', $currentChannelId)),
             ],
             'contact' => ['required', 'string', 'max:255'],
             'identityDocument' => ['required', 'string', 'max:255'],

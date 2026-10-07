@@ -8,6 +8,8 @@
         </div>
     </section>
 
+    <livewire:direct-customer-channel-configuration />
+
     <section class="grid gap-6 xl:grid-cols-[24rem_1fr]">
         <form wire:submit="saveRate" class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
             <h3 class="font-semibold">{{ __('config.direct_customer.form_heading') }}</h3>
