@@ -53,6 +53,7 @@ class DirectCustomerChannelConfigurationTest extends TestCase
 
     public function test_admin_can_create_edit_sort_and_toggle_channels_with_localized_audit_and_stable_codes(): void
     {
+        $this->freezeTime();
         $component = Livewire::test(DirectCustomerChannelConfiguration::class)
             ->set('code', 'partner_event')->set('name', '合作活动')->set('sortOrder', '0')
             ->call('save')->assertHasNoErrors()->assertSet('channelId', null);
@@ -71,7 +72,13 @@ class DirectCustomerChannelConfigurationTest extends TestCase
         $this->assertSame('品牌合作活动', $logs[1]->properties['after']['name']);
         $this->assertFalse($logs[2]->properties['after']['is_active']);
         app()->setLocale('ko_KR');
-        $this->assertSame('직접 고객 유입 채널 상태가 변경되었습니다', app(AuditRecorder::class)->trail($channel, 'direct-customer-channel')[0]->description);
+        $trail = app(AuditRecorder::class)->trail($channel, 'direct-customer-channel');
+        $this->assertCount(3, $trail);
+        $statusEntries = array_values(array_filter($trail, fn ($entry): bool => $entry->event === 'status_changed'));
+        $this->assertCount(1, $statusEntries);
+        $this->assertSame('직접 고객 유입 채널 상태가 변경되었습니다', $statusEntries[0]->description);
+        $this->assertSame($logs[2]->properties['before'], $statusEntries[0]->properties['before']);
+        $this->assertSame($logs[2]->properties['after'], $statusEntries[0]->properties['after']);
         $component->call('toggle', $channel->id);
         $this->assertTrue($channel->fresh()->is_active);
     }
