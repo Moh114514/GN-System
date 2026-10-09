@@ -79,9 +79,11 @@ final readonly class InstitutionReturnProcessor
                 'customer_name' => (string) $customer['name'],
                 'arrived_on' => $arrivedOn,
             ]);
-            $agent = $this->agents->agentById((int) $customer['source_agent_id']);
-            if ($agent['cooperation_status'] !== 'active') {
-                throw new DomainException(__('orders.errors.agent_inactive_save'));
+            if ($customer['source_type'] === 'agent') {
+                $agent = $this->agents->agentById((int) $customer['source_agent_id']);
+                if ($agent['cooperation_status'] !== 'active') {
+                    throw new DomainException(__('orders.errors.agent_inactive_save'));
+                }
             }
             $template = InstitutionFormTemplate::query()
                 ->where('institution_id', $data->institutionId)
@@ -110,7 +112,7 @@ final readonly class InstitutionReturnProcessor
             $orderId = $this->registrar->register(new CompletedOrderRegistrationData(
                 customerId: $data->customerId,
                 institutionId: $data->institutionId,
-                agentId: (int) $customer['source_agent_id'],
+                agentId: ($customer['source_agent_id'] ?? null) === null ? null : (int) $customer['source_agent_id'],
                 items: array_map(
                     static fn (array $item): CompletedOrderItemData => new CompletedOrderItemData(
                         projectName: (string) $item['project_name'],

@@ -9,7 +9,7 @@ final readonly class OrderUpdateData
     public function __construct(
         public int $orderId,
         public int $institutionId,
-        public int $agentId,
+        public ?int $agentId,
         public string $projectName,
         public int $amountKrw,
         public ?string $translatorName,

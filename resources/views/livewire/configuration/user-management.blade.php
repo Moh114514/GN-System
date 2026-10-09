@@ -26,6 +26,7 @@
                 <flux:select.option value="super_admin">{{ __('config.user_management.roles.super_admin') }}</flux:select.option>
                 <flux:select.option value="bd_manager">{{ __('config.user_management.roles.bd_manager') }}</flux:select.option>
                 <flux:select.option value="customer_service">{{ __('config.user_management.roles.customer_service') }}</flux:select.option>
+                <flux:select.option value="direct_customer_manager">{{ __('config.user_management.roles.direct_customer_manager') }}</flux:select.option>
             </flux:select>
         </div>
         <div class="mt-5 flex justify-end">
@@ -59,6 +60,7 @@
                                         <flux:select.option value="super_admin">{{ __('config.user_management.roles.super_admin') }}</flux:select.option>
                                         <flux:select.option value="bd_manager">{{ __('config.user_management.roles.bd_manager') }}</flux:select.option>
                                         <flux:select.option value="customer_service">{{ __('config.user_management.roles.customer_service') }}</flux:select.option>
+                                        <flux:select.option value="direct_customer_manager">{{ __('config.user_management.roles.direct_customer_manager') }}</flux:select.option>
                                     </flux:select>
                                     <flux:button wire:click="saveRole({{ $user['id'] }})" variant="ghost" size="sm">{{ __('config.user_management.actions.save_role') }}</flux:button>
                                 </div>

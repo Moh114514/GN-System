@@ -7,6 +7,7 @@ use App\Modules\Report\Application\Services\DashboardExportGenerator;
 use App\Modules\Report\Application\Services\DashboardRangeFactory;
 use App\Modules\Report\Application\Services\DashboardService;
 use App\Modules\Report\Application\Services\DashboardSnapshotPresenter;
+use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
@@ -67,9 +68,14 @@ class Dashboard extends Component
     public function export(
         string $format,
         DashboardExportGenerator $generator,
+        DashboardRangeFactory $ranges,
+        DashboardService $dashboard,
     ): void {
         abort_if($this->snapshot === [], 422);
-        $export = $generator->generate($this->user(), $format, $this->snapshot);
+        $from = CarbonImmutable::parse((string) data_get($this->snapshot, 'range.from'))->setTimezone('Asia/Shanghai')->toDateString();
+        $to = CarbonImmutable::parse((string) data_get($this->snapshot, 'range.to'))->setTimezone('Asia/Shanghai')->toDateString();
+        $trustedSnapshot = $dashboard->snapshot($ranges->make('custom', $from, $to))->toArray();
+        $export = $generator->generate($this->user(), $format, $trustedSnapshot);
 
         $this->redirectRoute('reports.exports.download', ['export' => $export]);
     }

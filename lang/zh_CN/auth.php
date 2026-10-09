@@ -14,6 +14,7 @@ return [
         'last_super_admin_disable' => '不能停用最后一个启用中的超级管理员。',
         'user_role_invalid' => '用户角色无效。',
         'user_role_has_active_membership' => '该用户仍有有效业务组成员关系，请先结束原成员关系。',
+        'user_role_has_direct_customers' => '该用户仍负责 :count 位直客，请先完成客户转移再调整角色。',
         'business_group_code_invalid' => '业务组编码必须为 2 至 32 位字母、数字、下划线或短横线。',
         'business_group_name_required' => '业务组名称不能为空。',
         'business_group_name_too_long' => '业务组名称不能超过 255 个字符。',

@@ -12,6 +12,18 @@ class PhaseTwoReferenceDataSeeder extends Seeder
 {
     public function run(): void
     {
+        $now = now();
+        DB::table('direct_customer_channels')->insertOrIgnore([
+            ['code' => 'xiaohongshu', 'name' => '小红书', 'is_active' => true, 'sort_order' => 10, 'created_at' => $now, 'updated_at' => $now],
+            ['code' => 'douyin', 'name' => '抖音', 'is_active' => true, 'sort_order' => 20, 'created_at' => $now, 'updated_at' => $now],
+            ['code' => 'wechat', 'name' => '微信', 'is_active' => true, 'sort_order' => 30, 'created_at' => $now, 'updated_at' => $now],
+            ['code' => 'website', 'name' => '官网', 'is_active' => true, 'sort_order' => 40, 'created_at' => $now, 'updated_at' => $now],
+            ['code' => 'phone', 'name' => '电话', 'is_active' => true, 'sort_order' => 50, 'created_at' => $now, 'updated_at' => $now],
+            ['code' => 'offline', 'name' => '线下', 'is_active' => true, 'sort_order' => 60, 'created_at' => $now, 'updated_at' => $now],
+            ['code' => 'referral', 'name' => '老客户转介绍', 'is_active' => true, 'sort_order' => 70, 'created_at' => $now, 'updated_at' => $now],
+            ['code' => 'other', 'name' => '其他', 'is_active' => true, 'sort_order' => 80, 'created_at' => $now, 'updated_at' => $now],
+        ]);
+
         foreach ([
             ['code' => 'JG', 'name' => '机构'],
             ['code' => 'GT', 'name' => '个体户'],

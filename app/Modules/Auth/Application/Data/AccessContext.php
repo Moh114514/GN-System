@@ -36,6 +36,11 @@ final readonly class AccessContext
         return ! $this->isSuperAdmin() && $this->role === UserRole::CustomerService->value;
     }
 
+    public function isDirectCustomerManager(): bool
+    {
+        return ! $this->isSuperAdmin() && $this->role === UserRole::DirectCustomerManager->value;
+    }
+
     public function hasEffectiveBusinessScope(): bool
     {
         return $this->isSuperAdmin()
@@ -48,29 +53,50 @@ final readonly class AccessContext
             || ($this->hasEffectiveBusinessScope() && in_array($agentId, $this->agentIds, true));
     }
 
-    public function canViewCustomer(?int $sourceAgentId, ?int $ownerId): bool
+    public function canViewCustomer(string $sourceType, ?int $sourceAgentId, ?int $ownerId): bool
     {
-        return $this->isSuperAdmin()
-            || ($this->hasEffectiveBusinessScope() && (
-                ($ownerId !== null && $this->userId === $ownerId)
-                || ($sourceAgentId !== null && in_array($sourceAgentId, $this->agentIds, true))
-            ));
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        if ($this->isDirectCustomerManager()) {
+            return $sourceType === 'direct' && $ownerId !== null && $this->userId === $ownerId;
+        }
+
+        if ($this->isCustomerService()) {
+            return $ownerId !== null && $this->userId === $ownerId;
+        }
+
+        return $this->isBdManager()
+            && $sourceType === 'agent'
+            && $sourceAgentId !== null
+            && in_array($sourceAgentId, $this->agentIds, true);
     }
 
-    public function canViewOrder(?int $agentId, ?int $customerOwnerId = null, ?int $customerSourceAgentId = null): bool
+    public function canViewOrder(string $sourceType, ?int $agentId, ?int $customerOwnerId = null, ?int $customerSourceAgentId = null): bool
     {
-        return $this->isSuperAdmin()
-            || ($this->hasEffectiveBusinessScope() && (
-                ($agentId !== null && in_array($agentId, $this->agentIds, true))
-                || ($customerOwnerId !== null && $this->userId === $customerOwnerId)
-                || ($customerSourceAgentId !== null && in_array($customerSourceAgentId, $this->agentIds, true))
-            ));
+        if ($this->isSuperAdmin()) {
+            return true;
+        }
+
+        if ($this->isDirectCustomerManager() || $this->isCustomerService()) {
+            return $customerOwnerId !== null && $this->userId === $customerOwnerId
+                && ($this->isCustomerService() || $sourceType === 'direct');
+        }
+
+        return $this->isBdManager()
+            && $sourceType === 'agent'
+            && (($agentId !== null && in_array($agentId, $this->agentIds, true))
+                || ($customerSourceAgentId !== null && in_array($customerSourceAgentId, $this->agentIds, true)));
     }
 
     public function canDownloadSensitiveCustomerData(?int $ownerId): bool
     {
         return $this->isSuperAdmin()
-            || ($this->hasEffectiveBusinessScope() && $ownerId !== null && $ownerId === $this->userId);
+            || (($this->isCustomerService() || $this->isDirectCustomerManager())
+                && $ownerId !== null
+                && $ownerId === $this->userId)
+            || ($this->isBdManager() && $this->hasEffectiveBusinessScope() && $ownerId !== null && $ownerId === $this->userId);
     }
 
     /** @return array<string, mixed> */

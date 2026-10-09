@@ -18,6 +18,10 @@ final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
 
     public function schedule(CompletedTreatmentData $data): void
     {
+        if ($data->sourceType !== 'direct') {
+            return;
+        }
+
         $this->scheduleAt(
             customerId: $data->customerId,
             orderId: $data->orderId,
@@ -31,6 +35,10 @@ final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
 
     public function scheduleForCustomer(CustomerTreatmentCompletedData $data): void
     {
+        if ($data->sourceType !== 'direct') {
+            return;
+        }
+
         $this->scheduleAt(
             customerId: $data->customerId,
             orderId: null,

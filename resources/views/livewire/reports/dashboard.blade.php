@@ -51,16 +51,24 @@
 
     @if ($snapshot !== [])
         @php
+            $visibility = $snapshot['visibility'] ?? [];
             $metricDefinitions = [
                 ['revenue', __('dashboard.metrics.revenue'), true, 'banknotes', 'teal', 'M0,22 Q15,8 30,18 T60,12 T90,20 T110,8'],
                 ['new_customers', __('dashboard.metrics.new_customers'), false, 'users', 'teal', 'M0,20 Q15,14 30,16 T60,10 T90,14 T110,6'],
-                ['promotion_fee', __('dashboard.metrics.promotion_fee'), true, 'briefcase', 'blue', 'M0,24 Q15,16 30,20 T60,14 T90,18 T110,10'],
+                ['completed_customers', __('dashboard.metrics.customer_count'), false, 'users', 'teal', 'M0,20 Q15,14 30,16 T60,10 T90,14 T110,6'],
+                ['completed_orders', __('dashboard.metrics.completed_orders'), false, 'clipboard-document-list', 'blue', 'M0,24 Q15,16 30,20 T60,14 T90,18 T110,10'],
                 ['repurchase_rate', __('dashboard.metrics.repurchase_rate'), false, 'arrow-path', 'purple', 'M0,18 Q15,14 30,12 T60,16 T90,10 T110,6'],
             ];
-            $ranking = array_slice($snapshot['charts']['agent_promotion_ranking'], 0, 5);
+            if ($visibility['agent_finance'] ?? false) {
+                $metricDefinitions[] = ['promotion_fee', __('dashboard.metrics.promotion_fee'), true, 'briefcase', 'blue', 'M0,24 Q15,16 30,20 T60,14 T90,18 T110,10'];
+            }
+            if ($visibility['direct_commission'] ?? false) {
+                $metricDefinitions[] = ['direct_commission', __('dashboard.metrics.direct_commission'), true, 'banknotes', 'green', 'M0,24 Q15,16 30,20 T60,14 T90,18 T110,10'];
+            }
+            $ranking = array_slice($snapshot['charts']['agent_sales_ranking'] ?? [], 0, 5);
             $rankingTotal = array_sum(array_column($ranking, 'value'));
             $rankingMax = max(1, ...array_column($ranking ?: [['value' => 0]], 'value'));
-            $settlement = $snapshot['panels']['settlement_progress'];
+            $settlement = $snapshot['panels']['settlement_progress'] ?? null;
             $rangeFrom = \Carbon\CarbonImmutable::parse($snapshot['range']['from'])->setTimezone('Asia/Shanghai')->toDateString();
             $rangeTo = \Carbon\CarbonImmutable::parse($snapshot['range']['to'])->setTimezone('Asia/Shanghai')->toDateString();
             $reportRange = ['completedFrom' => $rangeFrom, 'completedTo' => $rangeTo];
@@ -70,7 +78,9 @@
             $institutionMonth = (string) ($snapshot['panels']['institution_revenue_month'] ?? '');
             $metricLinks = [
                 'revenue' => route('reports.search', $reportRange),
-                'new_customers' => route('customers.index', ['createdFrom' => $rangeFrom, 'createdTo' => $rangeTo]),
+                'new_customers' => auth()->user()->isSuperAdmin()
+                    ? null
+                    : route(auth()->user()->isDirectCustomerManager() ? 'direct-customers.index' : 'customers.index', ['createdFrom' => $rangeFrom, 'createdTo' => $rangeTo]),
                 'promotion_fee' => auth()->user()->is_super_admin ? route('settlements.index') : null,
                 'repurchase_rate' => route('reports.search', $reportRange),
             ];
@@ -84,7 +94,7 @@
                     @php
                         $metric = match ($key) {
                             'promotion_fee' => [
-                                'value' => $snapshot['panels']['promotion_fee'],
+                                'value' => -abs($snapshot['panels']['promotion_fee']),
                                 'change' => null,
                             ],
                             'repurchase_rate' => [
@@ -102,7 +112,7 @@
                     @endif
                         <span class="crm-metric-icon tone-{{ $tone }}"><flux:icon :name="$icon" /></span>
                         <span class="crm-metric-label">{{ $label }} <span title="{{ __('dashboard.metrics.actual') }}">ⓘ</span></span>
-                        <strong class="crm-number">
+                        <strong class="crm-number {{ $key === 'promotion_fee' ? 'is-expense' : '' }}">
                             @if ($key === 'repurchase_rate')
                                 {{ number_format($metric['value'], 1) }}%
                             @elseif ($money)
@@ -153,9 +163,10 @@
                     @endif
                 </article>
 
+                @if ($visibility['agent_finance'] ?? false)
                 <article class="crm-card">
                     <header class="crm-card-header">
-                        <h2>{{ __('dashboard.panels.promotion_ranking') }}</h2>
+                        <h2>{{ __('dashboard.panels.agent_sales_ranking') }}</h2>
                         @if (auth()->user()->is_super_admin)
                             <a class="crm-card-link" href="{{ route('agents.index') }}" wire:navigate>{{ __('dashboard.panels.view_all') }} <span>›</span></a>
                         @endif
@@ -184,11 +195,13 @@
                                 </span>
                             </div>
                         @empty
-                            <div class="crm-panel-empty"><flux:icon name="briefcase" />{{ __('dashboard.panels.no_promotion_fee') }}</div>
+                            <div class="crm-panel-empty"><flux:icon name="briefcase" />{{ __('dashboard.panels.no_agent_sales') }}</div>
                         @endforelse
                     </div>
                 </article>
+                @endif
 
+                @if ($visibility['institution_revenue'] ?? false)
                 <article class="crm-card" data-test="institution-revenue-panel">
                     <header class="crm-card-header">
                         <h2>{{ __('dashboard.panels.institution_revenue_month') }}</h2>
@@ -219,10 +232,12 @@
                         @endforelse
                     </div>
                 </article>
+                @endif
 
             </section>
 
             <section class="crm-dashboard-grid crm-dashboard-grid-bottom">
+                @if ($visibility['settlement_progress'] ?? false)
                 <article class="crm-card">
                     <header class="crm-card-header">
                         <h2>{{ __('dashboard.panels.settlement') }}</h2>
@@ -256,6 +271,7 @@
                         <span>{{ __('dashboard.panels.snapshot_basis') }}<strong>{{ __('dashboard.panels.real_settlement_records') }}</strong></span>
                     </div>
                 </article>
+                @endif
             </section>
 
             <footer class="crm-dashboard-footer">

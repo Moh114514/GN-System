@@ -1,16 +1,51 @@
 # GN-System 完整运维手册
 
-> 当前基线：2026-08-30
+## 2026-10-07 发布准备核验
+
+直客方案 PR1–PR6 与审查修复集中在 PR #41。本次发布目标为 `v0.6.0-rc.1`，通过本地
+门禁后依次合入 `develop`、`main`；RC 工作流通过后记录提交和 app/web 镜像 digest。
+UAT 验收通过后才创建同一提交的 `v0.6.0`，按原 digest 晋级，不重新构建。
+
+发布准备时已核实远程 `main` 为 `9001f7b`、`develop` 为 `4c57559`，最新正式标签
+`v0.5.3` 及最近 RC `v0.5.3-rc.1` 均指向 `9001f7b`。这些是仓库事实，服务器
+`192.168.0.141:22` 本次连接超时，实际 UAT/Production 版本、服务、备份和 migration
+状态待核验。本轮先发布 RC 制品，暂缓服务器部署；不执行 reset，不覆盖已有凭据或数据。
+后续合并和制品状态以 GitHub PR、标签及发布工作流为准。下方开发及版本表是历史记录。
+
+本次补齐超级管理员直客渠道维护入口，沿用已有渠道表，不新增 migration、依赖或环境变量。
+新增/编辑/排序/启停由 Customer 服务重新授权并记录审计；渠道代码保存后稳定，停用保留
+客户引用与订单快照，既有客户可以保留原停用渠道继续编辑。三套环境使用相同业务语义，
+UAT 要核对管理员维护权限、非管理员直达拒绝、停用后的新增/编辑边界和历史快照不变。
+本机 Docker 简查未找到旧容器或卷，用户授权重建后七个开发服务已启动；旧开发数据未恢复，
+验证使用独立 `gn_system_test`，不得把本机重建表述为服务器数据恢复。
+
+发布前审计还修复了已有依赖：`league/commonmark 2.10.2`、`source-map-js 1.2.2`、
+`shell-quote 1.11.0`。concurrently 仍固定旧版 shell-quote，因此 package.json 对其使用
+定向 override，不升级 concurrently 主版本；上游支持安全版本后可移除此 override。
+开发环境按锁文件安装并重新验证；UAT/Production 仅使用带修复的 RC 镜像，不在服务器
+安装依赖。无额外 migration 或环境配置，回退镜像时仍需评估旧版本的已知安全公告。
+
+## 当前开发分支状态（2026-09-30）
+
+`codex/direct-customer-follow-up` 已完成 PR #41 审查修复，新增 migration
+`2026_09_24_000100_constrain_direct_commission_rate_periods`，用于限制直客费率历史区间重叠。
+修复将客户当前负责人用于直客业务访问范围，订单完成负责人快照仍用于历史提成；订单详情和客户订单摘要的直客提成只向提成负责人和超级管理员返回；代理商客户列表及顶部概览限定代理商来源。直客页面只向管理员返回负责人候选项。订单卡片按来源展示，历史 `date` 精度不显示午夜时间，推广费负数使用 CRM 费用颜色。所有完成订单入口以 `BusinessClock` 记录真实完成时间。费率 migration 不再创建额外 PostgreSQL 扩展。
+PR #41 当前处于 open 状态、未合入 `develop`；2026-09-30 本轮定向测试通过 101 项/886 断言；完整门禁通过（495 项测试/3178 断言、PHPStan 527 文件、Pint 627 文件、47 个 Markdown/10 个 ADR），Vite 构建成功（597 个模块；主 JS chunk 1,124.64 kB，超过 500 kB 提示）。UAT/Production 尚未运行 migration 或人工验收，服务器不得直接获取或切换到开发分支。
+本轮导航与权限收尾统一客户管理、团队管理和配置中心的整行展开/收起及样式；直客详情使用独立命名路由，旧共享链接经权限检查转到直客详情。代理商客户页面和选项限制为超级管理员、BD、客服，客服列表筛选只提供本人客户涉及的有效代理商；直客状态筛选对可访问角色开放，负责人筛选仅向超级管理员开放。Dashboard 新增客户按角色进入对应列表，超级管理员的双来源合计卡不下钻到单一来源。订单卡片使用最小高度 230px。
+
+本轮不新增 migration、依赖、环境变量或发布步骤，开发、UAT 与 Production 使用相同导航和权限语义。已在本机浏览器验证三个菜单分组的鼠标/键盘操作、桌面/窄屏及页面切换后的高亮；本机没有直客样例，直客详情与负责人权限由独立测试数据库验证。UAT/Production 均未执行本轮验收；目标环境须用实际角色账号检查直达 URL、筛选选项、详情返回/高亮、Dashboard 日期下钻及长内容卡片。正式发布前必须按发布手册备份、执行全部未发布 migration，并核对费率区间、客户转移后的订单和提成可见性、两个订单登记入口的完成时间与费率，以及角色权限；恢复仍使用已验证镜像和发布前备份。
+
+> 发布准备基线：2026-10-07
 >
 > 适用仓库：`Moh114514/GN-System`
 >
 > 适用服务器：Ubuntu Server 24.04 LTS x86-64，地址 `192.168.0.141`
 >
-> 最近已创建的 UAT 候选：`v0.5.0-rc.8`（提交 `8ab9498`）
+> 发布准备时最近已创建的 RC：`v0.5.3-rc.1`（提交 `9001f7b`）；不代表已部署或验收
 >
-> 当前 `main`：合并提交 `2fe5d13`；包含 RC8 之后的月结历史数据治理变更，尚未自动等同于 UAT 已验收版本
+> 发布准备时 `main`：`9001f7b`，对应正式标签 `v0.5.3`；本次下一版本目标 `v0.6.0`
 >
-> 生产状态：目录已初始化，尚未首次部署
+> 服务器状态：待核验；历史记录为 UAT 已运行、Production 仅初始化，不能作为本次实际状态
 
 本文是 GN-System 环境、发布、部署和日常运维的统一入口。第一次接触服务器时，先读
 [小白运维指南](beginner-operations-guide.md)。版本标签与镜像晋级的细节见
@@ -62,8 +97,8 @@ UAT 当前报告的容器为 `gn-system-uat-web`、`gn-system-uat-app`、
 |---|---|---|---|---|
 | 本地开发 | 编码、调试、自动化测试 | `feature/*` 源码与开发 Compose | 本地模拟或脱敏数据 | 可用 |
 | GitHub CI | PR、`develop`、`main` 和标签门禁 | GitHub checkout | 独立 `gn_system_test` | 可用 |
-| UAT | 业务验收和 RC 验证 | `vX.Y.Z-rc.N` 对应 GHCR 镜像 | 专用、脱敏验收数据 | 已部署 |
-| Production | 正式业务运行 | `vX.Y.Z` 对应已晋级镜像 | 全新生产数据 | 仅初始化 |
+| UAT | 业务验收和 RC 验证 | `vX.Y.Z-rc.N` 对应 GHCR 镜像 | 专用、脱敏验收数据 | 待目标服务器核验 |
+| Production | 正式业务运行 | `vX.Y.Z` 对应已晋级镜像 | 正式业务数据，升级时保留 | 待目标服务器核验 |
 | GHCR | 保存 app/web 不可变镜像 | 标签发布工作流 | 不保存业务数据 | 可用 |
 
 GitHub CI 和 GHCR 是发布基础设施，不是可登录的业务环境。
@@ -101,9 +136,9 @@ GitHub CI 和 GHCR 是发布基础设施，不是可登录的业务环境。
 - TLS 证书、管理员和普通用户；
 - SMTP、Sentry、钉钉等外部服务凭据。
 
-### 2.5 最近版本记录与运维影响
+### 2.5 历史版本记录与运维影响
 
-以下记录来自当前 `main` 的版本历史。提交记录只能说明代码已经合入，不能替代 UAT
+以下日期记录保留各阶段当时的分支与版本状态；最新发布准备基线见本页顶部。提交和标签不能替代 UAT
 或 Production 的部署、验收和数据库核对。
 
 | 日期/版本 | 提交 | 主要变更 | 运维影响 |
@@ -120,6 +155,7 @@ GitHub CI 和 GHCR 是发布基础设施，不是可登录的业务环境。
 | 2026-08-17，当前 `develop` | 工作区未发布 | PR7 让月结中心默认展示最新已生成周期并支持周期切换，历史归档改用业务日期重叠查询；已结清详情保留文档下载，历史 `paid`/`reconciled` 月结可在只读详情按需生成并下载 Word/PDF | 不新增 migration；UAT 需核对周期下拉、业务日期边界、已结清详情文档下载及历史文档生成后状态不变；本机结果不能替代目标环境验证 |
 | 2026-08-30，`feature/business-groups-and-roles` 工作区 | 工作区未发布 | 修复财务单据 BD 调整金额重复计算；PDF 改用构建时合并的 CJK TrueType 字体、`truetype` 声明和 table 布局；规则配置 UI 改为响应式 12 栏；新增金额回归与 `pdftotext` 文本 smoke test | 不新增 migration、Composer 依赖或环境变量；Docker app 镜像新增字体构建包和 `poppler-utils`，UAT/Production 发布前必须重建并核对镜像中的字体路径、字符 smoke test 及月结/BD 中韩文输出；本机结果不能替代目标环境验证 |
 | 2026-09-07，`feature/institution-sales-drilldown` 工作区 | 工作区未发布 | 机构月度销售额总表补全零订单启用机构，并新增机构销售详情下钻、代理商贡献和订单明细 | 不新增 migration、依赖或环境变量；仅完成本地定向测试，未合入 `develop`，未创建 RC、部署或执行 UAT/Production 人工验收；发布前仍按完整门禁和正常 RC 流程核对 |
+| 2026-09-28，`codex/direct-customer-follow-up`，PR #41 | Open，未合入 `develop` | 两轮审查修复：订单财务按来源标记；直客历史提成只向历史负责人和超级管理员显示；两个订单完成入口统一使用 `BusinessClock`；费率 migration 移除 `btree_gist` 扩展创建 | 本地完整门禁通过（486 项测试/3022 断言、PHPStan 527 文件、Pint 627 文件、47 个 Markdown/10 个 ADR）且 Vite 构建成功（597 模块）；UAT/Production migration、备份、抽样与人工验收仍待执行 |
 | 2026-09-10，`feature/pr1-order-registration` 工作区 | 工作区未发布 | 方案 PR1 增加客户已到院后的订单一单多项目手工登记、沟通截图/结算小票私有凭证及按客户权限下载；机构 Excel 回传继续保留 | 新增 `2026_09_10_000100_create_order_evidence_files.php` migration 和私有加密文件；发布前必须备份数据库与 `storage/app/private`，按 RC 流程执行 migration，并在 UAT 核对凭证权限、日期/到院校验、事务回滚和订单明细；本机结果不能替代 UAT/Production 验收 |
 | 2026-09-10，`feature/pr1-order-registration` 工作区 | 工作区未发布 | 方案 PR2 将机构 Excel 模板升级为 v2，保留隐藏客户元数据，预填 `arrived_at` 日期，并在回传时强制校验客户已到院及日期一致 | 不新增 migration、依赖或环境变量；仅完成本地自动化验证，未合入 `develop`、创建 RC 或部署；UAT 需核对 v2 可见字段、隐藏元数据签名、日期篡改拒绝、数量/金额解析和旧字段不再出现在模板中 |
 | 2026-09-10，`feature/pr1-order-registration` 工作区 | 工作区未发布 | 方案 PR3 完善机构月度销售额 PDF，读取订单项目明细并支持单机构/全部机构分组 | 不新增 migration、依赖或环境变量；仅完成本地自动化验证，未合入 `develop`、创建 RC 或部署；UAT 需核对机构主题标签、订单/客户/项目明细、机构分组、小计、权限范围和中韩文字体 |
@@ -220,7 +256,7 @@ Dashboard 现在显示业务时钟当前自然月的机构销售横向对比条�
 | 证书 | `/srv/gn-system/tls/uat-fullchain.pem` |
 | 私钥 | `/srv/gn-system/tls/uat-privkey.pem` |
 | 备份 | `/srv/gn-system/data/backups` |
-| 当前服务状态 | 六个服务均正常 |
+| 当前服务状态 | 待核验；历史记录为六个服务均正常 |
 
 Windows 客户端的 hosts 记录为：
 
@@ -243,7 +279,7 @@ Windows 客户端的 hosts 记录为：
 | HTTP/HTTPS 端口 | `80` / `443` |
 | 监听地址 | `192.168.0.141` |
 | 备份 | `/srv/gn-system/production/data/backups` |
-| 当前状态 | 目录已初始化，尚未部署 |
+| 当前状态 | 待核验；历史记录为目录已初始化、尚未部署 |
 
 原 `gncrm.local` 证书包含 `DNS:gncrm.local` 和 `IP:192.168.0.141`，计划用于
 Production。首次部署前应将证书和私钥安装到
@@ -1460,7 +1496,7 @@ cd /srv/gn-system/repository
 ./deploy/reload-config.sh uat
 ```
 
-`--business-data` creates a database backup, stops queue and scheduler, invokes `app:reset-uat-data`, removes only the approved private `imports`, `reports`, and `settlements` directories, flushes only the UAT Redis container, restores services, and checks `/up`, `/health`, and `/health/operations`. The checks use `TLS_CERT_PATH`, seed queue/scheduler heartbeats, and retry for up to 180 seconds. It preserves users, institutions, reference configuration, saved queries, and migrations. The application command verifies `APP_ENV`, UAT `APP_URL`, configured PostgreSQL, `current_database()`, and the private storage root before truncating the approved business tables.
+`--business-data` creates a database backup, stops queue and scheduler, invokes `app:reset-uat-data`, removes only the approved private `imports`, `reports`, and `settlements` directories, flushes only the UAT Redis container, restores services, and checks `/up`, `/health`, and `/health/operations`. The checks use `TLS_CERT_PATH`, seed queue/scheduler heartbeats, and retry for up to 180 seconds. It preserves users, institutions, saved queries, migrations, and other base reference configuration. The approved reset list includes `direct_order_commissions`, `direct_commission_rates`, and `direct_customer_channels`; the base seeder restores the default direct-customer channels, but direct commission rates are cleared and must be configured again before UAT commission acceptance. The application command verifies `APP_ENV`, UAT `APP_URL`, configured PostgreSQL, `current_database()`, and the private storage root before truncating the approved business tables.
 
 UAT reset audit events are written by phase after the database transaction so they are not removed when `activity_log` is reset: `database_reset_completed`, `private_files_cleanup_completed`, and `reset_completed`. A failure records `reset_failed` with the failing phase when the audit backend remains available.
 
@@ -1502,6 +1538,12 @@ This increment adds no migration, dependency, worker, or environment variable. I
 The current feature worktree contains the PR3 Customer transfer and lifecycle approval implementation and the later PR6 BD quarterly commission implementation. It adds the `2026_08_24_000100_add_customer_transfer_and_status_approval.php` and `2026_08_24_000400_create_bd_quarterly_commission_tables.php` migrations, so any UAT/Production release must take the normal pre-migration backup, run migrations through the release process, and verify the schema before opening business pages. No UAT/Production migration or business acceptance was run from this workstation.
 
 Before release, manually verify owner Customer Service request/withdrawal, BD approval/rejection/direct/batch transfer, super-admin cross-group transfer, future appointment and unfinished reminder reassignment, historical follow-up creator preservation, repeated arrival timestamp/history behavior, rollback approval, stale/duplicate request rejection, batch atomicity, and the no-order rollback rule. Upgrade app, queue, and scheduler from the same immutable RC because transfer notifications and reminder updates are part of the application release. Rollback follows the normal release rollback procedure; do not manually delete the new tables or edit production data.
+
+## 直客方案 PR2：直客 CRUD 与负责人转移（2026-09-20）
+
+当前 `codex/direct-customer-pr2` 工作区已包含直客列表、建档、编辑、`DC` 编号序列、owner 范围过滤及负责人转移审批。新增 `2026_09_20_000100_allow_direct_customer_owner_transfer.php` migration 仅扩展负责人历史来源约束，允许 `admin_direct`；正式发布前必须按环境分别备份数据库，再由不可变 RC 发布流程执行 migration，不能在 UAT/Production 手工改表或业务代码。
+
+本次只完成本机定向验证，尚未合入 `develop`、创建 RC、部署或完成人工验收。发布前应使用直客负责人、超级管理员、客服和 BD 账号检查直客渠道必填、`DC-000001` 序列、owner 隔离、直接 Livewire 调用拒绝、转移申请/审批、未来预约和未完成提醒换负责人、历史记录保留及通知；本机结果不能替代 UAT/Production 验收。升级时 app、queue、scheduler 必须来自同一 RC，回退使用标准发布回退与已验证备份。
 
 ## PR4 institution return and order facts status (2026-08-24)
 

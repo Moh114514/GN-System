@@ -78,6 +78,11 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
         return $id === null ? null : (int) $id;
     }
 
+    public function hasScopedCustomers(): bool
+    {
+        return $this->scoped(Customer::query())->exists();
+    }
+
     public function namesByIds(array $ids): array
     {
         return $this->scoped(Customer::query())
@@ -110,6 +115,7 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
             ->where('created_at', '<=', $to)
             ->count();
         $sourceDistribution = $this->scoped(Customer::query())
+            ->where('customers.source_type', 'agent')
             ->whereBetween('customers.created_at', [$from, $to])
             ->select([
                 'customers.source_agent_id',
@@ -129,18 +135,22 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
         return [
             'new_customers' => $newCustomers,
             'active_customers' => $activeCustomers,
+            'total_customers' => $activeCustomers,
             'source_distribution' => $sourceDistribution,
         ];
     }
 
     public function overview(CarbonImmutable $asOf): array
     {
-        $base = $this->scoped(Customer::query())->where('customers.created_at', '<=', $asOf);
+        $base = $this->scoped(Customer::query())
+            ->where('customers.source_type', 'agent')
+            ->where('customers.created_at', '<=', $asOf);
         $totalCustomers = (clone $base)->count('customers.id');
+        $agentCustomerIds = (clone $base)->select('customers.id');
         $statusCounts = DB::table('customers')
             ->leftJoin('customer_statuses as status', 'status.id', '=', 'customers.current_status_id')
             ->where('customers.created_at', '<=', $asOf)
-            ->whereIn('customers.id', $this->scopedCustomerIds())
+            ->whereIn('customers.id', $agentCustomerIds)
             ->selectRaw("COALESCE(status.key, 'unset') as status_key, COUNT(*)::int as value")
             ->groupByRaw("COALESCE(status.key, 'unset')")
             ->pluck('value', 'status_key')
@@ -276,20 +286,25 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
             return;
         }
 
-        if (! $context->hasEffectiveBusinessScope()) {
+        if ($context->isDirectCustomerManager()) {
+            $query->where('customers.source_type', 'direct')->where('customers.owner_id', $context->userId);
+
+            return;
+        }
+
+        if ($context->isCustomerService()) {
+            $query->where('customers.source_type', 'agent')->where('customers.owner_id', $context->userId);
+
+            return;
+        }
+
+        if (! $context->isBdManager() || $context->agentIds === []) {
             $query->whereRaw('1 = 0');
 
             return;
         }
 
-        $query->where(function ($scope) use ($context): void {
-            if ($context->userId !== null) {
-                $scope->where('customers.owner_id', $context->userId);
-            }
-            if ($context->agentIds !== []) {
-                $scope->orWhereIn('customers.source_agent_id', $context->agentIds);
-            }
-        });
+        $query->where('customers.source_type', 'agent')->whereIn('customers.source_agent_id', $context->agentIds);
     }
 
     /** @return list<int> */

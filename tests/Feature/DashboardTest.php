@@ -3,6 +3,15 @@
 namespace Tests\Feature;
 
 use App\Models\User;
+use App\Modules\Agent\Infrastructure\Models\Agent;
+use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
+use App\Modules\Auth\Domain\UserRole;
+use App\Modules\Customer\Infrastructure\Models\Customer;
+use App\Modules\Customer\Infrastructure\Models\DirectCustomerChannel;
+use App\Modules\Report\Application\Services\DashboardRangeFactory;
+use App\Modules\Report\Application\Services\DashboardService;
+use Carbon\CarbonImmutable;
+use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -55,6 +64,48 @@ class DashboardTest extends TestCase
             ->assertSee('起始日期')
             ->assertSee('终止日期')
             ->assertSee('2026-07-15 至 2026-07-15');
+    }
+
+    public function test_new_customer_metric_drilldown_matches_the_role_and_statistics_source(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $manager = User::factory()->create(['role' => UserRole::DirectCustomerManager]);
+        $customerService = User::factory()->create();
+        $bd = User::factory()->create(['role' => UserRole::BdManager]);
+        $agent = Agent::query()->create([
+            'agent_type_code_id' => AgentTypeCode::query()->firstOrFail()->id,
+            'code' => 'DASHBOARD-SOURCE', 'name' => '看板代理商', 'cooperation_status' => 'active',
+        ]);
+        $createdAt = CarbonImmutable::parse('2026-09-30 12:00:00', config('app.timezone'));
+        Customer::query()->create([
+            'code' => 'DASHBOARD-AGENT', 'name' => '看板新增代理商客户', 'source_type' => 'agent',
+            'source_agent_id' => $agent->id, 'owner_id' => $customerService->id, 'created_at' => $createdAt,
+        ]);
+        $direct = Customer::query()->create([
+            'code' => 'DC-000001', 'name' => '看板新增直客', 'source_type' => 'direct',
+            'direct_channel_id' => DirectCustomerChannel::query()->firstOrFail()->id,
+            'owner_id' => $manager->id, 'created_at' => $createdAt,
+        ]);
+        Customer::query()->create([
+            'code' => 'DC-000002', 'name' => '范围外旧直客', 'source_type' => 'direct',
+            'direct_channel_id' => $direct->direct_channel_id,
+            'owner_id' => $manager->id, 'created_at' => $createdAt->subDay(),
+        ]);
+        $filters = ['createdFrom' => '2026-09-30', 'createdTo' => '2026-09-30'];
+        $range = app(DashboardRangeFactory::class)->make('custom', '2026-09-30', '2026-09-30');
+
+        foreach ([[$manager, 'direct-customers.index', 1], [$customerService, 'customers.index', 1], [$bd, 'customers.index', 0]] as [$user, $routeName, $expectedCount]) {
+            $this->actingAs($user)->get(route('dashboard', ['date' => '2026-09-30']))
+                ->assertOk()->assertSee('href="'.e(route($routeName, $filters)).'"', false);
+            $this->assertSame($expectedCount, app(DashboardService::class)->snapshot($range)->toArray()['metrics']['new_customers']['value']);
+        }
+        $this->actingAs($manager)->get(route('direct-customers.index', $filters))
+            ->assertOk()->assertSee('看板新增直客')->assertDontSee('范围外旧直客')->assertDontSee('看板新增代理商客户');
+        $this->actingAs($admin)->get(route('dashboard', ['date' => '2026-09-30']))
+            ->assertOk()->assertSee(__('dashboard.metrics.new_customers'))
+            ->assertDontSee('aria-label="'.__('dashboard.metrics.new_customers').'"', false);
+        $this->assertSame(2, app(DashboardService::class)->snapshot($range)->toArray()['metrics']['new_customers']['value']);
     }
 
     public function test_super_admin_without_two_factor_is_redirected_to_security_settings(): void

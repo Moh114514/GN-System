@@ -12,6 +12,7 @@ use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
 use App\Modules\Customer\Application\Data\CustomerProfileData;
 use App\Modules\Customer\Application\Exceptions\CustomerCodeChanged;
 use App\Modules\Customer\Domain\BlindIndex;
+use App\Modules\Customer\Domain\CustomerSourceType;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerContact;
 use App\Modules\Customer\Infrastructure\Models\CustomerIdentityDocument;
@@ -19,6 +20,7 @@ use App\Modules\Customer\Infrastructure\Models\CustomerNumberSequence;
 use App\Modules\Customer\Infrastructure\Models\CustomerOwnerHistory;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
+use App\Modules\Customer\Infrastructure\Models\DirectCustomerChannel;
 use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
 use App\Modules\Order\Application\Data\CustomerAppointmentData;
 use Carbon\CarbonImmutable;
@@ -41,6 +43,17 @@ final readonly class CustomerProfileManager
     public function previewCode(int $sourceAgentId): string
     {
         [$prefix, $digits] = $this->prefixAndDigits($sourceAgentId);
+
+        return $this->previewCodeForPrefix($prefix, $digits);
+    }
+
+    public function previewDirectCode(): string
+    {
+        return $this->previewCodeForPrefix('DC', 6);
+    }
+
+    private function previewCodeForPrefix(string $prefix, int $digits): string
+    {
         $lastNumber = max(
             (int) (CustomerNumberSequence::query()->where('prefix', $prefix)->value('last_number') ?? 0),
             $this->maxCustomerNumber($prefix),
@@ -94,23 +107,52 @@ final readonly class CustomerProfileManager
             $ipAddress,
         ): int {
             $context = $this->access->forUser(User::query()->findOrFail($actorId));
-            if (! $context->isSuperAdmin() && ! $context->canViewAgent($profile->sourceAgentId)) {
+            $sourceAgentId = $profile->sourceAgentId;
+            $directChannelId = $profile->directChannelId;
+            $isDirect = $profile->sourceType === CustomerSourceType::Direct->value;
+            if (! in_array($profile->sourceType, [CustomerSourceType::Agent->value, CustomerSourceType::Direct->value], true)) {
                 throw ValidationException::withMessages(['sourceId' => __('customers.form.validation.agent_unavailable')]);
             }
-            if (! $context->isSuperAdmin() && ! in_array($ownerId, $context->groupUserIds, true)) {
-                throw ValidationException::withMessages(['ownerId' => __('customers.form.validation.owner_unavailable')]);
-            }
-            $groupIds = $context->isSuperAdmin()
-                ? null
-                : $context->businessGroupIds;
-            if (! $this->users->isEligible($ownerId)
-                || ! $this->memberships->isActiveCustomerServiceInGroups($ownerId, $groupIds, $this->clock->now()->toDateString())) {
-                throw ValidationException::withMessages([
-                    'ownerId' => __('customers.form.validation.owner_unavailable'),
-                ]);
-            }
 
-            [$prefix, $digits] = $this->prefixAndDigits($profile->sourceAgentId);
+            if ($isDirect) {
+                abort_unless($context->isSuperAdmin() || $context->isDirectCustomerManager(), 403);
+                if ($sourceAgentId !== null || $directChannelId === null || ! DirectCustomerChannel::query()
+                    ->whereKey($directChannelId)
+                    ->where('is_active', true)
+                    ->exists()) {
+                    throw ValidationException::withMessages(['directChannelId' => __('customers.form.validation.direct_channel_unavailable')]);
+                }
+                $sourceAgentId = null;
+                if ($context->isDirectCustomerManager()) {
+                    $ownerId = $actorId;
+                }
+                $directOwnerIds = array_column($this->users->eligibleDirectCustomerManagers(), 'id');
+                if (! in_array($ownerId, array_map('intval', $directOwnerIds), true)) {
+                    throw ValidationException::withMessages(['ownerId' => __('customers.form.validation.owner_unavailable')]);
+                }
+                [$prefix, $digits] = ['DC', 6];
+            } else {
+                abort_unless($context->isSuperAdmin() || $context->isBdManager() || $context->isCustomerService(), 403);
+                if ($sourceAgentId === null || $directChannelId !== null) {
+                    throw ValidationException::withMessages(['sourceId' => __('customers.form.validation.agent_unavailable')]);
+                }
+                if (! $context->isSuperAdmin() && ! $context->canViewAgent($sourceAgentId)) {
+                    throw ValidationException::withMessages(['sourceId' => __('customers.form.validation.agent_unavailable')]);
+                }
+                if (! $context->isSuperAdmin() && ! in_array($ownerId, $context->groupUserIds, true)) {
+                    throw ValidationException::withMessages(['ownerId' => __('customers.form.validation.owner_unavailable')]);
+                }
+                $groupIds = $context->isSuperAdmin()
+                    ? null
+                    : $context->businessGroupIds;
+                if (! $this->users->isEligible($ownerId)
+                    || ! $this->memberships->isActiveCustomerServiceInGroups($ownerId, $groupIds, $this->clock->now()->toDateString())) {
+                    throw ValidationException::withMessages([
+                        'ownerId' => __('customers.form.validation.owner_unavailable'),
+                    ]);
+                }
+                [$prefix, $digits] = $this->prefixAndDigits((int) $sourceAgentId);
+            }
             CustomerNumberSequence::query()->insertOrIgnore([
                 'prefix' => $prefix,
                 'last_number' => 0,
@@ -143,7 +185,9 @@ final readonly class CustomerProfileManager
                 'name' => trim($profile->name),
                 'gender' => $profile->gender,
                 'birth_date' => $profile->birthDate,
-                'source_agent_id' => $profile->sourceAgentId,
+                'source_type' => $profile->sourceType,
+                'source_agent_id' => $sourceAgentId,
+                'direct_channel_id' => $profile->directChannelId,
                 'current_status_id' => $status->id,
                 'project_intention' => trim($profile->projectIntention),
                 'owner_id' => $ownerId,
@@ -203,17 +247,37 @@ final readonly class CustomerProfileManager
         DB::transaction(function () use ($customerId, $profile, $actorId, $sensitiveChangeConfirmed, $ipAddress): void {
             $context = $this->access->forUser(User::query()->findOrFail($actorId));
             $customer = Customer::query()->lockForUpdate()->findOrFail($customerId);
+            $isDirect = $customer->source_type === CustomerSourceType::Direct->value;
+            if ($profile->sourceType !== (string) $customer->source_type) {
+                throw ValidationException::withMessages(['sourceId' => __('customers.form.validation.agent_unavailable')]);
+            }
+            $sourceAgentId = $profile->sourceAgentId;
+            if ($isDirect) {
+                if ($sourceAgentId !== null || $profile->directChannelId === null || ! DirectCustomerChannel::query()
+                    ->whereKey($profile->directChannelId)
+                    ->where(fn ($query) => $query->where('is_active', true)->orWhere('id', $customer->direct_channel_id))
+                    ->exists()) {
+                    throw ValidationException::withMessages(['directChannelId' => __('customers.form.validation.direct_channel_unavailable')]);
+                }
+                $sourceAgentId = null;
+            } elseif ($sourceAgentId === null || $profile->directChannelId !== null) {
+                throw ValidationException::withMessages(['sourceId' => __('customers.form.validation.agent_unavailable')]);
+            }
             abort_unless($context->canViewCustomer(
-                $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
-                $customer->owner_id === null ? null : (int) $customer->owner_id,
+                sourceType: (string) $customer->source_type,
+                sourceAgentId: $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
+                ownerId: $customer->owner_id === null ? null : (int) $customer->owner_id,
             ), 404);
             abort_unless(
                 $context->isSuperAdmin()
                 || $context->isBdManager()
-                || ($context->isCustomerService() && (int) $customer->owner_id === (int) $actorId),
+                || ($context->isCustomerService() && (int) $customer->owner_id === (int) $actorId)
+                || ($context->isDirectCustomerManager() && $isDirect && (int) $customer->owner_id === (int) $actorId),
                 403,
             );
-            if (! $context->isSuperAdmin() && ! $context->canViewAgent($profile->sourceAgentId)) {
+            if ($isDirect) {
+                abort_unless($context->isSuperAdmin() || $context->isDirectCustomerManager(), 403);
+            } elseif (! $context->isSuperAdmin() && ! $context->canViewAgent($sourceAgentId)) {
                 throw ValidationException::withMessages(['sourceId' => __('customers.form.validation.agent_unavailable')]);
             }
             $contact = CustomerContact::query()->where('customer_id', $customerId)->where('is_primary', true)->first();
@@ -230,13 +294,14 @@ final readonly class CustomerProfileManager
             }
 
             $before = $customer->only([
-                'name', 'gender', 'birth_date', 'source_agent_id', 'project_intention', 'notes',
+                'name', 'gender', 'birth_date', 'source_agent_id', 'direct_channel_id', 'project_intention', 'notes',
             ]);
             $customer->update([
                 'name' => trim($profile->name),
                 'gender' => $profile->gender,
                 'birth_date' => $profile->birthDate,
-                'source_agent_id' => $profile->sourceAgentId,
+                'source_agent_id' => $sourceAgentId,
+                'direct_channel_id' => $isDirect ? $profile->directChannelId : null,
                 'project_intention' => trim($profile->projectIntention),
                 'notes' => $profile->notes,
             ]);

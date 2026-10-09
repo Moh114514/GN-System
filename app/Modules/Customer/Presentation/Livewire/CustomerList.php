@@ -68,7 +68,7 @@ class CustomerList extends Component
 
     public function mount(CustomerDirectory $directory): void
     {
-        $this->options = $directory->options();
+        $this->options = $directory->options(forCustomerList: true);
     }
 
     public function updated(string $property): void
@@ -139,6 +139,7 @@ class CustomerList extends Component
 
     public function render(CustomerDirectory $directory): View
     {
+        $directory->assertAgentCustomerAccess();
         $hasDateError = false;
         try {
             $this->validate();
@@ -151,6 +152,7 @@ class CustomerList extends Component
         $customers = $hasDateError
             ? new LengthAwarePaginator([], 0, $perPage, 1, ['path' => request()->url(), 'query' => request()->query()])
             : $directory->paginate([
+                'source_type' => 'agent',
                 'search' => $this->search,
                 'status_id' => $this->statusId === '' ? null : (int) $this->statusId,
                 'agent_id' => $this->agentId === '' ? null : (int) $this->agentId,

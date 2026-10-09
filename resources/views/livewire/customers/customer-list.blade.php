@@ -8,7 +8,9 @@
             @if (auth()->user()->is_super_admin)
                 <flux:button :href="route('customer-statuses.index')" variant="ghost" size="sm" wire:navigate>{{ __('customers.list.status_configuration') }}</flux:button>
             @endif
-            <flux:button :href="route('customers.create')" variant="primary" size="sm" icon="plus" wire:navigate>{{ __('customers.list.create') }}</flux:button>
+            @unless (auth()->user()->isDirectCustomerManager())
+                <flux:button :href="route('customers.create')" variant="primary" size="sm" icon="plus" wire:navigate>{{ __('customers.list.create') }}</flux:button>
+            @endunless
         </div>
     </section>
 

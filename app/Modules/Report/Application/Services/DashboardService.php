@@ -37,7 +37,7 @@ final readonly class DashboardService
 
     public function snapshot(DashboardRangeData $range, bool $force = false): DashboardSnapshotData
     {
-        $key = 'report:dashboard:v7:'.hash('sha256', $range->from->toIso8601String().'|'.$range->to->toIso8601String().'|'.$this->access->current()->fingerprint);
+        $key = 'report:dashboard:v8:'.hash('sha256', $range->from->toIso8601String().'|'.$range->to->toIso8601String().'|'.$this->access->current()->fingerprint);
         if ($force) {
             try {
                 Cache::forget($key);
@@ -72,19 +72,13 @@ final readonly class DashboardService
 
     private function aggregate(DashboardRangeData $range): DashboardSnapshotData
     {
+        $context = $this->access->current();
+        $agentFinance = $context->isSuperAdmin() || $context->isBdManager();
+        $directOwnerId = $context->isDirectCustomerManager() ? $context->userId : null;
         $current = $this->period($range->from, $range->to);
         $previous = $this->period($range->previousFrom, $range->previousTo);
-        $agentIds = [
-            ...array_column($current['settlement']['agent_ranking'], 'agent_id'),
-            ...array_column(
-                array_filter(
-                    $current['customer']['source_distribution'],
-                    fn (array $row): bool => $row['source_type'] === 'agent',
-                ),
-                'source_id',
-            ),
-        ];
-        $agentNames = $this->agents->namesByIds($agentIds);
+        $agentRanking = $agentFinance ? $this->orders->agentSalesRanking($range->from, $range->to) : [];
+        $agentNames = $agentFinance ? $this->agents->namesByIds(array_column($agentRanking, 'agent_id')) : [];
         $institutionMonth = $this->clock->now();
         $institutionRevenue = $this->institutionRevenue($this->orders->institutionRevenue(
             $institutionMonth->startOfMonth(),
@@ -100,38 +94,63 @@ final readonly class DashboardService
             'orders' => $monthlyOrders[$row['key']] ?? 0,
         ], $current['order']['monthly_consumption']);
 
-        return new DashboardSnapshotData(
-            range: $range,
-            metrics: [
-                'new_customers' => $this->metric($current['customer']['new_customers'], $previous['customer']['new_customers']),
-                'completed_amount' => $this->metric($current['order']['completed_amount'], $previous['order']['completed_amount']),
-                'revenue' => $this->metric($current['order']['completed_amount'], $previous['order']['completed_amount']),
-                'active_customers' => $this->metric($current['customer']['active_customers'], $previous['customer']['active_customers']),
-                'overdue_customers' => $this->metric($current['reminder']['overdue_customers'], $previous['reminder']['overdue_customers']),
-                'pending_settlement' => $this->metric($current['settlement']['pending_settlement'], $previous['settlement']['pending_settlement']),
-            ],
-            charts: [
-                'agent_promotion_ranking' => array_map(fn (array $row): array => [
+        $metrics = [
+            'new_customers' => $this->metric($current['customer']['new_customers'], $previous['customer']['new_customers']),
+            'completed_customers' => $this->metric($current['customer']['total_customers'], $previous['customer']['total_customers']),
+            'completed_orders' => $this->metric($current['order']['completed_orders'], $previous['order']['completed_orders']),
+            'completed_amount' => $this->metric($current['order']['completed_amount'], $previous['order']['completed_amount']),
+            'revenue' => $this->metric($current['order']['completed_amount'], $previous['order']['completed_amount']),
+            'active_customers' => $this->metric($current['customer']['active_customers'], $previous['customer']['active_customers']),
+            'overdue_customers' => $this->metric($current['reminder']['overdue_customers'], $previous['reminder']['overdue_customers']),
+        ];
+        $charts = [
+            'monthly_consumption' => $current['order']['monthly_consumption'],
+            'repurchase_rate' => [['key' => '__dashboard_repurchase_rate__', 'value' => $current['order']['repurchase_rate']]],
+            'followup_completion_rate' => [['key' => '__dashboard_followup_completion_rate__', 'value' => $current['reminder']['followup_completion_rate']]],
+            'institution_revenue' => $institutionRevenue,
+        ];
+        $panels = [
+            'monthly_revenue_orders' => $monthlyTrend,
+            'institution_revenue_month' => $institutionMonth->format('Y-m'),
+        ];
+        if ($agentFinance) {
+            $metrics['pending_settlement'] = $this->metric($current['settlement']['pending_settlement'], $previous['settlement']['pending_settlement']);
+            $charts += [
+                'agent_sales_ranking' => array_map(fn (array $row): array => [
                     'id' => $row['agent_id'],
                     'key' => $agentNames[$row['agent_id']] ?? '__dashboard_missing_agent__',
                     'value' => $row['value'],
-                ], $current['settlement']['agent_ranking']),
+                ], $agentRanking),
                 'monthly_promotion' => $current['settlement']['monthly_promotion'],
                 'grade_distribution' => $this->agents->currentGradeDistribution(),
                 'source_distribution' => array_map(fn (array $row): array => [
                     'key' => $agentNames[$row['source_id']] ?? '__dashboard_missing_agent__',
                     'value' => $row['value'],
                 ], $current['customer']['source_distribution']),
-                'monthly_consumption' => $current['order']['monthly_consumption'],
-                'repurchase_rate' => [['key' => '__dashboard_repurchase_rate__', 'value' => $current['order']['repurchase_rate']]],
-                'followup_completion_rate' => [['key' => '__dashboard_followup_completion_rate__', 'value' => $current['reminder']['followup_completion_rate']]],
-                'institution_revenue' => $institutionRevenue,
-            ],
-            panels: [
+            ];
+            $panels += [
                 'promotion_fee' => $current['settlement']['promotion_fee'],
-                'monthly_revenue_orders' => $monthlyTrend,
                 'settlement_progress' => $current['settlement']['progress'],
-                'institution_revenue_month' => $institutionMonth->format('Y-m'),
+            ];
+        }
+        if ($directOwnerId !== null) {
+            $currentCommission = $this->settlements->directCommissionDashboard($directOwnerId, $range->from, $range->to);
+            $previousCommission = $this->settlements->directCommissionDashboard($directOwnerId, $range->previousFrom, $range->previousTo);
+            $metrics['direct_commission'] = $this->metric($currentCommission['commission_amount'], $previousCommission['commission_amount']);
+            $metrics['direct_commission_orders'] = $this->metric($currentCommission['order_count'], $previousCommission['order_count']);
+        }
+
+        return new DashboardSnapshotData(
+            range: $range,
+            metrics: $metrics,
+            charts: $charts,
+            panels: $panels,
+            visibility: [
+                'agent_finance' => $agentFinance,
+                'agent_operations' => $agentFinance,
+                'institution_revenue' => true,
+                'direct_commission' => $directOwnerId !== null,
+                'settlement_progress' => $agentFinance,
             ],
             generatedAt: now('Asia/Shanghai')->toIso8601String(),
         );
@@ -145,7 +164,9 @@ final readonly class DashboardService
         return [
             'customer' => $this->customers->dashboard($from, $to),
             'order' => $this->orders->dashboard($from, $to),
-            'settlement' => $this->settlements->dashboard($orderMonths, $to),
+            'settlement' => $this->access->current()->isSuperAdmin() || $this->access->current()->isBdManager()
+                ? $this->settlements->dashboard($orderMonths, $to)
+                : [],
             'reminder' => $this->reminders->dashboard($from, $to),
         ];
     }

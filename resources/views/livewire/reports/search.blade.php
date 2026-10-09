@@ -19,12 +19,14 @@
                     <option value="{{ $customer['id'] }}">{{ $customer['name'] }}</option>
                 @endforeach
             </flux:select>
-            <flux:select wire:model.live="agentId" :label="__('search.page.fields.agent')">
-                <option value="">{{ __('search.page.fields.all_agents') }}</option>
-                @foreach ($options['agents'] as $agent)
-                    <option value="{{ $agent['id'] }}">{{ $agent['name'] }}</option>
-                @endforeach
-            </flux:select>
+            @if (! auth()->user()->isDirectCustomerManager())
+                <flux:select wire:model.live="agentId" :label="__('search.page.fields.agent')">
+                    <option value="">{{ __('search.page.fields.all_agents') }}</option>
+                    @foreach ($options['agents'] as $agent)
+                        <option value="{{ $agent['id'] }}">{{ $agent['name'] }}</option>
+                    @endforeach
+                </flux:select>
+            @endif
             <flux:input wire:model.live.debounce.400ms="projectName" :label="__('search.page.fields.project')" />
             <flux:select wire:model.live="institutionId" :label="__('search.page.fields.institution')">
                 <option value="">{{ __('search.page.fields.all_institutions') }}</option>

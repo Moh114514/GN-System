@@ -26,6 +26,7 @@ use App\Modules\Report\Infrastructure\Models\ReportExport;
 use App\Modules\Report\Jobs\GenerateReportExport;
 use App\Modules\Report\Presentation\Livewire\Dashboard;
 use App\Modules\Report\Presentation\Livewire\ReportSearchPage;
+use App\Modules\Settlement\Infrastructure\Models\DirectOrderCommission;
 use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
@@ -391,6 +392,9 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->assertSame(880000, $snapshot['metrics']['completed_amount']['value']);
         $this->assertSame(1, $snapshot['metrics']['overdue_customers']['value']);
         $this->assertCount(8, $snapshot['charts']);
+        $this->assertSame(880000, $snapshot['charts']['agent_sales_ranking'][0]['value']);
+        $this->assertTrue($snapshot['visibility']['agent_finance']);
+        $this->assertArrayNotHasKey('agent_promotion_ranking', $snapshot['charts']);
         $this->assertArrayNotHasKey('pending_reminders', $snapshot['panels']);
         $this->assertSame(880000, $snapshot['panels']['monthly_revenue_orders'][0]['value']);
         $this->assertSame(1, $snapshot['panels']['monthly_revenue_orders'][0]['orders']);
@@ -426,7 +430,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->assertOk()
             ->assertSee('数据看板')
             ->assertSee('营收与订单趋势')
-            ->assertSee('代理商推广费排行')
+            ->assertSee('代理商业绩排行')
             ->assertSee('本月各机构销售额')
             ->assertSee('最近月结进度')
             ->assertSee('data-dashboard-chart="monthly_revenue_orders"', false)
@@ -462,6 +466,147 @@ class PhaseSixReportingConfigurationTest extends TestCase
             $component->assertRedirect(route('reports.exports.download', $componentExport));
             Storage::disk('local')->assertExists($componentExport->path);
         }
+    }
+
+    public function test_customer_service_dashboard_and_export_use_only_owned_customer_scope(): void
+    {
+        $service = User::factory()->create(['role' => UserRole::CustomerService]);
+        $otherService = User::factory()->create(['role' => UserRole::CustomerService]);
+        $this->customer->update(['owner_id' => $service->id]);
+        $now = CarbonImmutable::now('Asia/Shanghai');
+        Order::query()->create([
+            'customer_id' => $this->customer->id,
+            'institution_id' => $this->institutionId,
+            'agent_id' => $this->agentId,
+            'project_name' => '客服范围订单',
+            'amount_krw' => 700000,
+            'completed_on' => $now->toDateString(),
+            'occurred_on' => $now->toDateString(),
+            'completed_at' => $now,
+            'completion_precision' => 'datetime',
+            'owner_id' => $service->id,
+            'status' => 'completed',
+            'record_status' => 'active',
+        ]);
+        $otherCustomer = Customer::query()->create([
+            'code' => 'P6-OTHER-'.uniqid(),
+            'name' => '客服范围外客户',
+            'source_agent_id' => $this->agentId,
+            'current_status_id' => CustomerStatus::query()->where('key', 'booked')->value('id'),
+            'owner_id' => $otherService->id,
+        ]);
+        Order::query()->create([
+            'customer_id' => $otherCustomer->id,
+            'institution_id' => $this->institutionId,
+            'agent_id' => $this->agentId,
+            'project_name' => '其他客服订单',
+            'amount_krw' => 9000000,
+            'completed_on' => $now->toDateString(),
+            'occurred_on' => $now->toDateString(),
+            'completed_at' => $now,
+            'completion_precision' => 'datetime',
+            'owner_id' => $otherService->id,
+            'status' => 'completed',
+            'record_status' => 'active',
+        ]);
+
+        $this->actingAs($service);
+        $range = app(DashboardRangeFactory::class)->make('month');
+        $snapshot = app(DashboardService::class)->snapshot($range, true)->toArray();
+        $this->assertSame(700000, $snapshot['metrics']['revenue']['value']);
+        $this->assertSame(1, $snapshot['metrics']['completed_customers']['value']);
+        $this->assertSame(1, $snapshot['metrics']['completed_orders']['value']);
+        $this->assertFalse($snapshot['visibility']['agent_finance']);
+        $this->assertArrayNotHasKey('agent_sales_ranking', $snapshot['charts']);
+        $this->assertArrayNotHasKey('source_distribution', $snapshot['charts']);
+        $this->assertArrayNotHasKey('promotion_fee', $snapshot['panels']);
+        $this->assertArrayNotHasKey('settlement_progress', $snapshot['panels']);
+
+        Storage::fake('local');
+        $export = app(DashboardExportGenerator::class)->generate($service, 'html', $snapshot);
+        $this->assertSame('completed', $export->status);
+        $this->assertSame(700000, $export->data_snapshot['metrics']['revenue']['value']);
+        $searchExport = app(ReportExportManager::class)->startSearch($service, []);
+        $this->assertSame('completed', $searchExport->status);
+    }
+
+    public function test_direct_customer_manager_dashboard_shows_owned_sales_and_commission_only(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-07-15 12:00:00', 'Asia/Shanghai'));
+        $manager = User::factory()->create(['role' => UserRole::DirectCustomerManager]);
+        $otherManager = User::factory()->create(['role' => UserRole::DirectCustomerManager]);
+        $channelId = (int) DB::table('direct_customer_channels')->value('id');
+        $makeCustomer = fn (string $code, string $name, User $owner): Customer => Customer::query()->create([
+            'code' => $code,
+            'name' => $name,
+            'source_type' => 'direct',
+            'source_agent_id' => null,
+            'direct_channel_id' => $channelId,
+            'owner_id' => $owner->id,
+            'current_status_id' => CustomerStatus::query()->where('key', 'booked')->value('id'),
+        ]);
+        $makeOrder = function (Customer $customer, User $owner, int $amount) use ($channelId): Order {
+            return Order::query()->create([
+                'customer_id' => $customer->id,
+                'institution_id' => $this->institutionId,
+                'source_type' => 'direct',
+                'agent_id' => null,
+                'project_name' => '直客完成订单',
+                'amount_krw' => $amount,
+                'completed_on' => '2026-07-15',
+                'occurred_on' => '2026-07-15',
+                'completed_at' => CarbonImmutable::now(),
+                'completion_precision' => 'datetime',
+                'owner_id' => $owner->id,
+                'business_attribution_snapshot' => ['source' => 'direct', 'channel_id' => $channelId],
+                'status' => 'completed',
+                'record_status' => 'active',
+            ]);
+        };
+        $customer = $makeCustomer('P6-DIRECT-1', '本人直客', $manager);
+        $otherCustomer = $makeCustomer('P6-DIRECT-2', '其他直客', $otherManager);
+        $order = $makeOrder($customer, $manager, 700000);
+        $otherOrder = $makeOrder($otherCustomer, $otherManager, 9000000);
+        DirectOrderCommission::query()->create([
+            'order_id' => $order->id,
+            'owner_id' => $manager->id,
+            'rate_bps' => 500,
+            'order_amount_krw' => 700000,
+            'commission_amount_krw' => 35000,
+            'completed_at' => CarbonImmutable::now(),
+            'status' => 'active',
+            'rule_snapshot' => ['test' => true],
+        ]);
+        DirectOrderCommission::query()->create([
+            'order_id' => $otherOrder->id,
+            'owner_id' => $otherManager->id,
+            'rate_bps' => 500,
+            'order_amount_krw' => 9000000,
+            'commission_amount_krw' => 450000,
+            'completed_at' => CarbonImmutable::now(),
+            'status' => 'active',
+            'rule_snapshot' => ['test' => true],
+        ]);
+
+        $this->actingAs($manager);
+        $snapshot = app(DashboardService::class)
+            ->snapshot(app(DashboardRangeFactory::class)->make('month'), true)
+            ->toArray();
+        $this->assertSame(700000, $snapshot['metrics']['revenue']['value']);
+        $this->assertSame(1, $snapshot['metrics']['completed_customers']['value']);
+        $this->assertSame(1, $snapshot['metrics']['completed_orders']['value']);
+        $this->assertSame(35000, $snapshot['metrics']['direct_commission']['value']);
+        $this->assertSame(1, $snapshot['metrics']['direct_commission_orders']['value']);
+        $this->assertSame([
+            'agent_finance' => false,
+            'agent_operations' => false,
+            'institution_revenue' => true,
+            'direct_commission' => true,
+            'settlement_progress' => false,
+        ], $snapshot['visibility']);
+        $this->assertArrayNotHasKey('agent_sales_ranking', $snapshot['charts']);
+        $this->assertArrayNotHasKey('promotion_fee', $snapshot['panels']);
+        $this->assertArrayNotHasKey('settlement_progress', $snapshot['panels']);
     }
 
     public function test_dashboard_includes_active_institutions_without_sales_for_super_admin(): void

@@ -6,6 +6,8 @@ use App\Modules\Settlement\Application\Contracts\BdCommissionCorrectionGateway;
 use App\Modules\Settlement\Application\Contracts\CommissionConfigurationGateway;
 use App\Modules\Settlement\Application\Contracts\ConfigurationHistoryGateway;
 use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
+use App\Modules\Settlement\Application\Contracts\DirectCommissionConfigurationGateway;
+use App\Modules\Settlement\Application\Contracts\DirectOrderCommissionGateway;
 use App\Modules\Settlement\Application\Contracts\InstitutionUsageReader;
 use App\Modules\Settlement\Application\Contracts\KrwCnyQuoteProvider;
 use App\Modules\Settlement\Application\Contracts\OrderFinancialReader;
@@ -16,6 +18,8 @@ use App\Modules\Settlement\Application\Services\BdQuarterlyCommissionService;
 use App\Modules\Settlement\Application\Services\DatabaseCommissionConfigurationGateway;
 use App\Modules\Settlement\Application\Services\DatabaseConfigurationHistoryGateway;
 use App\Modules\Settlement\Application\Services\DatabaseDailyCommissionGateway;
+use App\Modules\Settlement\Application\Services\DatabaseDirectCommissionConfigurationGateway;
+use App\Modules\Settlement\Application\Services\DatabaseDirectOrderCommissionGateway;
 use App\Modules\Settlement\Application\Services\DatabaseInstitutionUsageReader;
 use App\Modules\Settlement\Application\Services\DatabaseOrderFinancialReader;
 use App\Modules\Settlement\Application\Services\DatabaseReportSettlementReader;
@@ -24,6 +28,8 @@ use App\Modules\Settlement\Presentation\Http\BdQuarterlyCommissionDocumentContro
 use App\Modules\Settlement\Presentation\Http\SettlementDocumentController;
 use App\Modules\Settlement\Presentation\Http\SettlementRunFailureController;
 use App\Modules\Settlement\Presentation\Livewire\BdQuarterlyCommissionCenter;
+use App\Modules\Settlement\Presentation\Livewire\DirectCustomerCommissionCenter;
+use App\Modules\Settlement\Presentation\Livewire\DirectCustomerConfiguration;
 use App\Modules\Settlement\Presentation\Livewire\SettlementCenter;
 use App\Modules\Settlement\Presentation\Livewire\SettlementDetail;
 use App\Modules\Settlement\Presentation\Livewire\SettlementHistory;
@@ -39,6 +45,8 @@ class SettlementServiceProvider extends ServiceProvider
         $this->app->bind(SettlementImportGateway::class, DatabaseSettlementImportGateway::class);
         $this->app->bind(BdCommissionCorrectionGateway::class, BdQuarterlyCommissionService::class);
         $this->app->bind(DailyCommissionGateway::class, DatabaseDailyCommissionGateway::class);
+        $this->app->bind(DirectCommissionConfigurationGateway::class, DatabaseDirectCommissionConfigurationGateway::class);
+        $this->app->bind(DirectOrderCommissionGateway::class, DatabaseDirectOrderCommissionGateway::class);
         $this->app->bind(CommissionConfigurationGateway::class, DatabaseCommissionConfigurationGateway::class);
         $this->app->bind(ReportSettlementReader::class, DatabaseReportSettlementReader::class);
         $this->app->bind(InstitutionUsageReader::class, DatabaseInstitutionUsageReader::class);
@@ -63,6 +71,10 @@ class SettlementServiceProvider extends ServiceProvider
             Route::get('/bd-commissions/{period}/users/{bdUserId}/document/{format}', [BdQuarterlyCommissionDocumentController::class, 'download'])
                 ->whereNumber('period')->whereNumber('bdUserId')->whereIn('format', ['xlsx', 'pdf'])
                 ->name('bd-commissions.documents.download');
+        });
+        Route::middleware(['web', 'auth', 'verified', 'super-admin.2fa'])->group(function (): void {
+            Route::get('/admin/configuration/direct-customer', DirectCustomerConfiguration::class)->name('configuration.direct-customer');
+            Route::get('/direct-commissions', DirectCustomerCommissionCenter::class)->name('direct-commissions.index');
         });
         Route::middleware(['web', 'auth', 'verified', 'super-admin', 'super-admin.2fa'])->group(function (): void {
             Route::get('/settlements/history', SettlementHistory::class)->name('settlements.history');

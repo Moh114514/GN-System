@@ -75,6 +75,12 @@ final class DeployScriptSafetyTest extends TestCase
         self::assertStringContainsString('select current_database()', $service);
         self::assertStringContainsString("'activity_log'", $service);
         self::assertStringContainsString("'report_exports'", $service);
+        foreach (['direct_order_commissions', 'direct_commission_rates', 'direct_customer_channels'] as $table) {
+            self::assertStringContainsString("'{$table}'", $service);
+        }
+        self::assertLessThan(strpos($service, "'direct_commission_rates'"), strpos($service, "'direct_order_commissions'"));
+        self::assertLessThan(strpos($service, "'orders'"), strpos($service, "'direct_commission_rates'"));
+        self::assertLessThan(strpos($service, "'direct_customer_channels'"), strpos($service, "'customers'"));
         self::assertStringContainsString("'imports', 'reports', 'settlements'", $service);
         self::assertStringContainsString("option('business-data')", $command);
         self::assertStringContainsString("option('operator')", $command);

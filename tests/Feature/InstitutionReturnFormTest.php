@@ -96,7 +96,7 @@ class InstitutionReturnFormTest extends TestCase
         ]);
         $this->assertSame(1, OrderItem::query()->where('order_id', $orderId)->count());
         $this->assertDatabaseHas('order_commissions', ['order_id' => $orderId, 'amount_krw' => 30000]);
-        $this->assertDatabaseCount('reminders', 2);
+        $this->assertDatabaseCount('reminders', 0);
         $this->assertDatabaseHas('institution_return_files', ['status' => 'processed', 'original_name' => '机构回传.xlsx']);
         $this->assertDatabaseHas('customer_statuses', ['key' => 'treatment_completed']);
         $this->assertSame('treatment_completed', $customer->refresh()->currentStatus?->key);
