@@ -14,7 +14,9 @@ use Illuminate\Support\Carbon;
  * @property string $code
  * @property string|null $legacy_code
  * @property string $name
+ * @property string $source_type
  * @property int|null $source_agent_id
+ * @property int|null $direct_channel_id
  * @property int|null $current_status_id
  * @property CarbonImmutable|null $treatment_completed_at
  * @property CarbonImmutable|null $arrived_at
@@ -53,6 +55,12 @@ class Customer extends Model
     public function currentStatus(): BelongsTo
     {
         return $this->belongsTo(CustomerStatus::class, 'current_status_id');
+    }
+
+    /** @return BelongsTo<DirectCustomerChannel, $this> */
+    public function directChannel(): BelongsTo
+    {
+        return $this->belongsTo(DirectCustomerChannel::class, 'direct_channel_id');
     }
 
     /** @return HasMany<CustomerStatusHistory, $this> */

@@ -77,8 +77,9 @@ docker buildx imagetools inspect ghcr.io/moh114514/gn-system-web:v0.5.0-rc.3
 
 ## 3. 同机 UAT 首次准备
 
-当前 UAT 已经位于 `/srv/gn-system` 并正常运行，不要为了匹配历史文档重新初始化或
-移动目录。只有在全新主机重建 UAT 时，才显式准备 UAT 根目录并建立独立仓库：
+UAT 的规定目录是 `/srv/gn-system`；2026-10-07 服务器连接超时，实际版本和运行状态
+待核验。恢复连接后先只读检查已有环境，不要为了匹配历史文档重新初始化或移动目录。
+只有确认是全新主机重建 UAT 时，才显式准备 UAT 根目录并建立独立仓库：
 
 ```bash
 sudo /path/to/bootstrap-checkout/deploy/prepare-host.sh /srv/gn-system

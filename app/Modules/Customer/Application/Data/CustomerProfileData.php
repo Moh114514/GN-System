@@ -10,10 +10,12 @@ final readonly class CustomerProfileData
         public string $name,
         public ?string $gender,
         public CarbonImmutable $birthDate,
-        public int $sourceAgentId,
+        public ?int $sourceAgentId,
         public string $contactValue,
         public string $identityDocument,
         public string $projectIntention,
         public ?string $notes,
+        public string $sourceType = 'agent',
+        public ?int $directChannelId = null,
     ) {}
 }

@@ -5,6 +5,7 @@ use App\Infrastructure\Health\ReadinessController;
 use App\Infrastructure\Localization\SetLocale;
 use App\Modules\Auth\Http\Middleware\ApplyUserImpersonation;
 use App\Modules\Auth\Http\Middleware\EnsureAgentReadAccess;
+use App\Modules\Auth\Http\Middleware\EnsureInstitutionSalesReadAccess;
 use App\Modules\Auth\Http\Middleware\EnsureSettlementReadAccess;
 use App\Modules\Auth\Http\Middleware\EnsureSuperAdmin;
 use App\Modules\Auth\Http\Middleware\EnsureUserIsActive;
@@ -38,6 +39,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'super-admin' => EnsureSuperAdmin::class,
             'agent.read' => EnsureAgentReadAccess::class,
+            'institution-sales.read' => EnsureInstitutionSalesReadAccess::class,
             'settlement.read' => EnsureSettlementReadAccess::class,
             'super-admin.2fa' => RequireTwoFactorForSuperAdmin::class,
         ]);

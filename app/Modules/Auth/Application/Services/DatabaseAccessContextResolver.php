@@ -46,6 +46,10 @@ final class DatabaseAccessContextResolver implements AccessContextResolver
             return $this->make((int) $user->id, $role->value, [], [], [], false);
         }
 
+        if ($role === UserRole::DirectCustomerManager) {
+            return $this->make((int) $user->id, $role->value, [], [], [], false);
+        }
+
         $date = $this->clock->now()->toDateString();
         $groupIds = BusinessGroupMembership::query()
             ->where('user_id', $user->id)

@@ -96,7 +96,7 @@ class UserManagement extends Component
         $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'inviteRole' => ['required', 'string', 'in:super_admin,bd_manager,customer_service'],
+            'inviteRole' => ['required', 'string', 'in:super_admin,bd_manager,customer_service,direct_customer_manager'],
         ]);
         $result = $users->inviteWithRole($this->name, $this->email, $this->inviteRole, (int) Auth::id(), request()->ip());
         $this->reset('name', 'email', 'inviteRole');
@@ -144,7 +144,7 @@ class UserManagement extends Component
     {
         $role = (string) ($this->roleSelections[$id] ?? '');
         $this->validate([
-            "roleSelections.{$id}" => ['required', 'string', 'in:super_admin,bd_manager,customer_service'],
+            "roleSelections.{$id}" => ['required', 'string', 'in:super_admin,bd_manager,customer_service,direct_customer_manager'],
         ]);
         $this->run(
             fn () => $users->setRole($id, $role, (int) Auth::id(), request()->ip()),

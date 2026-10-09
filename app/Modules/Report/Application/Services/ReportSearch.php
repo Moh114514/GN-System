@@ -3,7 +3,9 @@
 namespace App\Modules\Report\Application\Services;
 
 use App\Modules\Agent\Application\Contracts\ReportAgentReader;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Config\Application\Contracts\ReportConfigReader;
+use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
 use App\Modules\Customer\Application\Contracts\ReportCustomerReader;
 use App\Modules\Order\Application\Contracts\ReportOrderReader;
 use App\Modules\Report\Application\Data\ReportOrderData;
@@ -16,17 +18,34 @@ final readonly class ReportSearch
     public function __construct(
         private ReportOrderReader $orders,
         private ReportCustomerReader $customers,
+        private CustomerOrderReferenceReader $customerOrders,
         private ReportAgentReader $agents,
         private ReportConfigReader $config,
+        private AccessContextResolver $access,
     ) {}
 
     /** @return array<string, array<int, array{id: int, name: string}>> */
     public function options(): array
     {
+        $context = $this->access->current();
+        $institutions = $this->config->activeInstitutions();
+        if (! $context->isSuperAdmin()) {
+            $visibleIds = array_fill_keys($this->orders->visibleInstitutionIds(), true);
+            $institutions = array_values(array_filter(
+                $institutions,
+                static fn (array $institution): bool => isset($visibleIds[(int) $institution['id']]),
+            ));
+        }
+        $agents = $context->isDirectCustomerManager() ? [] : $this->agents->activeAgents();
+        if ($context->isCustomerService() && $context->userId !== null) {
+            $ownerAgentIds = array_fill_keys($this->customerOrders->agentIdsForOwner($context->userId), true);
+            $agents = array_values(array_filter($agents, static fn (array $agent): bool => isset($ownerAgentIds[(int) $agent['id']])));
+        }
+
         return [
             'customers' => $this->customers->customerOptions(),
-            'agents' => $this->agents->activeAgents(),
-            'institutions' => $this->config->activeInstitutions(),
+            'agents' => $agents,
+            'institutions' => $institutions,
         ];
     }
 

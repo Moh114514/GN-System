@@ -79,18 +79,20 @@
                 </dl>
             </section>
 
-            @if ($order['status'] === 'completed')
+            @if ($order['status'] === 'completed' && ($order['source_type'] !== 'direct' || ($order['financial']['commission_visible'] ?? true)))
                 <section class="crm-card">
-                    <h3 class="font-semibold">{{ __('orders.detail.promotion_and_settlement') }}</h3>
+                    <h3 class="font-semibold">{{ $order['source_type'] === 'direct' ? __('orders.detail.direct_commission_title') : __('orders.detail.promotion_and_settlement') }}</h3>
                     @if ($order['financial']['commission'])
-                        <dl class="mt-4 grid gap-4 sm:grid-cols-3">
-                            <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.promotion_fee') }}</dt><dd class="mt-1 font-semibold">₩ {{ number_format($order['financial']['commission']['amount_krw']) }}</dd></div>
+                        <dl class="mt-4 grid gap-4 {{ $order['source_type'] === 'direct' ? 'sm:grid-cols-2' : 'sm:grid-cols-3' }}">
+                            <div><dt class="text-xs text-zinc-500">{{ $order['source_type'] === 'direct' ? __('orders.fields.direct_commission') : __('orders.fields.promotion_fee') }}</dt><dd class="mt-1 font-semibold">₩ {{ number_format($order['financial']['commission']['amount_krw']) }}</dd></div>
                             <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.commission_rate') }}</dt><dd class="mt-1">{{ number_format($order['financial']['commission']['rate_bps'] / 100, 2) }}%</dd></div>
-                            <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.settlement_status') }}</dt><dd class="mt-1">{{ $order['financial']['settlement'] ? $order['financial']['settlement']['status'] : __('orders.detail.settlement_pending') }}</dd></div>
+                            @if ($order['source_type'] !== 'direct')
+                                <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.settlement_status') }}</dt><dd class="mt-1">{{ $order['financial']['settlement'] ? $order['financial']['settlement']['status'] : __('orders.detail.settlement_pending') }}</dd></div>
+                            @endif
                         </dl>
-                        <p class="mt-4 text-xs text-zinc-500">{{ __('orders.detail.promotion_snapshot_description') }}</p>
+                        <p class="mt-4 text-xs text-zinc-500">{{ $order['source_type'] === 'direct' ? __('orders.detail.direct_commission_description') : __('orders.detail.promotion_snapshot_description') }}</p>
                     @else
-                        <p class="mt-4 text-sm text-zinc-500">{{ __('orders.detail.no_promotion_snapshot') }}</p>
+                        <p class="mt-4 text-sm text-zinc-500">{{ $order['source_type'] === 'direct' ? __('orders.detail.no_direct_commission_snapshot') : __('orders.detail.no_promotion_snapshot') }}</p>
                     @endif
                 </section>
             @endif

@@ -4,7 +4,6 @@ namespace App\Modules\Reminder\Application\Services;
 
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Customer\Application\Contracts\ReminderCustomerReader;
-use App\Modules\Customer\Application\Data\ReminderCustomerData;
 use App\Modules\Reminder\Application\Contracts\ReportReminderReader;
 use App\Modules\Reminder\Infrastructure\Models\Reminder;
 use Carbon\CarbonImmutable;
@@ -108,17 +107,19 @@ final class DatabaseReportReminderReader implements ReportReminderReader
         if ($context->isSuperAdmin()) {
             return $query;
         }
-        $query->where(function ($scope) use ($context): void {
-            if ($context->userId !== null) {
-                $scope->where('assigned_to', $context->userId)->orWhere('created_by', $context->userId);
-            }
-            if ($context->isBdManager()) {
-                $ids = $this->customerIds();
-                if ($ids !== []) {
-                    $scope->orWhereIn('customer_id', $ids);
-                }
-            }
-        });
+        if ($context->isCustomerService() || $context->isDirectCustomerManager()) {
+            $query->whereIn('customer_id', $this->customerIds());
+
+            return $query;
+        }
+        if ($context->isBdManager()) {
+            $ids = $this->customerIds();
+            $ids === [] ? $query->whereRaw('1 = 0') : $query->whereIn('customer_id', $ids);
+
+            return $query;
+        }
+
+        $query->whereRaw('1 = 0');
 
         return $query;
     }
@@ -126,8 +127,6 @@ final class DatabaseReportReminderReader implements ReportReminderReader
     /** @return list<int> */
     private function customerIds(): array
     {
-        $customers = app(ReminderCustomerReader::class)->candidates();
-
-        return array_map(static fn (ReminderCustomerData $customer): int => $customer->id, $customers);
+        return app(ReminderCustomerReader::class)->candidateIds();
     }
 }

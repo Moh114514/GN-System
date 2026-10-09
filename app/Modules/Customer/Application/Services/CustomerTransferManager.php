@@ -34,8 +34,12 @@ final readonly class CustomerTransferManager
     ) {}
 
     /** @return list<array{id: int, name: string}> */
-    public function ownerCandidates(): array
+    public function ownerCandidates(string $sourceType = 'agent'): array
     {
+        if ($sourceType === 'direct') {
+            return $this->users->eligibleDirectCustomerManagers();
+        }
+
         $context = $this->access->current();
         $groupIds = $context->isSuperAdmin()
             ? null
@@ -80,7 +84,7 @@ final readonly class CustomerTransferManager
             $customer = $this->lockedCustomer($customerId);
             $context = $this->access->forUser($actor);
             $this->assertOwnerCanRequest($customer, $actor, $context);
-            $this->assertTarget($toOwnerId, $context);
+            $this->assertTarget($customer, $toOwnerId, $context);
             $reason = $this->requiredReason($reason);
             if ((int) $customer->owner_id === $toOwnerId) {
                 throw new DomainException(__('customers.transfer.errors.same_owner'));
@@ -135,7 +139,11 @@ final readonly class CustomerTransferManager
             $customer = $this->lockedCustomer((int) $request->customer_id);
             $context = $this->access->forUser($actor);
             $this->assertVisible($customer, $context);
-            abort_unless($context->isCustomerService() && (int) $request->requested_by === (int) $actor->id, 403);
+            abort_unless(
+                ($context->isCustomerService() || $context->isDirectCustomerManager())
+                && (int) $request->requested_by === (int) $actor->id,
+                403,
+            );
             if ($request->status !== 'pending') {
                 throw new DomainException(__('customers.transfer.errors.not_pending'));
             }
@@ -169,7 +177,7 @@ final readonly class CustomerTransferManager
                 if ((int) ($customer->owner_id ?? 0) !== (int) ($request->from_owner_id ?? 0)) {
                     throw new DomainException(__('customers.transfer.errors.owner_changed'));
                 }
-                $this->assertTarget((int) $request->to_owner_id, $context);
+                $this->assertTarget($customer, (int) $request->to_owner_id, $context);
                 $this->applyTransfer($customer, (int) $request->to_owner_id, 'request', $request->id, $reviewReason, $actor, $ipAddress);
                 $request->update([
                     'status' => 'approved',
@@ -209,7 +217,7 @@ final readonly class CustomerTransferManager
             $customer = $this->lockedCustomer($customerId);
             $context = $this->access->forUser($actor);
             $this->assertReviewer($customer, $actor, $context);
-            $this->assertTarget($toOwnerId, $context);
+            $this->assertTarget($customer, $toOwnerId, $context);
             $reason = $this->requiredReason($reason);
             if ((int) $customer->owner_id === $toOwnerId) {
                 throw new DomainException(__('customers.transfer.errors.same_owner'));
@@ -223,7 +231,17 @@ final readonly class CustomerTransferManager
                     'reviewed_at' => $this->clock->now(),
                     'review_reason' => __('customers.transfer.errors.superseded'),
                 ]);
-            $this->applyTransfer($customer, $toOwnerId, $context->isSuperAdmin() && $this->crossGroupTarget($customer, $toOwnerId, $context) ? 'admin_cross_group' : 'bd_direct', null, $reason, $actor, $ipAddress);
+            $this->applyTransfer(
+                $customer,
+                $toOwnerId,
+                $customer->source_type === 'direct'
+                    ? 'admin_direct'
+                    : ($context->isSuperAdmin() && $this->crossGroupTarget($customer, $toOwnerId, $context) ? 'admin_cross_group' : 'bd_direct'),
+                null,
+                $reason,
+                $actor,
+                $ipAddress,
+            );
         }, 3);
     }
 
@@ -237,11 +255,11 @@ final readonly class CustomerTransferManager
         }
         DB::transaction(function () use ($customerIds, $toOwnerId, $reason, $actor, $ipAddress): void {
             $context = $this->access->forUser($actor);
-            $this->assertTarget($toOwnerId, $context);
             $reason = $this->requiredReason($reason);
             foreach ($customerIds as $customerId) {
                 $customer = $this->lockedCustomer($customerId);
                 $this->assertReviewer($customer, $actor, $context);
+                $this->assertTarget($customer, $toOwnerId, $context);
                 if ((int) $customer->owner_id === $toOwnerId) {
                     throw new DomainException(__('customers.transfer.errors.same_owner'));
                 }
@@ -254,7 +272,7 @@ final readonly class CustomerTransferManager
                         'reviewed_at' => $this->clock->now(),
                         'review_reason' => __('customers.transfer.errors.superseded'),
                     ]);
-                $this->applyTransfer($customer, $toOwnerId, 'batch', null, $reason, $actor, $ipAddress);
+                $this->applyTransfer($customer, $toOwnerId, $customer->source_type === 'direct' ? 'admin_direct' : 'batch', null, $reason, $actor, $ipAddress);
             }
         }, 3);
     }
@@ -352,29 +370,46 @@ final readonly class CustomerTransferManager
     {
         $context ??= $this->access->current();
         abort_unless($context->canViewCustomer(
-            $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
-            $customer->owner_id === null ? null : (int) $customer->owner_id,
+            sourceType: (string) $customer->source_type,
+            sourceAgentId: $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
+            ownerId: $customer->owner_id === null ? null : (int) $customer->owner_id,
         ), 404);
     }
 
     private function assertOwnerCanRequest(Customer $customer, User $actor, AccessContext $context): void
     {
         $this->assertVisible($customer, $context);
-        abort_unless($context->isCustomerService() && (int) $customer->owner_id === (int) $actor->id, 403);
+        $canRequest = $customer->source_type === 'direct'
+            ? $context->isDirectCustomerManager()
+            : $context->isCustomerService();
+        abort_unless($canRequest && (int) $customer->owner_id === (int) $actor->id, 403);
     }
 
     private function assertReviewer(Customer $customer, User $actor, AccessContext $context): void
     {
         $this->assertVisible($customer, $context);
-        abort_unless($context->isSuperAdmin() || $context->isBdManager(), 403);
+        $canReview = $customer->source_type === 'direct'
+            ? $context->isSuperAdmin()
+            : ($context->isSuperAdmin() || $context->isBdManager());
+        abort_unless($canReview, 403);
         abort_unless($context->isSuperAdmin() || $context->canViewCustomer(
-            $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
-            $customer->owner_id === null ? null : (int) $customer->owner_id,
+            sourceType: (string) $customer->source_type,
+            sourceAgentId: $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
+            ownerId: $customer->owner_id === null ? null : (int) $customer->owner_id,
         ), 404);
     }
 
-    private function assertTarget(int $toOwnerId, AccessContext $context): void
+    private function assertTarget(Customer $customer, int $toOwnerId, AccessContext $context): void
     {
+        if ($customer->source_type === 'direct') {
+            $directOwnerIds = array_column($this->users->eligibleDirectCustomerManagers(), 'id');
+            if (! in_array($toOwnerId, array_map('intval', $directOwnerIds), true)) {
+                throw new DomainException(__('customers.transfer.errors.target_unavailable'));
+            }
+
+            return;
+        }
+
         $groupIds = $context->isSuperAdmin() || $context->businessGroupIds === [] ? null : $context->businessGroupIds;
         if (! $this->memberships->isActiveCustomerServiceInGroups($toOwnerId, $groupIds, $this->clock->now()->toDateString())) {
             throw new DomainException(__('customers.transfer.errors.target_unavailable'));

@@ -44,13 +44,15 @@ final readonly class CustomerStatusManager
             $customer = Customer::query()->lockForUpdate()->findOrFail($customerId);
             $context = $this->access->forUser($actor);
             abort_unless($context->canViewCustomer(
-                $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
-                $customer->owner_id === null ? null : (int) $customer->owner_id,
+                sourceType: (string) $customer->source_type,
+                sourceAgentId: $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
+                ownerId: $customer->owner_id === null ? null : (int) $customer->owner_id,
             ), 404);
             abort_unless(
                 $context->isSuperAdmin()
                 || $context->isBdManager()
-                || ($context->isCustomerService() && (int) $customer->owner_id === (int) $actor->id),
+                || ($context->isCustomerService() && (int) $customer->owner_id === (int) $actor->id)
+                || ($context->isDirectCustomerManager() && (string) $customer->source_type === 'direct' && (int) $customer->owner_id === (int) $actor->id),
                 403,
             );
             $current = $customer->current_status_id === null
@@ -123,6 +125,7 @@ final readonly class CustomerStatusManager
                     completedAt: $completedAt,
                     ownerId: $customer->owner_id === null ? null : (int) $customer->owner_id,
                     actorId: (int) $actor->id,
+                    sourceType: (string) $customer->source_type,
                 ));
             }
             if ($target->key === 'arrived') {

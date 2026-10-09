@@ -16,6 +16,8 @@ use App\Modules\Settlement\Application\Contracts\OrderFinancialReader;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Carbon;
+use Illuminate\Validation\ValidationException;
 
 final readonly class OrderManagementWorkspace
 {
@@ -34,28 +36,37 @@ final readonly class OrderManagementWorkspace
     /** @return array<string, array<int, array<string, mixed>>> */
     public function options(): array
     {
+        $context = $this->access->current();
+        $agents = $context->isDirectCustomerManager() || $context->userId === null
+            ? []
+            : array_values($this->agents->activeAgents());
+        if ($context->isCustomerService() && $context->userId !== null) {
+            $ownerAgentIds = array_fill_keys($this->customers->agentIdsForOwner($context->userId), true);
+            $agents = array_values(array_filter($agents, static fn (array $agent): bool => isset($ownerAgentIds[(int) $agent['id']])));
+        }
+
         return [
-            'agents' => array_values($this->agents->activeAgents()),
+            'agents' => $agents,
             'institutions' => array_values($this->institutions->activeInstitutions()),
             'treatment_projects' => $this->dictionary->activeItems('treatment_project'),
             'translator_languages' => $this->dictionary->activeItems('translator_language'),
         ];
     }
 
-    /** @return array{id: int, code: string, name: string, source_agent_id: int, owner_id: int|null} */
+    /** @return array<string, mixed> */
     public function customer(int $customerId): array
     {
         return $this->customers->customerForOrder($customerId);
     }
 
-    /** @return array<int, array{id: int, code: string, name: string, source_agent_id: int, owner_id: int|null}> */
+    /** @return array<int, array<string, mixed>> */
     public function customerCandidates(string $search): array
     {
         return $this->customers->searchCustomersForOrder($search);
     }
 
     /**
-     * @param  array{search?: string, status?: string, institution_id?: int|null, agent_id?: int|null}  $filters
+     * @param  array{search?: string, status?: string, institution_id?: int|null, agent_id?: int|null, date_field?: string, date_from?: string, date_to?: string, source_type?: string}  $filters
      * @return LengthAwarePaginator<int, array{
      *     id: int,
      *     customer_id: int,
@@ -63,11 +74,13 @@ final readonly class OrderManagementWorkspace
      *     customer_code: string,
      *     institution: string,
      *     source: string,
+     *     source_type: string,
      *     project_name: string,
      *     amount_krw: int,
      *     status: string,
      *     occurred_on: string|null,
      *     completed_at: string|null,
+     *     completion_precision: string,
      *     created_at: string|null
      * }>
      */
@@ -99,6 +112,25 @@ final readonly class OrderManagementWorkspace
         if (($filters['agent_id'] ?? null) !== null) {
             $query->where('agent_id', $filters['agent_id']);
         }
+        $dateField = (string) ($filters['date_field'] ?? 'created_at');
+        if (! in_array($dateField, ['created_at', 'completed_at'], true)) {
+            throw ValidationException::withMessages(['dateField' => __('orders.errors.invalid_date_field')]);
+        }
+        $dateFrom = trim((string) ($filters['date_from'] ?? ''));
+        $dateTo = trim((string) ($filters['date_to'] ?? ''));
+        if ($dateFrom !== '') {
+            $query->where($dateField, '>=', $this->dateBoundary($dateFrom, false, 'dateFrom'));
+        }
+        if ($dateTo !== '') {
+            $query->where($dateField, '<=', $this->dateBoundary($dateTo, true, 'dateTo'));
+        }
+        $sourceType = (string) ($filters['source_type'] ?? '');
+        if ($sourceType !== '') {
+            if (! in_array($sourceType, ['agent', 'direct'], true)) {
+                throw ValidationException::withMessages(['sourceTypeFilter' => __('orders.errors.invalid_source_type')]);
+            }
+            $query->where('source_type', $sourceType);
+        }
 
         $page = $query->latest('id')->paginate($perPage);
         $orders = $page->getCollection();
@@ -121,12 +153,16 @@ final readonly class OrderManagementWorkspace
                 'customer_name' => (string) ($customer['name'] ?? __('orders.values.unknown_customer')),
                 'customer_code' => (string) ($customer['code'] ?? __('orders.values.empty')),
                 'institution' => (string) ($institutionLabels[(int) $order->institution_id]['name'] ?? __('orders.values.unknown_institution')),
-                'source' => (string) ($agentLabels[(int) $order->agent_id]['name'] ?? __('orders.values.unknown_agent')),
+                'source' => (string) ($order->source_type === 'direct'
+                    ? ($customer['direct_channel_name'] ?? __('orders.values.direct_customer'))
+                    : ($agentLabels[(int) $order->agent_id]['name'] ?? __('orders.values.unknown_agent'))),
+                'source_type' => (string) $order->source_type,
                 'project_name' => (string) $order->project_name,
                 'amount_krw' => (int) $order->amount_krw,
                 'status' => (string) $order->status,
                 'occurred_on' => $order->occurred_on?->format('Y-m-d'),
                 'completed_at' => $order->completed_at?->format('Y-m-d H:i'),
+                'completion_precision' => (string) $order->completion_precision,
                 'created_at' => $order->created_at?->format('Y-m-d H:i'),
             ];
         });
@@ -177,13 +213,14 @@ final readonly class OrderManagementWorkspace
         $canEdit = ($context->isSuperAdmin() || ($context->isBdManager() && $context->canViewAgent((int) $order->agent_id)))
             && in_array((string) $order->status, ['pending', 'completed'], true)
             && $order->deleted_at === null
-            && ($this->financials->forOrder((int) $order->id)['settlement'] ?? null) === null;
+            && ($this->financials->forOrder((int) $order->id, (int) $order->customer_id)['settlement'] ?? null) === null;
 
         return [
             'id' => (int) $order->id,
             'customer' => $customer,
             'institution' => $institution,
             'agent' => $agent,
+            'source_type' => (string) $order->source_type,
             'project_name' => (string) $order->project_name,
             'amount_krw' => (int) $order->amount_krw,
             'status' => (string) $order->status,
@@ -208,7 +245,7 @@ final readonly class OrderManagementWorkspace
                 'size_bytes' => (int) $file->size_bytes,
             ])->all(),
             'can_edit' => $canEdit,
-            'financial' => $this->financials->forOrder((int) $order->id),
+            'financial' => $this->financials->forOrder((int) $order->id, (int) $order->customer_id),
             'reminders' => $this->reminders->forOrder((int) $order->id),
             'audit' => array_map(fn ($entry): array => [
                 'description' => $entry->description,
@@ -316,6 +353,13 @@ final readonly class OrderManagementWorkspace
             return;
         }
 
+        if ($context->isDirectCustomerManager()) {
+            $customerIds = $context->userId === null ? [] : $this->customers->directCustomerIdsForOwner($context->userId);
+            $query->where('source_type', 'direct')->whereIn('customer_id', $customerIds);
+
+            return;
+        }
+
         if (! $context->hasEffectiveBusinessScope()) {
             $query->whereRaw('1 = 0');
 
@@ -323,12 +367,22 @@ final readonly class OrderManagementWorkspace
         }
 
         $query->where(function ($scope) use ($context): void {
-            if ($context->userId !== null) {
+            if ($context->userId !== null && ! $context->isBdManager()) {
                 $scope->where('owner_id', $context->userId);
             }
             if ($context->agentIds !== []) {
                 $scope->orWhereIn('agent_id', $context->agentIds);
             }
         });
+    }
+
+    private function dateBoundary(string $date, bool $endOfDay, string $property): Carbon
+    {
+        $boundary = Carbon::createFromFormat('!Y-m-d', $date, (string) config('app.timezone'));
+        if ($boundary === null || $boundary->format('Y-m-d') !== $date) {
+            throw ValidationException::withMessages([$property => __('orders.errors.invalid_date')]);
+        }
+
+        return $endOfDay ? $boundary->endOfDay() : $boundary->startOfDay();
     }
 }

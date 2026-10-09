@@ -93,7 +93,11 @@ final readonly class CustomerStatusApprovalManager
             $customer = $this->lockedCustomer((int) $request->customer_id);
             $context = $this->access->forUser($actor);
             $this->assertVisible($customer, $context);
-            abort_unless($context->isCustomerService() && (int) $request->requested_by === (int) $actor->id, 403);
+            abort_unless(
+                ($context->isCustomerService() || $context->isDirectCustomerManager())
+                && (int) $request->requested_by === (int) $actor->id,
+                403,
+            );
             $this->assertPending($request->status);
             $request->update(['status' => 'withdrawn', 'reviewed_by' => $actor->id, 'reviewed_at' => $this->clock->now()]);
             $this->audit->record(
@@ -199,15 +203,20 @@ final readonly class CustomerStatusApprovalManager
     {
         $context ??= $this->access->current();
         abort_unless($context->canViewCustomer(
-            $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
-            $customer->owner_id === null ? null : (int) $customer->owner_id,
+            sourceType: (string) $customer->source_type,
+            sourceAgentId: $customer->source_agent_id === null ? null : (int) $customer->source_agent_id,
+            ownerId: $customer->owner_id === null ? null : (int) $customer->owner_id,
         ), 404);
     }
 
     private function assertOwnerCanRequest(Customer $customer, User $actor, AccessContext $context): void
     {
         $this->assertVisible($customer, $context);
-        abort_unless($context->isCustomerService() && (int) $customer->owner_id === (int) $actor->id, 403);
+        abort_unless(
+            ($context->isCustomerService() || $context->isDirectCustomerManager())
+            && (int) $customer->owner_id === (int) $actor->id,
+            403,
+        );
     }
 
     private function assertReviewer(Customer $customer, AccessContext $context): void

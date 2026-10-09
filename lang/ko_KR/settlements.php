@@ -157,5 +157,12 @@ return [
         'legacy_unknown' => '과거 실패 사유를 안전하게 식별할 수 없습니다. 관리자에게 보호된 서비스 로그 확인을 요청하세요.',
     ],
     'quote_failures' => ['unavailable' => '현재 환율 시세를 가져올 수 없습니다. 잠시 후 다시 시도하거나 직접 입력하세요.'],
+    'direct_commission' => [
+        'title' => '직접 고객 수수료', 'back' => '대시보드로 돌아가기',
+        'description' => '직접 고객 담당자와 주문 완료 시점의 규칙에 따라 계산된 개인 수수료를 확인합니다.',
+        'rate' => '수수료율', 'order_amount' => '주문 금액 KRW', 'commission' => '수수료 금액 KRW', 'channel' => '직접 고객 채널', 'completed_at' => '완료 시각', 'status' => '상태', 'active' => '유효', 'voided' => '무효화됨', 'empty' => '직접 고객 수수료 기록이 없습니다.',
+        'errors' => ['rate_missing' => '주문 완료일에 적용되는 직접 고객 수수료율이 없습니다. 먼저 규칙을 설정하세요.', 'rate_out_of_range' => '직접 고객 수수료율은 0%에서 100% 사이여야 합니다.', 'reason_required' => '직접 고객 수수료 규칙을 저장하려면 사유를 입력해야 합니다.', 'period_invalid' => '수수료 규칙 종료일은 시작일보다 빠를 수 없습니다.', 'effective_date_exists' => '해당 적용일의 직접 고객 수수료 규칙이 이미 있습니다.', 'void_reason_required' => '직접 고객 수수료를 무효화하려면 사유를 입력해야 합니다.'],
+        'audit' => ['rate_saved' => '직접 고객 수수료 규칙 저장', 'commission_created' => '직접 고객 주문 수수료 계산', 'commission_voided' => '직접 고객 주문 수수료 무효화'],
+    ],
     'failure_fallbacks' => ['agent_code' => '알 수 없음', 'agent_name' => '에이전시가 없거나 삭제되었습니다.'],
 ];

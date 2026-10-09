@@ -3,8 +3,10 @@
 > 适用基线：Ubuntu Server 24.04 LTS x86-64、Docker Engine、Compose Plugin。  
 > 本文描述单机生产基线，不适用于开发环境。
 
-当前 Production 根目录为 `/srv/gn-system/production`，尚未首次部署。UAT 已使用
-`/srv/gn-system`，两者不能交换或共用。环境对照、UAT 更新、日常命令和故障处理见
+Production 根目录为 `/srv/gn-system/production`，UAT 根目录为 `/srv/gn-system`，
+两者不能交换或共用。2026-10-07 服务器连接超时，实际部署状态待核验；历史记录的
+“Production 仅初始化”不能作为本次首次部署判断依据。先只读确认已有版本、数据及备份，
+已运行环境按升级流程保留数据，未初始化环境才按首次准备步骤执行。环境对照、UAT 更新、日常命令和故障处理见
 [完整运维手册](operations-manual.md)。GHCR 不稳定时，镜像传输和离线部署按
 [局域网离线镜像部署](offline-deployment.md)执行，并替换为 Production 的独立路径和环境文件。
 

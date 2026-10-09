@@ -23,6 +23,7 @@ use App\Modules\Customer\Infrastructure\Models\CustomerOwnerHistory;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatusTransition;
+use App\Modules\Customer\Infrastructure\Models\DirectCustomerChannel;
 use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
 use App\Modules\Reminder\Application\Contracts\CustomerFollowupGateway;
 use App\Support\DateRange;
@@ -51,14 +52,23 @@ final readonly class CustomerDirectory
     ) {}
 
     /**
-     * @param  array{search?: string, status_id?: int|null, agent_id?: int|null, institution_id?: int|null, owner_id?: int|null, owner_state?: string, transfer_status?: string, business_group_id?: int|null, created_from?: string, created_to?: string}  $filters
-     * @return LengthAwarePaginator<int, array{id: int, code: string, name: string, contact_masked: string, document_masked: string, status: string, source: string, owner_id: int|null, owner: string|null, created_at: string|null}>
+     * @param  array{search?: string, source_type?: string|null, status_id?: int|null, agent_id?: int|null, institution_id?: int|null, owner_id?: int|null, owner_state?: string, transfer_status?: string, business_group_id?: int|null, created_from?: string, created_to?: string}  $filters
+     * @return LengthAwarePaginator<int, array{id: int, code: string, name: string, contact_masked: string, document_masked: string, status: string, source_type: string, source: string, owner_id: int|null, owner: string|null, created_at: string|null}>
      */
     public function paginate(array $filters, int $perPage): LengthAwarePaginator
     {
-        $query = Customer::query()->with(['primaryContact', 'identityDocument', 'currentStatus']);
+        if (($filters['source_type'] ?? null) === 'agent') {
+            $this->assertAgentCustomerAccess();
+        } elseif (($filters['source_type'] ?? null) === 'direct') {
+            $context = $this->access->current();
+            abort_unless($context->isSuperAdmin() || $context->isDirectCustomerManager(), 403);
+        }
+        $query = Customer::query()->with(['primaryContact', 'identityDocument', 'currentStatus', 'directChannel']);
         $this->applyScope($query);
         $context = $this->access->current();
+        if (($filters['source_type'] ?? null) !== null) {
+            $query->where('source_type', (string) $filters['source_type']);
+        }
         $search = trim((string) ($filters['search'] ?? ''));
         if ($search !== '') {
             $hash = $this->blindIndex->for($search);
@@ -145,7 +155,12 @@ final readonly class CustomerDirectory
                 'status' => $customer->currentStatus === null
                     ? __('customers.fallback.unset')
                     : $this->labels->status((string) $customer->currentStatus->key, $customer->currentStatus->name),
-                'source' => (string) ($agentLabels[(int) $customer->source_agent_id]['name'] ?? __('customers.fallback.unknown_agent')),
+                'source_type' => (string) $customer->source_type,
+                'source' => $customer->source_type === 'direct'
+                    ? ($customer->directChannel === null
+                        ? __('customers.fallback.unknown_source')
+                        : (string) $customer->directChannel->name)
+                    : (string) ($agentLabels[(int) $customer->source_agent_id]['name'] ?? __('customers.fallback.unknown_agent')),
                 'owner_id' => $customer->owner_id === null ? null : (int) $customer->owner_id,
                 'owner' => $customer->owner_id === null ? null : ($ownerLabels[(int) $customer->owner_id] ?? null),
                 'created_at' => $customer->created_at?->format('Y-m-d H:i'),
@@ -174,11 +189,32 @@ final readonly class CustomerDirectory
     }
 
     /** @return array<string, mixed> */
-    public function options(): array
+    public function options(bool $forCustomerList = false): array
     {
+        $this->assertAgentCustomerAccess();
+        $agents = array_values($this->agents->activeAgents());
+        $context = $this->access->current();
+        if ($forCustomerList && $context->isCustomerService()) {
+            $ownedAgentIds = Customer::query()->where('source_type', 'agent')
+                ->where('owner_id', $context->userId)->whereNotNull('source_agent_id')
+                ->distinct()->pluck('source_agent_id')->map(fn ($id): int => (int) $id)->all();
+            $ownedAgents = array_fill_keys($ownedAgentIds, true);
+            $agents = array_values(array_filter($agents, static fn (array $agent): bool => isset($ownedAgents[(int) $agent['id']])));
+        }
+
         return [
-            'agents' => array_values($this->agents->activeAgents()),
+            'agents' => $agents,
             'institutions' => array_values($this->institutions->activeInstitutions()),
+            'direct_channels' => DirectCustomerChannel::query()
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get(['id', 'code', 'name'])
+                ->map(fn (DirectCustomerChannel $channel): array => [
+                    'id' => (int) $channel->id,
+                    'code' => (string) $channel->code,
+                    'name' => (string) $channel->name,
+                ])->all(),
             'statuses' => CustomerStatus::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'key', 'name', 'stage_id', 'sort_order'])
                 ->map(fn (CustomerStatus $status): array => [
                     'id' => $status->id,
@@ -197,6 +233,53 @@ final readonly class CustomerDirectory
         ];
     }
 
+    /** @return array<string, mixed> */
+    public function directCustomerOptions(bool $includeOwnerCandidates = false): array
+    {
+        $context = $this->access->current();
+        abort_unless($context->isSuperAdmin() || $context->isDirectCustomerManager(), 403);
+        abort_unless(! $includeOwnerCandidates || $context->isSuperAdmin(), 403);
+        $options = [
+            'institutions' => array_values($this->institutions->activeInstitutions()),
+            'direct_channels' => DirectCustomerChannel::query()
+                ->where('is_active', true)
+                ->orderBy('sort_order')
+                ->orderBy('id')
+                ->get(['id', 'code', 'name'])
+                ->map(fn (DirectCustomerChannel $channel): array => [
+                    'id' => (int) $channel->id,
+                    'code' => (string) $channel->code,
+                    'name' => (string) $channel->name,
+                ])->all(),
+            'statuses' => CustomerStatus::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'key', 'name', 'stage_id', 'sort_order'])
+                ->map(fn (CustomerStatus $status): array => [
+                    'id' => $status->id,
+                    'key' => $status->key,
+                    'name' => $this->labels->status((string) $status->key, $status->name),
+                    'stage_id' => $status->stage_id,
+                    'sort_order' => $status->sort_order,
+                ])->all(),
+            'stages' => CustomerLifecycleStage::query()->where('is_active', true)->orderBy('sort_order')->get(['id', 'key', 'name', 'sort_order'])
+                ->map(fn (CustomerLifecycleStage $stage): array => [
+                    'id' => $stage->id,
+                    'key' => $stage->key,
+                    'name' => $this->labels->stage((string) $stage->key, $stage->name),
+                    'sort_order' => $stage->sort_order,
+                ])->all(),
+        ];
+        if ($includeOwnerCandidates) {
+            $options['users'] = $this->directOwnerCandidates();
+        }
+
+        return $options;
+    }
+
+    public function assertAgentCustomerAccess(): void
+    {
+        $context = $this->access->current();
+        abort_unless($context->isSuperAdmin() || $context->isBdManager() || $context->isCustomerService(), 403);
+    }
+
     /** @return list<array{id: int, name: string}> */
     public function ownerCandidates(): array
     {
@@ -211,13 +294,21 @@ final readonly class CustomerDirectory
         return array_values(array_filter($users, fn (array $user): bool => isset($allowed[(int) $user['id']])));
     }
 
+    /** @return list<array{id: int, name: string}> */
+    public function directOwnerCandidates(): array
+    {
+        return $this->assignableUsers->eligibleDirectCustomerManagers();
+    }
+
     /** @return array<string, mixed> */
     public function profile(int $customerId): array
     {
-        $customer = Customer::query()->with(['primaryContact', 'identityDocument', 'currentStatus']);
+        $customer = Customer::query()->with(['primaryContact', 'identityDocument', 'currentStatus', 'directChannel']);
         $this->applyScope($customer);
         $customer = $customer->findOrFail($customerId);
-        $canViewSensitive = $this->access->current()->canDownloadSensitiveCustomerData($customer->owner_id === null ? null : (int) $customer->owner_id);
+        $context = $this->access->current();
+        abort_unless($customer->source_type === 'agent' || $context->isSuperAdmin() || $context->isDirectCustomerManager(), 404);
+        $canViewSensitive = $context->canDownloadSensitiveCustomerData($customer->owner_id === null ? null : (int) $customer->owner_id);
 
         return [
             'id' => $customer->id,
@@ -226,7 +317,12 @@ final readonly class CustomerDirectory
             'gender' => $customer->gender,
             'birth_date' => $customer->birth_date?->format('Y-m-d'),
             'source_agent_id' => $customer->source_agent_id,
-            'source_agent_name' => $this->agents->agentsByIds([(int) $customer->source_agent_id])[(int) $customer->source_agent_id]['name'] ?? null,
+            'source_type' => (string) $customer->source_type,
+            'source_agent_name' => $customer->source_agent_id === null
+                ? null
+                : ($this->agents->agentsByIds([(int) $customer->source_agent_id])[(int) $customer->source_agent_id]['name'] ?? null),
+            'direct_channel_id' => $customer->direct_channel_id === null ? null : (int) $customer->direct_channel_id,
+            'direct_channel_name' => $customer->directChannel?->name,
             'current_status_id' => $customer->current_status_id,
             'current_status' => $customer->currentStatus === null
                 ? null
@@ -512,20 +608,26 @@ final readonly class CustomerDirectory
             return;
         }
 
-        if (! $context->hasEffectiveBusinessScope()) {
+        if ($context->isDirectCustomerManager()) {
+            $query->where('source_type', 'direct')
+                ->where('owner_id', $context->userId);
+
+            return;
+        }
+
+        if ($context->isCustomerService()) {
+            $query->where('owner_id', $context->userId);
+
+            return;
+        }
+
+        if (! $context->isBdManager() || $context->agentIds === []) {
             $query->whereRaw('1 = 0');
 
             return;
         }
 
-        $query->where(function ($scope) use ($context): void {
-            if ($context->userId !== null) {
-                $scope->where('owner_id', $context->userId);
-            }
-            if ($context->agentIds !== []) {
-                $scope->orWhereIn('source_agent_id', $context->agentIds);
-            }
-        });
+        $query->where('source_type', 'agent')->whereIn('source_agent_id', $context->agentIds);
     }
 
     private function statusTransitionKey(int $fromStatusId, int $toStatusId): string

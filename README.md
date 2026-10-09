@@ -4,10 +4,13 @@ GN-System 是面向医美/医疗代理业务的内部客户管理系统，用于
 Excel 客户、代理商、订单和结算数据。当前已完成 Phase 1 基础架构、Phase 2
 核心数据与导入能力、Phase 3 客户全生命周期及 Phase 4 代理商与推广费核算核心
 闭环、Phase 5 月结、结算单与主动提醒中心，以及 Phase 6 多维查询、真实数据看板
-和配置中心，并已启用独立订单中心。`develop` 已包含角色/业务组、权限范围、负责人移交、
-机构回传订单事实和 BD 季度提成实现；当前 `feature/institution-monthly-sales` 正在补充
-机构月度销售额总览。上述最新能力尚未发布或完成 UAT/Production 验收；真实历史数据迁移仍待
-正式源文件、错误处理和抽样核对。
+和配置中心，并已启用独立订单中心。角色/业务组、权限范围、负责人移交、机构回传订单事实、
+BD 季度提成及机构月度销售额总览已进入版本历史。2026-10-07 发布准备时，远程最新正式
+标签为 `v0.5.3`（`9001f7b`），对应 RC 为 `v0.5.3-rc.1`；标签不代表服务器已部署或验收。
+直客业务线 PR1–PR6 及审查修复集中在 PR #41，本次发布目标为 `v0.6.0-rc.1`，UAT 验收
+通过后才晋级 `v0.6.0`。合并与制品结果以 GitHub PR、标签和发布工作流为准；本次服务器
+连接超时，UAT/Production 实际版本、迁移及验收状态待核验。真实历史数据迁移仍待正式
+源文件、错误处理和抽样核对。
 
 ## 技术基线
 
@@ -30,8 +33,13 @@ PHP、Composer、Node.js、PostgreSQL 和 Redis 全部由 Docker 提供，Window
 git clone https://github.com/Moh114514/GN-System.git
 Set-Location GN-System
 Copy-Item .env.example .env
-docker compose up --build -d
+docker compose build app
+docker compose up --no-build -d
 ```
+
+app、queue 和 scheduler 共用同一开发镜像，因此只构建 app，再启动全部服务；
+避免新版本 Docker/BuildKit 并行导出同名镜像时发生冲突。此步骤仅适用于本地开发，
+UAT/Production 继续使用标签工作流构建的 app/web 镜像和标准发布脚本。
 
 首次启动会安装 PHP 依赖、生成本地 `APP_KEY` 并执行数据库迁移。服务就绪后：
 
@@ -71,7 +79,8 @@ Copy-Item .env.testing.example .env.testing
 
 ```powershell
 # 启动或重建
-docker compose up --build -d
+docker compose build app
+docker compose up --no-build -d
 
 # 查看服务状态和日志
 docker compose ps

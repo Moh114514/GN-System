@@ -40,6 +40,7 @@ final class DatabaseReminderSourceReader implements ReminderSourceReader
                 projectName: (string) $order->project_name,
                 completedOn: CarbonImmutable::parse($order->completed_on),
                 ownerId: $order->owner_id === null ? null : (int) $order->owner_id,
+                sourceType: (string) $order->source_type,
             ))
             ->all();
     }

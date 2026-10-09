@@ -17,10 +17,12 @@ use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Report\Application\Services\InstitutionMonthlySalesDetailService;
 use App\Modules\Report\Application\Services\InstitutionMonthlySalesService;
 use App\Modules\Report\Application\Services\ReportExportManager;
+use App\Modules\Report\Application\Services\ReportSearch;
 use App\Modules\Report\Presentation\Livewire\InstitutionMonthlySales;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use PhpOffice\PhpSpreadsheet\IOFactory;
@@ -265,6 +267,56 @@ class InstitutionMonthlySalesTest extends TestCase
         $this->actingAs($customerService);
         $this->expectException(HttpException::class);
         app(ReportExportManager::class)->startInstitutionMonthlySales($customerService, '2026-08');
+    }
+
+    public function test_direct_customer_manager_sees_only_owned_direct_institution_sales_and_can_search(): void
+    {
+        $manager = User::factory()->create(['role' => UserRole::DirectCustomerManager]);
+        $otherManager = User::factory()->create(['role' => UserRole::DirectCustomerManager]);
+        $channelId = (int) DB::table('direct_customer_channels')->value('id');
+        $customerA = Customer::query()->create([
+            'code' => 'DC-SALES-'.uniqid(),
+            'name' => '直客销售客户 A',
+            'source_type' => 'direct',
+            'source_agent_id' => null,
+            'direct_channel_id' => $channelId,
+            'owner_id' => $manager->id,
+            'current_status_id' => CustomerStatus::query()->where('key', 'booked')->value('id'),
+        ]);
+        $customerB = Customer::query()->create([
+            'code' => 'DC-SALES-'.uniqid(),
+            'name' => '其他负责人客户',
+            'source_type' => 'direct',
+            'source_agent_id' => null,
+            'direct_channel_id' => $channelId,
+            'owner_id' => $otherManager->id,
+            'current_status_id' => CustomerStatus::query()->where('key', 'booked')->value('id'),
+        ]);
+        $orderA = $this->order($customerA, $this->institutionA, 700_000, '2026-08-10', 'completed', 'active');
+        $orderA->update(['source_type' => 'direct', 'agent_id' => null, 'owner_id' => $manager->id]);
+        $orderB = $this->order($customerB, $this->institutionA, 9_000_000, '2026-08-10', 'completed', 'active');
+        $orderB->update(['source_type' => 'direct', 'agent_id' => null, 'owner_id' => $otherManager->id]);
+
+        $this->actingAs($manager)
+            ->get(route('reports.institution-sales', ['month' => '2026-08']))
+            ->assertOk()
+            ->assertSee('700,000')
+            ->assertDontSee('9,000,000');
+        $this->get(route('reports.institution-sales.show', [
+            'institution' => $this->institutionA->id,
+            'month' => '2026-08',
+        ]))->assertOk()
+            ->assertSee('700,000')
+            ->assertDontSee('9,000,000')
+            ->assertDontSee(__('institution_sales.detail.agent_breakdown'));
+        $this->assertSame(1, app(ReportSearch::class)->count([]));
+
+        Storage::fake('local');
+        $searchExport = app(ReportExportManager::class)->startSearch($manager, []);
+        $this->assertSame('completed', $searchExport->status);
+        $export = app(ReportExportManager::class)->startInstitutionMonthlySales($manager, '2026-08');
+        $this->assertSame('completed', $export->status);
+        $this->assertSame(700_000, $export->data_snapshot['total_amount_krw']);
     }
 
     public function test_page_filter_and_xlsx_export_use_the_same_summary_values(): void

@@ -10,6 +10,7 @@ use App\Modules\Auth\Application\Contracts\UserManagementGateway;
 use App\Modules\Auth\Domain\UserRole;
 use App\Modules\Auth\Infrastructure\Notifications\InternalUserInvitationNotification;
 use App\Modules\Auth\Infrastructure\Notifications\UserPasswordResetNotification;
+use App\Modules\Customer\Application\Contracts\DirectCustomerOwnershipReader;
 use DomainException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Password;
@@ -21,6 +22,7 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
     public function __construct(
         private AuditRecorder $audit,
         private BusinessClock $clock,
+        private DirectCustomerOwnershipReader $directCustomers,
     ) {}
 
     public function users(): array
@@ -162,6 +164,10 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
                 })
                 ->exists()) {
                 throw new DomainException(__('auth.errors.user_role_has_active_membership'));
+            }
+            $directCustomerCount = $this->directCustomers->countOwnedByUser((int) $user->id);
+            if ($currentRole === UserRole::DirectCustomerManager && $newRole !== UserRole::DirectCustomerManager && $directCustomerCount > 0) {
+                throw new DomainException(__('auth.errors.user_role_has_direct_customers', ['count' => $directCustomerCount]));
             }
             $before = $currentRole->value;
             $user->update([

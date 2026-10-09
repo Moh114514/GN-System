@@ -14,6 +14,7 @@ return [
         'last_super_admin_disable' => '활성화된 마지막 슈퍼 관리자를 비활성화할 수 없습니다.',
         'user_role_invalid' => '사용자 역할이 올바르지 않습니다.',
         'user_role_has_active_membership' => '이 사용자에게 유효한 업무 그룹 구성원 관계가 있습니다. 먼저 기존 관계를 종료하세요.',
+        'user_role_has_direct_customers' => '이 사용자가 아직 직접 고객 :count명을 담당하고 있습니다. 고객을 이전한 후 역할을 변경하세요.',
         'business_group_code_invalid' => '업무 그룹 코드는 2~32자의 영문자, 숫자, 밑줄 또는 하이픈이어야 합니다.',
         'business_group_name_required' => '업무 그룹 이름을 입력하세요.',
         'business_group_name_too_long' => '업무 그룹 이름은 255자를 초과할 수 없습니다.',
