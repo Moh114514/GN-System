@@ -1,5 +1,29 @@
 # GN-System 完整运维手册
 
+## 2026-10-09 候选版本与本机恢复核验
+
+直客方案、审查修复和管理员渠道维护已通过 PR #41 合入 `develop`，通过 PR #42 合入
+`main`。annotated `v0.6.0-rc.1` 已推送，固定指向发布提交
+`290a36809ac2ccdc236a3177fb6b6689bdfeace9`；app/web 制品状态和 digest 以
+[RC 工作流](https://github.com/Moh114514/GN-System/actions/runs/37924051352)与 GHCR 为准。
+正式 `v0.6.0` 尚未创建，UAT/Production 未部署本次候选版本，实际运行版本、备份与
+schema 仍待核验。后续文档提交不移动 RC；UAT 通过后按原提交和 digest 晋级。
+
+最终发布提交本地 `composer ci:check` 通过 503 项测试/3284 断言，Pint 630 文件、
+PHPStan 529 文件、47 Markdown/10 ADR及模块边界通过，Vite 597 模块构建成功。
+共享 hook 再次完整验证通过；新增渠道最终回归 8 项/104 断言通过。同秒审计按事件和
+前后快照定位，不能假设仅按时间排序的记录在同秒时具有固定顺序。10 月 9 日本机额外
+联网审计因 TLS/DNS 失败；同一 `develop` 提交的远端 CI 已通过最新安全审计。
+
+本机 Windows Docker Desktop 曾在引擎启动前因无法访问残留的 `dockerInference` 和
+`engine.sock` AF_UNIX socket 崩溃。只对已核对的 runtime-only 目录保存改名，未重置或
+删除镜像、数据卷、WSL 数据盘和配置；备份保留为 `Docker/run.stale-20261009`、
+`Docker/run.stale-20261009-2` 和 `docker-secrets-engine.stale-20261009`。修复时须退出
+Docker，并在同一次启动前处理两处旧 socket；顺序重启会重新留下第一个 socket。
+此宿主机问题不作为 Linux UAT/Production 的修复步骤，不应在服务器套用 Windows 路径。
+当前七个开发服务运行、四项健康检查通过，开发库仍有 10 用户/200 客户/250 订单；
+测试连接明确为 `gn_system_test`。这些是 10 月 7 日新模拟数据，不是找回的旧开发数据。
+
 ## 2026-10-07 发布准备核验
 
 直客方案 PR1–PR6 与审查修复集中在 PR #41。本次发布目标为 `v0.6.0-rc.1`，通过本地
