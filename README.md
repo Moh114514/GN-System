@@ -1,5 +1,14 @@
 # GN-System CRM
 
+## 2026-10-12 正式制品发布
+
+annotated `v0.6.0` 已发布，指向 `v0.6.0-rc.1` 的同一提交
+`290a36809ac2ccdc236a3177fb6b6689bdfeace9`。[正式发布工作流](https://github.com/Moh114514/GN-System/actions/runs/38236014809)
+成功，app/web 按原 digest 晋级，未重新构建。用户在知悉 UAT 前置要求后明确要求晋级；
+UAT 验收未核实，服务器 SSH 仍超时，UAT/Production 部署均未执行。正式制品发布不代表
+服务器已上线。镜像 digest 及部署前检查见[完整运维手册](docs/operations/operations-manual.md)。
+下方日期记录描述对应日期当时状态。
+
 GN-System 是面向医美/医疗代理业务的内部客户管理系统，用于逐步替代分散的
 Excel 客户、代理商、订单和结算数据。当前已完成 Phase 1 基础架构、Phase 2
 核心数据与导入能力、Phase 3 客户全生命周期及 Phase 4 代理商与推广费核算核心
