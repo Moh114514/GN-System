@@ -1,5 +1,26 @@
 # GN-System 完整运维手册
 
+## 2026-10-12 正式制品状态
+
+用户在知悉项目的 UAT 前置要求后明确要求晋级正式版。本次发布 annotated `v0.6.0`，
+与 `v0.6.0-rc.1` 均指向 `290a36809ac2ccdc236a3177fb6b6689bdfeace9`；
+[正式工作流 38236014809](https://github.com/Moh114514/GN-System/actions/runs/38236014809) 成功，
+按原 digest 晋级、未重建镜像。正式和 RC 的 manifest 均已独立读取并确认一致：
+
+| 镜像（ghcr.io/moh114514） | v0.6.0 / v0.6.0-rc.1 digest |
+|---|---|
+| gn-system-app | `sha256:966748d43236c710dd14553e63aad931b506713c92c6ca24012e624ff6e3dc96` |
+| gn-system-web | `sha256:5ad7b6913f266d7af98fc604b72548fbd716b50fec2ba4d27175a5fdc21183ab` |
+
+本地确切 RC 提交完整门禁 503 项测试/3284 断言、前端构建及共享推送 hook 均通过。
+服务器 `192.168.0.141:22` 仍超时，UAT 验收未核实；用户的晋级指示不作为验收证据。
+UAT/Production 均未部署本次版本，实际版本、schema 和备份待核验。恢复连接后先只读
+检查并分别备份数据库和私有文件，按标准脚本部署明确标签，完成服务、健康及四角色
+业务验收，再安排生产部署。UAT 仓库仍为 `/srv/gn-system/repository`，生产仍为
+`/srv/gn-system/production/repository`。保留已有数据，不执行 reset 或 `down -v`；
+回退按 schema 兼容性使用旧镜像或验证过的备份恢复，不直接回滚已有直客数据的迁移。
+以下旧日期记录只说明当时状态，通用发布流程的 UAT 要求不变。
+
 ## 2026-10-09 候选版本与本机恢复核验
 
 直客方案、审查修复和管理员渠道维护已通过 PR #41 合入 `develop`，通过 PR #42 合入
