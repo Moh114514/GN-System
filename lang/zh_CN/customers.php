@@ -128,6 +128,8 @@ return [
         'empty' => '没有符合条件的客户。',
     ],
     'form' => [
+        'owner_optional_hint' => '可留空，保存为待分配；后续通过负责人分配操作指定。',
+        'owner_self_hint' => '建档后自动归属本人，无须手选。',
         'back_to_detail' => '返回客户详情',
         'back_to_list' => '返回客户管理',
         'create_heading' => '新建客户',

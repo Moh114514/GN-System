@@ -50,6 +50,9 @@ final readonly class CompletedOrderRegistrar
         $this->assertCustomerCanBeCompleted($customer, $data);
         $sourceType = (string) $customer['source_type'];
         if ($sourceType === 'direct') {
+            if (($customer['owner_id'] ?? null) === null) {
+                throw new DomainException(__('orders.errors.direct_customer_owner_required'));
+            }
             if ($data->agentId !== null) {
                 throw new DomainException(__('orders.errors.agent_not_allowed_for_direct_customer'));
             }
@@ -74,7 +77,9 @@ final readonly class CompletedOrderRegistrar
                 $attribution = $sourceType === 'agent' && $data->agentId !== null
                     ? $this->attributions->forAgentOnDate($data->agentId, $occurredOn)
                     : null;
-                $ownerId = $data->ownerId ?? ($customer['owner_id'] ?? $data->actorId);
+                $ownerId = $sourceType === 'direct'
+                    ? (int) $customer['owner_id']
+                    : ($data->ownerId ?? $customer['owner_id'] ?? null);
                 $order = Order::query()->create([
                     'customer_id' => $data->customerId,
                     'institution_id' => $data->institutionId,
@@ -227,8 +232,7 @@ final readonly class CompletedOrderRegistrar
     /** @param array<string, mixed> $customer */
     private function assertCustomerCanBeCompleted(array $customer, CompletedOrderRegistrationData $data): void
     {
-        $types = array_map(static fn ($evidence): string => $evidence->type, $data->evidence);
-        if ($data->requireEvidence && (! in_array('communication_screenshot', $types, true) || ! in_array('settlement_receipt', $types, true))) {
+        if ($data->requireEvidence && $data->evidence === []) {
             throw new DomainException(__('orders.errors.order_evidence_required'));
         }
 

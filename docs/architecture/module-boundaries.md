@@ -99,6 +99,12 @@ directly. Follow-up and historical status records remain owned by their existing
 Customer/Reminder contracts, and the transfer workflow changes only the owner of
 future/open work; it does not rewrite historical creators.
 
+Customer 档案允许空出生日期，并在日期变更的同一事务中通过 Reminder 的
+`TreatmentReminderGateway::cancelPendingBirthdayReminders` 取消旧的未完成生日规则提醒。
+Reminder 独占提醒和事件写入；Customer 不读取或写入 Reminder 表。Order 的
+`CustomerAppointmentData.ownerId` 允许 NULL，以保存管理员/BD 建立的待分配客户首次预约；
+操作人继续独立用于审计，不填补客户业务归属。
+
 The effective-target check is performed inside the locked transaction. A pending
 transfer is applied only after review and is invalidated if the source owner or target
 scope changed. Batch transfers lock customers in deterministic ID order and roll back

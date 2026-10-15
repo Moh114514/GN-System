@@ -69,7 +69,7 @@ class CustomerForm extends Component
         $this->options['users'] = $directory->ownerCandidates();
         $this->customerId = $customer;
         if ($customer === null) {
-            $this->ownerId = (string) Auth::id();
+            $this->ownerId = Auth::user()?->isCustomerService() ? (string) Auth::id() : '';
 
             return;
         }
@@ -106,17 +106,17 @@ class CustomerForm extends Component
         $rules = [
             'name' => ['required', 'string', 'max:255'],
             'gender' => ['nullable', 'string', 'max:16'],
-            'birthDate' => ['required', 'date'],
+            'birthDate' => ['nullable', 'date'],
             'sourceAgentId' => ['required', 'integer'],
-            'contact' => ['required', 'string', 'max:255'],
+            'contact' => ['nullable', 'string', 'max:255'],
             'identityDocument' => ['required', 'string', 'max:255'],
-            'projectIntention' => ['required', 'string', 'max:255'],
+            'projectIntention' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:5000'],
         ];
         if ($this->customerId === null) {
             $rules += [
                 'ownerId' => [
-                    'required',
+                    'nullable',
                     'integer',
                     Rule::in(array_map('intval', array_column($this->options['users'] ?? [], 'id'))),
                 ],
@@ -144,7 +144,7 @@ class CustomerForm extends Component
         $profile = new CustomerProfileData(
             name: $this->name,
             gender: $this->gender === '' ? null : $this->gender,
-            birthDate: CarbonImmutable::parse($this->birthDate),
+            birthDate: trim($this->birthDate) === '' ? null : CarbonImmutable::parse($this->birthDate),
             sourceAgentId: (int) $this->sourceAgentId,
             contactValue: $this->contact,
             identityDocument: $this->identityDocument,
@@ -173,7 +173,7 @@ class CustomerForm extends Component
                 arrivalAt: CarbonImmutable::parse($this->arrivalAt, (string) config('app.timezone')),
                 translatorName: $this->translatorName === '' ? null : $this->translatorName,
                 actorId: $actorId,
-                ownerId: (int) $this->ownerId,
+                ownerId: $this->ownerId === '' ? null : (int) $this->ownerId,
                 confirmedCode: $this->confirmedCode,
                 automaticCode: $this->automaticCode,
                 ipAddress: request()->ip(),

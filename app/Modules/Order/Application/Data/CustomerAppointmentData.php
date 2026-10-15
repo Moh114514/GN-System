@@ -12,7 +12,7 @@ final readonly class CustomerAppointmentData
         public CarbonImmutable $scheduledAt,
         public string $projectName,
         public ?string $translatorName,
-        public int $ownerId,
+        public ?int $ownerId,
         public ?string $notes,
     ) {}
 }

@@ -87,10 +87,13 @@ class InstitutionReturnCenter extends Component
             'institutionId' => ['required', 'integer'],
             'customerId' => ['required', 'integer'],
             'upload' => ['required', 'file', 'mimes:xlsx,xlsm,xls', 'max:20480'],
-            'communicationScreenshots' => ['required', 'array', 'min:1'],
+            'communicationScreenshots' => ['required_without:settlementReceipts', 'array'],
             'communicationScreenshots.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:20480'],
-            'settlementReceipts' => ['required', 'array', 'min:1'],
+            'settlementReceipts' => ['required_without:communicationScreenshots', 'array'],
             'settlementReceipts.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:20480'],
+        ], [
+            'communicationScreenshots.required_without' => __('orders.errors.order_evidence_required'),
+            'settlementReceipts.required_without' => __('orders.errors.order_evidence_required'),
         ]);
         $actorId = Auth::id();
         abort_unless(is_int($actorId), 403);

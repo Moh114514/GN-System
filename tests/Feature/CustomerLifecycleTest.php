@@ -89,6 +89,7 @@ class CustomerLifecycleTest extends TestCase
 
     public function test_agent_customer_creation_is_atomic_and_audited(): void
     {
+        $actor = User::factory()->superAdmin()->withTwoFactor()->create();
         $manager = app(CustomerProfileManager::class);
         $owner = User::factory()->create(['name' => '指定负责人']);
         BusinessGroupMembership::query()->create([
@@ -105,7 +106,7 @@ class CustomerLifecycleTest extends TestCase
             institutionId: $this->institution->id,
             arrivalAt: CarbonImmutable::parse('2026-08-01 15:30'),
             translatorName: '金翻译',
-            actorId: $this->user->id,
+            actorId: $actor->id,
             ownerId: $owner->id,
             confirmedCode: $code,
             automaticCode: true,
@@ -128,13 +129,13 @@ class CustomerLifecycleTest extends TestCase
         ]);
         $this->assertDatabaseHas('customer_status_histories', [
             'customer_id' => $customerId,
-            'changed_by' => $this->user->id,
+            'changed_by' => $actor->id,
             'reason' => '客户建档',
         ]);
         $this->assertDatabaseHas('activity_log', [
             'log_name' => 'customer',
             'subject_id' => $customerId,
-            'causer_id' => $this->user->id,
+            'causer_id' => $actor->id,
             'event' => 'created',
         ]);
     }
@@ -788,8 +789,9 @@ class CustomerLifecycleTest extends TestCase
             ->assertDontSee(__('orders.errors.customer_not_arrived'));
     }
 
-    public function test_customer_form_defaults_owner_and_only_lists_eligible_internal_users(): void
+    public function test_admin_customer_form_allows_unassigned_and_only_lists_eligible_internal_users(): void
     {
+        $actor = User::factory()->superAdmin()->withTwoFactor()->create();
         $eligible = User::factory()->create(['name' => '可选负责人']);
         BusinessGroupMembership::query()->create([
             'business_group_id' => $this->businessGroup->id,
@@ -802,9 +804,9 @@ class CustomerLifecycleTest extends TestCase
         $inactive = User::factory()->create(['name' => '停用负责人', 'is_active' => false]);
         $pending = User::factory()->create(['name' => '待接受负责人', 'invitation_status' => 'pending']);
 
-        Livewire::actingAs($this->user)
+        Livewire::actingAs($actor)
             ->test(CustomerForm::class)
-            ->assertSet('ownerId', (string) $this->user->id)
+            ->assertSet('ownerId', '')
             ->assertSet('arrivalAt', '')
             ->assertSee($this->user->name)
             ->assertSee($eligible->name)
@@ -817,6 +819,7 @@ class CustomerLifecycleTest extends TestCase
 
     public function test_customer_creation_rejects_an_ineligible_owner_before_writing_anything(): void
     {
+        $actor = User::factory()->superAdmin()->withTwoFactor()->create();
         $inactive = User::factory()->create(['is_active' => false]);
         $manager = app(CustomerProfileManager::class);
 
@@ -826,7 +829,7 @@ class CustomerLifecycleTest extends TestCase
                 institutionId: $this->institution->id,
                 arrivalAt: CarbonImmutable::parse('2026-08-01'),
                 translatorName: null,
-                actorId: $this->user->id,
+                actorId: $actor->id,
                 ownerId: $inactive->id,
                 confirmedCode: $manager->previewCode($this->agent->id),
                 automaticCode: true,

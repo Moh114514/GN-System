@@ -76,7 +76,7 @@ return [
         'created_date' => '建档日期',
         'owner' => '负责人',
         'no_customers' => '尚无客户记录',
-        'settlement' => '最近月结进度',
+        'settlement' => '最近结算进度',
         'view_details' => '查看明细',
         'settled' => '已结算',
         'settled_fee' => '已结算推广费',

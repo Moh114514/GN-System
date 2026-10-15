@@ -15,8 +15,11 @@ use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Application\Services\CustomerStatusManager;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
+use App\Modules\Order\Application\Data\CompletedOrderItemData;
+use App\Modules\Order\Application\Data\CompletedOrderRegistrationData;
 use App\Modules\Order\Application\Data\InstitutionReturnUploadData;
 use App\Modules\Order\Application\Data\OrderEvidenceUploadData;
+use App\Modules\Order\Application\Services\CompletedOrderRegistrar;
 use App\Modules\Order\Application\Services\InstitutionFormTemplateService;
 use App\Modules\Order\Application\Services\InstitutionReturnParser;
 use App\Modules\Order\Application\Services\InstitutionReturnProcessor;
@@ -35,12 +38,14 @@ use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
+use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 use Mockery;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 use PhpOffice\PhpSpreadsheet\Worksheet\Worksheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
 
 class InstitutionReturnFormTest extends TestCase
@@ -129,7 +134,7 @@ class InstitutionReturnFormTest extends TestCase
         $this->assertDatabaseCount('orders', 1);
     }
 
-    public function test_customer_registration_excel_upload_requires_both_evidence_types(): void
+    public function test_customer_registration_excel_upload_requires_at_least_one_evidence_file(): void
     {
         $user = User::factory()->create();
         $institution = Institution::query()->firstOrFail();
@@ -148,7 +153,7 @@ class InstitutionReturnFormTest extends TestCase
         $this->assertDatabaseCount('orders', 0);
     }
 
-    public function test_institution_return_center_excel_upload_requires_both_evidence_types(): void
+    public function test_institution_return_center_excel_upload_requires_at_least_one_evidence_file(): void
     {
         $user = User::factory()->create();
         $institution = Institution::query()->firstOrFail();
@@ -278,7 +283,7 @@ class InstitutionReturnFormTest extends TestCase
             ->assertNotFound();
     }
 
-    public function test_manual_registration_requires_both_evidence_types(): void
+    public function test_manual_registration_requires_at_least_one_evidence_file(): void
     {
         $user = User::factory()->create();
         $institution = Institution::query()->firstOrFail();
@@ -296,6 +301,136 @@ class InstitutionReturnFormTest extends TestCase
 
         $this->assertDatabaseCount('orders', 0);
         $this->assertDatabaseCount('order_evidence_files', 0);
+    }
+
+    #[DataProvider('validEvidenceCombinations')]
+    public function test_registration_accepts_either_evidence_type_and_preserves_all_files(string $entry, int $screenshots, int $receipts): void
+    {
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent($institution);
+        $customer = $this->customer($agent, $user);
+        $this->arrive($customer, $user);
+        $communicationFiles = array_map(fn (int $index) => UploadedFile::fake()->image("communication-{$index}.png", 10 + $index, 10), range(1, max(1, $screenshots)));
+        $receiptFiles = array_map(fn (int $index) => UploadedFile::fake()->image("receipt-{$index}.png", 10 + $index, 20), range(1, max(1, $receipts)));
+
+        $component = $this->registrationEntry($entry, $user, $institution, $customer)
+            ->set('communicationScreenshots', $screenshots === 0 ? [] : $communicationFiles)
+            ->set('settlementReceipts', $receipts === 0 ? [] : $receiptFiles);
+        // Neither file picker may block submission when only the other type is supplied.
+        foreach (['communicationScreenshots', 'settlementReceipts'] as $field) {
+            $this->assertDoesNotMatchRegularExpression('/<input\b(?=[^>]*wire:model="'.$field.'")[^>]*\brequired(?:\s|=|>)/', $component->html());
+        }
+        $component->call($entry === 'manual' ? 'registerOrder' : 'uploadReturn')->assertHasNoErrors();
+        if ($entry !== 'center') {
+            $component->assertSet('status', 'success');
+        }
+
+        $this->assertDatabaseCount('orders', 1);
+        $this->assertDatabaseCount('order_evidence_files', $screenshots + $receipts);
+        $this->assertSame($screenshots, OrderEvidenceFile::query()->where('type', 'communication_screenshot')->count());
+        $this->assertSame($receipts, OrderEvidenceFile::query()->where('type', 'settlement_receipt')->count());
+        foreach (OrderEvidenceFile::query()->get() as $file) {
+            Storage::disk('local')->assertExists($file->encrypted_path);
+        }
+    }
+
+    /** @return iterable<string, array{string, int, int}> */
+    public static function validEvidenceCombinations(): iterable
+    {
+        foreach (['manual', 'excel', 'center'] as $entry) {
+            foreach ([[1, 0], [0, 1], [1, 1], [2, 2]] as [$screenshots, $receipts]) {
+                yield "{$entry}-{$screenshots}-{$receipts}" => [$entry, $screenshots, $receipts];
+            }
+        }
+    }
+
+    #[DataProvider('invalidEvidenceFiles')]
+    public function test_registration_rejects_invalid_evidence_even_when_the_other_type_is_valid(string $entry, string $field, string $invalidKind): void
+    {
+        config(['livewire.temporary_file_upload.rules' => ['required', 'file', 'max:30720']]);
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $customer = $this->customer($this->agent($institution), $user);
+        $this->arrive($customer, $user);
+        $invalid = $invalidKind === 'size'
+            ? UploadedFile::fake()->create('oversized.pdf', 20481, 'application/pdf')
+            : UploadedFile::fake()->createWithContent('invalid.txt', 'not an image or PDF');
+        $otherField = $field === 'communicationScreenshots' ? 'settlementReceipts' : 'communicationScreenshots';
+
+        $this->registrationEntry($entry, $user, $institution, $customer)
+            ->set($otherField, [UploadedFile::fake()->image('valid.png')])
+            ->set($field, [$invalid])
+            ->call($entry === 'manual' ? 'registerOrder' : 'uploadReturn')
+            ->assertHasErrors([$field.'.0' => $invalidKind === 'size' ? 'max' : 'mimes']);
+
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseCount('order_evidence_files', 0);
+        $this->assertDatabaseCount('institution_return_files', 0);
+    }
+
+    /** @return iterable<string, array{string, string, string}> */
+    public static function invalidEvidenceFiles(): iterable
+    {
+        foreach (['manual', 'excel', 'center'] as $entry) {
+            foreach (['communicationScreenshots', 'settlementReceipts'] as $field) {
+                foreach (['type', 'size'] as $kind) {
+                    yield "{$entry}-{$field}-{$kind}" => [$entry, $field, $kind];
+                }
+            }
+        }
+    }
+
+    public function test_registrar_rejects_empty_evidence_without_the_livewire_form(): void
+    {
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent($institution);
+        $customer = $this->customer($agent, $user);
+        $this->arrive($customer, $user);
+        $this->actingAs($user);
+
+        try {
+            app(CompletedOrderRegistrar::class)->register(new CompletedOrderRegistrationData(
+                customerId: $customer->id,
+                institutionId: $institution->id,
+                agentId: $agent->id,
+                items: [new CompletedOrderItemData('皮肤管理', 200000)],
+                occurredOn: $customer->refresh()->arrived_at,
+                actorId: $user->id,
+                ipAddress: null,
+                ownerId: $user->id,
+                source: 'manual_registration',
+                requireArrived: true,
+                requireEvidence: true,
+            ));
+            $this->fail('An order without evidence must be rejected.');
+        } catch (DomainException $exception) {
+            $this->assertSame(__('orders.errors.order_evidence_required'), $exception->getMessage());
+        }
+
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseCount('order_evidence_files', 0);
+        $this->assertNotSame('treatment_completed', $customer->refresh()->currentStatus?->key);
+    }
+
+    public function test_registering_an_unassigned_agent_customer_does_not_make_the_actor_its_owner(): void
+    {
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
+        $institution = Institution::query()->firstOrFail();
+        $customer = $this->customer($this->agent($institution), $user);
+        $this->arrive($customer, $user);
+        $customer->update(['owner_id' => null]);
+
+        Livewire::actingAs($user)->test(CustomerOrderRegistration::class, ['customerId' => $customer->id])
+            ->set('institutionId', (string) $institution->id)
+            ->set('items', [['project_name' => 'Treatment', 'amount_krw' => '100000']])
+            ->set('communicationScreenshots', [UploadedFile::fake()->image('evidence.png')])
+            ->call('registerOrder')->assertHasNoErrors()->assertSet('status', 'success');
+
+        $this->assertDatabaseHas('orders', ['customer_id' => $customer->id, 'owner_id' => null, 'status' => 'completed']);
+        $this->assertNull($customer->refresh()->owner_id);
+        $this->assertDatabaseHas('order_commissions', ['order_id' => Order::query()->sole()->id, 'amount_krw' => 10000]);
     }
 
     public function test_manual_registration_is_rejected_for_customer_who_has_not_arrived(): void
@@ -515,6 +650,21 @@ class InstitutionReturnFormTest extends TestCase
         $response->assertOk()->assertHeader('Content-Disposition', 'attachment; filename="原始回传.xlsx"');
         $this->assertSame($contents, $response->getContent());
         $this->assertSame($orderId, Order::query()->value('id'));
+    }
+
+    private function registrationEntry(string $entry, User $user, Institution $institution, Customer $customer): Testable
+    {
+        $component = $entry === 'center'
+            ? Livewire::actingAs($user)->test(InstitutionReturnCenter::class)->set('customerId', (string) $customer->id)
+            : Livewire::actingAs($user)->test(CustomerOrderRegistration::class, ['customerId' => $customer->id]);
+        $component->set('institutionId', (string) $institution->id);
+        if ($entry === 'manual') {
+            return $component->set('items', [['project_name' => '皮肤管理', 'amount_krw' => '200000']]);
+        }
+
+        $contents = $this->workbook($institution->id, $customer->id, $customer->refresh()->arrived_at?->toDateString(), 1, 200000, 200000);
+
+        return $component->set('upload', UploadedFile::fake()->createWithContent('return.xlsx', $contents));
     }
 
     private function workbook(int $institutionId, int $customerId, mixed $date, int $quantity, int $unitPrice, int $amount): string

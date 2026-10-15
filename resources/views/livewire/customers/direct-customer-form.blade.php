@@ -14,12 +14,14 @@
             <div class="mt-5 grid gap-5 md:grid-cols-2">
                 <flux:input wire:model="name" :label="__('customers.form.fields.name')" required />
                 <flux:select wire:model="gender" :label="__('customers.form.fields.gender')"><flux:select.option value="">{{ __('customers.form.fields.unfilled') }}</flux:select.option><flux:select.option value="女">{{ __('customers.form.fields.female') }}</flux:select.option><flux:select.option value="男">{{ __('customers.form.fields.male') }}</flux:select.option><flux:select.option value="其他">{{ __('customers.form.fields.other') }}</flux:select.option></flux:select>
-                <x-date-time-picker wire:model="birthDate" :value="$birthDate" :label="__('customers.form.fields.birth_date')" required />
-                <flux:input wire:model="projectIntention" :label="__('customers.form.fields.project_intention')" required />
-                <flux:input wire:model="contact" :label="__('customers.form.fields.contact')" required />
+                <x-date-time-picker wire:model="birthDate" :value="$birthDate" :label="__('customers.form.fields.birth_date')" />
+                <flux:input wire:model="projectIntention" :label="__('customers.form.fields.project_intention')" />
+                <flux:input wire:model="contact" :label="__('customers.form.fields.contact')" />
                 <flux:input wire:model="identityDocument" :label="__('customers.form.fields.identity_document')" required />
                 @if (! $customerId && auth()->user()->isSuperAdmin())
-                    <flux:select wire:model="ownerId" :label="__('customers.form.fields.owner')" required><flux:select.option value="">{{ __('customers.form.select') }}</flux:select.option>@foreach ($options['users'] ?? [] as $user)<flux:select.option value="{{ $user['id'] }}">{{ $user['name'] }}</flux:select.option>@endforeach</flux:select>
+                    <flux:select wire:model="ownerId" :label="__('customers.form.fields.owner')" :description="__('customers.form.owner_optional_hint')"><flux:select.option value="">{{ __('customers.form.select') }}</flux:select.option>@foreach ($options['users'] ?? [] as $user)<flux:select.option value="{{ $user['id'] }}">{{ $user['name'] }}</flux:select.option>@endforeach</flux:select>
+                @elseif (! $customerId)
+                    <flux:input :value="auth()->user()->name" :label="__('customers.form.fields.owner')" :description="__('customers.form.owner_self_hint')" disabled />
                 @endif
             </div>
         </section>

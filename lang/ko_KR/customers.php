@@ -128,6 +128,8 @@ return [
         'empty' => '조건에 맞는 고객이 없습니다.',
     ],
     'form' => [
+        'owner_optional_hint' => '비워 두면 미배정 상태로 저장됩니다. 이후 담당자를 배정하세요.',
+        'owner_self_hint' => '고객 등록 시 본인이 담당자로 자동 지정됩니다.',
         'back_to_detail' => '고객 상세로 돌아가기',
         'back_to_list' => '고객 관리로 돌아가기',
         'create_heading' => '고객 추가',

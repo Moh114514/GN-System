@@ -127,7 +127,7 @@ final readonly class InstitutionReturnProcessor
                 occurredOn: $parsed['occurred_on'],
                 actorId: $data->actorId,
                 ipAddress: $data->ipAddress,
-                ownerId: isset($customer['owner_id']) ? (int) $customer['owner_id'] : $data->actorId,
+                ownerId: isset($customer['owner_id']) ? (int) $customer['owner_id'] : null,
                 source: 'institution_return',
                 sourceReturnFileId: $returnFile->id,
                 sourceMetadata: [
