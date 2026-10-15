@@ -14,4 +14,6 @@ interface TreatmentReminderGateway
     public function cancelForOrder(int $orderId, int $actorId, string $reason): void;
 
     public function transferForCustomer(int $customerId, int $ownerId, int $actorId): int;
+
+    public function cancelPendingBirthdayReminders(int $customerId, int $actorId): int;
 }

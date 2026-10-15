@@ -23,6 +23,7 @@ use App\Modules\Customer\Infrastructure\Models\CustomerStatusHistory;
 use App\Modules\Customer\Infrastructure\Models\DirectCustomerChannel;
 use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
 use App\Modules\Order\Application\Data\CustomerAppointmentData;
+use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -38,6 +39,7 @@ final readonly class CustomerProfileManager
         private BusinessClock $clock,
         private AccessContextResolver $access,
         private BusinessGroupMembershipReader $memberships,
+        private TreatmentReminderGateway $reminders,
     ) {}
 
     public function previewCode(int $sourceAgentId): string
@@ -90,7 +92,7 @@ final readonly class CustomerProfileManager
         CarbonImmutable $arrivalAt,
         ?string $translatorName,
         int $actorId,
-        int $ownerId,
+        ?int $ownerId,
         string $confirmedCode,
         bool $automaticCode,
         ?string $ipAddress,
@@ -127,7 +129,7 @@ final readonly class CustomerProfileManager
                     $ownerId = $actorId;
                 }
                 $directOwnerIds = array_column($this->users->eligibleDirectCustomerManagers(), 'id');
-                if (! in_array($ownerId, array_map('intval', $directOwnerIds), true)) {
+                if ($ownerId !== null && ! in_array($ownerId, array_map('intval', $directOwnerIds), true)) {
                     throw ValidationException::withMessages(['ownerId' => __('customers.form.validation.owner_unavailable')]);
                 }
                 [$prefix, $digits] = ['DC', 6];
@@ -139,14 +141,17 @@ final readonly class CustomerProfileManager
                 if (! $context->isSuperAdmin() && ! $context->canViewAgent($sourceAgentId)) {
                     throw ValidationException::withMessages(['sourceId' => __('customers.form.validation.agent_unavailable')]);
                 }
-                if (! $context->isSuperAdmin() && ! in_array($ownerId, $context->groupUserIds, true)) {
+                if ($context->isCustomerService()) {
+                    $ownerId = $actorId;
+                }
+                if ($ownerId !== null && ! $context->isSuperAdmin() && ! in_array($ownerId, $context->groupUserIds, true)) {
                     throw ValidationException::withMessages(['ownerId' => __('customers.form.validation.owner_unavailable')]);
                 }
                 $groupIds = $context->isSuperAdmin()
                     ? null
                     : $context->businessGroupIds;
-                if (! $this->users->isEligible($ownerId)
-                    || ! $this->memberships->isActiveCustomerServiceInGroups($ownerId, $groupIds, $this->clock->now()->toDateString())) {
+                if ($ownerId !== null && (! $this->users->isEligible($ownerId)
+                    || ! $this->memberships->isActiveCustomerServiceInGroups($ownerId, $groupIds, $this->clock->now()->toDateString()))) {
                     throw ValidationException::withMessages([
                         'ownerId' => __('customers.form.validation.owner_unavailable'),
                     ]);
@@ -189,7 +194,7 @@ final readonly class CustomerProfileManager
                 'source_agent_id' => $sourceAgentId,
                 'direct_channel_id' => $profile->directChannelId,
                 'current_status_id' => $status->id,
-                'project_intention' => trim($profile->projectIntention),
+                'project_intention' => trim($profile->projectIntention) === '' ? null : trim($profile->projectIntention),
                 'owner_id' => $ownerId,
                 'notes' => $profile->notes,
             ]);
@@ -296,16 +301,20 @@ final readonly class CustomerProfileManager
             $before = $customer->only([
                 'name', 'gender', 'birth_date', 'source_agent_id', 'direct_channel_id', 'project_intention', 'notes',
             ]);
+            $birthDateChanged = $customer->birth_date?->format('Y-m-d') !== $profile->birthDate?->toDateString();
             $customer->update([
                 'name' => trim($profile->name),
                 'gender' => $profile->gender,
                 'birth_date' => $profile->birthDate,
                 'source_agent_id' => $sourceAgentId,
                 'direct_channel_id' => $isDirect ? $profile->directChannelId : null,
-                'project_intention' => trim($profile->projectIntention),
+                'project_intention' => trim($profile->projectIntention) === '' ? null : trim($profile->projectIntention),
                 'notes' => $profile->notes,
             ]);
             $this->saveSensitiveValues($customerId, $profile->contactValue, $profile->identityDocument);
+            if ($birthDateChanged) {
+                $this->reminders->cancelPendingBirthdayReminders($customerId, $actorId);
+            }
             $this->audit->record(
                 description: '更新客户档案',
                 properties: [
@@ -324,14 +333,18 @@ final readonly class CustomerProfileManager
 
     private function saveSensitiveValues(int $customerId, string $contact, string $identityDocument): void
     {
-        CustomerContact::query()->updateOrCreate(
-            ['customer_id' => $customerId, 'is_primary' => true],
-            [
-                'type' => 'phone_or_wechat',
-                'value_encrypted' => trim($contact),
-                'lookup_hash' => $this->blindIndex->for($contact),
-            ],
-        );
+        if (trim($contact) === '') {
+            CustomerContact::query()->where('customer_id', $customerId)->where('is_primary', true)->delete();
+        } else {
+            CustomerContact::query()->updateOrCreate(
+                ['customer_id' => $customerId, 'is_primary' => true],
+                [
+                    'type' => 'phone_or_wechat',
+                    'value_encrypted' => trim($contact),
+                    'lookup_hash' => $this->blindIndex->for($contact),
+                ],
+            );
+        }
         CustomerIdentityDocument::query()->updateOrCreate(
             ['customer_id' => $customerId, 'type' => 'passport_or_residence_card'],
             [

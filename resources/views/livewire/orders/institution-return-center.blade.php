@@ -57,12 +57,12 @@
         </div>
         <div class="mt-5 grid gap-4 sm:grid-cols-2">
             <div>
-                <flux:input type="file" wire:model="communicationScreenshots" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple :label="__('orders.registration.communication_screenshot')" required />
+                <flux:input type="file" wire:model="communicationScreenshots" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple :label="__('orders.registration.communication_screenshot')" />
                 @error('communicationScreenshots') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 @error('communicationScreenshots.*') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
             </div>
             <div>
-                <flux:input type="file" wire:model="settlementReceipts" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple :label="__('orders.registration.settlement_receipt')" required />
+                <flux:input type="file" wire:model="settlementReceipts" accept=".jpg,.jpeg,.png,.webp,.pdf" multiple :label="__('orders.registration.settlement_receipt')" />
                 @error('settlementReceipts') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
                 @error('settlementReceipts.*') <p class="mt-1 text-sm text-red-600">{{ $message }}</p> @enderror
             </div>

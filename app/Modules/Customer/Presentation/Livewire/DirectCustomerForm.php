@@ -72,7 +72,7 @@ class DirectCustomerForm extends Component
         $this->customerId = $customer;
 
         if ($customer === null) {
-            $this->ownerId = (string) Auth::id();
+            $this->ownerId = Auth::user()->isDirectCustomerManager() ? (string) Auth::id() : '';
             $this->confirmedCode = $manager->previewDirectCode();
 
             return;
@@ -112,16 +112,16 @@ class DirectCustomerForm extends Component
         $rules = [
             'name' => ['required', 'string', 'max:255'],
             'gender' => ['nullable', 'string', 'max:16'],
-            'birthDate' => ['required', 'date'],
+            'birthDate' => ['nullable', 'date'],
             'channelId' => [
                 'required',
                 'integer',
                 Rule::exists('direct_customer_channels', 'id')
                     ->where(fn ($query) => $query->where('is_active', true)->orWhere('id', $currentChannelId)),
             ],
-            'contact' => ['required', 'string', 'max:255'],
+            'contact' => ['nullable', 'string', 'max:255'],
             'identityDocument' => ['required', 'string', 'max:255'],
-            'projectIntention' => ['required', 'string', 'max:255'],
+            'projectIntention' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:5000'],
         ];
         if ($this->customerId === null) {
@@ -134,7 +134,7 @@ class DirectCustomerForm extends Component
             ];
             if (Auth::user()?->isSuperAdmin()) {
                 $rules['ownerId'] = [
-                    'required',
+                    'nullable',
                     'integer',
                     Rule::in(array_map('intval', array_column($this->options['users'] ?? [], 'id'))),
                 ];
@@ -153,7 +153,7 @@ class DirectCustomerForm extends Component
         $profile = new CustomerProfileData(
             name: $this->name,
             gender: $this->gender === '' ? null : $this->gender,
-            birthDate: CarbonImmutable::parse($this->birthDate),
+            birthDate: trim($this->birthDate) === '' ? null : CarbonImmutable::parse($this->birthDate),
             sourceAgentId: null,
             contactValue: $this->contact,
             identityDocument: $this->identityDocument,
@@ -184,7 +184,7 @@ class DirectCustomerForm extends Component
                 arrivalAt: CarbonImmutable::parse($this->arrivalAt, (string) config('app.timezone')),
                 translatorName: $this->translatorName === '' ? null : $this->translatorName,
                 actorId: $actorId,
-                ownerId: (int) $this->ownerId,
+                ownerId: $this->ownerId === '' ? null : (int) $this->ownerId,
                 confirmedCode: $this->confirmedCode,
                 automaticCode: $this->automaticCode,
                 ipAddress: request()->ip(),

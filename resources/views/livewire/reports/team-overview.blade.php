@@ -57,7 +57,10 @@
                     <h3 class="mt-1 text-xl font-bold text-zinc-900 dark:text-zinc-50">{{ $selectedGroup['name'] }}</h3>
                     <p class="mt-1 text-sm text-zinc-500">{{ $selectedGroup['code'] }} · {{ __('team.bd') }}：{{ $selectedGroup['bd_name'] }}</p>
                 </div>
-                <div class="text-sm text-zinc-500">{{ __('team.generated_at') }}：{{ $snapshot['generated_at'] }}</div>
+                <div class="flex flex-wrap items-center gap-3">
+                    <a href="{{ route('customers.index', ['businessGroupId' => $selectedGroup['id']]) }}" wire:navigate class="font-semibold text-teal-700 hover:underline">{{ __('team.view_all_customers') }} →</a>
+                    <span class="text-sm text-zinc-500">{{ __('team.generated_at') }}：{{ $snapshot['generated_at'] }}</span>
+                </div>
             </div>
 
             <div class="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -102,7 +105,7 @@
                                 <td><span class="crm-pill {{ $owner['overdue_reminders'] > 0 ? 'tone-red' : 'tone-blue' }}">{{ number_format($owner['overdue_reminders']) }}</span></td>
                                 <td>{{ number_format($owner['new_customers']) }}</td>
                                 <td>₩ {{ number_format($owner['amount_krw']) }}</td>
-                                <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('customers.index', ['ownerId' => $owner['id']]) }}" wire:navigate>{{ __('team.view_customers') }} →</a></td>
+                                <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('customers.index', ['businessGroupId' => $selectedGroup['id'], 'ownerId' => $owner['id']]) }}" wire:navigate>{{ __('team.view_customers') }} →</a></td>
                             </tr>
                         @empty
                             <tr><td colspan="7" class="py-8 text-center text-zinc-500">{{ __('team.empty_owners') }}</td></tr>
@@ -143,7 +146,7 @@
                                 <td>{{ $group['bd_name'] }}</td>
                                 <td>{{ number_format($group['customer_service_count']) }}</td>
                                 <td>{{ number_format($group['agent_count']) }}</td>
-                                <td>{{ number_format($group['customer_count']) }}</td>
+                                <td><a class="font-semibold text-teal-700 hover:underline" href="{{ route('customers.index', ['businessGroupId' => $group['id']]) }}" wire:navigate>{{ number_format($group['customer_count']) }}</a></td>
                                 <td>{{ number_format($group['pending_reminders']) }}</td>
                                 <td><span class="crm-pill {{ $group['overdue_reminders'] > 0 ? 'tone-red' : 'tone-blue' }}">{{ number_format($group['overdue_reminders']) }}</span></td>
                                 <td>{{ $group['has_attention'] ? __('team.needs_attention') : __('team.normal') }}</td>

@@ -139,6 +139,12 @@
             @php($detailGroup = $businessGroupDetails['group'])
             <section class="mt-5 rounded-xl border border-zinc-200 bg-zinc-50 p-4 dark:border-zinc-700 dark:bg-zinc-950">
                 <div class="flex flex-wrap items-start justify-between gap-3"><div><h4 class="text-lg font-semibold">{{ $detailGroup['name'] }}</h4><p class="text-sm text-zinc-500">{{ $detailGroup['code'] }} · {{ $detailGroup['is_active'] ? __('config.status.enabled') : __('config.status.disabled') }}</p></div><flux:button wire:click="closeBusinessGroupDetail" size="sm" variant="ghost">{{ __('config.user_management.actions.close_detail') }}</flux:button></div>
+                @if ($detailGroup['is_active'])
+                    <div class="mt-4 flex flex-wrap gap-4">
+                        <a href="{{ route('team-overview.index', ['groupId' => $detailGroup['id']]) }}" wire:navigate class="font-semibold text-teal-700 hover:underline">{{ __('team.customer_overview') }} →</a>
+                        <a href="{{ route('customers.index', ['businessGroupId' => $detailGroup['id']]) }}" wire:navigate class="font-semibold text-teal-700 hover:underline">{{ __('team.view_all_customers') }} →</a>
+                    </div>
+                @endif
                 <div class="mt-4 grid gap-4 lg:grid-cols-3">
                     @php($currentBd = collect($businessGroupDetails['memberships'])->first(fn (array $membership): bool => $membership['member_role'] === 'bd_manager' && $membership['is_current']))
                     <div><h5 class="font-semibold">{{ __('config.user_management.current_bd') }}</h5><p class="mt-2 text-sm {{ $currentBd === null ? 'text-zinc-500' : '' }}">{{ $currentBd['user_name'] ?? __('config.user_management.unassigned') }}</p></div>

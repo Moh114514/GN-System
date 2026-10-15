@@ -42,6 +42,9 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
         $customer = $this->customers->customerForOrder($data->customerId);
         $sourceType = (string) $customer['source_type'];
         if ($sourceType === 'direct') {
+            if ($data->status === 'completed' && ($customer['owner_id'] ?? null) === null) {
+                throw new DomainException(__('orders.errors.direct_customer_owner_required'));
+            }
             if ($data->agentId !== null) {
                 throw new DomainException(__('orders.errors.agent_not_allowed_for_direct_customer'));
             }
@@ -74,7 +77,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
                 'translator_language_id' => $data->translatorLanguageId,
                 'translator_language_snapshot' => $data->translatorLanguageName,
                 'translator_name' => $data->translatorName,
-                'owner_id' => $data->ownerId,
+                'owner_id' => $sourceType === 'direct' ? $customer['owner_id'] : $data->ownerId,
                 'status' => $data->status,
                 'notes' => $data->notes,
                 'business_attribution_snapshot' => $data->status === 'completed' && $data->completedOn !== null
@@ -124,6 +127,13 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
             $this->assertOrderVisible($order);
             if ($order->status === 'completed') {
                 return (int) $order->id;
+            }
+            if ($order->source_type === 'direct') {
+                $customer = $this->customers->customerForOrder((int) $order->customer_id);
+                if (($customer['owner_id'] ?? null) === null) {
+                    throw new DomainException(__('orders.errors.direct_customer_owner_required'));
+                }
+                $order->owner_id = (int) $customer['owner_id'];
             }
             if ((string) $order->source_type === 'agent') {
                 $this->assertAgent($order->agent_id === null ? null : (int) $order->agent_id);
@@ -196,10 +206,13 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
     private function assertOrderVisible(Order $order): void
     {
         $context = $this->access->current();
+        $customerOwnerId = $order->source_type === 'direct'
+            ? $this->customers->customerForOrder((int) $order->customer_id)['owner_id']
+            : $order->owner_id;
         abort_unless($context->canViewOrder(
             sourceType: (string) $order->source_type,
             agentId: $order->agent_id === null ? null : (int) $order->agent_id,
-            customerOwnerId: $order->owner_id === null ? null : (int) $order->owner_id,
+            customerOwnerId: $customerOwnerId === null ? null : (int) $customerOwnerId,
         ), 404);
     }
 

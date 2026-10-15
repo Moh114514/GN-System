@@ -33,6 +33,8 @@ return [
     'monthly_sales' => '本月成交',
     'actions' => '操作',
     'view_customers' => '查看客户',
+    'view_all_customers' => '查看全组客户',
+    'customer_overview' => '客户概览',
     'view_group' => '查看团队',
     'status_label' => '状态',
     'normal' => '正常',
