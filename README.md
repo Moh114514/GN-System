@@ -1,12 +1,14 @@
 # GN-System CRM
 
-## 2026-10-12 正式制品发布
+## 2026-10-15 正式制品发布
 
-annotated `v0.6.0` 已发布，指向 `v0.6.0-rc.1` 的同一提交
-`290a36809ac2ccdc236a3177fb6b6689bdfeace9`。[正式发布工作流](https://github.com/Moh114514/GN-System/actions/runs/38236014809)
-成功，app/web 按原 digest 晋级，未重新构建。用户在知悉 UAT 前置要求后明确要求晋级；
-UAT 验收未核实，服务器 SSH 仍超时，UAT/Production 部署均未执行。正式制品发布不代表
-服务器已上线。镜像 digest 及部署前检查见[完整运维手册](docs/operations/operations-manual.md)。
+annotated `v0.6.2` 已发布，与 `v0.6.2-rc.1` 均指向提交
+`20275f605b5a5e9629bc9b295e237566b0e6f0df`。[RC 工作流](https://github.com/Moh114514/GN-System/actions/runs/38745069895)
+和[正式发布工作流](https://github.com/Moh114514/GN-System/actions/runs/38749794915)均成功，app/web
+按原 digest 晋级且已独立核对一致。客户档案可选字段、订单凭证、团队客户入口、看板文案及 Symfony
+安全补丁已纳入本版。用户确认业务 UAT 已验收通过；Agent 未连接服务器复核，生产部署由用户执行。
+此前 `v0.6.1` 因正式与 RC 提交不一致而失败，旧标签保留，不应部署该缺失镜像的版本。
+镜像 digest、部署前拉取和回退要求见[完整运维手册](docs/operations/operations-manual.md)。
 下方日期记录描述对应日期当时状态。
 
 GN-System 是面向医美/医疗代理业务的内部客户管理系统，用于逐步替代分散的
