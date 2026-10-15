@@ -91,10 +91,13 @@ class CustomerOrderRegistration extends Component
             'items' => ['required', 'array', 'min:1'],
             'items.*.project_name' => ['required', 'string', 'max:255'],
             'items.*.amount_krw' => ['required', 'integer', 'min:1'],
-            'communicationScreenshots' => ['required', 'array', 'min:1'],
+            'communicationScreenshots' => ['required_without:settlementReceipts', 'array'],
             'communicationScreenshots.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:20480'],
-            'settlementReceipts' => ['required', 'array', 'min:1'],
+            'settlementReceipts' => ['required_without:communicationScreenshots', 'array'],
             'settlementReceipts.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:20480'],
+        ], [
+            'communicationScreenshots.required_without' => __('orders.errors.order_evidence_required'),
+            'settlementReceipts.required_without' => __('orders.errors.order_evidence_required'),
         ]);
         try {
             $workspace->assertCanRegister($this->customerId);
@@ -134,7 +137,7 @@ class CustomerOrderRegistration extends Component
                 occurredOn: CarbonImmutable::parse($arrivedAt)->startOfDay(),
                 actorId: $actorId,
                 ipAddress: request()->ip(),
-                ownerId: isset($context['customer']['owner_id']) ? (int) $context['customer']['owner_id'] : $actorId,
+                ownerId: isset($context['customer']['owner_id']) ? (int) $context['customer']['owner_id'] : null,
                 source: 'manual_registration',
                 evidence: [
                     ...$this->evidence($this->communicationScreenshots, 'communication_screenshot'),
@@ -174,10 +177,13 @@ class CustomerOrderRegistration extends Component
         $this->validate([
             'institutionId' => ['required', 'integer', 'min:1'],
             'upload' => ['required', 'file', 'mimes:xlsx,xlsm,xls', 'max:20480'],
-            'communicationScreenshots' => ['required', 'array', 'min:1'],
+            'communicationScreenshots' => ['required_without:settlementReceipts', 'array'],
             'communicationScreenshots.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:20480'],
-            'settlementReceipts' => ['required', 'array', 'min:1'],
+            'settlementReceipts' => ['required_without:communicationScreenshots', 'array'],
             'settlementReceipts.*' => ['file', 'mimes:jpg,jpeg,png,webp,pdf', 'max:20480'],
+        ], [
+            'communicationScreenshots.required_without' => __('orders.errors.order_evidence_required'),
+            'settlementReceipts.required_without' => __('orders.errors.order_evidence_required'),
         ]);
         $workspace->assertCanRegister($this->customerId);
         $workspace->assertActiveInstitution((int) $this->institutionId);

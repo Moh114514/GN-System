@@ -13,6 +13,7 @@ use App\Modules\Auth\Domain\UserRole;
 use App\Modules\Auth\Infrastructure\Models\BusinessGroup;
 use App\Modules\Auth\Infrastructure\Models\BusinessGroupMembership;
 use App\Modules\Config\Infrastructure\Models\Institution;
+use App\Modules\Config\Presentation\Livewire\UserManagement;
 use App\Modules\Customer\Application\Services\CustomerDirectory;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerStatus;
@@ -208,7 +209,9 @@ class AccessScopeTest extends TestCase
             ->assertSee('范围 A')
             ->assertSee('组内负责人客服')
             ->assertDontSee('范围 B')
-            ->assertSee(route('customers.index', ['ownerId' => $this->owner->id]), false)
+            ->assertSee(e(route('customers.index', ['businessGroupId' => $this->groupA->id, 'ownerId' => $this->owner->id])), false)
+            ->assertSee(__('team.view_all_customers'))
+            ->assertSee(route('customers.index', ['businessGroupId' => $this->groupA->id]), false)
             ->getContent();
 
         $this->assertStringNotContainsString('客户 B', $bdContent);
@@ -234,6 +237,54 @@ class AccessScopeTest extends TestCase
 
         $this->actingAs($this->bd)->get(route('team-overview.index', ['groupId' => $this->groupB->id]))
             ->assertNotFound();
+    }
+
+    public function test_team_customer_links_keep_group_scope_and_include_unassigned_customers(): void
+    {
+        // A customer can retain its owner after the owner's team changes.
+        $this->groupBCustomer->update(['owner_id' => $this->owner->id]);
+        $unassigned = Customer::query()->create([
+            'code' => 'SCOPE-UNASSIGNED',
+            'name' => '组内待分配客户',
+            'source_agent_id' => $this->groupACustomer->source_agent_id,
+            'current_status_id' => $this->groupACustomer->current_status_id,
+            'owner_id' => null,
+        ]);
+        $groupFilter = ['businessGroupId' => $this->groupA->id];
+
+        foreach ([$this->admin, $this->bd] as $viewer) {
+            $this->actingAs($viewer)->get(route('team-overview.index', ['groupId' => $this->groupA->id]))
+                ->assertOk()
+                ->assertSee('href="'.route('customers.index', $groupFilter).'"', false)
+                ->assertSee('href="'.e(route('customers.index', [...$groupFilter, 'ownerId' => $this->owner->id])).'"', false)
+                ->assertSee('href="'.e(route('customers.index', [...$groupFilter, 'ownerState' => 'unassigned'])).'"', false);
+
+            // The overview above the table retains the viewer's overall workload;
+            // these filters must constrain the actual directory rows.
+            $this->get(route('customers.index', $groupFilter))->assertOk()
+                ->assertSee('wire:key="customer-'.$this->groupACustomer->id.'"', false)
+                ->assertSee('wire:key="customer-'.$unassigned->id.'"', false)
+                ->assertDontSee('wire:key="customer-'.$this->groupBCustomer->id.'"', false);
+            $this->get(route('customers.index', [...$groupFilter, 'ownerId' => $this->owner->id]))->assertOk()
+                ->assertSee('wire:key="customer-'.$this->groupACustomer->id.'"', false)
+                ->assertDontSee('wire:key="customer-'.$unassigned->id.'"', false)
+                ->assertDontSee('wire:key="customer-'.$this->groupBCustomer->id.'"', false);
+            $this->get(route('customers.index', [...$groupFilter, 'ownerState' => 'unassigned']))->assertOk()
+                ->assertSee('wire:key="customer-'.$unassigned->id.'"', false)
+                ->assertDontSee('wire:key="customer-'.$this->groupACustomer->id.'"', false)
+                ->assertDontSee('wire:key="customer-'.$this->groupBCustomer->id.'"', false);
+        }
+        $this->actingAs($this->bd)->get(route('customers.index', ['businessGroupId' => $this->groupB->id]))->assertNotFound();
+        $this->get(route('configuration.users-and-notifications'))->assertForbidden();
+    }
+
+    public function test_administrator_group_details_link_to_customer_overview_and_directory(): void
+    {
+        Livewire::actingAs($this->admin)->test(UserManagement::class)
+            ->call('viewBusinessGroup', $this->groupA->id)
+            ->assertSee(__('team.customer_overview'))
+            ->assertSee('href="'.route('team-overview.index', ['groupId' => $this->groupA->id]).'"', false)
+            ->assertSee('href="'.route('customers.index', ['businessGroupId' => $this->groupA->id]).'"', false);
     }
 
     public function test_team_overview_does_not_reject_a_group_without_agent_assignments(): void

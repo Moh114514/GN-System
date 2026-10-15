@@ -9,7 +9,7 @@ final readonly class CustomerProfileData
     public function __construct(
         public string $name,
         public ?string $gender,
-        public CarbonImmutable $birthDate,
+        public ?CarbonImmutable $birthDate,
         public ?int $sourceAgentId,
         public string $contactValue,
         public string $identityDocument,

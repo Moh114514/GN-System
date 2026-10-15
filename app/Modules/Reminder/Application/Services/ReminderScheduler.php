@@ -227,6 +227,18 @@ final readonly class ReminderScheduler
             ],
         );
         if (! $reminder->wasRecentlyCreated) {
+            $lastCancellation = $reminder->status === 'cancelled'
+                ? ReminderEvent::query()->where('reminder_id', $reminder->id)->where('event', 'cancelled')->latest('id')->first()
+                : null;
+            if ($ruleId !== null && data_get($lastCancellation, 'properties.source') === 'customer_birth_date_changed') {
+                $reminder->update(['status' => 'pending', 'notification_status' => $reminder->notification_status === 'sent' ? 'sent' : 'pending']);
+                ReminderEvent::query()->create([
+                    'reminder_id' => $reminder->id,
+                    'event' => 'reactivated',
+                    'properties' => ['source' => 'customer_birth_date_restored'],
+                    'occurred_at' => now(),
+                ]);
+            }
             if (! $reminder->due_at->equalTo($dueAt) && in_array($reminder->status, ['pending', 'snoozed', 'transferred'], true)) {
                 $before = $reminder->due_at->toIso8601String();
                 $reminder->update(['due_at' => $dueAt, 'status' => 'pending', 'notification_status' => 'pending']);

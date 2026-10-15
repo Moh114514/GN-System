@@ -8,6 +8,7 @@ use App\Modules\Reminder\Application\Data\CompletedTreatmentData;
 use App\Modules\Reminder\Application\Data\CustomerTreatmentCompletedData;
 use App\Modules\Reminder\Infrastructure\Models\Reminder;
 use App\Modules\Reminder\Infrastructure\Models\ReminderEvent;
+use App\Modules\Reminder\Infrastructure\Models\ReminderRule;
 use Carbon\CarbonImmutable;
 
 final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
@@ -143,6 +144,33 @@ final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
                     'occurred_at' => CarbonImmutable::now(),
                 ]);
             });
+    }
+
+    public function cancelPendingBirthdayReminders(int $customerId, int $actorId): int
+    {
+        $reminders = Reminder::query()
+            ->where('customer_id', $customerId)
+            ->where('source_type', 'rule')
+            ->where('reminder_type', 'date_offset')
+            ->whereIn('rule_id', ReminderRule::query()->where('trigger_type', 'date_offset')->where('trigger_config->field', 'birth_date')->select('id'))
+            ->whereIn('status', ['pending', 'snoozed', 'transferred'])
+            ->lockForUpdate()
+            ->get();
+        foreach ($reminders as $reminder) {
+            $reminder->update([
+                'status' => 'cancelled',
+                'notification_status' => $reminder->notification_status === 'sent' ? 'sent' : 'cancelled',
+            ]);
+            ReminderEvent::query()->create([
+                'reminder_id' => $reminder->id,
+                'event' => 'cancelled',
+                'actor_id' => $actorId,
+                'properties' => ['source' => 'customer_birth_date_changed'],
+                'occurred_at' => CarbonImmutable::now(),
+            ]);
+        }
+
+        return $reminders->count();
     }
 
     public function transferForCustomer(int $customerId, int $ownerId, int $actorId): int

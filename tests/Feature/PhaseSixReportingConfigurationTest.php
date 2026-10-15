@@ -432,7 +432,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->assertSee('营收与订单趋势')
             ->assertSee('代理商业绩排行')
             ->assertSee('本月各机构销售额')
-            ->assertSee('最近月结进度')
+            ->assertSee('最近结算进度')
             ->assertSee('data-dashboard-chart="monthly_revenue_orders"', false)
             ->assertDontSee('data-dashboard-export', false)
             ->assertDontSee('PNG')

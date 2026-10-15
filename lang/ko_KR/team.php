@@ -33,6 +33,8 @@ return [
     'monthly_sales' => '이번 달 거래',
     'actions' => '작업',
     'view_customers' => '고객 보기',
+    'view_all_customers' => '그룹 전체 고객 보기',
+    'customer_overview' => '고객 현황',
     'view_group' => '팀 보기',
     'status_label' => '상태',
     'normal' => '정상',
