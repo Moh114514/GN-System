@@ -26,5 +26,8 @@ final readonly class CompletedOrderRegistrationData
         public array $evidence = [],
         public bool $requireArrived = false,
         public bool $requireEvidence = false,
+        public ?int $appointmentId = null,
+        public ?string $idempotencyKey = null,
+        public ?string $draftId = null,
     ) {}
 }

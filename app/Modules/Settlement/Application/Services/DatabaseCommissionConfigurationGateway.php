@@ -4,6 +4,7 @@ namespace App\Modules\Settlement\Application\Services;
 
 use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Settlement\Application\Contracts\CommissionConfigurationGateway;
 use App\Modules\Settlement\Application\Contracts\ConfigurationHistoryGateway;
 use App\Modules\Settlement\Application\Data\HistoricalCommissionRuleData;
@@ -18,6 +19,7 @@ final readonly class DatabaseCommissionConfigurationGateway implements Commissio
         private AuditRecorder $audit,
         private ConfigurationHistoryGateway $configurationHistory,
         private BusinessClock $clock,
+        private AccessContextResolver $access,
     ) {}
 
     public function configuration(): array
@@ -44,7 +46,7 @@ final readonly class DatabaseCommissionConfigurationGateway implements Commissio
             'institution_id' => $institutionId,
             'effective_month' => $month,
         ])->first();
-        if ($rule !== null && $month->isCurrentMonth()) {
+        if ($rule !== null && $month->isSameDay($this->clock->now()->startOfMonth())) {
             throw new DomainException(__('settlements.errors.institution_rate_month_locked'));
         }
         $before = $rule?->only(['rate_bps', 'effective_month', 'is_active']);
@@ -79,7 +81,7 @@ final readonly class DatabaseCommissionConfigurationGateway implements Commissio
         $query = AgentCommissionOverride::query()->where('agent_id', $agentId);
         $institutionId === null ? $query->whereNull('institution_id') : $query->where('institution_id', $institutionId);
         $override = $query->whereDate('effective_from', $month)->first();
-        if ($override !== null && $month->isCurrentMonth()) {
+        if ($override !== null && $month->isSameDay($this->clock->now()->startOfMonth())) {
             throw new DomainException(__('settlements.errors.agent_override_month_locked'));
         }
         $before = $override?->only(['rate_bps', 'effective_from', 'effective_until', 'reason']);
@@ -133,6 +135,7 @@ final readonly class DatabaseCommissionConfigurationGateway implements Commissio
 
     public function importHistoricalCorrectionRule(HistoricalCommissionRuleData $data): void
     {
+        abort_unless($this->access->current()->isSuperAdmin(), 403);
         if (trim($data->reason) === '') {
             throw new DomainException(__('historical_correction.settlements.historical_reason_required'));
         }

@@ -10,6 +10,7 @@ interface SettlementAgentGateway
     /** @return array<int, int> */
     public function eligibleForPeriod(CarbonImmutable $periodStart, CarbonImmutable $periodEnd): array;
 
+    /** Settlement metadata uses the final cooperation month after cooperation ends; this is not order eligibility. */
     public function forMonth(int $agentId, CarbonImmutable $month): SettlementAgentData;
 
     public function scheduleGrade(int $agentId, int $gradeId, CarbonImmutable $effectiveMonth, int $actorId, string $reason): void;

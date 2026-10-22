@@ -20,6 +20,7 @@ final class DatabaseSettlementOrderReader implements SettlementOrderReader
             ->where('agent_id', $agentId)
             ->where('status', 'completed')
             ->where('record_status', 'active')
+            ->where('settlement_excluded', false)
             ->whereNotNull('occurred_on')
             ->whereBetween('occurred_on', [$periodStart, $periodEnd])
             ->orderBy('occurred_on')

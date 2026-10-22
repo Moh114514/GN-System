@@ -2,6 +2,7 @@
 
 namespace App\Modules\Order\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
 use App\Modules\Order\Application\Data\CustomerAppointmentData;
 use App\Modules\Order\Infrastructure\Models\Appointment;
@@ -10,6 +11,8 @@ use Carbon\CarbonImmutable;
 
 final class DatabaseCustomerOrderGateway implements CustomerOrderGateway
 {
+    public function __construct(private readonly BusinessClock $clock) {}
+
     public function createInitialAppointment(CustomerAppointmentData $data): int
     {
         return Appointment::query()->create([
@@ -24,7 +27,7 @@ final class DatabaseCustomerOrderGateway implements CustomerOrderGateway
         ])->id;
     }
 
-    /** @return array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string}|null */
+    /** @return array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string, arrived_at: string|null}|null */
     public function latestAppointmentForCustomer(int $customerId): ?array
     {
         $appointment = Appointment::query()
@@ -47,24 +50,68 @@ final class DatabaseCustomerOrderGateway implements CustomerOrderGateway
                 : CarbonImmutable::parse($appointment->scheduled_at)->toIso8601String(),
             'owner_id' => $appointment->owner_id === null ? null : (int) $appointment->owner_id,
             'status' => (string) $appointment->status,
+            'arrived_at' => $appointment->arrived_at === null
+                ? null
+                : CarbonImmutable::parse($appointment->arrived_at)->toIso8601String(),
         ];
     }
 
-    /** @return array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string}|null */
+    /** @return array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string, arrived_at: string|null, has_order: bool}|null */
     public function currentAppointmentForRegistration(int $customerId): ?array
     {
         $appointment = Appointment::query()
             ->where('customer_id', $customerId)
-            ->whereIn('status', ['scheduled', 'arrived'])
-            ->orderByRaw('scheduled_at IS NULL')
-            ->orderByDesc('scheduled_at')
+            ->where(function ($query): void {
+                $query->whereIn('status', ['scheduled', 'arrived'])
+                    ->orWhere(function ($completed): void {
+                        $completed->where('status', 'completed')
+                            ->whereNotNull('arrived_at')
+                            ->whereExists(fn ($orders) => $orders->selectRaw('1')
+                                ->from('orders')
+                                ->whereColumn('orders.appointment_id', 'appointments.id'));
+                    });
+            })
             ->orderByDesc('id')
             ->first();
 
-        return $appointment === null ? null : $this->serializeAppointment($appointment);
+        if ($appointment === null) {
+            return null;
+        }
+
+        $serialized = $this->serializeAppointment($appointment);
+        $serialized['has_order'] = Order::query()->where('appointment_id', $appointment->id)->exists();
+
+        return $serialized;
     }
 
-    /** @return array{previous: array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string}, current: array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string}}|null */
+    public function registrationVisit(int $customerId, int $appointmentId, int $institutionId): ?array
+    {
+        $appointment = Appointment::query()
+            ->whereKey($appointmentId)
+            ->where('customer_id', $customerId)
+            ->where('institution_id', $institutionId)
+            ->whereIn('status', ['arrived', 'completed'])
+            ->whereNotNull('arrived_at')
+            ->lockForUpdate()
+            ->first();
+        if ($appointment === null) {
+            return null;
+        }
+        $hasOrder = Order::query()->where('appointment_id', $appointmentId)->exists();
+        if ($appointment->status === 'completed' && ! $hasOrder) {
+            return null;
+        }
+
+        return [
+            'id' => (int) $appointment->id,
+            'institution_id' => (int) $appointment->institution_id,
+            'status' => (string) $appointment->status,
+            'arrived_at' => CarbonImmutable::parse($appointment->arrived_at)->toIso8601String(),
+            'has_order' => $hasOrder,
+        ];
+    }
+
+    /** @return array{previous: array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string, arrived_at: string|null}, current: array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string, arrived_at: string|null}}|null */
     public function rescheduleAppointment(int $customerId, int $appointmentId, CarbonImmutable $scheduledAt): ?array
     {
         $appointment = Appointment::query()
@@ -89,8 +136,6 @@ final class DatabaseCustomerOrderGateway implements CustomerOrderGateway
         $appointment = Appointment::query()
             ->where('customer_id', $customerId)
             ->whereIn('status', ['scheduled', 'completed'])
-            ->orderByRaw('scheduled_at IS NULL')
-            ->orderByDesc('scheduled_at')
             ->orderByDesc('id')
             ->lockForUpdate()
             ->first();
@@ -99,19 +144,33 @@ final class DatabaseCustomerOrderGateway implements CustomerOrderGateway
             return null;
         }
 
-        $appointment->update(['status' => 'arrived']);
+        if ($appointment->status === 'completed') {
+            $newVisit = Appointment::query()->create([
+                'customer_id' => $appointment->customer_id,
+                'institution_id' => $appointment->institution_id,
+                'scheduled_at' => null,
+                'treatment_project_snapshot' => $appointment->treatment_project_snapshot,
+                'translator_name' => $appointment->translator_name,
+                'owner_id' => $appointment->owner_id,
+                'status' => 'arrived',
+                'arrived_at' => $this->clock->now(),
+                'notes' => $appointment->notes,
+            ]);
+
+            return (int) $newVisit->id;
+        }
+
+        $appointment->update(['status' => 'arrived', 'arrived_at' => $this->clock->now()]);
 
         return (int) $appointment->id;
     }
 
-    /** @return array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string}|null */
+    /** @return array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string, arrived_at: string|null}|null */
     public function markAppointmentScheduled(int $customerId): ?array
     {
         $appointment = Appointment::query()
             ->where('customer_id', $customerId)
             ->whereIn('status', ['arrived', 'completed'])
-            ->orderByRaw('scheduled_at IS NULL')
-            ->orderByDesc('scheduled_at')
             ->orderByDesc('id')
             ->lockForUpdate()
             ->first();
@@ -120,17 +179,31 @@ final class DatabaseCustomerOrderGateway implements CustomerOrderGateway
             return null;
         }
 
-        $appointment->update(['status' => 'scheduled']);
+        if ($appointment->status === 'completed') {
+            $appointment = Appointment::query()->create([
+                'customer_id' => $appointment->customer_id,
+                'institution_id' => $appointment->institution_id,
+                'scheduled_at' => null,
+                'treatment_project_snapshot' => $appointment->treatment_project_snapshot,
+                'translator_name' => $appointment->translator_name,
+                'owner_id' => $appointment->owner_id,
+                'status' => 'scheduled',
+                'notes' => $appointment->notes,
+            ]);
+        } else {
+            $appointment->update(['status' => 'scheduled', 'arrived_at' => null]);
+        }
 
         return $this->serializeAppointment($appointment->refresh());
     }
 
-    public function completeAppointmentForCustomer(int $customerId, int $institutionId): ?int
+    public function completeAppointmentForCustomer(int $customerId, int $institutionId, ?int $appointmentId = null): ?int
     {
         $appointment = Appointment::query()
+            ->when($appointmentId !== null, fn ($query) => $query->whereKey($appointmentId))
             ->where('customer_id', $customerId)
             ->where('institution_id', $institutionId)
-            ->whereIn('status', ['scheduled', 'arrived'])
+            ->whereIn('status', ['scheduled', 'arrived', 'completed'])
             ->orderByRaw('scheduled_at IS NULL')
             ->orderByDesc('scheduled_at')
             ->orderByDesc('id')
@@ -141,7 +214,9 @@ final class DatabaseCustomerOrderGateway implements CustomerOrderGateway
             return null;
         }
 
-        $appointment->update(['status' => 'completed']);
+        if ($appointment->status !== 'completed') {
+            $appointment->update(['status' => 'completed']);
+        }
 
         return (int) $appointment->id;
     }
@@ -205,7 +280,7 @@ final class DatabaseCustomerOrderGateway implements CustomerOrderGateway
             ->update(['owner_id' => $ownerId]);
     }
 
-    /** @return array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string} */
+    /** @return array{id: int, institution_id: int, scheduled_at: string|null, owner_id: int|null, status: string, arrived_at: string|null} */
     private function serializeAppointment(Appointment $appointment): array
     {
         return [
@@ -216,6 +291,9 @@ final class DatabaseCustomerOrderGateway implements CustomerOrderGateway
                 : CarbonImmutable::parse($appointment->scheduled_at)->toIso8601String(),
             'owner_id' => $appointment->owner_id === null ? null : (int) $appointment->owner_id,
             'status' => (string) $appointment->status,
+            'arrived_at' => $appointment->arrived_at === null
+                ? null
+                : CarbonImmutable::parse($appointment->arrived_at)->toIso8601String(),
         ];
     }
 }

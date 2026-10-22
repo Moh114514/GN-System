@@ -11,6 +11,7 @@ use App\Modules\Settlement\Application\Contracts\DirectOrderCommissionGateway;
 use App\Modules\Settlement\Application\Contracts\InstitutionUsageReader;
 use App\Modules\Settlement\Application\Contracts\KrwCnyQuoteProvider;
 use App\Modules\Settlement\Application\Contracts\OrderFinancialReader;
+use App\Modules\Settlement\Application\Contracts\PaidOrderCorrectionGateway;
 use App\Modules\Settlement\Application\Contracts\ReportSettlementReader;
 use App\Modules\Settlement\Application\Contracts\SettlementImportGateway;
 use App\Modules\Settlement\Application\Services\ApiHzKrwCnyQuoteProvider;
@@ -22,6 +23,7 @@ use App\Modules\Settlement\Application\Services\DatabaseDirectCommissionConfigur
 use App\Modules\Settlement\Application\Services\DatabaseDirectOrderCommissionGateway;
 use App\Modules\Settlement\Application\Services\DatabaseInstitutionUsageReader;
 use App\Modules\Settlement\Application\Services\DatabaseOrderFinancialReader;
+use App\Modules\Settlement\Application\Services\DatabasePaidOrderCorrectionGateway;
 use App\Modules\Settlement\Application\Services\DatabaseReportSettlementReader;
 use App\Modules\Settlement\Application\Services\DatabaseSettlementImportGateway;
 use App\Modules\Settlement\Presentation\Http\BdQuarterlyCommissionDocumentController;
@@ -51,6 +53,7 @@ class SettlementServiceProvider extends ServiceProvider
         $this->app->bind(ReportSettlementReader::class, DatabaseReportSettlementReader::class);
         $this->app->bind(InstitutionUsageReader::class, DatabaseInstitutionUsageReader::class);
         $this->app->bind(OrderFinancialReader::class, DatabaseOrderFinancialReader::class);
+        $this->app->bind(PaidOrderCorrectionGateway::class, DatabasePaidOrderCorrectionGateway::class);
         $this->app->bind(ConfigurationHistoryGateway::class, DatabaseConfigurationHistoryGateway::class);
         $this->app->bind(KrwCnyQuoteProvider::class, function (): KrwCnyQuoteProvider {
             return match (config('services.settlement_exchange_rate.provider')) {

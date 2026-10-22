@@ -18,6 +18,7 @@ use Illuminate\Support\Carbon;
  * @property int $item_count
  * @property Carbon $period_start
  * @property Carbon $period_end
+ * @property Carbon|null $payment_due_on
  * @property Carbon|null $settled_on
  * @property Carbon|null $reviewed_at
  * @property Carbon|null $confirmed_at
@@ -40,6 +41,7 @@ class Settlement extends Model
         return [
             'period_start' => 'date',
             'period_end' => 'date',
+            'payment_due_on' => 'date',
             'settled_on' => 'date',
             'reviewed_at' => 'datetime',
             'confirmed_at' => 'datetime',

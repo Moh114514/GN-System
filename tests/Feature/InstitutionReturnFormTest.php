@@ -20,6 +20,7 @@ use App\Modules\Order\Application\Data\CompletedOrderRegistrationData;
 use App\Modules\Order\Application\Data\InstitutionReturnUploadData;
 use App\Modules\Order\Application\Data\OrderEvidenceUploadData;
 use App\Modules\Order\Application\Services\CompletedOrderRegistrar;
+use App\Modules\Order\Application\Services\CustomerOrderRegistrationWorkspace;
 use App\Modules\Order\Application\Services\InstitutionFormTemplateService;
 use App\Modules\Order\Application\Services\InstitutionReturnParser;
 use App\Modules\Order\Application\Services\InstitutionReturnProcessor;
@@ -28,6 +29,7 @@ use App\Modules\Order\Infrastructure\Models\InstitutionReturnFile;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Order\Infrastructure\Models\OrderEvidenceFile;
 use App\Modules\Order\Infrastructure\Models\OrderItem;
+use App\Modules\Order\Infrastructure\Models\OrderRegistrationDraft;
 use App\Modules\Order\Presentation\Livewire\CustomerOrderRegistration;
 use App\Modules\Order\Presentation\Livewire\InstitutionReturnCenter;
 use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
@@ -37,7 +39,9 @@ use DateTimeImmutable;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
 use Mockery;
@@ -66,13 +70,7 @@ class InstitutionReturnFormTest extends TestCase
         $agent = $this->agent($institution);
         $customer = $this->customer($agent, $user);
         $this->arrive($customer, $user);
-        $appointment = Appointment::query()->create([
-            'customer_id' => $customer->id,
-            'institution_id' => $institution->id,
-            'scheduled_at' => '2026-09-01 10:00:00',
-            'owner_id' => $user->id,
-            'status' => 'arrived',
-        ]);
+        $appointment = Appointment::query()->where('customer_id', $customer->id)->sole();
         $occurredOn = $customer->refresh()->arrived_at?->toDateString();
         $this->assertNotNull($occurredOn);
         $contents = $this->workbook($institution->id, $customer->id, $occurredOn, 2, 150000, 300000);
@@ -301,6 +299,100 @@ class InstitutionReturnFormTest extends TestCase
 
         $this->assertDatabaseCount('orders', 0);
         $this->assertDatabaseCount('order_evidence_files', 0);
+    }
+
+    public function test_manual_registration_draft_restores_and_submission_key_prevents_duplicate_orders(): void
+    {
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent($institution);
+        $customer = $this->customer($agent, $user);
+        $submissionKey = (string) Str::uuid();
+        $items = [
+            ['project_name' => '草稿项目甲', 'amount_krw' => '120000'],
+            ['project_name' => '草稿项目乙', 'amount_krw' => '80000'],
+        ];
+        $evidenceFile = UploadedFile::fake()->image('草稿凭证.png');
+
+        Livewire::actingAs($user)->test(CustomerOrderRegistration::class, ['customerId' => $customer->id])
+            ->set('submissionKey', $submissionKey)
+            ->set('institutionId', (string) $institution->id)
+            ->set('items', $items)
+            ->call('saveDraft')
+            ->assertHasNoErrors()
+            ->assertSet('status', 'draft_saved')
+            ->assertSet('draftId', $submissionKey);
+
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertSame($items, Livewire::actingAs($user)
+            ->test(CustomerOrderRegistration::class, ['customerId' => $customer->id])
+            ->get('items'));
+
+        $this->arrive($customer, $user);
+        $appointment = Appointment::query()->where('customer_id', $customer->id)->firstOrFail();
+
+        Livewire::actingAs($user)->test(CustomerOrderRegistration::class, ['customerId' => $customer->id])
+            ->set('communicationScreenshots', [$evidenceFile])
+            ->call('registerOrder')
+            ->assertHasNoErrors()
+            ->assertSet('status', 'success')
+            ->assertSet('draftId', null)
+            ->assertDontSee(__('orders.registration.draft_saved'));
+
+        $draft = OrderRegistrationDraft::query()->findOrFail($submissionKey);
+        $this->assertNotNull($draft->completed_at);
+        $this->assertSame((int) $appointment->id, (int) $draft->appointment_id);
+        $this->assertSame(2, OrderItem::query()->where('order_id', $draft->completed_order_id)->count());
+
+        $duplicateId = app(CompletedOrderRegistrar::class)->register(new CompletedOrderRegistrationData(
+            customerId: $customer->id,
+            institutionId: $institution->id,
+            agentId: $agent->id,
+            items: [
+                new CompletedOrderItemData('草稿项目甲', 120000),
+                new CompletedOrderItemData('草稿项目乙', 80000),
+            ],
+            occurredOn: $appointment->arrived_at,
+            actorId: $user->id,
+            ipAddress: null,
+            ownerId: $user->id,
+            source: 'manual_registration',
+            evidence: [new OrderEvidenceUploadData(
+                'communication_screenshot',
+                $evidenceFile->getClientOriginalName(),
+                $evidenceFile->getMimeType(),
+                $evidenceFile->get(),
+            )],
+            appointmentId: $appointment->id,
+            idempotencyKey: $submissionKey,
+        ));
+        $this->assertSame((int) $draft->completed_order_id, $duplicateId);
+        $this->assertDatabaseCount('orders', 1);
+    }
+
+    public function test_manual_registration_keeps_order_institution_bound_to_the_arrival_visit(): void
+    {
+        $user = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent($institution);
+        $customer = $this->customer($agent, $user);
+        $this->arrive($customer, $user);
+        $otherInstitution = Institution::query()->create([
+            'code' => 'TEST-OTHER-RETURN',
+            'name' => '其他到院机构',
+            'is_active' => true,
+        ]);
+
+        Livewire::actingAs($user)->test(CustomerOrderRegistration::class, ['customerId' => $customer->id])
+            ->assertDontSee(__('orders.registration.change_institution'))
+            ->set('institutionId', (string) $otherInstitution->id)
+            ->set('items', [['project_name' => '到院关联项目', 'amount_krw' => '100000']])
+            ->set('communicationScreenshots', [UploadedFile::fake()->image('visit-evidence.png')])
+            ->call('registerOrder')
+            ->assertSet('status', 'error')
+            ->assertSet('errorMessage', __('orders.errors.visit_institution_mismatch'));
+
+        $this->assertDatabaseCount('orders', 0);
     }
 
     #[DataProvider('validEvidenceCombinations')]
@@ -698,6 +790,62 @@ class InstitutionReturnFormTest extends TestCase
         ];
     }
 
+    public function test_legacy_arrival_is_previewed_then_auditably_restored_for_order_registration(): void
+    {
+        $user = User::factory()->create();
+        $admin = User::factory()->superAdmin()->create();
+        $institution = Institution::query()->firstOrFail();
+        $customer = $this->customer($this->agent($institution), $user);
+        $this->arrive($customer, $user);
+        $appointment = Appointment::query()->where('customer_id', $customer->id)->sole();
+        $verifiedTime = $appointment->arrived_at->format('Y-m-d H:i:s');
+        $customerBefore = $customer->fresh()->getAttributes();
+        $appointment->update(['arrived_at' => null]);
+        $this->assertFalse(app(CustomerOrderRegistrationWorkspace::class)->context($customer->id)['can_register']);
+        $arguments = ['appointment' => $appointment->id, '--arrived-at' => $verifiedTime];
+        $this->assertSame(0, Artisan::call('app:backfill-appointment-arrival', $arguments));
+        $this->assertNull($appointment->fresh()->arrived_at);
+        $this->assertDatabaseCount('orders', 0);
+        $this->assertDatabaseMissing('activity_log', ['event' => 'legacy_arrival_backfilled']);
+        $this->assertSame(0, Artisan::call('app:business-anomalies'));
+        $this->assertStringContainsString('已到院记录缺少实际到院时间', Artisan::output());
+
+        $this->assertSame(0, Artisan::call('app:backfill-appointment-arrival', [
+            ...$arguments, '--apply' => true, '--actor' => $admin->id, '--reason' => '管理员核对原始到院凭据',
+        ]));
+        $this->assertSame($verifiedTime, $appointment->fresh()->arrived_at->format('Y-m-d H:i:s'));
+        $this->assertSame($customerBefore, $customer->fresh()->getAttributes());
+        $this->assertDatabaseHas('activity_log', ['event' => 'legacy_arrival_backfilled', 'subject_id' => $appointment->id, 'causer_id' => $admin->id]);
+        $this->assertDatabaseCount('orders', 0);
+        Livewire::actingAs($user)->test(CustomerOrderRegistration::class, ['customerId' => $customer->id])
+            ->set('items', [['project_name' => '历史到院补录订单', 'amount_krw' => '100000']])
+            ->set('communicationScreenshots', [UploadedFile::fake()->image('凭证.png')])
+            ->call('registerOrder')->assertHasNoErrors()->assertSet('status', 'success');
+        $this->assertDatabaseHas('orders', ['appointment_id' => $appointment->id, 'amount_krw' => 100000]);
+    }
+
+    public function test_legacy_arrival_rejects_missing_evidence_unauthorized_actor_future_time_and_overwrite(): void
+    {
+        $user = User::factory()->create();
+        $admin = User::factory()->superAdmin()->create();
+        $institution = Institution::query()->firstOrFail();
+        $customer = $this->customer($this->agent($institution), $user);
+        $this->arrive($customer, $user);
+        $appointment = Appointment::query()->where('customer_id', $customer->id)->sole();
+        $time = $appointment->arrived_at->format('Y-m-d H:i:s');
+        $appointment->update(['arrived_at' => null]);
+        $valid = ['appointment' => $appointment->id, '--arrived-at' => $time, '--apply' => true, '--actor' => $admin->id, '--reason' => '核对凭据'];
+        foreach ([['--actor' => $user->id], ['--actor' => null], ['--reason' => ''], ['--arrived-at' => '2026-02-30 10:00:00'], ['--arrived-at' => '2099-01-01 10:00:00']] as $invalid) {
+            $this->assertSame(1, Artisan::call('app:backfill-appointment-arrival', array_replace($valid, $invalid)));
+            $this->assertNull($appointment->fresh()->arrived_at);
+        }
+        $this->assertDatabaseMissing('activity_log', ['event' => 'legacy_arrival_backfilled']);
+        $appointment->update(['arrived_at' => $time]);
+        $this->assertSame(1, Artisan::call('app:backfill-appointment-arrival', $valid));
+        $this->assertSame($time, $appointment->fresh()->arrived_at->format('Y-m-d H:i:s'));
+        $this->assertDatabaseCount('orders', 0);
+    }
+
     private function arrive(Customer $customer, User $user): void
     {
         $arrived = CustomerStatus::query()->where('key', 'arrived')->firstOrFail();
@@ -761,11 +909,19 @@ class InstitutionReturnFormTest extends TestCase
             'reason' => 'institution return test scope',
         ]);
 
-        return Customer::query()->create([
+        $customer = Customer::query()->create([
             'code' => 'TEST-JG-PR4-0001',
             'name' => 'PR4 测试客户',
             'source_agent_id' => $agent->id,
             'owner_id' => $owner->id,
         ]);
+        Appointment::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => Institution::query()->firstOrFail()->id,
+            'owner_id' => $owner->id,
+            'status' => 'scheduled',
+        ]);
+
+        return $customer;
     }
 }

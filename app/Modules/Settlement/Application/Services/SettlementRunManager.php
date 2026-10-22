@@ -3,7 +3,6 @@
 namespace App\Modules\Settlement\Application\Services;
 
 use App\Infrastructure\Time\BusinessClock;
-use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
 use App\Modules\Settlement\Application\Data\SettlementPeriodData;
 use App\Modules\Settlement\Application\Data\SettlementRunStartResult;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
@@ -20,7 +19,7 @@ final readonly class SettlementRunManager
 {
     public function __construct(
         private SettlementPeriodCalculator $periods,
-        private SettlementAgentGateway $agents,
+        private SettlementCalculationService $calculation,
         private SettlementRunSummaryUpdater $summary,
         private BusinessClock $clock,
     ) {}
@@ -67,7 +66,7 @@ final readonly class SettlementRunManager
             });
         }
 
-        $eligibleAgentIds = $this->agents->eligibleForPeriod($period->start, $period->end);
+        $eligibleAgentIds = $this->calculation->eligibleAgentIds($period->start, $period->end);
         $run = DB::transaction(function () use ($period, $source, $actorId, $eligibleAgentIds): SettlementRun {
             $run = SettlementRun::query()->create([
                 'configuration_id' => $period->configurationId,

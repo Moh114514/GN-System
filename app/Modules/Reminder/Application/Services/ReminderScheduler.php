@@ -38,6 +38,7 @@ final readonly class ReminderScheduler
                 ownerId: $order->ownerId,
                 actorId: $order->ownerId,
                 sourceType: $order->sourceType,
+                visitId: $order->visitId,
             ));
             $created += Reminder::query()->count() - $before;
         }

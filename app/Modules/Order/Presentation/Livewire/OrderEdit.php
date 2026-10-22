@@ -27,12 +27,6 @@ class OrderEdit extends Component
 
     public string $agentId = '';
 
-    public string $projectName = '';
-
-    public string $treatmentProjectId = '';
-
-    public string $amountKrw = '';
-
     public string $translatorName = '';
 
     public string $translatorLanguageId = '';
@@ -41,13 +35,8 @@ class OrderEdit extends Component
 
     public string $occurredOn = '';
 
-    public string $quantity = '1';
-
-    public string $unitPriceKrw = '';
-
-    public string $specification = '';
-
-    public string $itemNotes = '';
+    /** @var array<int, array{project_name: string, treatment_project_id: string, specification: string, quantity: string, unit_price_krw: string, amount_krw: string, notes: string}> */
+    public array $items = [];
 
     public string $reason = '';
 
@@ -61,23 +50,70 @@ class OrderEdit extends Component
         $this->options = $workspace->options();
         $this->institutionId = (string) ($this->orderDetails['institution']['id'] ?? '');
         $this->agentId = (string) ($this->orderDetails['agent']['id'] ?? '');
-        $this->projectName = (string) $this->orderDetails['project_name'];
-        $this->treatmentProjectId = collect($this->options['treatment_projects'] ?? [])->contains(fn (array $item): bool => (int) $item['id'] === (int) ($this->orderDetails['treatment_project_id'] ?? 0))
-            ? (string) $this->orderDetails['treatment_project_id']
-            : '';
-        $this->amountKrw = (string) $this->orderDetails['amount_krw'];
         $this->translatorName = (string) ($this->orderDetails['translator_name'] ?? '');
         $this->translatorLanguageId = collect($this->options['translator_languages'] ?? [])->contains(fn (array $item): bool => (int) $item['id'] === (int) ($this->orderDetails['translator_language_id'] ?? 0))
             ? (string) $this->orderDetails['translator_language_id']
             : '';
         $this->notes = (string) ($this->orderDetails['notes'] ?? '');
         $this->occurredOn = (string) ($this->orderDetails['occurred_on'] ?? '');
-        $item = $this->orderDetails['items'][0] ?? [];
-        $this->quantity = (string) ($item['quantity'] ?? '1');
-        $this->unitPriceKrw = (string) ($item['unit_price_krw'] ?? $this->orderDetails['amount_krw']);
-        $this->specification = (string) ($item['specification'] ?? '');
-        $this->itemNotes = (string) ($item['notes'] ?? '');
+        $this->items = array_map(static fn (array $item): array => [
+            'project_name' => (string) ($item['project_name'] ?? ''),
+            'treatment_project_id' => (string) ($item['treatment_project_id'] ?? ''),
+            'specification' => (string) ($item['specification'] ?? ''),
+            'quantity' => (string) ($item['quantity'] ?? '1'),
+            'unit_price_krw' => (string) ($item['unit_price_krw'] ?? $item['amount_krw'] ?? 0),
+            'amount_krw' => (string) ($item['amount_krw'] ?? 0),
+            'notes' => (string) ($item['notes'] ?? ''),
+        ], $this->orderDetails['items'] ?? []);
+        if ($this->items === []) {
+            $this->items[] = [
+                'project_name' => (string) $this->orderDetails['project_name'],
+                'treatment_project_id' => (string) ($this->orderDetails['treatment_project_id'] ?? ''),
+                'specification' => '',
+                'quantity' => '1',
+                'unit_price_krw' => (string) $this->orderDetails['amount_krw'],
+                'amount_krw' => (string) $this->orderDetails['amount_krw'],
+                'notes' => '',
+            ];
+        }
         $this->expectedUpdatedAt = (string) ($this->orderDetails['updated_at'] ?? '');
+    }
+
+    public function addItem(): void
+    {
+        $this->items[] = [
+            'project_name' => '',
+            'treatment_project_id' => '',
+            'specification' => '',
+            'quantity' => '1',
+            'unit_price_krw' => '0',
+            'amount_krw' => '0',
+            'notes' => '',
+        ];
+    }
+
+    public function removeItem(int $index): void
+    {
+        if (count($this->items) <= 1 || ! array_key_exists($index, $this->items)) {
+            return;
+        }
+
+        unset($this->items[$index]);
+        $this->items = array_values($this->items);
+    }
+
+    public function selectTreatmentProject(int $index): void
+    {
+        if (! isset($this->items[$index])) {
+            return;
+        }
+        $projectId = (int) $this->items[$index]['treatment_project_id'];
+        $project = collect($this->options['treatment_projects'] ?? [])->first(
+            fn (array $option): bool => (int) $option['id'] === $projectId,
+        );
+        if ($project !== null) {
+            $this->items[$index]['project_name'] = (string) $project['name'];
+        }
     }
 
     public function save(OrderManagementWorkspace $workspace): void
@@ -87,39 +123,45 @@ class OrderEdit extends Component
             'agentId' => ($this->orderDetails['source_type'] ?? 'agent') === 'direct'
                 ? ['nullable', 'integer']
                 : ['required', 'integer'],
-            'projectName' => ['required', 'string', 'max:255'],
-            'amountKrw' => ['required', 'integer', 'min:0'],
             'occurredOn' => [$this->orderDetails['status'] === 'completed' ? 'required' : 'nullable', 'date_format:Y-m-d'],
-            'quantity' => ['required', 'numeric', 'gt:0'],
-            'unitPriceKrw' => ['required', 'integer', 'min:0'],
-            'specification' => ['nullable', 'string', 'max:1000'],
-            'itemNotes' => ['nullable', 'string', 'max:5000'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.project_name' => ['required', 'string', 'max:255'],
+            'items.*.treatment_project_id' => ['nullable', 'integer'],
+            'items.*.quantity' => ['required', 'numeric', 'gt:0'],
+            'items.*.unit_price_krw' => ['required', 'integer', 'min:0'],
+            'items.*.amount_krw' => ['required', 'integer', 'min:0'],
+            'items.*.specification' => ['nullable', 'string', 'max:1000'],
+            'items.*.notes' => ['nullable', 'string', 'max:5000'],
             'reason' => ['required', 'string', 'max:2000'],
             'translatorName' => ['nullable', 'string', 'max:255'],
             'notes' => ['nullable', 'string', 'max:5000'],
         ]);
+
+        $items = array_map(static fn (array $item): array => [
+            'project_name' => (string) $item['project_name'],
+            'treatment_project_id' => $item['treatment_project_id'] === '' ? null : (int) $item['treatment_project_id'],
+            'specification' => $item['specification'] === '' ? null : $item['specification'],
+            'quantity' => (string) $item['quantity'],
+            'unit_price_krw' => (int) $item['unit_price_krw'],
+            'amount_krw' => (int) $item['amount_krw'],
+            'notes' => $item['notes'] === '' ? null : $item['notes'],
+        ], $this->items);
+        $firstItem = $items[0];
 
         try {
             $workspace->updatePending(new OrderUpdateData(
                 orderId: $this->orderId,
                 institutionId: (int) $this->institutionId,
                 agentId: $this->agentId === '' ? null : (int) $this->agentId,
-                projectName: $this->projectName,
-                amountKrw: (int) $this->amountKrw,
+                projectName: $firstItem['project_name'],
+                amountKrw: array_sum(array_column($items, 'amount_krw')),
                 translatorName: $this->translatorName === '' ? null : $this->translatorName,
                 notes: $this->notes === '' ? null : $this->notes,
-                treatmentProjectId: $this->treatmentProjectId === '' ? null : (int) $this->treatmentProjectId,
+                treatmentProjectId: $firstItem['treatment_project_id'],
                 translatorLanguageId: $this->translatorLanguageId === '' ? null : (int) $this->translatorLanguageId,
                 translatorLanguageName: null,
                 occurredOn: $this->occurredOn === '' ? null : CarbonImmutable::createFromFormat('!Y-m-d', $this->occurredOn),
-                items: [[
-                    'project_name' => $this->projectName,
-                    'specification' => $this->specification === '' ? null : $this->specification,
-                    'quantity' => $this->quantity,
-                    'unit_price_krw' => (int) $this->unitPriceKrw,
-                    'amount_krw' => (int) $this->amountKrw,
-                    'notes' => $this->itemNotes === '' ? null : $this->itemNotes,
-                ]],
+                items: $items,
                 reason: $this->reason,
                 expectedUpdatedAt: $this->expectedUpdatedAt,
             ), (int) Auth::id(), request()->ip());
@@ -131,20 +173,6 @@ class OrderEdit extends Component
 
         Flux::toast(variant: 'success', text: __('orders.messages.updated'));
         $this->redirectRoute('orders.show', ['order' => $this->orderId], navigate: true);
-    }
-
-    public function updatedTreatmentProjectId(): void
-    {
-        if ($this->treatmentProjectId === '') {
-            return;
-        }
-
-        $project = collect($this->options['treatment_projects'] ?? [])
-            ->first(fn (array $item): bool => (int) $item['id'] === (int) $this->treatmentProjectId);
-
-        if ($project !== null) {
-            $this->projectName = (string) $project['name'];
-        }
     }
 
     public function render(): View

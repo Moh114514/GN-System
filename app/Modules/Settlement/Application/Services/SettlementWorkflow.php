@@ -6,6 +6,7 @@ use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
+use App\Modules\Settlement\Infrastructure\Models\SettlementAdjustment;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRunMember;
 use Brick\Math\BigDecimal;
@@ -96,6 +97,7 @@ final readonly class SettlementWorkflow
                 ->multipliedBy(100)
                 ->toScale(0, RoundingMode::HalfUp)
                 ->toInt();
+            $payoutFen = max(0, $payoutFen);
             $settlement->update([
                 'status' => 'approved',
                 'settlement_currency' => 'CNY',
@@ -150,7 +152,7 @@ final readonly class SettlementWorkflow
 
         DB::transaction(function () use ($settlementId, $targetStatus, $reason, $actorId, $ipAddress): void {
             $settlement = Settlement::query()->lockForUpdate()->findOrFail($settlementId);
-            if (! in_array($settlement->status, ['approved', 'settled'], true)) {
+            if ($settlement->status !== 'approved') {
                 throw new DomainException(__('settlements.errors.correction_not_allowed'));
             }
             if ($settlement->status === $targetStatus) {
@@ -165,6 +167,9 @@ final readonly class SettlementWorkflow
             $documentsRemoved = 0;
             if ($targetStatus === 'pending_review') {
                 $itemsRemoved = DB::table('settlement_items')->where('settlement_id', $settlement->id)->delete();
+                SettlementAdjustment::query()
+                    ->where('target_settlement_id', $settlement->id)
+                    ->update(['target_settlement_id' => null]);
                 $documentsRemoved = $this->documents->discard((int) $settlement->id);
                 SettlementRunMember::query()
                     ->where('settlement_id', $settlement->id)
@@ -183,12 +188,6 @@ final readonly class SettlementWorkflow
                     'settled_on' => $this->clock->now()->toDateString(),
                     'settled_by' => $actorId,
                     'confirmed_at' => now(),
-                ],
-                'approved' => [
-                    'status' => 'approved',
-                    'settled_on' => null,
-                    'settled_by' => null,
-                    'confirmed_at' => null,
                 ],
                 default => [
                     'status' => 'pending_review',
@@ -278,22 +277,37 @@ final readonly class SettlementWorkflow
 
             $periodStart = CarbonImmutable::parse($settlement->period_start);
             $periodEnd = CarbonImmutable::parse($settlement->period_end);
-            $calculation = $this->calculation->calculate((int) $settlement->agent_id, $periodStart, $periodEnd);
+            $calculation = $this->calculation->calculate((int) $settlement->agent_id, $periodStart, $periodEnd, lockAdjustments: true);
             $orders = $calculation['orders'];
             $commissions = $calculation['commissions'];
+            $adjustments = $calculation['adjustments'];
             $totalConsumption = $calculation['total_consumption_krw'];
             $totalCommission = $calculation['total_commission_krw'];
             $now = now();
             $snapshot = is_array($settlement->snapshot) ? $settlement->snapshot : [];
             $snapshot['generated_at'] = $now->toIso8601String();
+            $snapshot['adjustments'] = $adjustments->map(static fn (SettlementAdjustment $adjustment): array => [
+                'id' => (int) $adjustment->id,
+                'key' => (string) $adjustment->adjustment_key,
+                'consumption_delta_krw' => (int) $adjustment->consumption_delta_krw,
+                'commission_delta_krw' => (int) $adjustment->commission_delta_krw,
+                'reason' => (string) $adjustment->reason,
+            ])->all();
             $settlement->update([
                 'total_consumption_krw' => $totalConsumption,
                 'total_commission_krw' => $totalCommission,
                 'payout_amount_cny_fen' => 0,
-                'item_count' => count($orders),
+                'item_count' => count($orders) + $adjustments->count(),
                 'generated_at' => $now,
                 'snapshot' => $snapshot,
             ]);
+            $snapshot['adjustment_count'] = $adjustments->count();
+            $settlement->update(['snapshot' => $snapshot]);
+            if ($adjustments->isNotEmpty()) {
+                SettlementAdjustment::query()
+                    ->whereKey($adjustments->modelKeys())
+                    ->update(['target_settlement_id' => $settlement->id]);
+            }
             DB::table('settlement_items')->where('settlement_id', $settlement->id)->delete();
             foreach ($orders as $order) {
                 $commission = $commissions[$order->orderId];
@@ -316,6 +330,7 @@ final readonly class SettlementWorkflow
                     'updated_at' => $now,
                 ]);
             }
+            $this->updateCarryForward($settlement, $totalCommission, $periodEnd);
 
             $newOrderIds = array_values(array_map(static fn ($order): int => $order->orderId, $orders));
             sort($newOrderIds);
@@ -519,5 +534,49 @@ final readonly class SettlementWorkflow
             'settled_by' => $settlement->settled_by === null ? null : (int) $settlement->settled_by,
             'confirmed_at' => $settlement->confirmed_at?->toIso8601String(),
         ];
+    }
+
+    private function updateCarryForward(Settlement $settlement, int $netCommission, CarbonImmutable $periodEnd): void
+    {
+        $key = 'carry:settlement:'.$settlement->id;
+        $carry = SettlementAdjustment::query()->where('adjustment_key', $key)->lockForUpdate()->first();
+        $nextPeriodStart = $periodEnd->addDay()->startOfMonth()->toDateString();
+        if ($carry !== null) {
+            $target = $carry->target_settlement_id === null
+                ? null
+                : Settlement::query()->lockForUpdate()->find($carry->target_settlement_id);
+            $expectedCarry = min(0, $netCommission);
+            if ($target !== null && ! in_array($target->status, ['pending_review', 'rejected'], true)
+                && (int) $carry->commission_delta_krw !== $expectedCarry) {
+                throw new DomainException(__('settlements.errors.carry_forward_target_locked'));
+            }
+            if ((int) $carry->commission_delta_krw !== $expectedCarry
+                || $carry->eligible_period_start->toDateString() !== $nextPeriodStart) {
+                $carry->update([
+                    'commission_delta_krw' => $expectedCarry,
+                    'eligible_period_start' => $nextPeriodStart,
+                    'snapshot' => [...(array) $carry->snapshot, 'balance_krw' => $expectedCarry],
+                ]);
+            }
+
+            return;
+        }
+        if ($netCommission >= 0) {
+            return;
+        }
+
+        SettlementAdjustment::query()->create([
+            'agent_id' => $settlement->agent_id,
+            'original_settlement_id' => $settlement->id,
+            'adjustment_key' => $key,
+            'eligible_period_start' => $nextPeriodStart,
+            'commission_delta_krw' => $netCommission,
+            'reason' => __('settlements.adjustments.negative_balance_carry'),
+            'snapshot' => [
+                'source' => 'negative_balance_carry',
+                'source_settlement_id' => (int) $settlement->id,
+                'balance_krw' => $netCommission,
+            ],
+        ]);
     }
 }

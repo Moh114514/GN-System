@@ -25,6 +25,7 @@
 - [ADR-0008：用户 Locale 偏好](adr/0008-localization-locale-preference.md)
 - [ADR-0009：月结批次成员关系与历史月结来源](adr/0009-settlement-run-members-and-historical-sources.md)
 - [ADR-0010：正式订单事实、业务日期与 BD 季度提成历史快照](adr/0010-formal-order-facts-and-bd-commission-history.md)
+- [ADR-0011：订单登记与月结差额闭环](adr/0011-order-registration-and-monthly-settlement-closure.md)
 
 ## 模块实现
 
