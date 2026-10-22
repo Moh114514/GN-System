@@ -12,6 +12,7 @@ use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Config\Infrastructure\Models\NotificationRecipientConfig;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\DirectCustomerChannel;
+use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
 use App\Modules\Order\Application\Services\CustomerAppointmentScheduleWorkspace;
 use App\Modules\Order\Infrastructure\Models\Appointment;
 use App\Modules\Order\Infrastructure\Models\Order;
@@ -144,6 +145,120 @@ class PhaseFiveReminderTest extends TestCase
         $this->assertDatabaseCount('reminders', 2);
         $this->assertDatabaseHas('reminders', ['customer_id' => $this->customer->id, 'reminder_type' => 'post_treatment', 'status' => 'pending']);
         $this->assertDatabaseCount('reminder_events', 2);
+    }
+
+    public function test_each_visit_gets_its_own_follow_up_and_append_order_does_not_duplicate_it(): void
+    {
+        $this->useDirectCustomer();
+        $gateway = app(DatabaseTreatmentReminderGateway::class);
+        $visitOneOrder = Order::query()->create([
+            'customer_id' => $this->customer->id,
+            'institution_id' => Institution::query()->firstOrFail()->id,
+            'agent_id' => null,
+            'source_type' => 'direct',
+            'project_name' => '首次到院',
+            'amount_krw' => 10000,
+            'completed_on' => '2026-08-01',
+            'owner_id' => $this->user->id,
+            'status' => 'completed',
+        ]);
+        $firstVisit = new CompletedTreatmentData(
+            orderId: $visitOneOrder->id,
+            customerId: $this->customer->id,
+            projectName: '首次到院',
+            completedOn: CarbonImmutable::parse('2026-08-01'),
+            ownerId: $this->user->id,
+            actorId: $this->user->id,
+            sourceType: 'direct',
+            visitId: 1001,
+        );
+        $gateway->schedule($firstVisit);
+        $gateway->schedule($firstVisit);
+
+        $appendOrder = Order::query()->create([
+            'customer_id' => $this->customer->id,
+            'institution_id' => Institution::query()->firstOrFail()->id,
+            'agent_id' => null,
+            'source_type' => 'direct',
+            'project_name' => '同次追加项目',
+            'amount_krw' => 5000,
+            'completed_on' => '2026-08-01',
+            'owner_id' => $this->user->id,
+            'status' => 'completed',
+        ]);
+        $gateway->schedule(new CompletedTreatmentData(
+            orderId: $appendOrder->id,
+            customerId: $this->customer->id,
+            projectName: '同次追加项目',
+            completedOn: CarbonImmutable::parse('2026-08-01'),
+            ownerId: $this->user->id,
+            actorId: $this->user->id,
+            sourceType: 'direct',
+            visitId: 1001,
+        ));
+
+        $newVisitOrder = Order::query()->create([
+            'customer_id' => $this->customer->id,
+            'institution_id' => Institution::query()->firstOrFail()->id,
+            'agent_id' => null,
+            'source_type' => 'direct',
+            'project_name' => '再次到院',
+            'amount_krw' => 8000,
+            'completed_on' => '2026-08-01',
+            'owner_id' => $this->user->id,
+            'status' => 'completed',
+        ]);
+        $gateway->schedule(new CompletedTreatmentData(
+            orderId: $newVisitOrder->id,
+            customerId: $this->customer->id,
+            projectName: '再次到院',
+            completedOn: CarbonImmutable::parse('2026-08-01'),
+            ownerId: $this->user->id,
+            actorId: $this->user->id,
+            sourceType: 'direct',
+            visitId: 1002,
+        ));
+
+        $this->assertDatabaseCount('reminders', 4);
+        $this->assertDatabaseCount('reminder_events', 4);
+    }
+
+    public function test_arriving_again_after_a_completed_visit_creates_a_new_visit_record(): void
+    {
+        $institution = Institution::query()->firstOrFail();
+        $previousVisit = Appointment::query()->create([
+            'customer_id' => $this->customer->id,
+            'institution_id' => $institution->id,
+            'scheduled_at' => '2026-07-20 10:00:00',
+            'arrived_at' => '2026-07-20 10:15:00',
+            'owner_id' => $this->user->id,
+            'status' => 'completed',
+        ]);
+        Order::query()->create([
+            'customer_id' => $this->customer->id,
+            'institution_id' => $institution->id,
+            'appointment_id' => $previousVisit->id,
+            'agent_id' => $this->agent->id,
+            'source_type' => 'agent',
+            'project_name' => '上次到院项目',
+            'amount_krw' => 10000,
+            'occurred_on' => '2026-07-20',
+            'completed_on' => '2026-07-20',
+            'owner_id' => $this->user->id,
+            'status' => 'completed',
+        ]);
+
+        $newVisitId = app(CustomerOrderGateway::class)->markAppointmentArrived($this->customer->id);
+
+        $this->assertNotNull($newVisitId);
+        $this->assertNotSame((int) $previousVisit->id, $newVisitId);
+        $this->assertSame('completed', $previousVisit->fresh()->status);
+        $this->assertDatabaseHas('appointments', [
+            'id' => $newVisitId,
+            'customer_id' => $this->customer->id,
+            'status' => 'arrived',
+        ]);
+        $this->assertNotNull(Appointment::query()->findOrFail($newVisitId)->arrived_at);
     }
 
     public function test_cancelled_post_treatment_reminders_reactivate_on_order_recompletion(): void

@@ -3,9 +3,9 @@
 namespace App\Modules\Order\Application\Services;
 
 use App\Infrastructure\Time\BusinessClock;
-use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Config\Application\Contracts\InstitutionReferenceReader;
 use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
+use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
 use App\Modules\Order\Application\Data\CompletedOrderItemData;
 use App\Modules\Order\Application\Data\CompletedOrderRegistrationData;
 use App\Modules\Order\Application\Data\InstitutionReturnUploadData;
@@ -25,7 +25,7 @@ final readonly class InstitutionReturnProcessor
         private InstitutionReturnStorage $storage,
         private InstitutionReferenceReader $institutions,
         private CustomerOrderReferenceReader $customers,
-        private AgentReferenceReader $agents,
+        private CustomerOrderGateway $appointments,
         private BusinessClock $clock,
         private CompletedOrderRegistrar $registrar,
     ) {}
@@ -36,10 +36,16 @@ final readonly class InstitutionReturnProcessor
             throw new DomainException(__('orders.errors.institution_unavailable'));
         }
         $customer = $this->customers->customerForOrder($data->customerId);
-        if (($customer['current_status_key'] ?? null) !== 'arrived' || ($customer['arrived_at'] ?? null) === null) {
+        $visit = $this->appointments->currentAppointmentForRegistration($data->customerId);
+        if ($visit === null || $visit['arrived_at'] === null
+            || ! in_array($visit['status'], ['arrived', 'completed'], true)
+            || ($visit['status'] === 'completed' && ! $visit['has_order'])) {
             throw new DomainException(__('orders.errors.customer_not_arrived'));
         }
-        $arrivedOn = CarbonImmutable::parse((string) $customer['arrived_at'])->startOfDay();
+        if ((int) $visit['institution_id'] !== $data->institutionId) {
+            throw new DomainException(__('orders.errors.visit_institution_mismatch'));
+        }
+        $arrivedOn = CarbonImmutable::parse($visit['arrived_at'])->startOfDay();
         $hash = hash('sha256', $data->contents);
         if (InstitutionReturnFile::query()->where('sha256', $hash)->exists()) {
             throw new DomainException(__('orders.errors.institution_return_duplicate_file'));
@@ -79,12 +85,6 @@ final readonly class InstitutionReturnProcessor
                 'customer_name' => (string) $customer['name'],
                 'arrived_on' => $arrivedOn,
             ]);
-            if ($customer['source_type'] === 'agent') {
-                $agent = $this->agents->agentById((int) $customer['source_agent_id']);
-                if ($agent['cooperation_status'] !== 'active') {
-                    throw new DomainException(__('orders.errors.agent_inactive_save'));
-                }
-            }
             $template = InstitutionFormTemplate::query()
                 ->where('institution_id', $data->institutionId)
                 ->where('template_key', InstitutionFormSchema::TEMPLATE_KEY)
@@ -138,6 +138,7 @@ final readonly class InstitutionReturnProcessor
                 evidence: $data->evidence,
                 requireArrived: true,
                 requireEvidence: true,
+                appointmentId: (int) $visit['id'],
             ));
 
             $returnFile->update([

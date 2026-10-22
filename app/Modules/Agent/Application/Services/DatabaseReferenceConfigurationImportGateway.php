@@ -11,6 +11,7 @@ use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Agent\Infrastructure\Models\PolicyGrade;
 use App\Modules\Agent\Infrastructure\Models\PolicySystem;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
+use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use Carbon\CarbonImmutable;
 use DomainException;
 use RuntimeException;
@@ -21,6 +22,7 @@ final readonly class DatabaseReferenceConfigurationImportGateway implements Refe
         private AgentCodeNormalizer $normalizer,
         private AuditRecorder $audit,
         private BusinessClock $clock,
+        private AccessContextResolver $access,
     ) {}
 
     public function referenceKeys(): array
@@ -235,6 +237,7 @@ final readonly class DatabaseReferenceConfigurationImportGateway implements Refe
 
     public function importHistoricalGradeAssignments(array $rows, int $actorId, string $batchId, ?string $ipAddress): void
     {
+        abort_unless($this->access->current()->isSuperAdmin(), 403);
         foreach ($rows as $row) {
             $agent = Agent::query()->where('code', $this->normalizer->agent($row['agent_code']))->firstOrFail();
             $system = PolicySystem::query()->where('name', $row['policy_system'])->firstOrFail();

@@ -17,4 +17,7 @@ interface AgentReferenceReader
 
     /** @return array{id: int, code: string, name: string, cooperation_status: string} */
     public function agentById(int $id): array;
+
+    /** @return array{cooperation_status: string, cooperation_started_on: string|null, cooperation_ended_on: string|null} */
+    public function orderEligibility(int $id): array;
 }

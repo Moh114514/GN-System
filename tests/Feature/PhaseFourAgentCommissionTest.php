@@ -23,6 +23,7 @@ use App\Modules\Order\Application\Contracts\DailyOrderGateway;
 use App\Modules\Order\Application\Data\DailyOrderData;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Settlement\Application\Contracts\CommissionConfigurationGateway;
+use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
 use App\Modules\Settlement\Infrastructure\Models\AgentCommissionOverride;
 use App\Modules\Settlement\Infrastructure\Models\CommissionRule;
 use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
@@ -34,6 +35,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Spatie\Activitylog\Models\Activity;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class PhaseFourAgentCommissionTest extends TestCase
@@ -137,6 +139,22 @@ class PhaseFourAgentCommissionTest extends TestCase
         parent::tearDown();
     }
 
+    public function test_agent_commission_preview_uses_the_business_date_rule_without_writing_financial_rows(): void
+    {
+        $preview = app(DailyCommissionGateway::class)->previewForOrder(
+            (int) $this->agent->id,
+            (int) $this->institution->id,
+            CarbonImmutable::parse('2026-07-18'),
+        );
+
+        $this->assertSame('测试代理商', $preview['agent_name']);
+        $this->assertSame('黄金', $preview['grade_name']);
+        $this->assertSame(1250, $preview['rate_bps']);
+        $this->assertSame('2026-07-01', $preview['effective_month']);
+        $this->assertSame('grade_institution_rule', $preview['rule_source']);
+        $this->assertDatabaseCount('order_commissions', 0);
+    }
+
     public function test_completed_agent_order_is_atomic_audited_and_snapshotted(): void
     {
         $orderId = app(DailyOrderGateway::class)->create($this->orderData('completed', 10005));
@@ -235,7 +253,7 @@ class PhaseFourAgentCommissionTest extends TestCase
             businessRole: null,
             contactName: '刘女士',
             contactValue: '010-123456',
-            cooperationStartedOn: CarbonImmutable::parse('2026-07-28'),
+            cooperationStartedOn: CarbonImmutable::parse('2026-04-15'),
             cooperationEndedOn: null,
             cooperationStatus: 'active',
             policyGradeId: $this->grade->id,
@@ -243,6 +261,16 @@ class PhaseFourAgentCommissionTest extends TestCase
         );
         $id = $manager->create($profile, $this->admin->id, null);
         $this->assertDatabaseHas('agents', ['id' => $id, 'code' => 'LH-VIP']);
+        $this->assertDatabaseHas('agent_grade_assignments', [
+            'agent_id' => $id,
+            'policy_grade_id' => $this->grade->id,
+            'effective_month' => '2026-04-01',
+        ]);
+        $this->assertDatabaseHas('agent_grade_assignments', [
+            'agent_id' => $id,
+            'policy_grade_id' => $this->grade->id,
+            'effective_month' => '2026-04-01',
+        ]);
         $manager->saveType($vip->id, 'V2P', '升级后的 VIP 合伙人', '仅影响后续新编号', $this->admin->id, null);
         $this->assertDatabaseHas('agents', ['id' => $id, 'code' => 'LH-VIP']);
         $this->assertDatabaseHas('agent_type_codes', ['id' => $vip->id, 'code' => 'V2P']);
@@ -258,7 +286,7 @@ class PhaseFourAgentCommissionTest extends TestCase
             businessRole: null,
             contactName: null,
             contactValue: null,
-            cooperationStartedOn: CarbonImmutable::parse('2026-07-28'),
+            cooperationStartedOn: CarbonImmutable::parse('2026-04-15'),
             cooperationEndedOn: CarbonImmutable::parse('2026-07-28'),
             cooperationStatus: 'terminated',
             policyGradeId: $this->grade->id,
@@ -283,6 +311,21 @@ class PhaseFourAgentCommissionTest extends TestCase
 
         $this->expectException(DomainException::class);
         $gateway->saveRule($this->grade->id, $this->institution->id, 1300, CarbonImmutable::parse('2026-07-01'), $this->admin->id, null);
+    }
+
+    public function test_current_month_rate_lock_follows_the_business_clock(): void
+    {
+        $clock = app(BusinessClock::class);
+        $clock->set(CarbonImmutable::parse('2026-08-10 10:00'), $this->admin->id);
+        $gateway = app(CommissionConfigurationGateway::class);
+        $gateway->saveRule($this->grade->id, $this->institution->id, 1500, CarbonImmutable::parse('2026-08-01'), $this->admin->id, null);
+
+        try {
+            $this->expectException(DomainException::class);
+            $gateway->saveRule($this->grade->id, $this->institution->id, 1300, CarbonImmutable::parse('2026-08-01'), $this->admin->id, null);
+        } finally {
+            $clock->disable($this->admin->id);
+        }
     }
 
     public function test_missing_current_grade_requires_explicit_correction_and_becomes_effective_immediately(): void
@@ -473,6 +516,7 @@ class PhaseFourAgentCommissionTest extends TestCase
 
     public function test_historical_grade_import_is_past_only_and_idempotent(): void
     {
+        $this->actingAs($this->admin);
         $agent = Agent::query()->create([
             'agent_type_code_id' => AgentTypeCode::query()->where('code', 'JG')->value('id'),
             'code' => 'HISTORY-JG',
@@ -495,6 +539,31 @@ class PhaseFourAgentCommissionTest extends TestCase
 
         $this->expectException(DomainException::class);
         $gateway->importHistoricalGradeAssignments([['agent_code' => $agent->code, 'policy_system' => $row['policy_system'], 'policy_grade' => $row['policy_grade'], 'effective_month' => '2026-08-01', 'reason' => '未来']], $this->admin->id, $batchId, null);
+    }
+
+    public function test_historical_grade_import_rejects_non_super_admin(): void
+    {
+        $agent = Agent::query()->create([
+            'agent_type_code_id' => AgentTypeCode::query()->where('code', 'JG')->value('id'),
+            'code' => 'HISTORY-DENIED',
+            'name' => '历史等级越权代理商',
+            'cooperation_started_on' => '2026-01-15',
+            'cooperation_status' => 'active',
+        ]);
+        $this->actingAs($this->user);
+
+        try {
+            app(DatabaseReferenceConfigurationImportGateway::class)->importHistoricalGradeAssignments([[
+                'agent_code' => $agent->code,
+                'policy_system' => PolicySystem::query()->findOrFail($this->grade->policy_system_id)->name,
+                'policy_grade' => $this->grade->name,
+                'effective_month' => '2026-04-01',
+                'reason' => '不应允许历史写入',
+            ]], $this->user->id, (string) Str::uuid(), null);
+            $this->fail('Only super administrators may import historical grades.');
+        } catch (HttpException $exception) {
+            $this->assertSame(403, $exception->getStatusCode());
+        }
     }
 
     public function test_phase_four_pages_enforce_roles_and_navigation(): void

@@ -1,6 +1,7 @@
 <?php
 
 use App\Infrastructure\Queue\QueueHeartbeat;
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Reminder\Application\Services\ReminderNotificationDispatcher;
 use App\Modules\Reminder\Application\Services\ReminderScheduler;
 use App\Modules\Settlement\Application\Services\SettlementNotificationDispatcher;
@@ -9,6 +10,7 @@ use App\Modules\Settlement\Application\Services\SettlementRunReconciler;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Schedule;
 
@@ -52,6 +54,57 @@ Artisan::command('app:generate-settlements', function (SettlementRunManager $man
     $run = $manager->startIfDue();
     $this->info($run === null ? '当前时间无需生成月结。' : "月结批次 {$run->id} 已启动。");
 })->purpose('Generate the due monthly settlement run');
+
+Artisan::command('app:business-anomalies', function (BusinessClock $clock): int {
+    $queries = [
+        '已完成订单缺少项目明细' => DB::table('orders as o')
+            ->where('o.status', 'completed')
+            ->where('o.record_status', 'active')
+            ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('order_items as oi')->whereColumn('oi.order_id', 'o.id')),
+        '订单金额与项目明细合计不一致' => DB::table('orders')
+            ->where('status', 'completed')
+            ->where('record_status', 'active')
+            ->whereRaw('amount_krw <> (SELECT COALESCE(SUM(oi.amount_krw), 0) FROM order_items oi WHERE oi.order_id = orders.id)'),
+        '代理商订单缺少推广费快照' => DB::table('orders as o')
+            ->where('o.status', 'completed')
+            ->where('o.record_status', 'active')
+            ->where('o.source_type', 'agent')
+            ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('order_commissions as oc')->whereColumn('oc.order_id', 'o.id')),
+        '已完成订单没有关联到院记录' => DB::table('orders')
+            ->where('status', 'completed')
+            ->where('record_status', 'active')
+            ->whereNull('appointment_id'),
+        '已到院记录缺少实际到院时间' => DB::table('appointments')
+            ->where('status', 'arrived')->whereNull('arrived_at'),
+        '已完成到院记录缺少实际到院时间' => DB::table('appointments as a')
+            ->where('a.status', 'completed')
+            ->whereNull('a.arrived_at')
+            ->whereExists(fn ($query) => $query->selectRaw('1')->from('orders as o')
+                ->whereColumn('o.appointment_id', 'a.id')
+                ->where('o.status', 'completed')
+                ->where('o.record_status', 'active')),
+        '月结缺少付款截止日' => DB::table('settlements')->whereNull('payment_due_on'),
+        '已到可结算期但尚未分配的差额' => DB::table('settlement_adjustments')
+            ->whereNull('target_settlement_id')
+            ->whereDate('eligible_period_start', '<=', $clock->now()->startOfMonth()->toDateString()),
+        '负月结余额缺少结转记录' => DB::table('settlements')
+            ->where('total_commission_krw', '<', 0)
+            ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('settlement_adjustments as sa')
+                ->whereRaw("sa.adjustment_key = CONCAT('carry:settlement:', settlements.id)")),
+    ];
+    $rows = [];
+    foreach ($queries as $label => $query) {
+        $rows[] = [
+            $label,
+            (clone $query)->count(),
+            (clone $query)->orderBy('id')->limit(100)->pluck('id')->map(static fn ($id): string => (string) $id)->implode(', '),
+        ];
+    }
+    $this->table(['异常类型', '数量', '样本 ID（最多 100 个）'], $rows);
+    $this->line('查询只读，不修改订单、到院记录、差额或月结。');
+
+    return 0;
+})->purpose('Read-only report of order, visit, commission, and settlement anomalies');
 
 Artisan::command('app:materialize-reminders', function (ReminderScheduler $scheduler): void {
     $this->info('已生成 '.$scheduler->materialize().' 条新提醒。');

@@ -12,6 +12,7 @@ use Illuminate\Support\Carbon;
  * @property int $id
  * @property int $customer_id
  * @property int $institution_id
+ * @property int|null $appointment_id
  * @property string $source_type
  * @property int|null $agent_id
  * @property int $amount_krw
@@ -23,6 +24,8 @@ use Illuminate\Support\Carbon;
  * @property array<string, mixed>|null $business_attribution_snapshot
  * @property string|null $source_return_file_id
  * @property string $completion_precision
+ * @property string|null $registration_key
+ * @property bool $settlement_excluded
  * @property Carbon|null $created_at
  * @property Carbon|null $updated_at
  */
@@ -38,6 +41,7 @@ class Order extends Model
             'completed_on' => 'date',
             'occurred_on' => 'date',
             'completed_at' => 'datetime',
+            'settlement_excluded' => 'boolean',
             'cancelled_at' => 'datetime',
             'deleted_at' => 'datetime',
             'business_attribution_snapshot' => 'array',

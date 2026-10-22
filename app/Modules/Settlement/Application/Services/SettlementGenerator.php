@@ -3,6 +3,7 @@
 namespace App\Modules\Settlement\Application\Services;
 
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
+use App\Modules\Settlement\Infrastructure\Models\SettlementAdjustment;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRunMember;
 use Carbon\CarbonImmutable;
 use DomainException;
@@ -57,16 +58,18 @@ final readonly class SettlementGenerator
 
             $periodStart = CarbonImmutable::parse($run->period_start);
             $periodEnd = CarbonImmutable::parse($run->period_end);
-            $calculation = $this->calculation->calculate((int) $member->agent_id, $periodStart, $periodEnd);
+            $calculation = $this->calculation->calculate((int) $member->agent_id, $periodStart, $periodEnd, lockAdjustments: true);
             $agent = $calculation['agent'];
             $orders = $calculation['orders'];
             $commissions = $calculation['commissions'];
+            $adjustments = $calculation['adjustments'];
             $totalConsumption = $calculation['total_consumption_krw'];
             $totalCommission = $calculation['total_commission_krw'];
             $settlement = Settlement::query()->updateOrCreate(
                 ['agent_id' => $member->agent_id, 'period_start' => $periodStart, 'period_end' => $periodEnd],
                 [
                     'settlement_run_id' => $run->id,
+                    'payment_due_on' => $periodEnd->addMonthNoOverflow()->startOfMonth()->addDays(9)->toDateString(),
                     'total_consumption_krw' => $totalConsumption,
                     'total_commission_krw' => $totalCommission,
                     'payout_amount_cny_fen' => 0,
@@ -80,12 +83,26 @@ final readonly class SettlementGenerator
                         'policy_system_id' => $agent->policySystemId,
                         'policy_grade' => ['id' => $agent->currentGradeId, 'name' => $agent->currentGradeName],
                         'generated_at' => now()->toIso8601String(),
+                        'adjustment_count' => $adjustments->count(),
+                        'adjustments' => $adjustments->map(static fn (SettlementAdjustment $adjustment): array => [
+                            'id' => (int) $adjustment->id,
+                            'key' => (string) $adjustment->adjustment_key,
+                            'consumption_delta_krw' => (int) $adjustment->consumption_delta_krw,
+                            'commission_delta_krw' => (int) $adjustment->commission_delta_krw,
+                            'reason' => (string) $adjustment->reason,
+                        ])->all(),
                     ],
                     'reviewed_by' => null,
                     'reviewed_at' => null,
                     'rejection_reason' => null,
                 ],
             );
+            if ($adjustments->isNotEmpty()) {
+                SettlementAdjustment::query()
+                    ->whereKey($adjustments->modelKeys())
+                    ->update(['target_settlement_id' => $settlement->id]);
+            }
+            $this->updateCarryForward($settlement, $totalCommission, $periodEnd);
             DB::table('settlement_items')->where('settlement_id', $settlement->id)->delete();
             foreach ($orders as $order) {
                 $commission = $commissions[$order->orderId];
@@ -113,6 +130,55 @@ final readonly class SettlementGenerator
             $this->summary->update($run);
         }, 3);
 
+    }
+
+    private function updateCarryForward(Settlement $settlement, int $netCommission, CarbonImmutable $periodEnd): void
+    {
+        $key = 'carry:settlement:'.$settlement->id;
+        $carry = SettlementAdjustment::query()->where('adjustment_key', $key)->lockForUpdate()->first();
+        $nextPeriodStart = $periodEnd->addDay()->startOfMonth()->toDateString();
+        if ($carry !== null) {
+            $target = $carry->target_settlement_id === null
+                ? null
+                : Settlement::query()->lockForUpdate()->find($carry->target_settlement_id);
+            $expectedCarry = min(0, $netCommission);
+            if ($target !== null && ! in_array($target->status, ['pending_review', 'rejected'], true)
+                && (int) $carry->commission_delta_krw !== $expectedCarry) {
+                throw new DomainException(__('settlements.errors.carry_forward_target_locked'));
+            }
+            if ((int) $carry->commission_delta_krw !== $expectedCarry
+                || $carry->eligible_period_start->toDateString() !== $nextPeriodStart) {
+                $carry->update([
+                    'commission_delta_krw' => $expectedCarry,
+                    'eligible_period_start' => $nextPeriodStart,
+                    'snapshot' => [...(array) $carry->snapshot, 'balance_krw' => $expectedCarry],
+                ]);
+            }
+
+            return;
+        }
+        if ($netCommission >= 0) {
+            return;
+        }
+
+        SettlementAdjustment::query()->create([
+            'agent_id' => $settlement->agent_id,
+            'source_order_id' => null,
+            'order_commission_id' => null,
+            'original_settlement_id' => $settlement->id,
+            'target_settlement_id' => null,
+            'adjustment_key' => $key,
+            'eligible_period_start' => $nextPeriodStart,
+            'consumption_delta_krw' => 0,
+            'commission_delta_krw' => $netCommission,
+            'reason' => __('settlements.adjustments.negative_balance_carry'),
+            'created_by' => null,
+            'snapshot' => [
+                'source' => 'negative_balance_carry',
+                'source_settlement_id' => (int) $settlement->id,
+                'balance_krw' => $netCommission,
+            ],
+        ]);
     }
 
     /** Supports the pre-member API during the compatibility window. */

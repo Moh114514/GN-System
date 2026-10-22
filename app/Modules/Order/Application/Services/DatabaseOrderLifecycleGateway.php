@@ -2,6 +2,7 @@
 
 namespace App\Modules\Order\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Application\Contracts\AgentBusinessAttributionReader;
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
@@ -15,9 +16,12 @@ use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
 use App\Modules\Settlement\Application\Contracts\BdCommissionCorrectionGateway;
 use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
 use App\Modules\Settlement\Application\Contracts\DirectOrderCommissionGateway;
+use App\Modules\Settlement\Application\Contracts\OrderFinancialReader;
+use App\Modules\Settlement\Application\Contracts\PaidOrderCorrectionGateway;
 use App\Modules\Settlement\Application\Data\BdCommissionOrderData;
 use App\Modules\Settlement\Application\Data\CompletedOrderCommissionData;
 use App\Modules\Settlement\Application\Data\DirectOrderCommissionData;
+use App\Modules\Settlement\Application\Data\PaidOrderCorrectionData;
 use Brick\Math\BigDecimal;
 use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
@@ -36,6 +40,9 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
         private AccessContextResolver $access,
         private AgentBusinessAttributionReader $attributions,
         private BdCommissionCorrectionGateway $bdCommissions,
+        private OrderFinancialReader $financials,
+        private PaidOrderCorrectionGateway $paidCorrections,
+        private BusinessClock $clock,
     ) {}
 
     public function updatePending(OrderUpdateData $data, int $actorId, ?string $ipAddress): int
@@ -49,6 +56,17 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             }
             if ($context->isBdManager() && ! $context->canViewAgent((int) $order->agent_id)) {
                 throw new DomainException(__('orders.errors.bd_order_edit_only'));
+            }
+            $financial = $this->financials->forOrder((int) $order->id, (int) $order->customer_id);
+            $settlement = $financial['settlement'] ?? null;
+            $paidSettlement = is_array($settlement)
+                && in_array((string) ($settlement['status'] ?? ''), ['settled', 'paid', 'reconciled'], true);
+            $paidAgentCorrection = $paidSettlement && (string) $order->source_type === 'agent';
+            if (is_array($settlement) && ! $paidSettlement) {
+                throw new DomainException(__('settlements.errors.order_in_settlement'));
+            }
+            if ($paidAgentCorrection && ! $context->isSuperAdmin()) {
+                throw new DomainException(__('settlements.errors.paid_order_correction_super_admin'));
             }
             if (! in_array($order->status, ['pending', 'completed'], true) || $order->trashed() || $order->record_status !== 'active') {
                 throw new DomainException(__('orders.errors.only_editable_order'));
@@ -71,13 +89,45 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             if ($order->status === 'completed' && $occurredOn === null) {
                 throw new DomainException(__('orders.errors.occurred_on_required'));
             }
+            if ($occurredOn !== null && $occurredOn->startOfDay()->gt($this->clock->now()->startOfDay())) {
+                throw new DomainException(__('orders.errors.business_date_in_future'));
+            }
             $items = $this->normalizeItems($data);
             $totalAmount = array_sum(array_column($items, 'amount_krw'));
             if ($totalAmount !== $data->amountKrw) {
                 throw new DomainException(__('orders.errors.order_items_amount_mismatch'));
             }
 
-            if ($order->status === 'completed') {
+            if ($order->status === 'completed' && $paidAgentCorrection) {
+                $commission = $financial['commission'] ?? null;
+                if (! is_array($commission) || ! isset($settlement['id'])) {
+                    throw new DomainException(__('settlements.errors.paid_order_correction_context_missing'));
+                }
+                $preview = $this->commissions->previewForOrder((int) $data->agentId, $data->institutionId, $occurredOn);
+                $newCommissionAmount = BigDecimal::of($totalAmount)
+                    ->multipliedBy((int) $preview['rate_bps'])
+                    ->dividedBy(10000, 0, RoundingMode::HalfUp)
+                    ->toInt();
+                $this->paidCorrections->record(new PaidOrderCorrectionData(
+                    orderId: (int) $order->id,
+                    agentId: (int) $order->agent_id,
+                    orderCommissionId: (int) $commission['id'],
+                    originalSettlementId: (int) $settlement['id'],
+                    oldAmountKrw: (int) $order->amount_krw,
+                    oldCommissionKrw: (int) $commission['amount_krw'],
+                    oldRateBps: (int) $commission['rate_bps'],
+                    oldOccurredOn: CarbonImmutable::parse($order->occurred_on),
+                    newAmountKrw: $totalAmount,
+                    newCommissionKrw: $newCommissionAmount,
+                    newRateBps: (int) $preview['rate_bps'],
+                    newOccurredOn: $occurredOn,
+                    reason: trim((string) $data->reason),
+                    actorId: $actorId,
+                    correctionKey: hash('sha256', 'paid-order-correction:'.$order->id.':'.$data->expectedUpdatedAt),
+                ));
+            }
+
+            if ($order->status === 'completed' && ! $paidAgentCorrection) {
                 if ($isDirect) {
                     $this->directCommissions->voidForOrder((int) $order->id, $actorId, (string) $data->reason);
                 } else {
@@ -108,6 +158,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             $order->update([
                 'project_name' => $projectName,
                 'amount_krw' => $data->amountKrw,
+                'settlement_excluded' => $order->settlement_excluded || $paidAgentCorrection,
                 'treatment_project_snapshot' => $projectSnapshot,
                 'treatment_project_id' => $data->treatmentProjectId,
                 'translator_language_id' => $data->translatorLanguageId,
@@ -116,9 +167,9 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                 'notes' => $data->notes,
                 'occurred_on' => $occurredOn,
                 'completed_on' => $order->status === 'completed' ? $occurredOn : $order->completed_on,
-                'completed_at' => $order->status === 'completed'
-                    ? ($order->completed_at?->setDate($occurredOn->year, $occurredOn->month, $occurredOn->day) ?? $occurredOn->startOfDay())
-                    : $order->completed_at,
+                // completed_at is the first formal registration timestamp. A business-date
+                // correction must not rewrite when the order was actually registered.
+                'completed_at' => $order->completed_at,
                 'business_attribution_snapshot' => $occurredOn === null || $isDirect
                     ? $order->business_attribution_snapshot
                     : [
@@ -132,7 +183,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             foreach ($items as $index => $item) {
                 OrderItem::query()->create([
                     'order_id' => $order->id,
-                    'treatment_project_id' => $index === 0 ? $data->treatmentProjectId : null,
+                    'treatment_project_id' => $item['treatment_project_id'] ?? ($index === 0 ? $data->treatmentProjectId : null),
                     'project_snapshot' => $item['project_name'],
                     'specification' => $item['specification'],
                     'quantity' => $item['quantity'],
@@ -148,12 +199,12 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                         orderId: (int) $order->id,
                         ownerId: (int) $order->owner_id,
                         orderAmountKrw: (int) $order->amount_krw,
-                        completedAt: $occurredOn,
+                        completedAt: $order->completed_at ?? $occurredOn->startOfDay(),
                         directChannel: data_get($order->business_attribution_snapshot, 'direct_channel'),
                         actorId: $actorId,
                         ipAddress: $ipAddress,
                     ));
-                } else {
+                } elseif (! $paidAgentCorrection) {
                     $this->commissions->recordForCompletedOrder(new CompletedOrderCommissionData(
                         orderId: (int) $order->id,
                         agentId: (int) $order->agent_id,
@@ -368,7 +419,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
         }
     }
 
-    /** @return array<int, array{project_name: string, specification: string|null, quantity: string, unit_price_krw: int, amount_krw: int, notes: string|null}> */
+    /** @return array<int, array{project_name: string, treatment_project_id: int|null, specification: string|null, quantity: string, unit_price_krw: int, amount_krw: int, notes: string|null}> */
     private function normalizeItems(OrderUpdateData $data): array
     {
         $items = $data->items;
@@ -403,8 +454,13 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                 throw new DomainException(__('orders.errors.order_item_amount_mismatch'));
             }
 
+            $treatmentProjectId = isset($item['treatment_project_id']) && $item['treatment_project_id'] !== ''
+                ? (int) $item['treatment_project_id']
+                : null;
+
             return [
                 'project_name' => $projectName,
+                'treatment_project_id' => $treatmentProjectId,
                 'specification' => isset($item['specification']) ? trim((string) $item['specification']) : null,
                 'quantity' => $quantity,
                 'unit_price_krw' => $unitPrice,

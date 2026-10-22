@@ -2,6 +2,7 @@
 
 namespace App\Modules\Order\Presentation\Livewire;
 
+use App\Modules\Order\Application\Contracts\OrderRegistrationDraftGateway;
 use App\Modules\Order\Application\Data\CompletedOrderItemData;
 use App\Modules\Order\Application\Data\CompletedOrderRegistrationData;
 use App\Modules\Order\Application\Data\InstitutionReturnUploadData;
@@ -14,6 +15,7 @@ use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Livewire\Attributes\On;
 use Livewire\Component;
 use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
@@ -30,7 +32,9 @@ class CustomerOrderRegistration extends Component
 
     public string $status = 'ready';
 
-    public bool $institutionPickerOpen = false;
+    public string $submissionKey = '';
+
+    public ?string $draftId = null;
 
     public ?TemporaryUploadedFile $upload = null;
 
@@ -48,22 +52,65 @@ class CustomerOrderRegistration extends Component
     /** @var array<string, mixed>|null */
     public ?array $successResult = null;
 
-    public function mount(int $customerId, CustomerOrderRegistrationWorkspace $workspace): void
-    {
+    public function mount(
+        int $customerId,
+        CustomerOrderRegistrationWorkspace $workspace,
+        OrderRegistrationDraftGateway $drafts,
+    ): void {
         $this->customerId = $customerId;
         $this->setDefaultInstitution($workspace->context($customerId));
+        $this->submissionKey = (string) Str::uuid();
+        $draft = $drafts->latestOpen($customerId);
+        if ($draft !== null) {
+            $this->submissionKey = $draft['id'];
+            $this->draftId = $draft['id'];
+            $this->institutionId = $draft['institution_id'] === null ? $this->institutionId : (string) $draft['institution_id'];
+            $items = $draft['payload']['items'] ?? null;
+            if (is_array($items) && $items !== []) {
+                $this->items = array_values(array_map(static fn (mixed $item): array => [
+                    'project_name' => is_array($item) ? (string) ($item['project_name'] ?? '') : '',
+                    'amount_krw' => is_array($item) ? (string) ($item['amount_krw'] ?? '') : '',
+                ], $items));
+            }
+        }
     }
 
-    public function showInstitutionPicker(): void
-    {
-        $this->institutionPickerOpen = true;
-    }
-
-    public function selectInstitution(int $institutionId): void
-    {
-        $this->institutionId = (string) $institutionId;
-        $this->institutionPickerOpen = false;
-        $this->resetValidation('institutionId');
+    public function saveDraft(
+        OrderRegistrationDraftGateway $drafts,
+        CustomerOrderRegistrationWorkspace $workspace,
+    ): void {
+        $workspace->assertCanSaveDraft($this->customerId);
+        $this->validate([
+            'institutionId' => ['nullable', 'integer', 'min:1'],
+            'items' => ['required', 'array', 'min:1'],
+            'items.*.project_name' => ['nullable', 'string', 'max:255'],
+            'items.*.amount_krw' => ['nullable', 'string', 'max:20'],
+        ]);
+        $context = $workspace->context($this->customerId);
+        $actorId = Auth::id();
+        abort_unless(is_int($actorId), 403);
+        if (! Str::isUuid($this->submissionKey)) {
+            $this->submissionKey = (string) Str::uuid();
+        }
+        $draftItems = array_values(array_map(static fn (array $item): array => [
+            'project_name' => $item['project_name'],
+            'amount_krw' => $item['amount_krw'],
+        ], $this->items));
+        $appointmentId = $context['appointment']['id'] ?? null;
+        $institutionId = $this->institutionId !== '' && ctype_digit($this->institutionId)
+            ? (int) $this->institutionId
+            : null;
+        $drafts->save(
+            draftId: $this->submissionKey,
+            customerId: $this->customerId,
+            appointmentId: $appointmentId === null ? null : (int) $appointmentId,
+            institutionId: $institutionId,
+            payload: ['items' => $draftItems],
+            actorId: $actorId,
+        );
+        $this->draftId = $this->submissionKey;
+        $this->status = 'draft_saved';
+        $this->errorMessage = '';
     }
 
     public function addItem(): void
@@ -102,13 +149,14 @@ class CustomerOrderRegistration extends Component
         try {
             $workspace->assertCanRegister($this->customerId);
             $workspace->assertActiveInstitution((int) $this->institutionId);
+            $workspace->assertVisitInstitution($this->customerId, (int) $this->institutionId);
             $context = $workspace->context($this->customerId);
         } catch (DomainException $exception) {
             $this->fail($exception->getMessage());
 
             return;
         }
-        $arrivedAt = $context['customer']['arrived_at'] ?? null;
+        $arrivedAt = $context['visit_arrived_at'] ?? null;
         if ($arrivedAt === null) {
             $this->fail(__('orders.errors.customer_not_arrived'));
 
@@ -145,6 +193,9 @@ class CustomerOrderRegistration extends Component
                 ],
                 requireArrived: true,
                 requireEvidence: true,
+                appointmentId: isset($context['appointment']['id']) ? (int) $context['appointment']['id'] : null,
+                idempotencyKey: $this->submissionKey,
+                draftId: $this->draftId,
             ));
         } catch (DomainException $exception) {
             $this->fail($exception->getMessage());
@@ -155,6 +206,8 @@ class CustomerOrderRegistration extends Component
         $this->reset('communicationScreenshots', 'settlementReceipts');
         $this->successResult = $workspace->result($this->customerId, $orderId);
         $this->status = 'success';
+        $this->draftId = null;
+        $this->submissionKey = (string) Str::uuid();
         $this->dispatch('customer-order-registered', customerId: $this->customerId);
     }
 
@@ -235,7 +288,8 @@ class CustomerOrderRegistration extends Component
     #[On('customer-order-registration-reset')]
     public function resetRegistration(): void
     {
-        $this->reset('upload', 'communicationScreenshots', 'settlementReceipts', 'errorMessage', 'successResult', 'institutionPickerOpen');
+        $this->reset('upload', 'communicationScreenshots', 'settlementReceipts', 'errorMessage', 'successResult', 'draftId');
+        $this->submissionKey = (string) Str::uuid();
         $this->items = [['project_name' => '', 'amount_krw' => '']];
         $this->resetValidation();
         $this->status = 'ready';
@@ -254,8 +308,21 @@ class CustomerOrderRegistration extends Component
 
     public function render(CustomerOrderRegistrationWorkspace $workspace): View
     {
+        $context = $workspace->context($this->customerId);
+        $commissionPreview = null;
+        $commissionPreviewError = null;
+        if ($this->institutionId !== '' && ctype_digit($this->institutionId) && ($context['can_register'] ?? false)) {
+            try {
+                $commissionPreview = $workspace->commissionPreview($this->customerId, (int) $this->institutionId);
+            } catch (DomainException $exception) {
+                $commissionPreviewError = $exception->getMessage();
+            }
+        }
+
         return view('livewire.orders.customer-order-registration', [
-            'context' => $workspace->context($this->customerId),
+            'context' => $context,
+            'commissionPreview' => $commissionPreview,
+            'commissionPreviewError' => $commissionPreviewError,
         ]);
     }
 
@@ -271,6 +338,7 @@ class CustomerOrderRegistration extends Component
     {
         $this->validate(['institutionId' => ['required', 'integer', 'min:1']]);
         $workspace->assertActiveInstitution((int) $this->institutionId);
+        $workspace->assertVisitInstitution($this->customerId, (int) $this->institutionId);
     }
 
     private function fail(string $message): void

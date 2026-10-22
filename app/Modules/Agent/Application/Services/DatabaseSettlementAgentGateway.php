@@ -55,6 +55,12 @@ final readonly class DatabaseSettlementAgentGateway implements SettlementAgentGa
 
     private function data(int $agentId, CarbonImmutable $month): SettlementAgentData
     {
+        // Outstanding settlement adjustments use the last cooperation month's metadata.
+        // Order eligibility is still enforced by AgentCommissionContextReader.
+        $agent = Agent::query()->findOrFail($agentId);
+        if ($agent->cooperation_ended_on !== null && $month->startOfMonth()->gt($agent->cooperation_ended_on->endOfMonth())) {
+            $month = CarbonImmutable::parse($agent->cooperation_ended_on);
+        }
         $context = $this->contexts->forMonth($agentId, $month);
 
         return new SettlementAgentData(

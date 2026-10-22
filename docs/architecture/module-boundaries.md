@@ -146,6 +146,25 @@ Agent grades remain policy and assignment attributes, but settlement generation 
 monthly thresholds, create grade suggestions, or send grade-adjustment notifications. Existing
 historical grade-related rows remain readable for migration and audit purposes.
 
+## 2026-10-20 订单登记与月结差额闭环
+
+Order 继续独占订单、订单明细、到院预约和登记草稿；订单正式登记使用稳定提交键与载荷指纹实现重试幂等，
+并通过 `CustomerOrderGateway` 读取/绑定准确到院记录。Order 可调用 Settlement 的
+`PaidOrderCorrectionGateway`，但不得直接写月结或差额表。Settlement 独占 `settlement_adjustments`、
+付款截止日与负余额结转；订单详情通过 `OrderFinancialReader` 只读展示更正链。
+
+`AgentReferenceReader::orderEligibility` 向 Order 提供合作起止日期和状态，不暴露 Agent Model。
+历史月结更正、预约时间和差额处理分别由各自数据所有者事务完成。跨模块协作仍只引用
+Application Contracts/Data；没有引入事件机制、直接写表或通用兼容层。
+
+新增到院、订单提交、登记草稿、付款日期及月结差额数据后，迁移拒绝直接回滚。部署前后核对使用
+只读 `app:business-anomalies` 命令；其输出不会自动修复旧数据。
+
+历史到院补录命令通过 Order Application 服务只写 Order 自有预约，并通过 Audit Contract 记录核对依据；
+不回写 Customer 状态。`SettlementAgentGateway::forMonth` 仅供结算身份/等级资料展示，合作结束后使用最后
+合作月资料；推广费和新订单资格仍由 `AgentCommissionContextReader` 独立检查。月结的候选代理商、差额选择和
+金额计算统一由既有 `SettlementCalculationService` 提供，预览保持只读。
+
 ## PR7 发布边界
 
 PR1–PR6 的边界实现仍属于当前 feature worktree，未改变服务器上的已发布版本。迁移、备份、

@@ -34,6 +34,7 @@ use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Livewire\Features\SupportTesting\Testable;
 use Livewire\Livewire;
@@ -275,6 +276,7 @@ class CustomerOptionalProfileTest extends TestCase
     {
         $customer = $this->createCustomer('direct', null);
         $customer->update(['current_status_id' => CustomerStatus::query()->where('key', 'arrived')->value('id'), 'arrived_at' => now()]);
+        DB::table('appointments')->where('customer_id', $customer->id)->update(['status' => 'arrived', 'arrived_at' => now()]);
         $form = $entry === 'center'
             ? Livewire::actingAs($this->admin)->test(InstitutionReturnCenter::class)->set('customerId', (string) $customer->id)
             : Livewire::actingAs($this->admin)->test(CustomerOrderRegistration::class, ['customerId' => $customer->id]);

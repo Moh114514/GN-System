@@ -29,6 +29,7 @@ use Livewire\Livewire;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use RuntimeException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class ReferenceConfigurationImportTest extends TestCase
@@ -389,6 +390,7 @@ class ReferenceConfigurationImportTest extends TestCase
 
     public function test_historical_commission_rule_is_idempotent_and_conflicts_are_rejected(): void
     {
+        $this->actingAs($this->admin);
         $system = PolicySystem::query()->create(['name' => '测试政策', 'is_active' => true]);
         $grade = PolicyGrade::query()->create([
             'policy_system_id' => $system->id,
@@ -411,6 +413,37 @@ class ReferenceConfigurationImportTest extends TestCase
         $this->expectException(DomainException::class);
         app(CommissionConfigurationGateway::class)
             ->importHistoricalCorrectionRule(new HistoricalCommissionRuleData($grade->id, $institution->id, 1300, CarbonImmutable::parse('2026-04-01'), true, 'batch-id', '测试', $this->admin->id, null));
+    }
+
+    public function test_historical_commission_rule_import_rejects_non_super_admin(): void
+    {
+        $system = PolicySystem::query()->create(['name' => '越权测试政策', 'is_active' => true]);
+        $grade = PolicyGrade::query()->create([
+            'policy_system_id' => $system->id,
+            'name' => '历史费率测试等级',
+            'sort_order' => 1,
+            'is_active' => true,
+        ]);
+        $institution = Institution::query()->create(['code' => 'HIST-DENIED', 'name' => '越权测试机构', 'is_active' => true]);
+        $user = User::factory()->create();
+        $this->actingAs($user);
+
+        try {
+            app(CommissionConfigurationGateway::class)->importHistoricalCorrectionRule(new HistoricalCommissionRuleData(
+                $grade->id,
+                $institution->id,
+                1200,
+                CarbonImmutable::parse('2026-04-01'),
+                true,
+                'batch-id-denied',
+                '不应允许历史费率写入',
+                $user->id,
+                null,
+            ));
+            $this->fail('Only super administrators may import historical commission rules.');
+        } catch (HttpException $exception) {
+            $this->assertSame(403, $exception->getStatusCode());
+        }
     }
 
     private function exampleUpload(): UploadedFile

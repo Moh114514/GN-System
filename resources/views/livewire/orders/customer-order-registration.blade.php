@@ -38,7 +38,7 @@
                         <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.customer') }}</dt><dd class="mt-1 font-semibold">{{ $context['customer']['name'] }} · {{ $context['customer']['code'] }}</dd></div>
                         <div><dt class="text-xs text-zinc-500">{{ __('customers.detail.profile.agent') }}</dt><dd class="mt-1 font-medium">{{ $context['agent']['name'] ?? __('customers.fallback.unknown_agent') }}</dd></div>
                         <div><dt class="text-xs text-zinc-500">{{ __('orders.registration.status') }}</dt><dd class="mt-1 font-medium">{{ $context['customer']['current_status'] ?: __('customers.fallback.unset') }}</dd></div>
-                        <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.occurred_on') }}</dt><dd class="mt-1 font-medium">{{ $context['customer']['arrived_at'] ? \Illuminate\Support\Carbon::parse($context['customer']['arrived_at'])->format('Y-m-d') : __('customers.fallback.unset') }}</dd></div>
+                        <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.occurred_on') }}</dt><dd class="mt-1 font-medium">{{ $context['visit_arrived_at'] ? \Illuminate\Support\Carbon::parse($context['visit_arrived_at'])->format('Y-m-d') : __('customers.fallback.unset') }}</dd></div>
                     </dl>
                 </section>
 
@@ -47,25 +47,25 @@
                         {{ __('orders.errors.customer_not_arrived') }}
                     </div>
                 @endif
+                @if ($status === 'draft_saved')
+                    <p class="text-sm text-teal-700 dark:text-teal-300">{{ __('orders.registration.draft_saved') }}</p>
+                @endif
 
                 <section class="space-y-4 rounded-2xl border border-teal-200 bg-teal-50/50 p-4 dark:border-teal-900/60 dark:bg-teal-950/20">
-                    <div class="flex items-center justify-between gap-3">
+                    <div>
                         <div>
                             <h3 class="text-sm font-semibold">{{ __('orders.registration.manual_title') }}</h3>
                             <p class="mt-1 text-xs text-zinc-500">{{ __('orders.registration.manual_description') }}</p>
                         </div>
-                        @if (($context['institution_locked'] ?? false) && ! $institutionPickerOpen)
-                            <flux:button type="button" wire:click="showInstitutionPicker" variant="ghost" size="sm">{{ __('orders.registration.change_institution') }}</flux:button>
-                        @endif
                     </div>
 
-                    @if (($context['institution_locked'] ?? false) && ! $institutionPickerOpen)
+                    @if ($context['institution_locked'] ?? false)
                         <div class="rounded-xl bg-white px-4 py-3 text-sm dark:bg-zinc-900">
                             <span class="font-medium">{{ $context['institution']['name'] }}</span>
                             <span class="ml-2 text-xs text-zinc-500">{{ $context['institution']['code'] }}</span>
                         </div>
                     @else
-                        <flux:select wire:model="institutionId" :label="__('orders.fields.institution')" required>
+                        <flux:select wire:model.live="institutionId" :label="__('orders.fields.institution')" required>
                             <flux:select.option value="">{{ __('orders.fields.select') }}</flux:select.option>
                             @foreach ($context['institutions'] as $institution)
                                 <flux:select.option value="{{ $institution['id'] }}">{{ $institution['code'] }} · {{ $institution['name'] }}</flux:select.option>
@@ -73,6 +73,20 @@
                         </flux:select>
                     @endif
                     @error('institutionId') <p class="text-sm text-red-600">{{ $message }}</p> @enderror
+                    @if ($commissionPreviewError)
+                        <div class="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">{{ $commissionPreviewError }}</div>
+                    @elseif ($commissionPreview)
+                        <div class="rounded-xl border border-teal-200 bg-white p-3 text-sm dark:border-teal-900/60 dark:bg-zinc-900">
+                            <span class="font-medium">{{ __('orders.registration.commission_ready') }}</span>
+                            @if ($commissionPreview['source_type'] === 'agent')
+                                <span class="ml-2">{{ $commissionPreview['agent_name'] }} · {{ $commissionPreview['grade_name'] }}</span>
+                            @else
+                                <span class="ml-2">{{ __('orders.sources.direct') }}</span>
+                            @endif
+                            <span class="ml-2">{{ number_format($commissionPreview['rate_bps'] / 100, 2) }}%</span>
+                            <span class="ml-2 text-zinc-500">{{ __('orders.registration.commission_effective_month', ['month' => substr($commissionPreview['effective_month'], 0, 7)]) }}</span>
+                        </div>
+                    @endif
 
                     <div class="space-y-3">
                         @foreach ($items as $index => $item)
@@ -141,6 +155,7 @@
                 </section>
 
                 <div class="flex justify-end gap-2">
+                    <flux:button type="button" wire:click="saveDraft" variant="ghost" wire:loading.attr="disabled">{{ __('orders.registration.save_draft') }}</flux:button>
                     <flux:modal.close>
                         <flux:button type="button" variant="ghost">{{ __('orders.registration.cancel') }}</flux:button>
                     </flux:modal.close>

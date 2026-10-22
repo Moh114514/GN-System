@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
+use App\Modules\Agent\Application\Contracts\AgentCommissionContextReader;
 use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
 use App\Modules\Agent\Application\Services\DatabaseReferenceConfigurationImportGateway;
 use App\Modules\Agent\Infrastructure\Models\Agent;
@@ -15,8 +16,12 @@ use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Order\Application\Contracts\DailyOrderGateway;
 use App\Modules\Order\Application\Data\DailyOrderData;
+use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Settlement\Application\Contracts\CommissionConfigurationGateway;
+use App\Modules\Settlement\Application\Contracts\OrderFinancialReader;
+use App\Modules\Settlement\Application\Contracts\PaidOrderCorrectionGateway;
 use App\Modules\Settlement\Application\Data\HistoricalCommissionRuleData;
+use App\Modules\Settlement\Application\Data\PaidOrderCorrectionData;
 use App\Modules\Settlement\Application\Services\ExchangeRateQuoteService;
 use App\Modules\Settlement\Application\Services\SettlementDocumentGenerator;
 use App\Modules\Settlement\Application\Services\SettlementFreshnessChecker;
@@ -30,6 +35,7 @@ use App\Modules\Settlement\Application\Services\SettlementRunReconciler;
 use App\Modules\Settlement\Application\Services\SettlementWorkflow;
 use App\Modules\Settlement\Infrastructure\Models\CommissionRule;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
+use App\Modules\Settlement\Infrastructure\Models\SettlementAdjustment;
 use App\Modules\Settlement\Infrastructure\Models\SettlementConfiguration;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
@@ -44,6 +50,7 @@ use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use DomainException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -56,6 +63,7 @@ use Livewire\Livewire;
 use PhpOffice\PhpSpreadsheet\Cell\DataType;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use RuntimeException;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Tests\TestCase;
 
 class PhaseFiveSettlementTest extends TestCase
@@ -286,6 +294,7 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame('completed', $run->status);
         $this->assertSame(10005, (int) $settlement->total_consumption_krw);
         $this->assertSame(1001, (int) $settlement->total_commission_krw);
+        $this->assertSame('2026-08-10', $settlement->payment_due_on?->toDateString());
         $this->assertDatabaseHas('settlement_items', ['settlement_id' => $settlement->id, 'order_commission_id' => DB::table('order_commissions')->where('order_id', $orderId)->value('id')]);
 
         $same = app(SettlementRunManager::class)->start('manual', $this->admin->id);
@@ -327,6 +336,347 @@ class PhaseFiveSettlementTest extends TestCase
         $properties = json_decode((string) DB::table('activity_log')->where('subject_id', $settlement->id)->where('event', 'refreshed')->value('properties'), true);
         $this->assertSame([$secondOrderId], $properties['added_order_ids']);
         $this->assertSame('补录本周期遗漏订单', $properties['reason']);
+    }
+
+    public function test_eligible_unassigned_correction_makes_settlement_stale_until_refresh_assigns_it(): void
+    {
+        $this->createCompletedOrder(10000);
+        $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
+        $settlement = Settlement::query()->where('settlement_run_id', $run->id)->firstOrFail();
+        $adjustment = SettlementAdjustment::query()->create([
+            'agent_id' => $this->agent->id,
+            'adjustment_key' => (string) Str::uuid(),
+            'eligible_period_start' => '2026-07-01',
+            'commission_delta_krw' => -200,
+            'reason' => '已付款订单更正差额',
+            'created_by' => $this->admin->id,
+            'snapshot' => ['source' => 'test_correction'],
+        ]);
+
+        $this->assertSame('stale', app(SettlementFreshnessChecker::class)->check($settlement->fresh())->status);
+        app(SettlementWorkflow::class)->refreshSettlement($settlement->id, '纳入订单更正差额', $this->admin->id, null);
+
+        $settlement->refresh();
+        $this->assertSame(800, (int) $settlement->total_commission_krw);
+        $this->assertSame(2, (int) $settlement->item_count);
+        $this->assertSame($settlement->id, (int) $adjustment->fresh()->target_settlement_id);
+        $this->assertSame('fresh', app(SettlementFreshnessChecker::class)->check($settlement->fresh())->status);
+    }
+
+    public function test_paid_order_correction_is_auditable_and_repeated_request_is_idempotent(): void
+    {
+        $this->actingAs($this->admin);
+        $orderId = $this->createCompletedOrder(10000);
+        $commission = DB::table('order_commissions')->where('order_id', $orderId)->first();
+        $settlement = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'paid',
+            'generation_status' => 'generated',
+            'total_consumption_krw' => 10000,
+            'total_commission_krw' => 1000,
+            'item_count' => 1,
+        ]);
+        DB::table('settlement_items')->insert([
+            'settlement_id' => $settlement->id,
+            'order_commission_id' => $commission->id,
+            'consumption_krw' => 10000,
+            'commission_krw' => 1000,
+            'rule_snapshot' => json_encode(['order' => ['id' => $orderId]], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        $correction = new PaidOrderCorrectionData(
+            orderId: $orderId,
+            agentId: $this->agent->id,
+            orderCommissionId: (int) $commission->id,
+            originalSettlementId: $settlement->id,
+            oldAmountKrw: 10000,
+            oldCommissionKrw: 1000,
+            oldRateBps: 1000,
+            oldOccurredOn: CarbonImmutable::parse('2026-07-15'),
+            newAmountKrw: 15000,
+            newCommissionKrw: 1500,
+            newRateBps: 1000,
+            newOccurredOn: CarbonImmutable::parse('2026-07-16'),
+            reason: '修正已付款订单金额',
+            actorId: $this->admin->id,
+            correctionKey: hash('sha256', 'test-paid-order-correction:'.$orderId),
+        );
+
+        app(PaidOrderCorrectionGateway::class)->record($correction);
+        app(PaidOrderCorrectionGateway::class)->record($correction);
+
+        $adjustment = SettlementAdjustment::query()->where('adjustment_key', $correction->correctionKey)->sole();
+        $this->assertSame(5000, (int) $adjustment->consumption_delta_krw);
+        $this->assertSame(500, (int) $adjustment->commission_delta_krw);
+        $this->assertSame('2026-08-01', $adjustment->eligible_period_start->toDateString());
+        $this->assertSame($this->admin->id, (int) data_get($adjustment->snapshot, 'actor_id'));
+        $this->assertSame(1000, (int) data_get($adjustment->snapshot, 'before.commission_krw'));
+        $this->assertSame(1500, (int) data_get($adjustment->snapshot, 'after.commission_krw'));
+        $this->assertSame('paid', $settlement->fresh()->status);
+        $this->assertSame(1000, (int) $settlement->fresh()->total_commission_krw);
+        $this->assertDatabaseCount('settlement_adjustments', 1);
+
+        $nextCorrection = new PaidOrderCorrectionData(
+            orderId: $orderId,
+            agentId: $this->agent->id,
+            orderCommissionId: (int) $commission->id,
+            originalSettlementId: $settlement->id,
+            oldAmountKrw: 15000,
+            oldCommissionKrw: 1500,
+            oldRateBps: 1000,
+            oldOccurredOn: CarbonImmutable::parse('2026-07-16'),
+            newAmountKrw: 9000,
+            newCommissionKrw: 900,
+            newRateBps: 1000,
+            newOccurredOn: CarbonImmutable::parse('2026-07-17'),
+            reason: '再次修正已付款订单',
+            actorId: $this->admin->id,
+            correctionKey: hash('sha256', 'test-paid-order-correction-second:'.$orderId),
+        );
+        app(PaidOrderCorrectionGateway::class)->record($nextCorrection);
+        $this->assertDatabaseCount('settlement_adjustments', 2);
+        $this->assertDatabaseHas('settlement_adjustments', [
+            'adjustment_key' => $nextCorrection->correctionKey,
+            'consumption_delta_krw' => -6000,
+            'commission_delta_krw' => -600,
+        ]);
+        $this->assertSame(1500, (int) data_get(
+            SettlementAdjustment::query()->where('adjustment_key', $nextCorrection->correctionKey)->firstOrFail()->snapshot,
+            'before.commission_krw',
+        ));
+        $this->actingAs($this->admin);
+        $financial = app(OrderFinancialReader::class)->forOrder($orderId, $this->customer->id);
+        $this->assertCount(2, $financial['corrections']);
+        $this->assertSame(-600, $financial['corrections'][1]['delta_commission_krw']);
+        $this->assertSame($this->admin->id, $financial['corrections'][1]['actor_id']);
+    }
+
+    public function test_paid_order_correction_gateway_rejects_non_super_admin(): void
+    {
+        $this->actingAs($this->user);
+
+        try {
+            app(PaidOrderCorrectionGateway::class)->record(new PaidOrderCorrectionData(
+                orderId: 1,
+                agentId: $this->agent->id,
+                orderCommissionId: 1,
+                originalSettlementId: 1,
+                oldAmountKrw: 10000,
+                oldCommissionKrw: 1000,
+                oldRateBps: 1000,
+                oldOccurredOn: CarbonImmutable::parse('2026-07-15'),
+                newAmountKrw: 11000,
+                newCommissionKrw: 1100,
+                newRateBps: 1000,
+                newOccurredOn: CarbonImmutable::parse('2026-07-16'),
+                reason: '非超级管理员越权更正',
+                actorId: $this->user->id,
+                correctionKey: hash('sha256', 'non-super-admin-correction'),
+            ));
+            $this->fail('Only super administrators may record paid-order corrections.');
+        } catch (HttpException $exception) {
+            $this->assertSame(403, $exception->getStatusCode());
+        }
+    }
+
+    public function test_negative_settlement_balance_carries_forward_idempotently_across_months(): void
+    {
+        SettlementAdjustment::query()->create([
+            'agent_id' => $this->agent->id,
+            'adjustment_key' => 'test:negative-july-balance',
+            'eligible_period_start' => '2026-07-01',
+            'commission_delta_krw' => -2000,
+            'reason' => '已结算更正形成的负余额',
+            'created_by' => $this->admin->id,
+            'snapshot' => ['source' => 'test_correction'],
+        ]);
+
+        $julyRun = app(SettlementRunManager::class)->start('manual', $this->admin->id);
+        $july = Settlement::query()->where('settlement_run_id', $julyRun->id)->firstOrFail();
+        $julyCarry = SettlementAdjustment::query()->where('adjustment_key', 'carry:settlement:'.$july->id)->firstOrFail();
+        $this->assertSame(-2000, (int) $july->total_commission_krw);
+        $this->assertSame(-2000, (int) $julyCarry->commission_delta_krw);
+        $this->assertSame('2026-08-01', $julyCarry->eligible_period_start->toDateString());
+
+        $augustRun = app(SettlementRunManager::class)->startIfDue(CarbonImmutable::parse('2026-09-05 09:00:00'));
+        $this->assertNotNull($augustRun);
+        $august = Settlement::query()->where('settlement_run_id', $augustRun->id)->firstOrFail();
+        $this->assertSame(-2000, (int) $august->total_commission_krw);
+        $this->assertSame($august->id, (int) $julyCarry->fresh()->target_settlement_id);
+        $this->assertDatabaseHas('settlement_adjustments', [
+            'adjustment_key' => 'carry:settlement:'.$august->id,
+            'commission_delta_krw' => -2000,
+            'eligible_period_start' => '2026-09-01',
+        ]);
+
+        SettlementAdjustment::query()->create([
+            'agent_id' => $this->agent->id,
+            'adjustment_key' => 'test:late-july-correction',
+            'eligible_period_start' => '2026-07-01',
+            'commission_delta_krw' => 1000,
+            'reason' => '补录的上期更正',
+            'created_by' => $this->admin->id,
+            'snapshot' => ['source' => 'test_correction'],
+        ]);
+        app(SettlementWorkflow::class)->refreshSettlement($july->id, '补录上期差额', $this->admin->id, null);
+        $this->assertSame(-1000, (int) $july->fresh()->total_commission_krw);
+        $this->assertSame(-1000, (int) $julyCarry->fresh()->commission_delta_krw);
+        $this->assertTrue(app(SettlementFreshnessChecker::class)->check($august->fresh())->isStale());
+
+        app(SettlementWorkflow::class)->refreshSettlement($august->id, '同步上期结转变化', $this->admin->id, null);
+        $this->assertSame(-1000, (int) $august->fresh()->total_commission_krw);
+        $this->assertFalse(app(SettlementFreshnessChecker::class)->check($august->fresh())->isStale());
+        $this->assertDatabaseHas('settlement_adjustments', [
+            'adjustment_key' => 'carry:settlement:'.$august->id,
+            'commission_delta_krw' => -1000,
+            'eligible_period_start' => '2026-09-01',
+        ]);
+
+        app(SettlementGenerator::class)->generate((string) $augustRun->id, (int) $this->agent->id);
+        $this->assertDatabaseCount('settlement_adjustments', 4);
+    }
+
+    public function test_settled_bill_with_order_corrections_cannot_be_reopened_or_lose_its_facts(): void
+    {
+        Storage::fake('local');
+        $this->actingAs($this->admin);
+        $orderId = $this->createCompletedOrder(10000);
+        $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
+        $settlement = Settlement::query()->where('settlement_run_id', $run->id)->sole();
+        $workflow = app(SettlementWorkflow::class);
+        $workflow->approve($settlement->id, '200', $this->admin->id, null);
+        $workflow->settle($settlement->id, $this->admin->id, null);
+        Order::query()->whereKey($orderId)->update(['settlement_excluded' => true]);
+        $adjustment = SettlementAdjustment::query()->create([
+            'agent_id' => $this->agent->id,
+            'source_order_id' => $orderId,
+            'original_settlement_id' => $settlement->id,
+            'adjustment_key' => 'test:paid-correction-lock',
+            'eligible_period_start' => '2026-08-01',
+            'commission_delta_krw' => -200,
+            'reason' => '已付款订单更正',
+            'snapshot' => [],
+        ]);
+        $items = DB::table('settlement_items')->where('settlement_id', $settlement->id)->get()->toJson();
+        $documents = SettlementDocument::query()->where('settlement_id', $settlement->id)->get()->toArray();
+        foreach (['settled', 'paid', 'reconciled'] as $status) {
+            $settlement->update(['status' => $status]);
+            $before = $settlement->fresh()->getAttributes();
+            foreach (['pending_review', 'approved'] as $target) {
+                try {
+                    $workflow->correctStatus($settlement->id, $target, '尝试重新生成已付款账单', $this->admin->id, null);
+                    $this->fail('Paid settlement facts must remain immutable.');
+                } catch (DomainException $exception) {
+                    $this->assertSame(__('settlements.errors.correction_not_allowed'), $exception->getMessage());
+                }
+                $this->assertSame($before, $settlement->fresh()->getAttributes());
+                $this->assertSame($items, DB::table('settlement_items')->where('settlement_id', $settlement->id)->get()->toJson());
+                $this->assertSame($documents, SettlementDocument::query()->where('settlement_id', $settlement->id)->get()->toArray());
+                $this->assertNull($adjustment->fresh()->target_settlement_id);
+            }
+            $this->get(route('settlements.show', $settlement))->assertOk()->assertDontSee(__('settlements.detail.submit_correction'));
+        }
+    }
+
+    public function test_preview_generation_and_refresh_include_adjustments_once_and_preserve_preview_read_only(): void
+    {
+        $this->actingAs($this->admin);
+        $this->createCompletedOrder(10000);
+        $adjustment = SettlementAdjustment::query()->create([
+            'agent_id' => $this->agent->id,
+            'adjustment_key' => 'test:preview-negative-balance',
+            'eligible_period_start' => '2026-07-01',
+            'consumption_delta_krw' => -500,
+            'commission_delta_krw' => -1500,
+            'reason' => '历史账单差额',
+            'snapshot' => [],
+        ]);
+        SettlementAdjustment::query()->create([
+            'agent_id' => $this->agent->id,
+            'adjustment_key' => 'test:future-adjustment',
+            'eligible_period_start' => '2026-08-01',
+            'commission_delta_krw' => 5000,
+            'reason' => '下期差额',
+            'snapshot' => [],
+        ]);
+        $preview = Livewire::test(SettlementCenter::class)->set('selectedPeriodEnd', '2026-07-31')->call('preview')->get('previewResults');
+        $row = collect($preview)->firstWhere('agent_id', $this->agent->id);
+        $this->assertSame(9500, $row['consumption_krw']);
+        $this->assertSame(-500, $row['commission_krw']);
+        $this->assertSame(1, $row['order_count']);
+        $this->assertNull($row['error']);
+        $this->assertDatabaseCount('settlement_runs', 0);
+        $this->assertDatabaseCount('settlements', 0);
+        $this->assertDatabaseCount('settlement_adjustments', 2);
+        $this->assertNull($adjustment->fresh()->target_settlement_id);
+
+        $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
+        $settlement = Settlement::query()->where('settlement_run_id', $run->id)->sole();
+        $this->assertSame($row['commission_krw'], (int) $settlement->total_commission_krw);
+        $this->assertSame($row['consumption_krw'], (int) $settlement->total_consumption_krw);
+        $this->assertSame(2, (int) $settlement->item_count);
+        app(SettlementWorkflow::class)->refreshSettlement($settlement->id, '复核差额只纳入一次', $this->admin->id, null);
+        $this->assertSame(-500, (int) $settlement->fresh()->total_commission_krw);
+        $repeat = Livewire::test(SettlementCenter::class)->set('selectedPeriodEnd', '2026-07-31')->call('preview')->get('previewResults');
+        $this->assertSame($row, collect($repeat)->firstWhere('agent_id', $this->agent->id));
+    }
+
+    public function test_terminated_agent_adjustments_and_negative_balance_continue_into_later_months(): void
+    {
+        $this->actingAs($this->admin);
+        $this->agent->update(['cooperation_status' => 'terminated', 'cooperation_ended_on' => '2026-06-30']);
+        $adjustment = SettlementAdjustment::query()->create([
+            'agent_id' => $this->agent->id,
+            'adjustment_key' => 'test:terminated-balance',
+            'eligible_period_start' => '2026-07-01',
+            'commission_delta_krw' => -2000,
+            'reason' => '终止合作后的已付款差额',
+            'snapshot' => [],
+        ]);
+        $preview = Livewire::test(SettlementCenter::class)->set('selectedPeriodEnd', '2026-07-31')->call('preview')->get('previewResults');
+        $row = collect($preview)->firstWhere('agent_id', $this->agent->id);
+        $this->assertNotNull($row);
+        $this->assertNull($row['error']);
+        $this->assertSame(-2000, $row['commission_krw']);
+        $julyRun = app(SettlementRunManager::class)->start('manual', $this->admin->id);
+        $july = Settlement::query()->where('settlement_run_id', $julyRun->id)->sole();
+        $this->assertSame('completed', $julyRun->fresh()->status);
+        $this->assertSame(-2000, (int) $july->total_commission_krw);
+        $this->assertSame($july->id, (int) $adjustment->fresh()->target_settlement_id);
+        $augustRun = app(SettlementRunManager::class)->startIfDue(CarbonImmutable::parse('2026-09-05 09:00:00'));
+        $august = Settlement::query()->where('settlement_run_id', $augustRun->id)->sole();
+        $this->assertSame('completed', $augustRun->fresh()->status);
+        $this->assertSame(-2000, (int) $august->total_commission_krw);
+        $this->assertDatabaseHas('settlement_adjustments', [
+            'adjustment_key' => 'carry:settlement:'.$august->id,
+            'commission_delta_krw' => -2000,
+            'eligible_period_start' => '2026-09-01',
+        ]);
+        $this->expectException(DomainException::class);
+        $this->expectExceptionMessage(__('agents.validation.ineligible_for_order_month'));
+        app(AgentCommissionContextReader::class)->forMonth($this->agent->id, CarbonImmutable::parse('2026-07-01'));
+    }
+
+    public function test_business_anomaly_command_reports_missing_due_date_without_mutating_it(): void
+    {
+        $settlement = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'status' => 'paid',
+            'total_commission_krw' => 1000,
+        ]);
+
+        $exitCode = Artisan::call('app:business-anomalies');
+        $output = Artisan::output();
+
+        $this->assertSame(0, $exitCode);
+        $this->assertStringContainsString('月结缺少付款截止日', $output);
+        $this->assertStringContainsString((string) $settlement->id, $output);
+        $this->assertNull($settlement->fresh()->payment_due_on);
     }
 
     public function test_stale_settlement_cannot_be_approved_or_settled(): void
@@ -1053,8 +1403,8 @@ class PhaseFiveSettlementTest extends TestCase
         $workbook = IOFactory::load(Storage::disk('local')->path($xlsx->path));
         $sheet = $workbook->getActiveSheet();
         $this->assertSame(__('settlements.documents.title'), $sheet->getCell('A1')->getValue());
-        $this->assertSame(__('settlements.documents.headers.order'), $sheet->getCell('A9')->getValue());
-        $this->assertEquals(10000, $sheet->getCell('D10')->getValue());
+        $this->assertSame(__('settlements.documents.headers.order'), $sheet->getCell('A10')->getValue());
+        $this->assertEquals(10000, $sheet->getCell('D11')->getValue());
         $workbook->disconnectWorksheets();
         $pdf = $documents->firstWhere('format', 'pdf');
         $this->assertNotNull($pdf);
@@ -1162,6 +1512,7 @@ class PhaseFiveSettlementTest extends TestCase
 
     public function test_historical_grade_and_rate_correction_does_not_change_settled_snapshot_or_items(): void
     {
+        $this->actingAs($this->admin);
         $orderId = $this->createCompletedOrder(10000);
         $run = app(SettlementRunManager::class)->start('manual', $this->admin->id);
         $settlement = Settlement::query()->where('settlement_run_id', $run->id)->firstOrFail();
@@ -1289,10 +1640,6 @@ class PhaseFiveSettlementTest extends TestCase
         $settlement->refresh();
         $this->assertSame('unavailable', $settlement->exchange_rate_quote_status);
         app(SettlementWorkflow::class)->approve($settlement->id, '200', $this->admin->id, '127.0.0.1');
-        app(SettlementWorkflow::class)->settle($settlement->id, $this->admin->id, '127.0.0.1');
-        app(SettlementWorkflow::class)->correctStatus($settlement->id, 'approved', '外部付款尚未确认，撤回结清。', $this->admin->id, '127.0.0.1');
-
-        $this->assertDatabaseHas('settlements', ['id' => $settlement->id, 'status' => 'approved', 'settled_on' => null, 'settled_by' => null, 'confirmed_at' => null]);
         app(SettlementWorkflow::class)->correctStatus($settlement->id, 'pending_review', '需要重新核对汇率和结算明细。', $this->admin->id, '127.0.0.1');
         $this->assertDatabaseHas('settlements', [
             'id' => $settlement->id,
