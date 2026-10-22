@@ -1,5 +1,29 @@
 # GN-System 完整运维手册
 
+## 2026-10-22 UAT 候选版本 v0.7.0-rc.1
+
+订单登记与月结改造经 PR #52、#53 依次合入 `develop`、`main`，两个 PR 的应用与生产镜像门禁均成功。
+annotated `v0.7.0-rc.1` 固定指向 `4d81dca1685eb9fb324ba0d0d71d48d8356eb4d4`，创建和推送前已核对与
+`origin/main` 一致；本机及标签共享 hook 完整通过 579 项测试/3928 断言和前端构建，PHP/npm 安全审计通过。
+
+[RC 发布流水线](https://github.com/Moh114514/GN-System/actions/runs/39776845868)记录候选制品的构建与发布结果。
+部署前确认该运行成功，再分别读取 `ghcr.io/moh114514/gn-system-app:v0.7.0-rc.1` 和
+`ghcr.io/moh114514/gn-system-web:v0.7.0-rc.1` 的 manifest digest；可使用
+`docker buildx imagetools inspect <镜像引用>` 核对，并与对应 `sha-4d81dca1685eb9fb324ba0d0d71d48d8356eb4d4` 镜像标签一致。
+不要把创建 RC 标签当作镜像已可用或 UAT 已验收；可用性以该运行和 GHCR 实际结果为准。
+
+本轮未连接服务器执行部署、迁移、旧到院补录或人工业务验收，服务器实际版本和备份需现场核对。UAT 继续使用
+`/srv/gn-system/repository`、独立 `.env.uat` 和 Compose 项目；Production 使用
+`/srv/gn-system/production/repository` 及独立配置、数据和发布历史。UAT 更新前分别备份数据库和私有文件，
+将 `RELEASE_TAG` 设置为 `v0.7.0-rc.1`，保持环境文件权限 `0600`，按发布手册切换明确 detached tag 并运行仓库脚本。
+此版本新增 2026-10-20 的 migration；迁移后、开放业务前执行异常检查并核对旧到院资料，再验收登记幂等、
+多项目、同次追加、付款截止日、已付款更正、终止合作差额和负余额结转。写入业务事实后禁止直接回滚迁移；
+恢复必须使用事先核验的备份、匹配应用版本与私有文件，并保留 UAT/Production 隔离。
+
+文档发布记录可在后续 `develop` 提交更新，`main` 保持 RC 发布提交。正式 `v0.7.0` 必须指向本 RC 的确切提交，
+并按已验收镜像的原 digest 晋级；不能把后续文档提交误作正式标签目标，也不得移动或复用 RC 标签。
+下方记录保留对应阶段当时状态，当前候选制品信息以上述流水线与镜像核对结果为准。
+
 ## 2026-10-22 新 UAT 候选发布准备
 
 计划通过 `feature/order-registration-settlement-review` → `develop` → `main` 发布 `v0.7.0-rc.1`。
