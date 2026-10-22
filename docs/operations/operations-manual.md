@@ -1,5 +1,15 @@
 # GN-System 完整运维手册
 
+## 2026-10-22 新 UAT 候选发布准备
+
+计划通过 `feature/order-registration-settlement-review` → `develop` → `main` 发布 `v0.7.0-rc.1`。
+标签提交必须等于 `origin/main`，等待完整 RC 门禁与 app/web 镜像构建成功后再核对 digest；当前尚未创建标签、
+迁移或部署目标环境。UAT 仍为 `/srv/gn-system`，Production 为 `/srv/gn-system/production`，各自独立备份和持久化。
+
+发布前定向修复 Vite 安全公告，将 `8.1.5` 升至 `8.1.6`，依赖约束提高到 `^8.1.6`，其他包版本不变；PHP/npm
+安全审计均通过。开发容器按锁文件安装，UAT/Production 继续在 CI 镜像构建中安装，不在服务器安装依赖。
+不新增环境变量、Node 主版本约束或 migration。回退旧镜像也会回退该安全补丁；订单事实写入后仍须遵守下述备份恢复要求。
+
 ## 2026-10-22 订单与月结审查修复（尚未发布）
 
 本地基线提交 `47968a0` 已通过完整门禁（574 项测试/3840 断言）及容器内前端构建；审查修复最终完整门禁通过
