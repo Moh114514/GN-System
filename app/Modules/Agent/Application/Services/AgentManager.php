@@ -51,7 +51,7 @@ final readonly class AgentManager
             AgentGradeAssignment::query()->create([
                 'agent_id' => $agent->id,
                 'policy_grade_id' => $grade->id,
-                'effective_month' => $this->clock->now()->startOfMonth(),
+                'effective_month' => $data->cooperationStartedOn->startOfMonth(),
                 'approved_by' => $actorId,
                 'reason' => '代理商建档初始等级',
             ]);

@@ -1,5 +1,14 @@
 # GN-System 项目状态
 
+## 2026-10-20 订单登记与月结闭环（本地实施中，尚未发布）
+
+- 按 ADR-0011 落地订单消费日期/首次登记时点分离、多项目编辑保留、代理商合作资格与费率预览、登记草稿/提交幂等、预约绑定与同次追加/再次到院、月结付款截止日、已付款更正差额及负余额结转。
+- 新增 migration `2026_10_20_000100_add_order_registration_lifecycle.php`。执行前须备份并完成业务异常只读核对；写入到院/订单登记/付款日期/差额事实后，迁移拒绝直接回滚。
+- 新增只读命令 `php artisan app:business-anomalies`，按类别输出数量及最多 100 个样本 ID，不修复或更改业务数据。
+- 付款截止日只由新生成月结写入次月 10 日；迁移和历史账单导入不猜测已付款历史账单的截止日，缺失记录交由异常清单及管理员核对。
+- 代码位于本地 `feature/order-registration-settlement-review`，尚未合入、创建 RC 或部署；Docker Engine 已恢复，测试连接已核对为 `testing` / `pgsql` / `gn_system_test`，定向测试及容器内前端构建已通过（597 个模块，存在大包体积提示）。完整门禁结果以本轮交付记录为准。UAT/Production migration、数据预检、恢复演练和人工验收均未执行。
+- 两份运维指南已同步本地验证状态和目标环境前置条件；发布仍须完成本机完整门禁、RC 和目标环境业务验收。
+
 ## 2026-10-15 v0.6.2 正式制品
 
 - 客户档案及审查修复经 PR #47 合入 `develop`，PR #48 合入 `main`。annotated `v0.6.2-rc.1` 与 `v0.6.2` 固定指向 `20275f605b5a5e9629bc9b295e237566b0e6f0df`；[RC 工作流](https://github.com/Moh114514/GN-System/actions/runs/38745069895)与[正式工作流](https://github.com/Moh114514/GN-System/actions/runs/38749794915)均成功。

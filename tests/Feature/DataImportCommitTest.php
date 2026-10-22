@@ -164,6 +164,7 @@ class DataImportCommitTest extends TestCase
             'item_count' => 0,
             'import_batch_id' => $importBatchId,
         ]);
+        $this->assertNull(Settlement::query()->findOrFail($settlementId)->payment_due_on);
     }
 
     /** @return array{User, ImportBatch, ImportFile} */

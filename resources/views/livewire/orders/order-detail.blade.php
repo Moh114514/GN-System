@@ -72,7 +72,8 @@
                     <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.agent') }}</dt><dd class="mt-1 font-medium">{{ $order['agent']['name'] ?? __('orders.values.unknown_agent') }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.transaction_amount') }}</dt><dd class="mt-1 font-semibold">₩ {{ number_format($order['amount_krw']) }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.occurred_on') }}</dt><dd class="mt-1">{{ $order['occurred_on'] ?? __('orders.values.empty') }}</dd></div>
-                    <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.completed_time') }}</dt><dd class="mt-1">{{ $order['completed_at'] ?? __('orders.values.empty') }}</dd></div>
+                    <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.completed_time') }}</dt><dd class="mt-1">{{ $order['completion_precision'] === 'datetime' ? ($order['completed_at'] ?? __('orders.values.empty')) : __('orders.values.date_only') }}</dd></div>
+                    <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.settlement_period') }}</dt><dd class="mt-1">{{ $order['occurred_on'] ? substr($order['occurred_on'], 0, 7) : __('orders.values.empty') }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.created_at') }}</dt><dd class="mt-1">{{ $order['created_at'] ?? __('orders.values.empty') }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('orders.fields.translation') }}</dt><dd class="mt-1">{{ $order['translator_name'] ?: __('orders.values.empty') }}{{ $order['translator_language'] ? ' · '.$order['translator_language'] : '' }}</dd></div>
                     <div class="sm:col-span-2"><dt class="text-xs text-zinc-500">{{ __('orders.fields.notes') }}</dt><dd class="mt-1 whitespace-pre-wrap">{{ $order['notes'] ?: __('orders.values.empty') }}</dd></div>
@@ -91,6 +92,21 @@
                             @endif
                         </dl>
                         <p class="mt-4 text-xs text-zinc-500">{{ $order['source_type'] === 'direct' ? __('orders.detail.direct_commission_description') : __('orders.detail.promotion_snapshot_description') }}</p>
+                        @if ($order['source_type'] !== 'direct' && ($order['financial']['corrections'] ?? []) !== [])
+                            <div class="mt-5 border-t border-zinc-200 pt-4 dark:border-zinc-700">
+                                <h4 class="text-sm font-semibold">{{ __('orders.detail.correction_history') }}</h4>
+                                <ol class="mt-3 space-y-3">
+                                    @foreach ($order['financial']['corrections'] as $correction)
+                                        <li class="rounded-lg bg-zinc-50 p-3 text-sm dark:bg-zinc-800/60">
+                                            <div class="flex flex-wrap justify-between gap-2"><span>{{ __('orders.detail.correction_period', ['date' => $correction['eligible_period_start']]) }}</span><span>{{ __('orders.detail.correction_delta', ['amount' => number_format($correction['delta_commission_krw'])]) }}</span></div>
+                                            <p class="mt-1 text-zinc-600 dark:text-zinc-300">{{ $correction['reason'] }}</p>
+                                            <p class="mt-1 text-xs text-zinc-500">{{ __('orders.detail.correction_actor', ['id' => $correction['actor_id'] ?? __('orders.values.empty')]) }}</p>
+                                            <p class="mt-1 text-xs text-zinc-500">{{ __('orders.detail.correction_settlement', ['id' => $correction['target_settlement_id'] ?? __('orders.detail.correction_pending')]) }}</p>
+                                        </li>
+                                    @endforeach
+                                </ol>
+                            </div>
+                        @endif
                     @else
                         <p class="mt-4 text-sm text-zinc-500">{{ $order['source_type'] === 'direct' ? __('orders.detail.no_direct_commission_snapshot') : __('orders.detail.no_promotion_snapshot') }}</p>
                     @endif

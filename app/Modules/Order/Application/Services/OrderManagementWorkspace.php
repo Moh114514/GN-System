@@ -113,16 +113,20 @@ final readonly class OrderManagementWorkspace
             $query->where('agent_id', $filters['agent_id']);
         }
         $dateField = (string) ($filters['date_field'] ?? 'created_at');
-        if (! in_array($dateField, ['created_at', 'completed_at'], true)) {
+        if (! in_array($dateField, ['created_at', 'completed_at', 'occurred_on'], true)) {
             throw ValidationException::withMessages(['dateField' => __('orders.errors.invalid_date_field')]);
         }
         $dateFrom = trim((string) ($filters['date_from'] ?? ''));
         $dateTo = trim((string) ($filters['date_to'] ?? ''));
         if ($dateFrom !== '') {
-            $query->where($dateField, '>=', $this->dateBoundary($dateFrom, false, 'dateFrom'));
+            $dateField === 'occurred_on'
+                ? $query->whereDate('occurred_on', '>=', $dateFrom)
+                : $query->where($dateField, '>=', $this->dateBoundary($dateFrom, false, 'dateFrom'));
         }
         if ($dateTo !== '') {
-            $query->where($dateField, '<=', $this->dateBoundary($dateTo, true, 'dateTo'));
+            $dateField === 'occurred_on'
+                ? $query->whereDate('occurred_on', '<=', $dateTo)
+                : $query->where($dateField, '<=', $this->dateBoundary($dateTo, true, 'dateTo'));
         }
         $sourceType = (string) ($filters['source_type'] ?? '');
         if ($sourceType !== '') {
@@ -210,10 +214,15 @@ final readonly class OrderManagementWorkspace
             ]];
         }
         $context = $this->access->current();
+        $financial = $this->financials->forOrder((int) $order->id, (int) $order->customer_id);
+        $settlement = $financial['settlement'] ?? null;
+        $paidSettlement = is_array($settlement)
+            && in_array((string) ($settlement['status'] ?? ''), ['settled', 'paid', 'reconciled'], true);
+        $canCorrectPaid = $context->isSuperAdmin() && $paidSettlement && (string) $order->source_type === 'agent';
         $canEdit = ($context->isSuperAdmin() || ($context->isBdManager() && $context->canViewAgent((int) $order->agent_id)))
             && in_array((string) $order->status, ['pending', 'completed'], true)
             && $order->deleted_at === null
-            && ($this->financials->forOrder((int) $order->id, (int) $order->customer_id)['settlement'] ?? null) === null;
+            && ($settlement === null || $canCorrectPaid);
 
         return [
             'id' => (int) $order->id,
@@ -226,6 +235,7 @@ final readonly class OrderManagementWorkspace
             'status' => (string) $order->status,
             'occurred_on' => $order->occurred_on?->format('Y-m-d'),
             'completed_at' => $order->completed_at?->format('Y-m-d H:i'),
+            'completion_precision' => (string) $order->completion_precision,
             'created_at' => $order->created_at?->format('Y-m-d H:i'),
             'updated_at' => $order->updated_at === null ? null : (string) $order->updated_at,
             'cancelled_at' => $order->cancelled_at === null ? null : (string) $order->cancelled_at,
@@ -245,7 +255,7 @@ final readonly class OrderManagementWorkspace
                 'size_bytes' => (int) $file->size_bytes,
             ])->all(),
             'can_edit' => $canEdit,
-            'financial' => $this->financials->forOrder((int) $order->id, (int) $order->customer_id),
+            'financial' => $financial,
             'reminders' => $this->reminders->forOrder((int) $order->id),
             'audit' => array_map(fn ($entry): array => [
                 'description' => $entry->description,
@@ -267,15 +277,32 @@ final readonly class OrderManagementWorkspace
         if ($context->isBdManager() && ! $context->canViewAgent($data->agentId)) {
             abort(404);
         }
-        $project = $data->treatmentProjectId === null
+        $order = Order::query()->with('items')->findOrFail($data->orderId);
+        $originalItems = $order->items->values();
+        $projectId = $data->treatmentProjectId;
+        $project = $projectId === null || (int) $order->treatment_project_id === $projectId
             ? null
-            : $this->dictionary->activeItem($data->treatmentProjectId, 'treatment_project');
+            : $this->dictionary->activeItem($projectId, 'treatment_project');
         $language = $data->translatorLanguageId === null
             ? null
             : $this->dictionary->activeItem($data->translatorLanguageId, 'translator_language');
         $items = $data->items;
+        foreach ($items as $index => $item) {
+            $itemProjectId = (int) ($item['treatment_project_id'] ?? 0);
+            $originalProjectId = isset($originalItems[$index]) && $originalItems[$index]->treatment_project_id !== null
+                ? (int) $originalItems[$index]->treatment_project_id
+                : null;
+            if ($itemProjectId > 0 && $itemProjectId !== $originalProjectId) {
+                $itemProject = $this->dictionary->activeItem($itemProjectId, 'treatment_project');
+                $items[$index]['treatment_project_id'] = (int) $itemProject['id'];
+                $items[$index]['project_name'] = (string) $itemProject['name'];
+            } elseif ($itemProjectId === 0) {
+                $items[$index]['treatment_project_id'] = null;
+            }
+        }
         if ($project !== null && isset($items[0])) {
             $items[0]['project_name'] = (string) $project['name'];
+            $items[0]['treatment_project_id'] = (int) $project['id'];
         }
 
         return $this->lifecycle->updatePending(new OrderUpdateData(
@@ -286,7 +313,7 @@ final readonly class OrderManagementWorkspace
             amountKrw: $data->amountKrw,
             translatorName: $data->translatorName,
             notes: $data->notes,
-            treatmentProjectId: $project['id'] ?? null,
+            treatmentProjectId: $project['id'] ?? $projectId,
             translatorLanguageId: $language['id'] ?? null,
             translatorLanguageName: $language['name'] ?? null,
             occurredOn: $data->occurredOn,

@@ -50,7 +50,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
             }
         } else {
             $this->assertOrderAgentAccess($data->agentId);
-            $this->assertAgent($data->agentId);
+            $this->assertAgent($data->agentId, $data->status === 'completed' ? $data->completedOn : null);
         }
 
         return DB::transaction(function () use ($data, $customer, $sourceType): int {
@@ -136,7 +136,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
                 $order->owner_id = (int) $customer['owner_id'];
             }
             if ((string) $order->source_type === 'agent') {
-                $this->assertAgent($order->agent_id === null ? null : (int) $order->agent_id);
+                $this->assertAgent($order->agent_id === null ? null : (int) $order->agent_id, $occurredOn);
             }
             $before = $order->only(['status', 'completed_on', 'completed_at', 'completion_precision']);
             $order->update([
@@ -184,13 +184,29 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
         return $this->summaries(Order::query()->where('agent_id', $agentId)->latest('id')->limit(100)->get());
     }
 
-    private function assertAgent(?int $agentId): void
+    private function assertAgent(?int $agentId, ?CarbonImmutable $occurredOn = null): void
     {
         if ($agentId === null || $agentId < 1) {
             throw new DomainException(__('orders.errors.agent_required'));
         }
-        $agent = $this->agents->agentById($agentId);
-        if ($agent['cooperation_status'] !== 'active') {
+        $eligibility = $this->agents->orderEligibility($agentId);
+        if ($occurredOn === null) {
+            if ($eligibility['cooperation_status'] !== 'active') {
+                throw new DomainException(__('orders.errors.agent_inactive_save'));
+            }
+
+            return;
+        }
+        $occurredOn = $occurredOn->startOfDay();
+        if ($occurredOn->gt($this->clock->now()->startOfDay())) {
+            throw new DomainException(__('orders.errors.business_date_in_future'));
+        }
+        $startedOn = $eligibility['cooperation_started_on'] === null ? null : CarbonImmutable::parse($eligibility['cooperation_started_on'])->startOfDay();
+        $endedOn = $eligibility['cooperation_ended_on'] === null ? null : CarbonImmutable::parse($eligibility['cooperation_ended_on'])->startOfDay();
+        if (($startedOn !== null && $occurredOn->lt($startedOn)) || ($endedOn !== null && $occurredOn->gt($endedOn))) {
+            throw new DomainException(__('agents.validation.ineligible_for_order_month'));
+        }
+        if (! $occurredOn->lt($this->clock->now()->startOfDay()) && $eligibility['cooperation_status'] !== 'active') {
             throw new DomainException(__('orders.errors.agent_inactive_save'));
         }
     }
@@ -253,6 +269,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
             ownerId: $order->owner_id === null ? null : (int) $order->owner_id,
             actorId: $actorId,
             sourceType: (string) $order->source_type,
+            visitId: $order->appointment_id === null ? null : (int) $order->appointment_id,
         ));
     }
 

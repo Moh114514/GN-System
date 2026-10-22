@@ -54,6 +54,19 @@ final class DatabaseAgentReferenceReader implements AgentReferenceReader
         ];
     }
 
+    public function orderEligibility(int $id): array
+    {
+        $agent = $this->scoped(Agent::query())->findOrFail($id, [
+            'id', 'cooperation_status', 'cooperation_started_on', 'cooperation_ended_on',
+        ]);
+
+        return [
+            'cooperation_status' => (string) $agent->cooperation_status,
+            'cooperation_started_on' => $agent->cooperation_started_on?->toDateString(),
+            'cooperation_ended_on' => $agent->cooperation_ended_on?->toDateString(),
+        ];
+    }
+
     /**
      * @param  Collection<int, Agent>  $agents
      * @return array<int, array{id: int, code: string, name: string, cooperation_status: string}>

@@ -116,6 +116,14 @@ class OrderManagementTest extends TestCase
         $component
             ->set('dateTo', '')
             ->set('dateFrom', '')
+            ->set('dateField', 'occurred_on')
+            ->set('dateFrom', '2026-09-02')
+            ->set('dateTo', '2026-09-02')
+            ->assertSee('#'.$inside->id)
+            ->assertDontSee('#'.$outside->id);
+        $component
+            ->set('dateTo', '')
+            ->set('dateFrom', '')
             ->set('dateField', 'completed_at')
             ->set('dateFrom', '2026-09-02')
             ->set('dateTo', '2026-09-02')
@@ -146,7 +154,7 @@ class OrderManagementTest extends TestCase
         Livewire::actingAs($user)->test(OrderCenter::class)
             ->assertSee('消费日期')
             ->assertSee('2026-09-22')
-            ->assertSee('成交时间')
+            ->assertSee('首次登记时间')
             ->assertSee('2026-09-23 14:05')
             ->assertSee('#'.$order->id);
         $this->assertSame('agent', app(OrderManagementWorkspace::class)->paginate([], 20)->getCollection()->first()['source_type']);
@@ -285,12 +293,21 @@ class OrderManagementTest extends TestCase
 
         Livewire::actingAs($user)
             ->test(OrderEdit::class, ['order' => $order->id])
-            ->set('projectName', '更新后的项目')
-            ->set('amountKrw', '120000')
-            ->set('unitPriceKrw', '120000')
+            ->set('items.0.project_name', '更新后的项目')
+            ->set('items.0.amount_krw', '120000')
+            ->set('items.0.unit_price_krw', '120000')
             ->set('reason', '修正订单项目和金额')
             ->call('save')
             ->assertHasNoErrors();
+
+        $order->items()->create([
+            'project_snapshot' => '第二个订单项目',
+            'quantity' => 2,
+            'unit_price_krw' => 25000,
+            'amount_krw' => 50000,
+            'notes' => '第二行备注',
+        ]);
+        $order->update(['amount_krw' => 170000]);
 
         $project = DictionaryItem::query()->create([
             'type' => 'treatment_project',
@@ -307,8 +324,9 @@ class OrderManagementTest extends TestCase
 
         Livewire::actingAs($user)
             ->test(OrderEdit::class, ['order' => $order->id])
-            ->set('treatmentProjectId', (string) $project->id)
-            ->set('projectName', '手工篡改名称')
+            ->set('items.0.treatment_project_id', (string) $project->id)
+            ->call('selectTreatmentProject', 0)
+            ->set('items.0.project_name', '手工篡改名称')
             ->set('translatorLanguageId', (string) $language->id)
             ->set('reason', '改用标准项目和语种')
             ->call('save')
@@ -323,6 +341,19 @@ class OrderManagementTest extends TestCase
             ->call('save')
             ->assertHasNoErrors();
 
+        $this->assertSame(2, $order->items()->count());
+        $this->assertDatabaseHas('order_items', [
+            'order_id' => $order->id,
+            'project_snapshot' => '激光治疗',
+            'amount_krw' => 120000,
+        ]);
+        $this->assertDatabaseHas('order_items', [
+            'order_id' => $order->id,
+            'project_snapshot' => '第二个订单项目',
+            'quantity' => '2.000',
+            'amount_krw' => 50000,
+            'notes' => '第二行备注',
+        ]);
         $this->assertDatabaseHas('orders', [
             'id' => $order->id,
             'project_name' => '激光治疗',
@@ -330,7 +361,7 @@ class OrderManagementTest extends TestCase
             'treatment_project_snapshot' => '激光治疗',
             'translator_language_id' => $language->id,
             'translator_language_snapshot' => '韩语',
-            'amount_krw' => 120000,
+            'amount_krw' => 170000,
             'status' => 'pending',
         ]);
         $this->assertDatabaseHas('activity_log', [

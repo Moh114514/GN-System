@@ -21,7 +21,9 @@ use App\Modules\Order\Application\Contracts\OrderLifecycleGateway;
 use App\Modules\Order\Application\Data\CompletedOrderItemData;
 use App\Modules\Order\Application\Data\CompletedOrderRegistrationData;
 use App\Modules\Order\Application\Data\DailyOrderData;
+use App\Modules\Order\Application\Data\OrderUpdateData;
 use App\Modules\Order\Application\Services\CompletedOrderRegistrar;
+use App\Modules\Order\Application\Services\CustomerOrderRegistrationWorkspace;
 use App\Modules\Order\Application\Services\DailyOrderWorkspace;
 use App\Modules\Order\Application\Services\OrderManagementWorkspace;
 use App\Modules\Order\Infrastructure\Models\Order;
@@ -140,6 +142,110 @@ class DirectCustomerOrderCommissionTest extends TestCase
             'rate_bps' => 500,
             'commission_amount_krw' => 5000,
         ]);
+    }
+
+    public function test_direct_commission_preflight_uses_registration_time_instead_of_arrival_date(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-09-23 14:30:00', 'Asia/Shanghai'));
+        $this->actingAs($this->admin);
+        $this->saveRate(300, '2026-09-20');
+        $this->saveRate(500, '2026-09-22');
+        $customerId = $this->createArrivedCustomer($this->manager, '跨月登记费率预检查客户', '2026-09-20');
+
+        $preview = app(CustomerOrderRegistrationWorkspace::class)->commissionPreview($customerId, $this->institution->id);
+
+        $this->assertSame('direct', $preview['source_type']);
+        $this->assertSame(500, $preview['rate_bps']);
+        $this->assertSame('2026-09-22', $preview['effective_month']);
+    }
+
+    public function test_correcting_business_date_preserves_first_registration_time_for_direct_commission(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-09-23 14:30:00', 'Asia/Shanghai'));
+        $this->actingAs($this->admin);
+        $this->saveRate(300, '2026-09-20');
+        $this->saveRate(500, '2026-09-22');
+        $customerId = $this->createArrivedCustomer($this->manager, '业务日期更正客户', '2026-09-20');
+        $orderId = $this->register($customerId, 100000, '2026-09-20');
+        $order = Order::query()->findOrFail($orderId);
+        $firstRegisteredAt = $order->completed_at?->format('Y-m-d H:i:s');
+
+        app(OrderLifecycleGateway::class)->updatePending(new OrderUpdateData(
+            orderId: $orderId,
+            institutionId: (int) $order->institution_id,
+            agentId: null,
+            projectName: (string) $order->project_name,
+            amountKrw: 200000,
+            translatorName: $order->translator_name,
+            notes: $order->notes,
+            treatmentProjectId: null,
+            translatorLanguageId: null,
+            translatorLanguageName: null,
+            occurredOn: CarbonImmutable::parse('2026-09-21'),
+            items: [[
+                'project_name' => (string) $order->project_name,
+                'quantity' => '1',
+                'unit_price_krw' => 200000,
+                'amount_krw' => 200000,
+            ]],
+            reason: '更正消费日期与金额',
+            expectedUpdatedAt: $order->updated_at?->format('Y-m-d H:i:s.u'),
+        ), $this->admin->id, null);
+
+        $order->refresh();
+        $commission = DB::table('direct_order_commissions')
+            ->where('order_id', $orderId)
+            ->where('status', 'active')
+            ->first();
+        $this->assertSame('2026-09-21', $order->occurred_on?->toDateString());
+        $this->assertSame($firstRegisteredAt, $order->completed_at?->format('Y-m-d H:i:s'));
+        $this->assertNotNull($commission);
+        $this->assertSame(500, (int) $commission->rate_bps);
+        $this->assertSame(10000, (int) $commission->commission_amount_krw);
+        $this->assertSame($this->manager->id, (int) $commission->owner_id);
+    }
+
+    public function test_order_correction_rejects_a_future_business_date(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-09-23 14:30:00', 'Asia/Shanghai'));
+        $this->actingAs($this->admin);
+        $this->saveRate(300, '2026-09-20');
+        $customerId = $this->createArrivedCustomer($this->manager, '未来业务日期更正客户', '2026-09-20');
+        $orderId = $this->register($customerId, 100000, '2026-09-20');
+        $order = Order::query()->findOrFail($orderId);
+        $items = $order->items()->orderBy('id')->get();
+
+        try {
+            app(OrderLifecycleGateway::class)->updatePending(new OrderUpdateData(
+                orderId: $orderId,
+                institutionId: $this->institution->id,
+                agentId: null,
+                projectName: $order->project_name,
+                amountKrw: (int) $order->amount_krw,
+                translatorName: $order->translator_name,
+                notes: $order->notes,
+                treatmentProjectId: $order->treatment_project_id,
+                translatorLanguageId: null,
+                translatorLanguageName: null,
+                occurredOn: CarbonImmutable::parse('2026-09-24'),
+                items: $items->map(static fn ($item): array => [
+                    'project_name' => (string) $item->project_snapshot,
+                    'treatment_project_id' => $item->treatment_project_id,
+                    'specification' => $item->specification,
+                    'quantity' => $item->quantity,
+                    'unit_price_krw' => (int) $item->unit_price_krw,
+                    'amount_krw' => (int) $item->amount_krw,
+                    'notes' => $item->notes,
+                ])->all(),
+                reason: '拒绝未来业务日期',
+                expectedUpdatedAt: $order->updated_at?->format('Y-m-d H:i:s.u'),
+            ), $this->admin->id, null);
+            $this->fail('A business date after the business clock must be rejected.');
+        } catch (DomainException $exception) {
+            $this->assertSame(__('orders.errors.business_date_in_future'), $exception->getMessage());
+        }
+
+        $this->assertSame('2026-09-20', $order->fresh()->occurred_on?->toDateString());
     }
 
     public function test_daily_order_gateway_uses_business_clock_for_direct_completion_time(): void
@@ -417,6 +523,10 @@ class DirectCustomerOrderCommissionTest extends TestCase
             'current_status_id' => $arrived->id,
             'arrived_at' => CarbonImmutable::parse($arrivedOn.' 10:00'),
             'treatment_completed_at' => null,
+        ]);
+        DB::table('appointments')->where('customer_id', $customerId)->update([
+            'status' => 'arrived',
+            'arrived_at' => CarbonImmutable::parse($arrivedOn.' 10:00'),
         ]);
     }
 }

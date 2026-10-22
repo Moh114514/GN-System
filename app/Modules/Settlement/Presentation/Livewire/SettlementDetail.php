@@ -10,6 +10,7 @@ use App\Modules\Settlement\Application\Services\SettlementOrderLinkReader;
 use App\Modules\Settlement\Application\Services\SettlementReadScope;
 use App\Modules\Settlement\Application\Services\SettlementWorkflow;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
+use App\Modules\Settlement\Infrastructure\Models\SettlementAdjustment;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRunMember;
 use DomainException;
@@ -189,6 +190,14 @@ class SettlementDetail extends Component
     {
         $settlement = $scope->visibleQuery()->findOrFail($this->settlementId);
         $items = DB::table('settlement_items')->where('settlement_id', $settlement->id)->orderBy('id')->get();
+        $adjustments = SettlementAdjustment::query()
+            ->where('target_settlement_id', $settlement->id)
+            ->orderBy('id')
+            ->get();
+        $adjustmentOrderIds = $adjustments->pluck('source_order_id')
+            ->filter()
+            ->map(static fn ($id): int => (int) $id)
+            ->all();
         $snapshotOrderIds = $items->map(function (object $item): int {
             $snapshot = is_string($item->rule_snapshot) ? json_decode($item->rule_snapshot, true) : $item->rule_snapshot;
 
@@ -227,11 +236,12 @@ class SettlementDetail extends Component
             'settlement' => $settlement,
             'agentDisplay' => $display->agent($settlement),
             'items' => $items,
+            'adjustments' => $adjustments,
             'documents' => SettlementDocument::query()->where('settlement_id', $settlement->id)->get(),
             'previousSettlement' => $previousSettlement,
             'nextSettlement' => $nextSettlement,
             'freshness' => $settlement->generation_status === 'generated' ? $freshnessChecker->check($settlement) : null,
-            'existingOrderIds' => $orders->existingOrderIds($snapshotOrderIds),
+            'existingOrderIds' => $orders->existingOrderIds(array_values(array_unique([...$snapshotOrderIds, ...$adjustmentOrderIds]))),
             'isHistoricalArchive' => $settlement->settlement_run_id === null
                 && ! SettlementRunMember::query()->where('settlement_id', $settlement->id)->exists(),
         ])->title(__('settlements.titles.detail'));

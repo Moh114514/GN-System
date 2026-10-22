@@ -6,6 +6,7 @@ use App\Modules\Order\Application\Contracts\SettlementOrderReader;
 use App\Modules\Settlement\Application\Data\SettlementFreshnessResult;
 use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
+use App\Modules\Settlement\Infrastructure\Models\SettlementAdjustment;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -15,6 +16,22 @@ final readonly class SettlementFreshnessChecker
 
     public function check(Settlement $settlement): SettlementFreshnessResult
     {
+        if (in_array((string) $settlement->status, ['settled', 'paid', 'reconciled'], true)) {
+            return new SettlementFreshnessResult(
+                status: 'fresh',
+                currentItemCount: (int) $settlement->item_count,
+                currentConsumptionKrw: (int) $settlement->total_consumption_krw,
+                currentCommissionKrw: (int) $settlement->total_commission_krw,
+                settlementItemCount: (int) $settlement->item_count,
+                settlementConsumptionKrw: (int) $settlement->total_consumption_krw,
+                settlementCommissionKrw: (int) $settlement->total_commission_krw,
+                currentOrderIds: [],
+                settlementOrderIds: [],
+                addedOrderIds: [],
+                removedOrderIds: [],
+                missingCommissionOrderIds: [],
+            );
+        }
         $orders = $this->orders->completedForAgent(
             (int) $settlement->agent_id,
             CarbonImmutable::parse($settlement->period_start),
@@ -26,6 +43,14 @@ final readonly class SettlementFreshnessChecker
         $missing = array_values(array_diff($orderIds, $commissions->keys()->map(static fn ($id): int => (int) $id)->all()));
         sort($missing);
         $items = DB::table('settlement_items')->where('settlement_id', $settlement->id)->get();
+        $adjustments = SettlementAdjustment::query()->where('target_settlement_id', $settlement->id)->orderBy('id')->get();
+        $pendingAdjustments = SettlementAdjustment::query()
+            ->where('agent_id', $settlement->agent_id)
+            ->whereNull('target_settlement_id')
+            ->whereDate('eligible_period_start', '<=', $settlement->period_start)
+            ->orderBy('id')
+            ->get();
+        $currentAdjustments = $adjustments->concat($pendingAdjustments)->sortBy('id')->values();
         $settlementIds = [];
         $settlementSnapshots = [];
         $settlementConsumption = 0;
@@ -46,8 +71,26 @@ final readonly class SettlementFreshnessChecker
         $removed = array_values(array_diff($settlementIds, $orderIds));
         sort($added);
         sort($removed);
-        $currentConsumption = (int) array_sum(array_map(static fn ($order): int => $order->amountKrw, $orders));
-        $currentCommission = (int) $commissions->sum('amount_krw');
+        $currentAdjustmentConsumption = (int) $currentAdjustments->sum('consumption_delta_krw');
+        $currentAdjustmentCommission = (int) $currentAdjustments->sum('commission_delta_krw');
+        $settledAdjustmentConsumption = (int) $adjustments->sum('consumption_delta_krw');
+        $settledAdjustmentCommission = (int) $adjustments->sum('commission_delta_krw');
+        $currentConsumption = (int) array_sum(array_map(static fn ($order): int => $order->amountKrw, $orders)) + $currentAdjustmentConsumption;
+        $currentCommission = (int) $commissions->sum('amount_krw') + $currentAdjustmentCommission;
+        $currentAdjustmentFacts = $currentAdjustments->map(static fn (SettlementAdjustment $adjustment): array => [
+            'id' => (int) $adjustment->id,
+            'key' => (string) $adjustment->adjustment_key,
+            'consumption_delta_krw' => (int) $adjustment->consumption_delta_krw,
+            'commission_delta_krw' => (int) $adjustment->commission_delta_krw,
+            'reason' => (string) $adjustment->reason,
+        ])->all();
+        $storedAdjustmentFacts = is_array($settlement->snapshot)
+            ? ($settlement->snapshot['adjustments'] ?? [])
+            : [];
+        $adjustmentsChanged = $this->normaliseSnapshot($currentAdjustmentFacts)
+            !== $this->normaliseSnapshot($storedAdjustmentFacts);
+        $settlementConsumption += $settledAdjustmentConsumption;
+        $settlementCommission += $settledAdjustmentCommission;
         $snapshotChanged = false;
         foreach ($orderIds as $orderId) {
             $storedSnapshot = $settlementSnapshots[$orderId] ?? null;
@@ -64,16 +107,19 @@ final readonly class SettlementFreshnessChecker
         $stale = $missing !== []
             || $orderIds !== $settlementIds
             || count($orders) !== $items->count()
+            || (int) $settlement->item_count !== $items->count() + $adjustments->count()
+            || $pendingAdjustments->isNotEmpty()
             || $currentConsumption !== $settlementConsumption
             || $currentCommission !== $settlementCommission
+            || $adjustmentsChanged
             || $snapshotChanged;
 
         return new SettlementFreshnessResult(
             status: $stale ? 'stale' : 'fresh',
-            currentItemCount: count($orders),
+            currentItemCount: count($orders) + $currentAdjustments->count(),
             currentConsumptionKrw: $currentConsumption,
             currentCommissionKrw: $currentCommission,
-            settlementItemCount: $items->count(),
+            settlementItemCount: $items->count() + $adjustments->count(),
             settlementConsumptionKrw: $settlementConsumption,
             settlementCommissionKrw: $settlementCommission,
             currentOrderIds: $orderIds,

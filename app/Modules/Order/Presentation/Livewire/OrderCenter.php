@@ -71,7 +71,7 @@ class OrderCenter extends Component
     public function render(OrderManagementWorkspace $workspace): View
     {
         $this->validate([
-            'dateField' => ['required', 'in:created_at,completed_at'],
+            'dateField' => ['required', 'in:created_at,completed_at,occurred_on'],
             'dateFrom' => ['nullable', 'date_format:Y-m-d'],
             'dateTo' => ['nullable', 'date_format:Y-m-d'],
             'sourceTypeFilter' => ['nullable', 'in:agent,direct'],

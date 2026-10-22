@@ -14,5 +14,6 @@ final readonly class CompletedTreatmentData
         public ?int $ownerId,
         public ?int $actorId,
         public string $sourceType = 'agent',
+        public ?int $visitId = null,
     ) {}
 }

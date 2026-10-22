@@ -8,6 +8,7 @@ use App\Modules\Order\Application\Contracts\DailyOrderGateway;
 use App\Modules\Order\Application\Contracts\InstitutionUsageReader;
 use App\Modules\Order\Application\Contracts\OrderImportGateway;
 use App\Modules\Order\Application\Contracts\OrderLifecycleGateway;
+use App\Modules\Order\Application\Contracts\OrderRegistrationDraftGateway;
 use App\Modules\Order\Application\Contracts\ReminderSourceReader;
 use App\Modules\Order\Application\Contracts\ReportOrderReader;
 use App\Modules\Order\Application\Contracts\SettlementOrderReader;
@@ -17,6 +18,7 @@ use App\Modules\Order\Application\Services\DatabaseDailyOrderGateway;
 use App\Modules\Order\Application\Services\DatabaseInstitutionUsageReader;
 use App\Modules\Order\Application\Services\DatabaseOrderImportGateway;
 use App\Modules\Order\Application\Services\DatabaseOrderLifecycleGateway;
+use App\Modules\Order\Application\Services\DatabaseOrderRegistrationDraftGateway;
 use App\Modules\Order\Application\Services\DatabaseReminderSourceReader;
 use App\Modules\Order\Application\Services\DatabaseReportOrderReader;
 use App\Modules\Order\Application\Services\DatabaseSettlementOrderReader;
@@ -38,6 +40,7 @@ class OrderServiceProvider extends ServiceProvider
     {
         $this->app->bind(OrderImportGateway::class, DatabaseOrderImportGateway::class);
         $this->app->bind(OrderLifecycleGateway::class, DatabaseOrderLifecycleGateway::class);
+        $this->app->bind(OrderRegistrationDraftGateway::class, DatabaseOrderRegistrationDraftGateway::class);
         $this->app->bind(CustomerOrderGateway::class, DatabaseCustomerOrderGateway::class);
         $this->app->bind(BdCommissionOrderReader::class, DatabaseBdCommissionOrderReader::class);
         $this->app->bind(DailyOrderGateway::class, DatabaseDailyOrderGateway::class);

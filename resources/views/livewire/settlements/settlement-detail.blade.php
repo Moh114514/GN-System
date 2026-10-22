@@ -69,7 +69,7 @@
 
     <section class="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
         <div class="flex flex-wrap items-start justify-between gap-4">
-            <div><p class="text-xs font-medium text-zinc-400">{{ __('settlements.detail.eyebrow') }}</p><h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ $agentDisplay['code'] }} {{ $agentDisplay['name'] }}</h2><p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ $settlement->period_start->format('Y-m-d') }} {{ __('settlements.labels.date_to') }} {{ $settlement->period_end->format('Y-m-d') }}</p></div>
+            <div><p class="text-xs font-medium text-zinc-400">{{ __('settlements.detail.eyebrow') }}</p><h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ $agentDisplay['code'] }} {{ $agentDisplay['name'] }}</h2><p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ $settlement->period_start->format('Y-m-d') }} {{ __('settlements.labels.date_to') }} {{ $settlement->period_end->format('Y-m-d') }}</p><p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{{ __('settlements.detail.payment_due_on') }}：{{ $settlement->payment_due_on?->format('Y-m-d') ?? __('settlements.labels.pending') }}</p></div>
             <div class="flex flex-wrap items-center justify-end gap-3">
                 <div class="flex items-center gap-2" :aria-label="__('settlements.detail.batch_navigation')">
                     @if ($previousSettlement)
@@ -167,6 +167,30 @@
                 </tr>
             @empty<tr><td colspan="5" class="py-8 text-center text-zinc-500">{{ __('settlements.detail.items_empty') }}</td></tr>@endforelse
         </tbody></table></div>
+        @if ($adjustments->isNotEmpty())
+            <div class="mt-6">
+                <h4 class="font-semibold">{{ __('settlements.detail.adjustments') }}</h4>
+                <div class="crm-table-wrap mt-3"><table class="crm-table"><thead><tr><th>{{ __('settlements.detail.adjustment_source') }}</th><th>{{ __('settlements.detail.adjustment_reason') }}</th><th>{{ __('settlements.detail.adjustment_actor') }}</th><th>{{ __('settlements.detail.consumption_delta') }}</th><th>{{ __('settlements.detail.commission_delta') }}</th></tr></thead><tbody>
+                    @foreach ($adjustments as $adjustment)
+                        <tr wire:key="settlement-adjustment-{{ $adjustment->id }}">
+                            <td>
+                                @if ($adjustment->source_order_id && in_array((int) $adjustment->source_order_id, $existingOrderIds, true))
+                                    <a class="font-semibold text-teal-700 hover:underline" href="{{ route('orders.show', $adjustment->source_order_id) }}" wire:navigate>#{{ $adjustment->source_order_id }}</a>
+                                @elseif ($adjustment->source_order_id)
+                                    #{{ $adjustment->source_order_id }}
+                                @else
+                                    {{ __('settlements.detail.negative_balance_carry') }}
+                                @endif
+                            </td>
+                            <td>{{ $adjustment->reason }}</td>
+                            <td>{{ data_get($adjustment->snapshot, 'actor_id') ? __('settlements.detail.actor_id', ['id' => data_get($adjustment->snapshot, 'actor_id')]) : ($adjustment->created_by ? __('settlements.detail.actor_id', ['id' => $adjustment->created_by]) : __('settlements.detail.system_actor')) }}</td>
+                            <td>₩ {{ number_format($adjustment->consumption_delta_krw) }}</td>
+                            <td>₩ {{ number_format($adjustment->commission_delta_krw) }}</td>
+                        </tr>
+                    @endforeach
+                </tbody></table></div>
+            </div>
+        @endif
     </section>
 
 </div>

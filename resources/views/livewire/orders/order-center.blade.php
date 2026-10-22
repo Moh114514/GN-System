@@ -34,6 +34,7 @@
             <flux:select class="w-36" wire:model.live="dateField" size="sm" :aria-label="__('orders.fields.date_field')">
                 <flux:select.option value="created_at">{{ __('orders.fields.created_date') }}</flux:select.option>
                 <flux:select.option value="completed_at">{{ __('orders.fields.completed_date') }}</flux:select.option>
+                <flux:select.option value="occurred_on">{{ __('orders.fields.business_date') }}</flux:select.option>
             </flux:select>
             <flux:input class="w-40" type="date" wire:model.live="dateFrom" size="sm" :aria-label="__('orders.fields.date_from')" />
             <flux:input class="w-40" type="date" wire:model.live="dateTo" size="sm" :aria-label="__('orders.fields.date_to')" />
@@ -108,13 +109,11 @@
                             @if ($order['occurred_on'])
                                 <div class="text-xs text-zinc-500">{{ __('orders.fields.occurred_on') }}</div>
                                 <div class="mt-1 tabular-nums">{{ $order['occurred_on'] }}</div>
+                                <div class="mt-1 text-xs text-zinc-500">{{ __('orders.fields.settlement_period') }} · {{ substr($order['occurred_on'], 0, 7) }}</div>
                             @endif
                             @if ($order['status'] === 'completed' && $order['completion_precision'] === 'datetime' && $order['completed_at'])
                                 <div class="{{ $order['occurred_on'] ? 'mt-1' : '' }} text-xs text-zinc-500">{{ __('orders.fields.completed_time') }}</div>
                                 <div class="mt-0.5 tabular-nums">{{ $order['completed_at'] }}</div>
-                            @elseif ($order['status'] === 'completed' && $order['completion_precision'] === 'date' && $order['occurred_on'])
-                                <div class="text-xs text-zinc-500">{{ __('orders.fields.completed_date') }}</div>
-                                <div class="mt-0.5 tabular-nums">{{ $order['occurred_on'] }}</div>
                             @elseif ($order['status'] !== 'completed' && ! $order['occurred_on'] && $order['created_at'])
                                 <div class="text-xs text-zinc-500">{{ __('orders.fields.created_at') }}</div>
                                 <div class="mt-1 tabular-nums">{{ $order['created_at'] }}</div>

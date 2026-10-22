@@ -23,3 +23,6 @@ ADR 一旦 Accepted 不直接改写决策内容。需要改变决策时新增 AD
 4. 同一编号只能存在一个 ADR 文件。
 5. 合并 Accepted ADR 时同步更新相关当前态架构文档和实现检查。
 
+下一个编号为 `0011`；当前新增的订单登记与月结差额闭环决策见
+[ADR-0011](0011-order-registration-and-monthly-settlement-closure.md)。
+

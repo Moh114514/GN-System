@@ -3,6 +3,7 @@
 namespace App\Modules\Settlement\Application\Services;
 
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
+use App\Modules\Settlement\Infrastructure\Models\SettlementAdjustment;
 use App\Modules\Settlement\Infrastructure\Models\SettlementDocument;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRunMember;
 use App\Support\Exports\DTO\FinancialDocumentData;
@@ -41,6 +42,22 @@ final class SettlementDocumentGenerator
             })
             ->all();
         $snapshot = $settlement->snapshot ?? [];
+        $adjustments = SettlementAdjustment::query()
+            ->where('target_settlement_id', $settlement->id)
+            ->orderBy('id')
+            ->get();
+        foreach ($adjustments as $adjustment) {
+            $items[] = [
+                'order_id' => $adjustment->source_order_id === null
+                    ? __('settlements.documents.adjustment_id', ['id' => $adjustment->id])
+                    : '#'.$adjustment->source_order_id,
+                'completed_on' => null,
+                'project_name' => $adjustment->reason,
+                'rate_bps' => null,
+                'consumption_krw' => (int) $adjustment->consumption_delta_krw,
+                'commission_krw' => (int) $adjustment->commission_delta_krw,
+            ];
+        }
 
         return [
             'settlement_id' => (int) $settlement->id,
@@ -48,6 +65,8 @@ final class SettlementDocumentGenerator
             'agent_name' => (string) data_get($snapshot, 'agent.name', __('settlements.documents.unknown_agent')),
             'period_start' => $settlement->period_start->format('Y-m-d'),
             'period_end' => $settlement->period_end->format('Y-m-d'),
+            'payment_due_on' => $settlement->payment_due_on?->format('Y-m-d'),
+            'adjustment_commission_krw' => (int) $adjustments->sum('commission_delta_krw'),
             'exchange_rate' => (string) $settlement->exchange_rate_krw_per_cny,
             'total_consumption_krw' => (int) $settlement->total_consumption_krw,
             'total_commission_krw' => (int) $settlement->total_commission_krw,
@@ -121,6 +140,7 @@ final class SettlementDocumentGenerator
             ['label' => __('settlements.documents.agent_label'), 'value' => $data['agent_name'].'（'.$data['agent_code'].'）'],
             ['label' => __('settlements.documents.status'), 'value' => __('settlements.settlement_statuses.'.$settlement->status)],
             ['label' => __('settlements.documents.currency'), 'value' => (string) ($settlement->settlement_currency ?: 'KRW')],
+            ['label' => __('settlements.detail.payment_due_on'), 'value' => (string) ($data['payment_due_on'] ?? '')],
         ];
         if ($settlement->exchange_rate_krw_per_cny !== null) {
             $metadata[] = ['label' => __('settlements.documents.exchange_rate_label'), 'value' => (string) $settlement->exchange_rate_krw_per_cny.' KRW/CNY'];
@@ -128,6 +148,7 @@ final class SettlementDocumentGenerator
 
         $summaryRows = [
             ['label' => __('settlements.documents.total_consumption_label'), 'value' => $data['total_consumption_krw'], 'type' => 'amount'],
+            ['label' => __('settlements.documents.adjustment_total_label'), 'value' => $data['adjustment_commission_krw'], 'type' => 'amount'],
             ['label' => __('settlements.documents.total_commission_label'), 'value' => $data['total_commission_krw'], 'type' => 'amount', 'emphasis' => true],
         ];
         if ((string) ($settlement->settlement_currency ?: 'KRW') === 'CNY') {

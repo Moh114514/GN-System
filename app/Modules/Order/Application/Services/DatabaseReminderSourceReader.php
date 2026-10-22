@@ -41,6 +41,7 @@ final class DatabaseReminderSourceReader implements ReminderSourceReader
                 completedOn: CarbonImmutable::parse($order->completed_on),
                 ownerId: $order->owner_id === null ? null : (int) $order->owner_id,
                 sourceType: (string) $order->source_type,
+                visitId: $order->appointment_id === null ? null : (int) $order->appointment_id,
             ))
             ->all();
     }

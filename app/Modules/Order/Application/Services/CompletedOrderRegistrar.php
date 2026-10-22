@@ -9,8 +9,10 @@ use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
 use App\Modules\Customer\Application\Contracts\CustomerTreatmentCompletionGateway;
 use App\Modules\Order\Application\Contracts\CustomerOrderGateway;
+use App\Modules\Order\Application\Contracts\OrderRegistrationDraftGateway;
 use App\Modules\Order\Application\Data\CompletedOrderItemData;
 use App\Modules\Order\Application\Data\CompletedOrderRegistrationData;
+use App\Modules\Order\Application\Data\OrderEvidenceUploadData;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Order\Infrastructure\Models\OrderEvidenceFile;
 use App\Modules\Order\Infrastructure\Models\OrderItem;
@@ -24,7 +26,9 @@ use App\Modules\Settlement\Application\Data\CompletedOrderCommissionData;
 use App\Modules\Settlement\Application\Data\DirectOrderCommissionData;
 use Carbon\CarbonImmutable;
 use DomainException;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Throwable;
 
 final readonly class CompletedOrderRegistrar
@@ -42,11 +46,31 @@ final readonly class CompletedOrderRegistrar
         private AuditRecorder $audit,
         private BusinessClock $clock,
         private OrderEvidenceStorage $evidenceStorage,
+        private OrderRegistrationDraftGateway $drafts,
     ) {}
 
     public function register(CompletedOrderRegistrationData $data): int
     {
         $customer = $this->customers->customerForOrder($data->customerId);
+        $occurredOn = $data->occurredOn->startOfDay();
+        $idempotencyKey = $data->sourceReturnFileId ?? $data->idempotencyKey;
+        if ($idempotencyKey !== null && ! Str::isUuid($idempotencyKey)) {
+            throw new DomainException(__('orders.errors.idempotency_conflict'));
+        }
+        $fingerprint = $this->fingerprint($data, $occurredOn);
+        if ($occurredOn->gt($this->clock->now()->startOfDay())) {
+            throw new DomainException(__('orders.errors.business_date_in_future'));
+        }
+        if ($idempotencyKey !== null) {
+            $existing = Order::withTrashed()->where('registration_key', $idempotencyKey)->first();
+            if ($existing !== null) {
+                if ($existing->trashed() || ! hash_equals((string) $existing->registration_fingerprint, $fingerprint)) {
+                    throw new DomainException(__('orders.errors.idempotency_conflict'));
+                }
+
+                return (int) $existing->id;
+            }
+        }
         $this->assertCustomerCanBeCompleted($customer, $data);
         $sourceType = (string) $customer['source_type'];
         if ($sourceType === 'direct') {
@@ -57,7 +81,7 @@ final readonly class CompletedOrderRegistrar
                 throw new DomainException(__('orders.errors.agent_not_allowed_for_direct_customer'));
             }
         } else {
-            $this->assertAgent($data->agentId, (int) $customer['source_agent_id']);
+            $this->assertAgent($data->agentId, (int) $customer['source_agent_id'], $occurredOn);
         }
 
         $items = $this->normalizeItems($data->items);
@@ -68,9 +92,19 @@ final readonly class CompletedOrderRegistrar
 
         $storedPaths = [];
         try {
-            return DB::transaction(function () use ($data, $customer, $sourceType, $items, $totalAmount, &$storedPaths): int {
+            return DB::transaction(function () use ($data, $customer, $sourceType, $items, $totalAmount, $idempotencyKey, $fingerprint, &$storedPaths): int {
                 $occurredOn = $data->occurredOn->startOfDay();
                 $completedAt = $this->clock->now();
+                if ($data->requireArrived) {
+                    $visit = $data->appointmentId === null
+                        ? null
+                        : $this->appointments->registrationVisit($data->customerId, $data->appointmentId, $data->institutionId);
+                    if ($visit === null || ! CarbonImmutable::parse($visit['arrived_at'])->startOfDay()->equalTo($occurredOn)) {
+                        throw new DomainException(__('orders.errors.customer_not_arrived'));
+                    }
+                }
+                $firstOrderForVisit = $data->appointmentId === null
+                    || ! Order::query()->where('appointment_id', $data->appointmentId)->exists();
                 $agent = $sourceType === 'agent' && $data->agentId !== null
                     ? $this->agents->agentById($data->agentId)
                     : null;
@@ -83,6 +117,7 @@ final readonly class CompletedOrderRegistrar
                 $order = Order::query()->create([
                     'customer_id' => $data->customerId,
                     'institution_id' => $data->institutionId,
+                    'appointment_id' => $data->appointmentId,
                     'source_type' => $sourceType,
                     'agent_id' => $data->agentId,
                     'project_name' => $items[0]->projectName,
@@ -95,6 +130,8 @@ final readonly class CompletedOrderRegistrar
                     'status' => 'completed',
                     'owner_id' => $ownerId,
                     'source_return_file_id' => $data->sourceReturnFileId,
+                    'registration_key' => $idempotencyKey,
+                    'registration_fingerprint' => $fingerprint,
                     'treatment_project_snapshot' => $items[0]->projectName,
                     'business_attribution_snapshot' => [
                         'source' => $data->source,
@@ -163,25 +200,35 @@ final readonly class CompletedOrderRegistrar
                         ipAddress: $data->ipAddress,
                     ));
                 }
-                $this->customerCompletion->completeFromOrder(
-                    customerId: $data->customerId,
-                    occurredOn: $occurredOn,
-                    actorId: $data->actorId,
-                    ipAddress: $data->ipAddress,
-                );
-                $appointmentId = $this->appointments->completeAppointmentForCustomer($data->customerId, $data->institutionId);
-                if ($appointmentId !== null) {
-                    $this->appointmentReminders->cancelForAppointment($appointmentId, $data->actorId, 'completed_order_registered');
+                if ($firstOrderForVisit) {
+                    $this->customerCompletion->completeFromOrder(
+                        customerId: $data->customerId,
+                        occurredOn: $occurredOn,
+                        actorId: $data->actorId,
+                        ipAddress: $data->ipAddress,
+                    );
+                    $appointmentId = $this->appointments->completeAppointmentForCustomer(
+                        $data->customerId,
+                        $data->institutionId,
+                        $data->appointmentId,
+                    );
+                    if ($appointmentId !== null) {
+                        $this->appointmentReminders->cancelForAppointment($appointmentId, $data->actorId, 'completed_order_registered');
+                    }
+                    $this->reminders->schedule(new CompletedTreatmentData(
+                        orderId: (int) $order->id,
+                        customerId: $data->customerId,
+                        projectName: $items[0]->projectName,
+                        completedOn: $occurredOn,
+                        ownerId: $order->owner_id === null ? null : (int) $order->owner_id,
+                        actorId: $data->actorId,
+                        sourceType: $sourceType,
+                        visitId: $data->appointmentId,
+                    ));
                 }
-                $this->reminders->schedule(new CompletedTreatmentData(
-                    orderId: (int) $order->id,
-                    customerId: $data->customerId,
-                    projectName: $items[0]->projectName,
-                    completedOn: $occurredOn,
-                    ownerId: $order->owner_id === null ? null : (int) $order->owner_id,
-                    actorId: $data->actorId,
-                    sourceType: $sourceType,
-                ));
+                if ($data->draftId !== null) {
+                    $this->drafts->complete($data->draftId, $data->customerId, (int) $order->id, $data->appointmentId);
+                }
 
                 $this->audit->record(
                     description: __('orders.audit.created'),
@@ -201,6 +248,20 @@ final readonly class CompletedOrderRegistrar
 
                 return (int) $order->id;
             }, 3);
+        } catch (QueryException $exception) {
+            foreach ($storedPaths as $path) {
+                $this->evidenceStorage->delete($path);
+            }
+
+            if ($idempotencyKey !== null) {
+                $existing = Order::withTrashed()->where('registration_key', $idempotencyKey)->first();
+                if ($existing !== null && ! $existing->trashed()
+                    && hash_equals((string) $existing->registration_fingerprint, $fingerprint)) {
+                    return (int) $existing->id;
+                }
+            }
+
+            throw $exception;
         } catch (Throwable $exception) {
             foreach ($storedPaths as $path) {
                 $this->evidenceStorage->delete($path);
@@ -240,22 +301,64 @@ final readonly class CompletedOrderRegistrar
             return;
         }
 
-        if (($customer['current_status_key'] ?? null) !== 'arrived' || ($customer['arrived_at'] ?? null) === null) {
+        if (! in_array(($customer['current_status_key'] ?? null), ['arrived', 'treatment_completed'], true)
+            || $data->appointmentId === null) {
             throw new DomainException(__('orders.errors.customer_not_arrived'));
         }
 
-        $arrivedOn = CarbonImmutable::parse((string) $customer['arrived_at'])->startOfDay();
-        if (! $arrivedOn->equalTo($data->occurredOn->startOfDay())) {
+        $visit = $this->appointments->registrationVisit($data->customerId, $data->appointmentId, $data->institutionId);
+        if ($visit === null
+            || ! CarbonImmutable::parse($visit['arrived_at'])->startOfDay()->equalTo($data->occurredOn->startOfDay())) {
             throw new DomainException(__('orders.errors.occurred_on_arrival_mismatch'));
         }
     }
 
-    private function assertAgent(?int $agentId, int $customerAgentId): void
+    private function fingerprint(CompletedOrderRegistrationData $data, CarbonImmutable $occurredOn): string
+    {
+        $items = array_map(static fn (CompletedOrderItemData $item): array => [
+            'project_name' => trim($item->projectName),
+            'treatment_project_id' => $item->treatmentProjectId,
+            'amount_krw' => $item->amountKrw,
+            'unit_price_krw' => $item->unitPriceKrw,
+            'quantity' => $item->quantity,
+            'specification' => $item->specification,
+            'notes' => $item->notes,
+        ], $this->normalizeItems($data->items));
+
+        return hash('sha256', json_encode([
+            'customer_id' => $data->customerId,
+            'institution_id' => $data->institutionId,
+            'appointment_id' => $data->appointmentId,
+            'agent_id' => $data->agentId,
+            'occurred_on' => $occurredOn->toDateString(),
+            'items' => array_values($items),
+            'source' => $data->source,
+            'source_metadata' => $data->sourceMetadata,
+            'evidence' => array_map(static fn (OrderEvidenceUploadData $evidence): array => [
+                'type' => $evidence->type,
+                'original_name' => $evidence->originalName,
+                'sha256' => hash('sha256', $evidence->contents),
+            ], $data->evidence),
+        ], JSON_THROW_ON_ERROR));
+    }
+
+    private function assertAgent(?int $agentId, int $customerAgentId, CarbonImmutable $occurredOn): void
     {
         if ($agentId === null || $agentId < 1 || $agentId !== $customerAgentId) {
             throw new DomainException(__('orders.errors.agent_required'));
         }
-        if ($this->agents->agentById($agentId)['cooperation_status'] !== 'active') {
+        $eligibility = $this->agents->orderEligibility($agentId);
+        $cooperationStartedOn = $eligibility['cooperation_started_on'] === null
+            ? null
+            : CarbonImmutable::parse($eligibility['cooperation_started_on'])->startOfDay();
+        $cooperationEndedOn = $eligibility['cooperation_ended_on'] === null
+            ? null
+            : CarbonImmutable::parse($eligibility['cooperation_ended_on'])->startOfDay();
+        if (($cooperationStartedOn !== null && $occurredOn->lt($cooperationStartedOn))
+            || ($cooperationEndedOn !== null && $occurredOn->gt($cooperationEndedOn))) {
+            throw new DomainException(__('agents.validation.ineligible_for_order_month'));
+        }
+        if (! $occurredOn->lt($this->clock->now()->startOfDay()) && $eligibility['cooperation_status'] !== 'active') {
             throw new DomainException(__('orders.errors.agent_inactive_save'));
         }
     }

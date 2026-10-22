@@ -31,6 +31,7 @@ final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
             ownerId: $data->ownerId,
             actorId: $data->actorId,
             source: 'order_completed',
+            visitId: $data->visitId,
         );
     }
 
@@ -59,6 +60,7 @@ final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
         ?int $ownerId,
         ?int $actorId,
         string $source,
+        ?int $visitId = null,
     ): void {
         foreach (self::SCHEDULE as $days) {
             $dueAt = $completedAt->addDays($days)->setTime(9, 0);
@@ -67,7 +69,8 @@ final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
             }
 
             $type = $days === 7 ? 'postop_7d' : 'postop_30d';
-            $dedupeKey = hash('sha256', "customer:{$customerId}:treatment:{$completedAt->toIso8601String()}:{$type}");
+            $visitIdentity = $visitId === null ? $completedAt->toIso8601String() : "visit:{$visitId}";
+            $dedupeKey = hash('sha256', "customer:{$customerId}:treatment:{$visitIdentity}:{$type}");
             $attributes = [
                 'customer_id' => $customerId,
                 'order_id' => $orderId,
