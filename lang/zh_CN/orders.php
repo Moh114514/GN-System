@@ -194,6 +194,9 @@ return [
         'institution_return_processed' => '机构回传已处理，订单 #:id 已生成。',
     ],
     'errors' => [
+        'legacy_arrival_invalid' => '请填写不晚于当前时间的实际到院时间，以及不超过 2000 字的核对依据。',
+        'legacy_arrival_admin_required' => '历史到院补录的操作人必须是启用的超级管理员。',
+        'legacy_arrival_locked' => '只能补录已到院或已完成、且缺少实际到院时间的记录；已有时间不得覆盖。',
         'direct_customer_owner_required' => '直客尚未分配负责人，请先分配负责人再登记订单。',
         'date_range' => '结束日期不能早于开始日期。',
         'invalid_date' => '日期格式无效。',
@@ -257,6 +260,7 @@ return [
         'manual_completion_disabled' => '订单只能通过机构回传表单形成，不能手动标记完成。',
     ],
     'audit' => [
+        'legacy_arrival_backfilled' => '核对并补录历史预约实际到院时间',
         'created' => '订单已创建',
         'completed' => '订单已完成',
         'updated' => '待完成订单已更新',

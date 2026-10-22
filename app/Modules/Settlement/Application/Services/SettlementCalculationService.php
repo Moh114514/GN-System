@@ -8,7 +8,10 @@ use App\Modules\Order\Application\Contracts\SettlementOrderReader;
 use App\Modules\Order\Application\Data\SettlementOrderData;
 use App\Modules\Settlement\Application\Exceptions\StructuredSettlementFailure;
 use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
+use App\Modules\Settlement\Infrastructure\Models\Settlement;
+use App\Modules\Settlement\Infrastructure\Models\SettlementAdjustment;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Collection;
 
 final readonly class SettlementCalculationService
 {
@@ -20,11 +23,24 @@ final readonly class SettlementCalculationService
     /** @return array<int, int> */
     public function eligibleAgentIds(CarbonImmutable $periodStart, CarbonImmutable $periodEnd): array
     {
-        return $this->agents->eligibleForPeriod($periodStart, $periodEnd);
+        $ids = array_values(array_unique([
+            ...$this->agents->eligibleForPeriod($periodStart, $periodEnd),
+            ...SettlementAdjustment::query()
+                ->whereDate('eligible_period_start', '<=', $periodStart)
+                ->where(function ($query) use ($periodStart, $periodEnd): void {
+                    $query->whereNull('target_settlement_id')->orWhereIn('target_settlement_id',
+                        Settlement::query()->select('id')
+                            ->whereDate('period_start', $periodStart)->whereDate('period_end', $periodEnd));
+                })
+                ->pluck('agent_id')->map(static fn ($id): int => (int) $id)->all(),
+        ]));
+        sort($ids);
+
+        return $ids;
     }
 
-    /** @return array{agent: SettlementAgentData, orders: array<int, SettlementOrderData>, commissions: array<int, OrderCommission>, total_consumption_krw: int, total_commission_krw: int, item_count: int} */
-    public function calculate(int $agentId, CarbonImmutable $periodStart, CarbonImmutable $periodEnd): array
+    /** @return array{agent: SettlementAgentData, orders: array<int, SettlementOrderData>, commissions: array<int, OrderCommission>, adjustments: Collection<int, SettlementAdjustment>, total_consumption_krw: int, total_commission_krw: int, item_count: int} */
+    public function calculate(int $agentId, CarbonImmutable $periodStart, CarbonImmutable $periodEnd, bool $lockAdjustments = false): array
     {
         $agent = $this->agents->forMonth($agentId, $periodEnd);
         $orders = $this->orders->completedForAgent($agentId, $periodStart, $periodEnd);
@@ -43,13 +59,29 @@ final readonly class SettlementCalculationService
             }
         }
 
+        $settlementId = Settlement::query()->where('agent_id', $agentId)
+            ->whereDate('period_start', $periodStart)->whereDate('period_end', $periodEnd)->value('id');
+        $adjustments = SettlementAdjustment::query()
+            ->where('agent_id', $agentId)
+            ->whereDate('eligible_period_start', '<=', $periodStart)
+            ->where(function ($query) use ($settlementId): void {
+                $query->whereNull('target_settlement_id');
+                if ($settlementId !== null) {
+                    $query->orWhere('target_settlement_id', $settlementId);
+                }
+            })
+            ->orderBy('id')
+            ->when($lockAdjustments, fn ($query) => $query->lockForUpdate())
+            ->get();
+
         return [
             'agent' => $agent,
             'orders' => $orders,
             'commissions' => $commissions,
-            'total_consumption_krw' => array_sum(array_map(static fn ($order): int => $order->amountKrw, $orders)),
-            'total_commission_krw' => (int) array_sum(array_map(static fn (OrderCommission $commission): int => (int) $commission->amount_krw, $commissions)),
-            'item_count' => count($orders),
+            'adjustments' => $adjustments,
+            'total_consumption_krw' => array_sum(array_map(static fn ($order): int => $order->amountKrw, $orders)) + (int) $adjustments->sum('consumption_delta_krw'),
+            'total_commission_krw' => (int) array_sum(array_map(static fn (OrderCommission $commission): int => (int) $commission->amount_krw, $commissions)) + (int) $adjustments->sum('commission_delta_krw'),
+            'item_count' => count($orders) + $adjustments->count(),
         ];
     }
 }

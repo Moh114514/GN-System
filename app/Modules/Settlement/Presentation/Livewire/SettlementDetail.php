@@ -125,7 +125,7 @@ class SettlementDetail extends Component
     public function correctStatus(SettlementWorkflow $workflow): void
     {
         $this->validate([
-            'correctionTarget' => ['required', 'string', Rule::in(['pending_review', 'approved', 'settled'])],
+            'correctionTarget' => ['required', 'string', Rule::in(['pending_review', 'settled'])],
             'correctionReason' => ['required', 'string', 'max:2000'],
         ]);
         $this->run(

@@ -97,7 +97,7 @@ class SettlementCenter extends Component
                 $this->previewResults[] = [
                     'agent_id' => $agentId,
                     'agent' => $result['agent']->code.' '.$result['agent']->name,
-                    'order_count' => $result['item_count'],
+                    'order_count' => count($result['orders']),
                     'consumption_krw' => $result['total_consumption_krw'],
                     'commission_krw' => $result['total_commission_krw'],
                     'error' => null,

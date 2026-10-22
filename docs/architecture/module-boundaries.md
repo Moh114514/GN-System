@@ -160,6 +160,11 @@ Application Contracts/Data；没有引入事件机制、直接写表或通用兼
 新增到院、订单提交、登记草稿、付款日期及月结差额数据后，迁移拒绝直接回滚。部署前后核对使用
 只读 `app:business-anomalies` 命令；其输出不会自动修复旧数据。
 
+历史到院补录命令通过 Order Application 服务只写 Order 自有预约，并通过 Audit Contract 记录核对依据；
+不回写 Customer 状态。`SettlementAgentGateway::forMonth` 仅供结算身份/等级资料展示，合作结束后使用最后
+合作月资料；推广费和新订单资格仍由 `AgentCommissionContextReader` 独立检查。月结的候选代理商、差额选择和
+金额计算统一由既有 `SettlementCalculationService` 提供，预览保持只读。
+
 ## PR7 发布边界
 
 PR1–PR6 的边界实现仍属于当前 feature worktree，未改变服务器上的已发布版本。迁移、备份、

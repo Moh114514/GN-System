@@ -152,7 +152,7 @@ final readonly class SettlementWorkflow
 
         DB::transaction(function () use ($settlementId, $targetStatus, $reason, $actorId, $ipAddress): void {
             $settlement = Settlement::query()->lockForUpdate()->findOrFail($settlementId);
-            if (! in_array($settlement->status, ['approved', 'settled'], true)) {
+            if ($settlement->status !== 'approved') {
                 throw new DomainException(__('settlements.errors.correction_not_allowed'));
             }
             if ($settlement->status === $targetStatus) {
@@ -188,12 +188,6 @@ final readonly class SettlementWorkflow
                     'settled_on' => $this->clock->now()->toDateString(),
                     'settled_by' => $actorId,
                     'confirmed_at' => now(),
-                ],
-                'approved' => [
-                    'status' => 'approved',
-                    'settled_on' => null,
-                    'settled_by' => null,
-                    'confirmed_at' => null,
                 ],
                 default => [
                     'status' => 'pending_review',
@@ -283,23 +277,12 @@ final readonly class SettlementWorkflow
 
             $periodStart = CarbonImmutable::parse($settlement->period_start);
             $periodEnd = CarbonImmutable::parse($settlement->period_end);
-            $calculation = $this->calculation->calculate((int) $settlement->agent_id, $periodStart, $periodEnd);
+            $calculation = $this->calculation->calculate((int) $settlement->agent_id, $periodStart, $periodEnd, lockAdjustments: true);
             $orders = $calculation['orders'];
             $commissions = $calculation['commissions'];
-            $adjustments = SettlementAdjustment::query()
-                ->where('agent_id', $settlement->agent_id)
-                ->whereDate('eligible_period_start', '<=', $periodStart)
-                ->where(function ($query) use ($settlement): void {
-                    $query->whereNull('target_settlement_id')
-                        ->orWhere('target_settlement_id', $settlement->id);
-                })
-                ->orderBy('id')
-                ->lockForUpdate()
-                ->get();
-            $adjustmentConsumption = (int) $adjustments->sum('consumption_delta_krw');
-            $adjustmentCommission = (int) $adjustments->sum('commission_delta_krw');
-            $totalConsumption = $calculation['total_consumption_krw'] + $adjustmentConsumption;
-            $totalCommission = $calculation['total_commission_krw'] + $adjustmentCommission;
+            $adjustments = $calculation['adjustments'];
+            $totalConsumption = $calculation['total_consumption_krw'];
+            $totalCommission = $calculation['total_commission_krw'];
             $now = now();
             $snapshot = is_array($settlement->snapshot) ? $settlement->snapshot : [];
             $snapshot['generated_at'] = $now->toIso8601String();

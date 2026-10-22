@@ -3,11 +3,9 @@
 namespace App\Modules\Settlement\Application\Services;
 
 use App\Infrastructure\Time\BusinessClock;
-use App\Modules\Agent\Application\Contracts\SettlementAgentGateway;
 use App\Modules\Settlement\Application\Data\SettlementPeriodData;
 use App\Modules\Settlement\Application\Data\SettlementRunStartResult;
 use App\Modules\Settlement\Infrastructure\Models\Settlement;
-use App\Modules\Settlement\Infrastructure\Models\SettlementAdjustment;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRun;
 use App\Modules\Settlement\Infrastructure\Models\SettlementRunMember;
 use App\Modules\Settlement\Jobs\GenerateAgentSettlement;
@@ -21,7 +19,7 @@ final readonly class SettlementRunManager
 {
     public function __construct(
         private SettlementPeriodCalculator $periods,
-        private SettlementAgentGateway $agents,
+        private SettlementCalculationService $calculation,
         private SettlementRunSummaryUpdater $summary,
         private BusinessClock $clock,
     ) {}
@@ -68,16 +66,7 @@ final readonly class SettlementRunManager
             });
         }
 
-        $eligibleAgentIds = array_values(array_unique([
-            ...$this->agents->eligibleForPeriod($period->start, $period->end),
-            ...SettlementAdjustment::query()
-                ->whereNull('target_settlement_id')
-                ->whereDate('eligible_period_start', '<=', $period->start)
-                ->pluck('agent_id')
-                ->map(static fn ($id): int => (int) $id)
-                ->all(),
-        ]));
-        sort($eligibleAgentIds);
+        $eligibleAgentIds = $this->calculation->eligibleAgentIds($period->start, $period->end);
         $run = DB::transaction(function () use ($period, $source, $actorId, $eligibleAgentIds): SettlementRun {
             $run = SettlementRun::query()->create([
                 'configuration_id' => $period->configurationId,

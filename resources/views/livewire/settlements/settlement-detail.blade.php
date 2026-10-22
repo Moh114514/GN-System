@@ -129,10 +129,10 @@
         <div class="mt-6"><flux:button wire:click="settle" variant="primary">{{ __('settlements.detail.settle') }}</flux:button></div>
     @endif
 
-    @if ($canManageSettlements && in_array($settlement->status, ['approved', 'settled']))
+    @if ($canManageSettlements && $settlement->status === 'approved')
         <section class="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5 dark:border-amber-900 dark:bg-amber-950/30">
             <h3 class="font-semibold">{{ __('settlements.detail.controlled_correction') }}</h3><p class="mt-1 text-sm text-zinc-600 dark:text-zinc-300">{{ __('settlements.detail.controlled_correction_description') }}</p>
-            <form wire:submit="correctStatus" class="mt-3 grid gap-3 sm:grid-cols-2"><flux:select wire:model="correctionTarget" :label="__('settlements.detail.target_status')" required><flux:select.option value="pending_review">{{ __('settlements.settlement_statuses.pending_review') }}</flux:select.option><flux:select.option value="approved">{{ __('settlements.detail.approved_status') }}</flux:select.option><flux:select.option value="settled">{{ __('settlements.settlement_statuses.settled') }}</flux:select.option></flux:select><flux:textarea wire:model="correctionReason" :label="__('settlements.detail.correction_reason')" rows="2" required /><div class="sm:col-span-2"><flux:button type="submit" variant="danger">{{ __('settlements.detail.submit_correction') }}</flux:button></div></form>
+            <form wire:submit="correctStatus" class="mt-3 grid gap-3 sm:grid-cols-2"><flux:select wire:model="correctionTarget" :label="__('settlements.detail.target_status')" required><flux:select.option value="pending_review">{{ __('settlements.settlement_statuses.pending_review') }}</flux:select.option><flux:select.option value="settled">{{ __('settlements.settlement_statuses.settled') }}</flux:select.option></flux:select><flux:textarea wire:model="correctionReason" :label="__('settlements.detail.correction_reason')" rows="2" required /><div class="sm:col-span-2"><flux:button type="submit" variant="danger">{{ __('settlements.detail.submit_correction') }}</flux:button></div></form>
         </section>
     @endif
 

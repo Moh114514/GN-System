@@ -58,24 +58,13 @@ final readonly class SettlementGenerator
 
             $periodStart = CarbonImmutable::parse($run->period_start);
             $periodEnd = CarbonImmutable::parse($run->period_end);
-            $calculation = $this->calculation->calculate((int) $member->agent_id, $periodStart, $periodEnd);
+            $calculation = $this->calculation->calculate((int) $member->agent_id, $periodStart, $periodEnd, lockAdjustments: true);
             $agent = $calculation['agent'];
             $orders = $calculation['orders'];
             $commissions = $calculation['commissions'];
-            $adjustments = SettlementAdjustment::query()
-                ->where('agent_id', $member->agent_id)
-                ->whereDate('eligible_period_start', '<=', $periodStart)
-                ->where(function ($query) use ($existing): void {
-                    $query->whereNull('target_settlement_id');
-                    if ($existing !== null) {
-                        $query->orWhere('target_settlement_id', $existing->id);
-                    }
-                })
-                ->orderBy('id')
-                ->lockForUpdate()
-                ->get();
-            $totalConsumption = $calculation['total_consumption_krw'] + (int) $adjustments->sum('consumption_delta_krw');
-            $totalCommission = $calculation['total_commission_krw'] + (int) $adjustments->sum('commission_delta_krw');
+            $adjustments = $calculation['adjustments'];
+            $totalConsumption = $calculation['total_consumption_krw'];
+            $totalCommission = $calculation['total_commission_krw'];
             $settlement = Settlement::query()->updateOrCreate(
                 ['agent_id' => $member->agent_id, 'period_start' => $periodStart, 'period_end' => $periodEnd],
                 [
@@ -87,7 +76,7 @@ final readonly class SettlementGenerator
                     'status' => 'pending_review',
                     'generation_status' => 'generated',
                     'generated_at' => now(),
-                    'item_count' => $calculation['item_count'] + $adjustments->count(),
+                    'item_count' => $calculation['item_count'],
                     'snapshot' => [
                         'source' => 'phase_five_generation',
                         'agent' => ['id' => $agent->id, 'code' => $agent->code, 'name' => $agent->name],

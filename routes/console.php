@@ -74,6 +74,8 @@ Artisan::command('app:business-anomalies', function (BusinessClock $clock): int 
             ->where('status', 'completed')
             ->where('record_status', 'active')
             ->whereNull('appointment_id'),
+        '已到院记录缺少实际到院时间' => DB::table('appointments')
+            ->where('status', 'arrived')->whereNull('arrived_at'),
         '已完成到院记录缺少实际到院时间' => DB::table('appointments as a')
             ->where('a.status', 'completed')
             ->whereNull('a.arrived_at')

@@ -194,6 +194,9 @@ return [
         'institution_return_processed' => '기관 회신이 처리되어 주문 #:id가 생성되었습니다.',
     ],
     'errors' => [
+        'legacy_arrival_invalid' => '현재 시각 이전의 실제 내원 시각과 2000자 이내의 확인 근거를 입력하세요.',
+        'legacy_arrival_admin_required' => '과거 내원 기록을 보완하는 작업자는 활성 슈퍼 관리자여야 합니다.',
+        'legacy_arrival_locked' => '실제 내원 시각이 없는 내원 또는 완료 기록만 보완할 수 있습니다. 기존 시각은 덮어쓸 수 없습니다.',
         'direct_customer_owner_required' => '직접 고객의 담당자가 미배정 상태입니다. 주문을 등록하기 전에 담당자를 배정하세요.',
         'date_range' => '종료 날짜는 시작 날짜보다 빠를 수 없습니다.',
         'invalid_date' => '날짜 형식이 올바르지 않습니다.',
@@ -257,6 +260,7 @@ return [
         'manual_completion_disabled' => '주문은 기관 회신 양식으로만 생성할 수 있으며 수동 완료는 허용되지 않습니다.',
     ],
     'audit' => [
+        'legacy_arrival_backfilled' => '과거 예약의 실제 내원 시각 확인 및 보완',
         'created' => '주문이 생성됨',
         'completed' => '주문이 완료됨',
         'updated' => '미완료 주문이 업데이트됨',

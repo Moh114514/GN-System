@@ -22,6 +22,7 @@ use App\Modules\Order\Application\Services\DatabaseOrderRegistrationDraftGateway
 use App\Modules\Order\Application\Services\DatabaseReminderSourceReader;
 use App\Modules\Order\Application\Services\DatabaseReportOrderReader;
 use App\Modules\Order\Application\Services\DatabaseSettlementOrderReader;
+use App\Modules\Order\Console\BackfillAppointmentArrivalCommand;
 use App\Modules\Order\Console\BackfillOrderAttributionSnapshotsCommand;
 use App\Modules\Order\Presentation\Http\InstitutionReturnFileController;
 use App\Modules\Order\Presentation\Http\OrderEvidenceFileController;
@@ -53,7 +54,7 @@ class OrderServiceProvider extends ServiceProvider
     public function boot(): void
     {
         if ($this->app->runningInConsole()) {
-            $this->commands([BackfillOrderAttributionSnapshotsCommand::class]);
+            $this->commands([BackfillOrderAttributionSnapshotsCommand::class, BackfillAppointmentArrivalCommand::class]);
         }
 
         Route::middleware(['web', 'auth', 'verified', 'super-admin.2fa'])
