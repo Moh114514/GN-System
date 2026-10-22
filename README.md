@@ -1,5 +1,15 @@
 # GN-System CRM
 
+## 2026-10-22 正式版本 v0.7.0
+
+用户确认服务器 UAT 已验收通过；annotated `v0.7.0` 已推送，与 `v0.7.0-rc.1` 均指向
+`4d81dca1685eb9fb324ba0d0d71d48d8356eb4d4`，并与发布时的 `origin/main` 一致。
+[正式发布流水线](https://github.com/Moh114514/GN-System/actions/runs/39781680735)成功，app/web
+按已验收 RC 的原 manifest/digest 晋级，已独立读取两组镜像核对一致，未重新构建。
+标签推送共享 hook 完整通过 `composer ci:check`（579 项测试/3928 断言）与前端构建。
+两份运维指南已同步正式镜像摘要、生产升级前置条件和恢复边界；Agent 本轮未连接或部署生产服务器。
+生产升级步骤见[完整运维手册](docs/operations/operations-manual.md)。下方日期记录保留对应阶段当时状态。
+
 ## 2026-10-22 UAT 候选版本 v0.7.0-rc.1
 
 订单登记与月结闭环及审查修复经 PR #52、#53 合入 `main`；annotated `v0.7.0-rc.1` 固定指向

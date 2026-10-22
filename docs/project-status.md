@@ -1,5 +1,16 @@
 # GN-System 项目状态
 
+## 2026-10-22 v0.7.0 正式制品
+
+- 用户确认服务器 UAT 已验收通过并授权正式发布；Agent 本轮未独立连接服务器复核，也未执行生产部署、迁移或健康检查。
+- annotated `v0.7.0` 已推送，与已验收 `v0.7.0-rc.1` 均固定指向 `4d81dca1685eb9fb324ba0d0d71d48d8356eb4d4`，与发布时的 `origin/main` 一致。
+- [正式发布流水线](https://github.com/Moh114514/GN-System/actions/runs/39781680735)成功，按原 manifest/digest 晋级 app/web，未重新构建；已分别读取 RC 与正式 manifest，核对类型和摘要一致。
+- app digest：`sha256:cac6bded34ef2bb2d0444b73261a6e5492730790c01d75ef70755c6edbaa5a82`；web digest：`sha256:0df337f5806dd04cf208b73b369200c17bd11b719dade4ea4bc4c841f38cd073`。
+- 正式标签共享 pre-push hook 再次完整通过 `composer ci:check`（579 项测试/3928 断言）和前端构建（597 个模块）。本次只晋级制品及更新文档，没有新增 migration、依赖、环境变量或模块接口。
+- 两份运维指南同步 UAT 确认、正式镜像和生产备份/迁移/验收/恢复要求。发布记录在后续 `develop` 提交更新，不改变 `main` 的已验收发布提交或现有标签；生产实际版本与检查结果待目标环境验证。
+
+以下日期记录保留对应阶段当时状态，当前正式制品以上述流水线和镜像核对结果为准。
+
 ## 2026-10-22 UAT 候选版本 v0.7.0-rc.1
 
 - 功能 PR #52 已合入 `develop`，发布 PR #53 已合入 `main`；两项 PR 的 `ci` 与 `production-images` 均成功。
