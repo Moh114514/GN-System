@@ -1,5 +1,14 @@
 # GN-System 项目状态
 
+## 2026-10-22 UAT 候选版本 v0.7.0-rc.1
+
+- 功能 PR #52 已合入 `develop`，发布 PR #53 已合入 `main`；两项 PR 的 `ci` 与 `production-images` 均成功。
+- annotated `v0.7.0-rc.1` 固定指向 `4d81dca1685eb9fb324ba0d0d71d48d8356eb4d4`，创建及推送时与 `origin/main` 一致，且文件树与已验证功能版本相同。
+- [RC 发布流水线](https://github.com/Moh114514/GN-System/actions/runs/39776845868)为镜像可用性与构建结果的依据；部署前须确认成功并逐一核对 app/web 摘要。本机及标签共享 hook 通过 579 项测试/3928 断言和前端构建，Vite 8.1.6 与 PHP/npm 审计通过。
+- 本轮未连接服务器执行 UAT/Production 部署、迁移、资料补录或人工验收。两份运维指南已同步版本、前置条件和备份恢复边界。后续文档提交不改变 RC；正式晋级须使用本 RC 的确切提交和原镜像 digest。
+
+以下日期记录描述对应阶段当时的状态，当前候选版本信息以本节及对应流水线为准。
+
 ## 2026-10-22 UAT 候选版本准备
 
 - 本轮候选目标为 `v0.7.0-rc.1`，按功能分支 PR → `develop` → `main` 合入后，在与 `origin/main` 一致的提交创建不可变 annotated RC。
