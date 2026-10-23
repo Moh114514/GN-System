@@ -319,15 +319,34 @@
         <div class="space-y-6">
             <aside class="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm dark:border-zinc-700 dark:bg-zinc-900">
                 <h3 class="font-semibold">{{ __('imports.historical.mapping.title') }}<span class="ml-1 text-xs font-normal text-zinc-400">{{ __('imports.historical.mapping.optional') }}</span></h3>
-                <p class="mt-1 text-xs text-zinc-500">{{ __('imports.historical.mapping.description') }}</p>
+                <p class="mt-1 text-sm text-zinc-500 dark:text-zinc-400">{{ __('imports.historical.mapping.description') }}</p>
+                <p class="mt-2 text-xs text-zinc-500 dark:text-zinc-400">{{ __('imports.historical.mapping.steps') }}</p>
 
-                <form wire:submit="saveInstitution" class="mt-4 space-y-2">
-                    <input wire:model="institutionCode" :placeholder="__('imports.historical.mapping.institution_code')" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm">
-                    <input wire:model="institutionName" :placeholder="__('imports.historical.mapping.institution_name')" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm">
-                    <textarea wire:model="institutionAliases" :placeholder="__('imports.historical.mapping.institution_aliases')" class="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"></textarea>
+                <form wire:submit="saveInstitution" class="mt-4 space-y-4">
+                    <flux:input
+                        wire:model="institutionCode"
+                        :label="__('imports.historical.mapping.institution_code')"
+                        :description="__('imports.historical.mapping.institution_code_help')"
+                        :placeholder="__('imports.historical.mapping.institution_code_example')"
+                        required
+                    />
+                    <flux:input
+                        wire:model="institutionName"
+                        :label="__('imports.historical.mapping.institution_name')"
+                        :description="__('imports.historical.mapping.institution_name_help')"
+                        :placeholder="__('imports.historical.mapping.institution_name_example')"
+                        required
+                    />
+                    <flux:textarea
+                        wire:model="institutionAliases"
+                        :label="__('imports.historical.mapping.institution_aliases')"
+                        :description="__('imports.historical.mapping.institution_aliases_help')"
+                        :placeholder="__('imports.historical.mapping.institution_aliases_example')"
+                        rows="3"
+                    />
+                    <p class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('imports.historical.mapping.example') }}</p>
+                    <p class="text-xs text-zinc-500 dark:text-zinc-400">{{ __('imports.historical.mapping.save_effect') }}</p>
                     <flux:button type="submit" size="sm">{{ __('imports.historical.mapping.save_institution') }}</flux:button>
-                    @error('institutionCode') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
-                    @error('institutionName') <p class="text-xs text-red-600">{{ $message }}</p> @enderror
                 </form>
 
             </aside>
