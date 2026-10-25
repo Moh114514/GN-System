@@ -165,6 +165,49 @@ class InstitutionMonthlySalesTest extends TestCase
         $this->assertSame(100.0, $detail['agents'][0]['share']);
     }
 
+    public function test_institution_detail_filters_order_source_without_changing_institution_totals(): void
+    {
+        $agentCustomer = $this->customer('来源筛选代理商客户');
+        $directManager = User::factory()->create(['role' => UserRole::DirectCustomerManager]);
+        $directChannelId = (int) DB::table('direct_customer_channels')->value('id');
+        $directCustomer = Customer::query()->create([
+            'code' => 'DC-DETAIL-'.uniqid(),
+            'name' => '来源筛选直客客户',
+            'source_type' => 'direct',
+            'direct_channel_id' => $directChannelId,
+            'owner_id' => $directManager->id,
+            'current_status_id' => CustomerStatus::query()->where('key', 'booked')->value('id'),
+        ]);
+        $agentOrder = $this->order($agentCustomer, $this->institutionA, 1_000_000, '2026-08-10', 'completed', 'active');
+        $directOrder = $this->order($directCustomer, $this->institutionA, 2_000_000, '2026-08-11', 'completed', 'active');
+        $directOrder->update(['source_type' => 'direct', 'agent_id' => null, 'owner_id' => $directManager->id]);
+
+        $this->actingAs($this->admin);
+        $detail = app(InstitutionMonthlySalesDetailService::class)->detail(
+            month: '2026-08',
+            institutionId: $this->institutionA->id,
+            sourceTypeFilter: 'direct',
+        );
+
+        $this->assertSame(2, $detail['order_count']);
+        $this->assertSame(3_000_000, $detail['amount_krw']);
+        $this->assertSame(1, $detail['orders_total']);
+        $this->assertSame(2_000_000, $detail['orders_amount_krw']);
+        $this->assertSame($directOrder->id, $detail['orders'][0]['id']);
+        $this->assertSame(1, $detail['agents'][0]['order_count']);
+        $this->assertSame(1_000_000, $detail['agents'][0]['amount_krw']);
+        $this->assertSame(100.0, $detail['agents'][0]['share']);
+
+        $this->get(route('reports.institution-sales.show', [
+            'institution' => $this->institutionA->id,
+            'month' => '2026-08',
+            'sourceTypeFilter' => 'direct',
+        ]))->assertOk()
+            ->assertSee('来源筛选直客客户')
+            ->assertDontSee('来源筛选代理商客户')
+            ->assertSee('筛选后 1 笔 · 合计 ₩ 2,000,000');
+    }
+
     public function test_institution_detail_project_search_matches_any_order_item_project(): void
     {
         $customer = $this->customer('明细筛选客户');
@@ -347,6 +390,12 @@ class InstitutionMonthlySalesTest extends TestCase
         $this->assertSame(1_200_000, $sheet->getCell('E5')->getValue());
         $this->assertSame('n', $sheet->getCell('E5')->getDataType());
         $this->assertSame(1_200_000, $sheet->getCell('E6')->getValue());
+        $detailSheet = $workbook->getSheetByName('订单明细');
+        $this->assertNotNull($detailSheet);
+        $this->assertSame(__('institution_sales.export.order'), $detailSheet->getCell('B4')->getValue());
+        $this->assertSame('机构销售额测试项目', $detailSheet->getCell('F5')->getValue());
+        $this->assertSame(1_200_000, $detailSheet->getCell('G5')->getValue());
+        $this->assertSame('代理商', $detailSheet->getCell('E5')->getValue());
         $workbook->disconnectWorksheets();
 
         $pdfExport = app(ReportExportManager::class)->startInstitutionMonthlySales($this->admin, '2026-08', $this->institutionA->id, 'pdf');

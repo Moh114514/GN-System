@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
+use App\Modules\Auth\Domain\UserRole;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -36,6 +37,11 @@ class ConfigurationNavigationTest extends TestCase
             ->assertSee('href="'.route('agent-configuration.index').'"', false)
             ->assertSee('href="'.route('reminder-configuration.index').'"', false)
             ->assertSee('href="'.route('configuration.users-and-notifications').'"', false)
+            ->assertSee('href="'.route('bd-commissions.index').'"', false)
+            ->assertSee(__('config.center.groups.employees'))
+            ->assertSee(__('config.center.groups.institutions'))
+            ->assertSee(__('config.center.groups.commissions'))
+            ->assertSee(__('config.center.groups.basics'))
             ->assertSee('href="'.route('configuration.history').'"', false)
             ->assertSee('数据导入与迁移')
             ->assertSee('href="'.route('configuration.data-maintenance').'"', false)
@@ -114,41 +120,70 @@ class ConfigurationNavigationTest extends TestCase
         preg_match('/<nav class="crm-nav">(?<navigation>.*?)<\/nav>/s', $adminContent, $adminMatches);
         $adminNavigation = $adminMatches['navigation'] ?? '';
 
-        foreach (['总览', '主动提醒', '客户管理', '代理商客户管理', '直客管理', '订单', '团队管理', '直客提成', '代理商', '月结中心', '多维查询', '机构销售额', '配置中心'] as $label) {
+        foreach (['总览', '线上直客', '线下渠道', '合作机构', '配置中心'] as $label) {
             $this->assertStringContainsString('<span>'.$label.'</span>', $adminNavigation);
         }
-        $this->assertStringContainsString('团队概览', $adminNavigation);
-        $this->assertStringContainsString('BD季度提成', $adminNavigation);
-        $this->assertStringContainsString('data-test="customer-nav-group"', $adminNavigation);
-        $this->assertStringContainsString('data-test="customer-subnav-agent"', $adminNavigation);
-        $this->assertStringContainsString('data-test="customer-subnav-direct"', $adminNavigation);
-        preg_match('/<div\s+id="customer-subnav"[^>]*>/s', $adminNavigation, $customerSubnav);
-        $this->assertStringContainsString('x-bind:class="{ \'is-open\': open }"', $customerSubnav[0] ?? '');
-        $this->assertMatchesRegularExpression('/\s+inert(?:\s|>)/', $customerSubnav[0] ?? '');
-        $this->assertMatchesRegularExpression('/<button[^>]*@click="open = !open"[^>]*aria-controls="customer-subnav"[^>]*data-test="customer-nav-toggle"/s', $adminNavigation);
-        $this->assertLessThan(
-            strpos($adminNavigation, '<span>多维查询</span>'),
-            strpos($adminNavigation, '<span>月结中心</span>'),
-        );
-        $this->assertStringContainsString('data-test="team-nav-group"', $adminNavigation);
-        $this->assertStringContainsString('data-test="team-subnav-overview"', $adminNavigation);
-        $this->assertStringContainsString('data-test="team-subnav-bd-commissions"', $adminNavigation);
+        foreach ([
+            'online-direct-nav-group',
+            'offline-channel-nav-group',
+            'institution-nav-group',
+            'configuration-nav-group',
+            'online-direct-customers',
+            'online-direct-team-overview',
+            'online-direct-orders',
+            'online-direct-commissions',
+            'offline-channel-team-overview',
+            'offline-channel-bd-commissions',
+            'offline-channel-agents',
+            'offline-channel-customers',
+            'offline-channel-orders',
+            'institution-monthly-sales',
+            'institution-returns',
+        ] as $testId) {
+            $this->assertStringContainsString('data-test="'.$testId.'"', $adminNavigation);
+        }
+        $this->assertStringContainsString('href="'.route('orders.index', ['sourceTypeFilter' => 'direct']).'"', $adminNavigation);
+        $this->assertStringContainsString('href="'.route('direct-team-overview.index').'"', $adminNavigation);
+        $this->assertStringContainsString('href="'.route('orders.index', ['sourceTypeFilter' => 'agent']).'"', $adminNavigation);
+        $this->assertLessThan(strpos($adminNavigation, 'data-test="offline-channel-nav-group"'), strpos($adminNavigation, 'data-test="online-direct-nav-group"'));
+        $this->assertLessThan(strpos($adminNavigation, 'data-test="institution-nav-group"'), strpos($adminNavigation, 'data-test="offline-channel-nav-group"'));
         $this->assertStringNotContainsString('数据迁移', $adminNavigation);
 
-        $user = User::factory()->create();
-        $userContent = $this->actingAs($user)->get(route('dashboard'))->assertOk()->getContent();
-        preg_match('/<nav class="crm-nav">(?<navigation>.*?)<\/nav>/s', $userContent, $userMatches);
-        $userNavigation = $userMatches['navigation'] ?? '';
+        $customerService = User::factory()->create(['role' => UserRole::CustomerService]);
+        $customerServiceContent = $this->actingAs($customerService)->get(route('dashboard'))->assertOk()->getContent();
+        preg_match('/<nav class="crm-nav">(?<navigation>.*?)<\/nav>/s', $customerServiceContent, $customerServiceMatches);
+        $customerServiceNavigation = $customerServiceMatches['navigation'] ?? '';
+        $this->assertStringContainsString('data-test="offline-channel-nav-group"', $customerServiceNavigation);
+        $this->assertStringContainsString('data-test="offline-channel-customers"', $customerServiceNavigation);
+        $this->assertStringContainsString('data-test="offline-channel-reminders"', $customerServiceNavigation);
+        $this->assertStringContainsString('data-test="offline-channel-reports"', $customerServiceNavigation);
+        $this->assertStringNotContainsString('data-test="online-direct-nav-group"', $customerServiceNavigation);
+        $this->assertStringNotContainsString('data-test="offline-channel-agents"', $customerServiceNavigation);
+        $this->assertStringNotContainsString('data-test="offline-channel-team-overview"', $customerServiceNavigation);
+        $this->assertStringNotContainsString('data-test="institution-nav-group"', $customerServiceNavigation);
+        $this->assertStringNotContainsString('data-test="configuration-nav-group"', $customerServiceNavigation);
 
-        $this->assertMatchesRegularExpression(
-            '/<nav class="crm-nav">.*?<span>总览<\/span>.*?<span>主动提醒<\/span>.*?<span>客户管理<\/span>.*?<span>代理商客户管理<\/span>.*?<span>订单<\/span>.*?<span>多维查询<\/span>.*?<\/nav>/s',
-            $userContent,
-        );
-        $this->assertStringNotContainsString('data-test="customer-subnav-direct"', $userNavigation);
-        $this->assertStringNotContainsString('<span>代理商</span>', $userNavigation);
-        $this->assertStringNotContainsString('团队管理', $userNavigation);
-        $this->assertStringNotContainsString('月结中心', $userNavigation);
-        $this->assertStringNotContainsString('配置中心', $userNavigation);
+        $bd = User::factory()->create(['role' => UserRole::BdManager]);
+        $bdContent = $this->actingAs($bd)->get(route('dashboard'))->assertOk()->getContent();
+        preg_match('/<nav class="crm-nav">(?<navigation>.*?)<\/nav>/s', $bdContent, $bdMatches);
+        $bdNavigation = $bdMatches['navigation'] ?? '';
+        $this->assertStringContainsString('data-test="offline-channel-nav-group"', $bdNavigation);
+        $this->assertStringContainsString('data-test="offline-channel-team-overview"', $bdNavigation);
+        $this->assertStringContainsString('data-test="offline-channel-agents"', $bdNavigation);
+        $this->assertStringContainsString('data-test="institution-nav-group"', $bdNavigation);
+        $this->assertStringNotContainsString('data-test="online-direct-nav-group"', $bdNavigation);
+        $this->assertStringNotContainsString('data-test="configuration-nav-group"', $bdNavigation);
+
+        $directManager = User::factory()->create(['role' => UserRole::DirectCustomerManager]);
+        $directContent = $this->actingAs($directManager)->get(route('dashboard'))->assertOk()->getContent();
+        preg_match('/<nav class="crm-nav">(?<navigation>.*?)<\/nav>/s', $directContent, $directMatches);
+        $directNavigation = $directMatches['navigation'] ?? '';
+        $this->assertStringContainsString('data-test="online-direct-nav-group"', $directNavigation);
+        $this->assertStringContainsString('data-test="online-direct-customers"', $directNavigation);
+        $this->assertStringContainsString('data-test="online-direct-team-overview"', $directNavigation);
+        $this->assertStringContainsString('data-test="institution-nav-group"', $directNavigation);
+        $this->assertStringNotContainsString('data-test="offline-channel-nav-group"', $directNavigation);
+        $this->assertStringNotContainsString('data-test="configuration-nav-group"', $directNavigation);
     }
 
     public function test_configuration_pages_return_to_center_and_keep_configuration_navigation_active(): void
@@ -185,7 +220,7 @@ class ConfigurationNavigationTest extends TestCase
         $admin = User::factory()->superAdmin()->withTwoFactor()->create();
         $content = $this->actingAs($admin)->get(route('dashboard'))->assertOk()->getContent();
 
-        foreach (['customer', 'team', 'configuration'] as $group) {
+        foreach (['online-direct', 'offline-channel', 'institution', 'configuration'] as $group) {
             preg_match('/<button[^>]*data-test="'.$group.'-nav-toggle"[^>]*>(.*?)<\/button>/s', $content, $toggle);
             $this->assertNotEmpty($toggle);
             $this->assertStringContainsString('class="crm-nav-group-head ', $toggle[0]);
@@ -204,8 +239,17 @@ class ConfigurationNavigationTest extends TestCase
             $this->assertStringContainsString('x-bind:inert="!open"', $subnav[0]);
         }
 
-        foreach (['customers.index', 'team-overview.index', 'configuration.index'] as $route) {
-            $this->assertStringContainsString('href="'.route($route).'"', $content);
+        foreach ([
+            route('direct-customers.index'),
+            route('direct-team-overview.index'),
+            route('orders.index', ['sourceTypeFilter' => 'direct']),
+            route('orders.index', ['sourceTypeFilter' => 'agent']),
+            route('customers.index'),
+            route('team-overview.index'),
+            route('reports.institution-sales'),
+            route('configuration.index'),
+        ] as $url) {
+            $this->assertStringContainsString('href="'.$url.'"', $content);
         }
     }
 

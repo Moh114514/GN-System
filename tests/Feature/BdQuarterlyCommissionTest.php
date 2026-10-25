@@ -15,11 +15,13 @@ use App\Modules\Settlement\Application\Services\BdQuarterlyCommissionDocumentGen
 use App\Modules\Settlement\Application\Services\BdQuarterlyCommissionService;
 use App\Modules\Settlement\Infrastructure\Models\BdCommissionRule;
 use App\Modules\Settlement\Infrastructure\Models\BdQuarterlyCommission;
+use App\Modules\Settlement\Presentation\Livewire\BdQuarterlyCommissionCenter;
 use App\Support\Exports\DTO\FinancialDocumentData;
 use App\Support\Exports\FinancialWorkbookTemplate;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 use Symfony\Component\HttpKernel\Exception\HttpException;
 use Symfony\Component\Process\Process;
 use Tests\TestCase;
@@ -112,6 +114,30 @@ final class BdQuarterlyCommissionTest extends TestCase
         $this->assertSame([$this->firstBd->id, $this->secondBd->id], $items->pluck('bd_user_id')->all());
         $this->assertSame([11, 22], $items->pluck('business_group_id')->all());
         $this->assertSame(3000, (int) $period->total_commission_krw);
+    }
+
+    public function test_quarter_page_summarizes_saved_order_commissions_by_month_and_filters_order_rows(): void
+    {
+        $this->reader->orders = [
+            $this->order(2101, 10000, '2026-07-15', $this->firstBd->id),
+            $this->order(2102, 20000, '2026-08-02', $this->firstBd->id),
+            $this->order(2103, 30000, '2026-08-12', $this->secondBd->id),
+        ];
+        $period = $this->service()->generate(CarbonImmutable::parse('2026-07-01'), $this->admin->id, null);
+
+        Livewire::actingAs($this->admin)
+            ->test(BdQuarterlyCommissionCenter::class)
+            ->set('selectedPeriodId', (int) $period->id)
+            ->assertSee('2026-07')
+            ->assertSee('2026-08')
+            ->assertSee('2026-09')
+            ->assertSee('按月业绩')
+            ->set('selectedMonth', '2026-08')
+            ->assertSee('2026-08-02')
+            ->assertSee('2026-08-12')
+            ->assertDontSee('2026-07-15')
+            ->assertSee('2,000')
+            ->assertSee('3,000');
     }
 
     public function test_draft_can_be_regenerated_but_confirmed_period_is_immutable(): void

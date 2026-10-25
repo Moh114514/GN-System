@@ -369,6 +369,18 @@ class AccessScopeTest extends TestCase
         $this->assertSame(3_000_000, $team['overview']['amount_krw']);
         $this->assertSame(1, $selected['customer_service_count']);
         $this->assertSame(1, $selected['owners'][0]['unset']);
+        $historicalAgent = collect($selected['agent_performance'])->firstWhere('id', (int) $movedAgent->id);
+        $this->assertNotNull($historicalAgent);
+        $this->assertSame('迁移代理商', $historicalAgent['name']);
+        $this->assertSame(3_000_000, $historicalAgent['amount_krw']);
+        $this->assertSame(2, $historicalAgent['orders']);
+
+        $this->actingAs($this->bd);
+        $bdSelected = app(TeamOverviewService::class)->snapshot($this->groupA->id)['selected_group'];
+        $bdHistoricalAgent = collect($bdSelected['agent_performance'])->firstWhere('id', (int) $movedAgent->id);
+        $this->assertNotNull($bdHistoricalAgent);
+        $this->assertSame(3_000_000, $bdHistoricalAgent['amount_krw']);
+        $this->assertFalse($bdHistoricalAgent['can_view_agent']);
     }
 
     public function test_team_overview_includes_paused_agents_and_marks_invalid_owners(): void

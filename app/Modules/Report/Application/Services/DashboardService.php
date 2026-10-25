@@ -37,7 +37,8 @@ final readonly class DashboardService
 
     public function snapshot(DashboardRangeData $range, bool $force = false): DashboardSnapshotData
     {
-        $key = 'report:dashboard:v8:'.hash('sha256', $range->from->toIso8601String().'|'.$range->to->toIso8601String().'|'.$this->access->current()->fingerprint);
+        $asOf = $this->clock->now();
+        $key = 'report:dashboard:v9:'.hash('sha256', $range->from->toIso8601String().'|'.$range->to->toIso8601String().'|'.$asOf->toDateString().'|'.$this->access->current()->fingerprint);
         if ($force) {
             try {
                 Cache::forget($key);
@@ -58,7 +59,7 @@ final readonly class DashboardService
             ]);
         }
 
-        $snapshot = $this->aggregate($range);
+        $snapshot = $this->aggregate($range, $asOf);
         try {
             Cache::put($key, $snapshot, now()->addMinutes(5));
         } catch (Throwable $exception) {
@@ -70,16 +71,19 @@ final readonly class DashboardService
         return $snapshot;
     }
 
-    private function aggregate(DashboardRangeData $range): DashboardSnapshotData
+    private function aggregate(DashboardRangeData $range, CarbonImmutable $asOf): DashboardSnapshotData
     {
         $context = $this->access->current();
         $agentFinance = $context->isSuperAdmin() || $context->isBdManager();
         $directOwnerId = $context->isDirectCustomerManager() ? $context->userId : null;
+        $onlineRevenue = $context->isSuperAdmin() || $directOwnerId !== null;
+        $offlineRevenue = $agentFinance || $context->isCustomerService();
         $current = $this->period($range->from, $range->to);
         $previous = $this->period($range->previousFrom, $range->previousTo);
+        $calendarNewCustomers = $this->customers->calendarNewCustomers($asOf);
         $agentRanking = $agentFinance ? $this->orders->agentSalesRanking($range->from, $range->to) : [];
         $agentNames = $agentFinance ? $this->agents->namesByIds(array_column($agentRanking, 'agent_id')) : [];
-        $institutionMonth = $this->clock->now();
+        $institutionMonth = $asOf;
         $institutionRevenue = $this->institutionRevenue($this->orders->institutionRevenue(
             $institutionMonth->startOfMonth(),
             $institutionMonth,
@@ -112,7 +116,26 @@ final readonly class DashboardService
         $panels = [
             'monthly_revenue_orders' => $monthlyTrend,
             'institution_revenue_month' => $institutionMonth->format('Y-m'),
+            'calendar_new_customers' => $calendarNewCustomers,
         ];
+        if ($onlineRevenue) {
+            $metrics['online_revenue'] = $this->metric($current['order']['direct_amount'], $previous['order']['direct_amount']);
+        }
+        if ($offlineRevenue) {
+            $metrics['offline_revenue'] = $this->metric($current['order']['agent_amount'], $previous['order']['agent_amount']);
+        }
+        if ($context->isSuperAdmin()) {
+            $sourceCounts = $current['customer']['customer_source_counts'];
+            $sourceTotal = $sourceCounts['direct'] + $sourceCounts['agent'];
+            $directPercentage = $sourceTotal === 0 ? 0.0 : round($sourceCounts['direct'] / $sourceTotal * 100, 1);
+            $panels['customer_channel_share'] = [
+                'direct_count' => $sourceCounts['direct'],
+                'agent_count' => $sourceCounts['agent'],
+                'total' => $sourceTotal,
+                'direct_percentage' => $directPercentage,
+                'agent_percentage' => $sourceTotal === 0 ? 0.0 : round($sourceCounts['agent'] / $sourceTotal * 100, 1),
+            ];
+        }
         if ($agentFinance) {
             $metrics['pending_settlement'] = $this->metric($current['settlement']['pending_settlement'], $previous['settlement']['pending_settlement']);
             $charts += [
@@ -151,6 +174,9 @@ final readonly class DashboardService
                 'institution_revenue' => true,
                 'direct_commission' => $directOwnerId !== null,
                 'settlement_progress' => $agentFinance,
+                'online_revenue' => $onlineRevenue,
+                'offline_revenue' => $offlineRevenue,
+                'customer_channel_share' => $context->isSuperAdmin(),
             ],
             generatedAt: now('Asia/Shanghai')->toIso8601String(),
         );

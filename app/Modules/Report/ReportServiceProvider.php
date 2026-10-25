@@ -4,6 +4,7 @@ namespace App\Modules\Report;
 
 use App\Modules\Report\Console\PurgeExpiredReportExportsCommand;
 use App\Modules\Report\Presentation\Http\ReportExportController;
+use App\Modules\Report\Presentation\Livewire\DirectTeamOverview;
 use App\Modules\Report\Presentation\Livewire\GlobalSearchPage;
 use App\Modules\Report\Presentation\Livewire\InstitutionMonthlySales;
 use App\Modules\Report\Presentation\Livewire\InstitutionMonthlySalesDetail;
@@ -29,6 +30,7 @@ class ReportServiceProvider extends ServiceProvider
                 ->whereNumber('institution')
                 ->name('reports.institution-sales.show');
             Route::get('/team-overview', TeamOverview::class)->name('team-overview.index');
+            Route::get('/direct-team-overview', DirectTeamOverview::class)->name('direct-team-overview.index');
             Route::get('/reports/exports/{export}', ReportExportController::class)
                 ->name('reports.exports.download');
         });

@@ -3,6 +3,7 @@
 namespace App\Modules\Reminder\Application\Services;
 
 use App\Infrastructure\Time\BusinessClock;
+use App\Modules\Config\Application\Contracts\NotificationRecipientGateway;
 use App\Modules\Reminder\Application\Contracts\TreatmentReminderGateway;
 use App\Modules\Reminder\Application\Data\CompletedTreatmentData;
 use App\Modules\Reminder\Application\Data\CustomerTreatmentCompletedData;
@@ -15,7 +16,7 @@ final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
 {
     private const SCHEDULE = [7, 30];
 
-    public function __construct(private readonly BusinessClock $clock) {}
+    public function __construct(private readonly BusinessClock $clock, private readonly NotificationRecipientGateway $notifications) {}
 
     public function schedule(CompletedTreatmentData $data): void
     {
@@ -185,6 +186,9 @@ final class DatabaseTreatmentReminderGateway implements TreatmentReminderGateway
             ->get();
         foreach ($reminders as $reminder) {
             $before = $reminder->assigned_to;
+            if ($before !== null) {
+                $this->notifications->markReminderNotificationReadForUser((int) $reminder->id, (int) $before);
+            }
             $reminder->update([
                 'assigned_to' => $ownerId,
                 'status' => 'transferred',

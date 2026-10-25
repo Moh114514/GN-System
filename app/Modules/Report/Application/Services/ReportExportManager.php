@@ -113,20 +113,16 @@ final readonly class ReportExportManager
         $context = $this->access->forUser($user);
         [$summary, $institutionName, $detailOrders, $customerNames] = $this->access->using(
             $context,
-            function () use ($month, $institutionId, $format): array {
+            function () use ($month, $institutionId): array {
                 $summary = $this->institutionSales->summary($month, $institutionId);
                 $institutionName = $institutionId === null
                     ? null
                     : data_get(collect($this->institutionSales->institutionOptions())->firstWhere('id', $institutionId), 'name');
-                $detailOrders = $format === 'pdf'
-                    ? $this->orders->institutionMonthlySalesExportOrders($summary->from, $summary->to, $institutionId)
-                    : [];
-                $customerNames = $format === 'pdf'
-                    ? $this->customers->namesByIds(array_values(array_unique(array_map(
-                        static fn (InstitutionMonthlySalesOrderData $order): int => $order->customerId,
-                        $detailOrders,
-                    ))))
-                    : [];
+                $detailOrders = $this->orders->institutionMonthlySalesExportOrders($summary->from, $summary->to, $institutionId);
+                $customerNames = $this->customers->namesByIds(array_values(array_unique(array_map(
+                    static fn (InstitutionMonthlySalesOrderData $order): int => $order->customerId,
+                    $detailOrders,
+                ))));
 
                 return [$summary, $institutionName, $detailOrders, $customerNames];
             },

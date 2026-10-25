@@ -105,6 +105,80 @@ class DirectCustomerOrderCommissionTest extends TestCase
         ]);
     }
 
+    public function test_direct_team_overview_aggregates_monthly_sales_and_scopes_owner_drilldown(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-09-30 12:00:00', 'Asia/Shanghai'));
+        $this->actingAs($this->admin);
+        $this->saveRate(300, '2026-09-01');
+        $firstCustomer = $this->createArrivedCustomer($this->manager, '线上团队客户 A', '2026-09-10');
+        $this->register($firstCustomer, 100000, '2026-09-10');
+        $secondCustomer = $this->createArrivedCustomer($this->otherManager, '线上团队客户 B', '2026-09-11');
+        $this->register($secondCustomer, 200000, '2026-09-11');
+
+        $this->get(route('direct-team-overview.index', ['month' => '2026-09']))
+            ->assertOk()
+            ->assertSee('线上团队概览')
+            ->assertSee('直客负责人 A')
+            ->assertSee('直客负责人 B')
+            ->assertSee('300,000')
+            ->assertSee('2')
+            ->assertSee('href="'.e(route('orders.index', [
+                'sourceTypeFilter' => 'direct',
+                'ownerIdFilter' => $this->manager->id,
+                'dateField' => 'occurred_on',
+                'dateFrom' => '2026-09-01',
+                'dateTo' => '2026-09-30',
+            ])).'"', false)
+            ->assertSee('返回直客管理')
+            ->assertSee('href="'.route('direct-customers.index').'"', false);
+
+        $this->actingAs($this->manager)->get(route('direct-team-overview.index', ['month' => '2026-09']))
+            ->assertOk()
+            ->assertSee('直客负责人 A')
+            ->assertDontSee('直客负责人 B')
+            ->assertSee('100,000');
+
+        $this->get(route('direct-team-overview.index', ['month' => '2026-09', 'ownerId' => $this->otherManager->id]))
+            ->assertNotFound();
+    }
+
+    public function test_direct_commission_monthly_summary_uses_snapshots_and_is_scoped_to_manager(): void
+    {
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-09-20 12:00:00', 'Asia/Shanghai'));
+        $this->actingAs($this->admin);
+        $this->saveRate(300, '2026-09-01');
+        $firstCustomer = $this->createArrivedCustomer($this->manager, '提成汇总客户 A1', '2026-09-10');
+        $this->register($firstCustomer, 100000, '2026-09-10');
+        $this->saveRate(500, '2026-09-21');
+        CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-09-25 12:00:00', 'Asia/Shanghai'));
+        $secondCustomer = $this->createArrivedCustomer($this->manager, '提成汇总客户 A2', '2026-09-11');
+        $this->register($secondCustomer, 200000, '2026-09-11');
+        $otherCustomer = $this->createArrivedCustomer($this->otherManager, '提成汇总客户 B', '2026-09-12');
+        $this->register($otherCustomer, 400000, '2026-09-12');
+
+        $this->get(route('direct-commissions.index', ['month' => '2026-09']))
+            ->assertOk()
+            ->assertSee('负责人月度业绩')
+            ->assertSee('多档')
+            ->assertSee('直客负责人 A')
+            ->assertSee('直客负责人 B')
+            ->assertSee('700,000')
+            ->assertSee('33,000')
+            ->assertSee('订单提成明细')
+            ->assertSee('href="'.route('direct-customers.index').'"', false);
+
+        $this->actingAs($this->manager)->get(route('direct-commissions.index', ['month' => '2026-09']))
+            ->assertOk()
+            ->assertSee('直客负责人 A')
+            ->assertDontSee('直客负责人 B')
+            ->assertSee('300,000')
+            ->assertSee('13,000')
+            ->assertDontSee('400,000');
+
+        $this->get(route('direct-commissions.index', ['month' => '2026-09', 'ownerId' => $this->otherManager->id]))
+            ->assertNotFound();
+    }
+
     public function test_direct_commission_is_voided_when_completed_order_is_rolled_back(): void
     {
         $this->actingAs($this->admin);

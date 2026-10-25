@@ -22,6 +22,7 @@ final readonly class InstitutionMonthlySalesDetailService
         string $month,
         int $institutionId,
         ?int $agentId = null,
+        string $sourceTypeFilter = '',
         string $search = '',
         string $sort = 'occurred_on',
         string $direction = 'desc',
@@ -29,6 +30,9 @@ final readonly class InstitutionMonthlySalesDetailService
         int $page = 1,
     ): array {
         $month = $this->summary->normalizeMonth($month);
+        if ($sourceTypeFilter !== '' && ! in_array($sourceTypeFilter, ['direct', 'agent'], true)) {
+            throw new DomainException(__('institution_sales.errors.invalid_source_type'));
+        }
         $from = CarbonImmutable::createFromFormat('!Y-m-d', $month.'-01', (string) config('app.timezone'));
         $to = $from->endOfMonth();
         $monthly = $this->summary->summary($month, $institutionId);
@@ -38,11 +42,12 @@ final readonly class InstitutionMonthlySalesDetailService
         }
 
         $agentRows = $this->orders->institutionMonthlySalesAgents($from, $to, $institutionId);
+        $agentTotalAmount = array_sum(array_map(static fn ($agent): int => $agent->amountKrw, $agentRows));
         $agentNames = $this->agents->namesByIds(array_values(array_filter(array_map(
             static fn ($agent): ?int => $agent->agentId,
             $agentRows,
         ))));
-        $agents = array_map(function ($agent) use ($agentNames, $row): array {
+        $agents = array_map(function ($agent) use ($agentNames, $agentTotalAmount): array {
             $name = $agent->agentId === null
                 ? __('institution_sales.detail.unassigned_agent')
                 : ($agentNames[$agent->agentId] ?? __('institution_sales.fallbacks.missing_agent'));
@@ -53,7 +58,7 @@ final readonly class InstitutionMonthlySalesDetailService
                 'customer_count' => $agent->customerCount,
                 'order_count' => $agent->orderCount,
                 'amount_krw' => $agent->amountKrw,
-                'share' => $row->amountKrw === 0 ? 0.0 : round($agent->amountKrw / $row->amountKrw * 100, 2),
+                'share' => $agentTotalAmount === 0 ? 0.0 : round($agent->amountKrw / $agentTotalAmount * 100, 2),
             ];
         }, $agentRows);
         usort($agents, static fn (array $left, array $right): int => [
@@ -69,6 +74,7 @@ final readonly class InstitutionMonthlySalesDetailService
             to: $to,
             institutionId: $institutionId,
             agentId: $agentId,
+            sourceType: $sourceTypeFilter,
             search: $search,
             sort: $sort,
             direction: $direction,
@@ -101,6 +107,7 @@ final readonly class InstitutionMonthlySalesDetailService
 
         return [
             'month' => $month,
+            'source_type_filter' => $sourceTypeFilter,
             'from' => $from->toDateString(),
             'to' => $to->toDateString(),
             'institution_id' => $row->institutionId,
@@ -112,6 +119,7 @@ final readonly class InstitutionMonthlySalesDetailService
             'agents' => $agents,
             'orders' => $orderRows,
             'orders_total' => $orders->total,
+            'orders_amount_krw' => $orders->totalAmountKrw,
             'orders_per_page' => $orders->perPage,
             'orders_current_page' => $orders->currentPage,
             'orders_last_page' => max(1, $orders->lastPage),

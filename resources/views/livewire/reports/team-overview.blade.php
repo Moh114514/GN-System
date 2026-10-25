@@ -7,9 +7,10 @@
             ['customer_service', __('team.metrics.customer_service'), 'users', 'teal'],
             ['customers', __('team.metrics.customers'), 'user-group', 'blue'],
             ['agents', __('team.metrics.agents'), 'building-office', 'purple'],
+            ['agent_customer_count', __('team.metrics.agent_customer_pool'), 'user-group', 'blue'],
             ['pending_reminders', __('team.metrics.pending_reminders'), 'bell-alert', 'amber'],
             ['overdue_reminders', __('team.metrics.overdue_reminders'), 'exclamation-triangle', 'red'],
-            ['amount_krw', __('team.metrics.monthly_sales'), 'banknotes', 'teal'],
+            ['amount_krw', __('team.metrics.monthly_sales_for_month', ['month' => $snapshot['month_label']]), 'banknotes', 'teal'],
             ['owner_exception_customers', __('team.metrics.owner_exception_customers'), 'user-minus', 'red'],
         ];
     @endphp
@@ -19,7 +20,12 @@
             <h2 class="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ __('team.title') }}</h2>
             <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ __('team.description') }}</p>
         </div>
-        @if ($snapshot['is_global'] || count($groups) > 1)
+        <div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-end">
+            <label class="block text-sm font-medium text-zinc-600 dark:text-zinc-300">
+                <span class="mb-1 block">{{ __('team.month_filter') }}</span>
+                <input type="month" wire:model.live="month" value="{{ $month }}" class="w-full rounded-lg border-zinc-300 bg-white text-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900 sm:w-44" data-test="team-overview-month" />
+            </label>
+            @if ($snapshot['is_global'] || count($groups) > 1)
             <div class="w-full sm:w-72">
                 <flux:select wire:model.live="groupId" :label="__('team.group_selector')">
                     <flux:select.option value="">{{ __('team.all_groups') }}</flux:select.option>
@@ -28,7 +34,8 @@
                     @endforeach
                 </flux:select>
             </div>
-        @endif
+            @endif
+        </div>
     </section>
 
     <section class="mb-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="{{ __('team.metrics.heading') }}">
@@ -83,6 +90,34 @@
             </div>
 
             <div class="mt-6 overflow-x-auto">
+                <div class="mb-3 flex flex-wrap items-end justify-between gap-2">
+                    <div>
+                        <h4 class="text-base font-semibold">{{ __('team.agent_performance') }}</h4>
+                        <p class="mt-1 text-xs text-zinc-500">{{ __('team.agent_performance_period', ['month' => $selectedGroup['month']]) }}</p>
+                    </div>
+                    <span class="text-sm text-zinc-500">{{ __('team.agent_customer_pool_total') }}：{{ number_format($selectedGroup['agent_customer_count']) }}</span>
+                </div>
+                <table class="crm-table min-w-[900px]">
+                    <thead><tr><th>{{ __('team.agent_rank') }}</th><th>{{ __('team.agent') }}</th><th>{{ __('team.agent_customer_pool') }}</th><th>{{ __('team.customers_converted') }}</th><th>{{ __('team.orders') }}</th><th>{{ __('team.monthly_sales') }}</th><th>{{ __('team.actions') }}</th></tr></thead>
+                    <tbody>
+                        @forelse ($selectedGroup['agent_performance'] as $agent)
+                            <tr wire:key="team-agent-{{ $agent['id'] }}">
+                                <td>{{ $loop->iteration }}</td>
+                                <td>@if ($agent['can_view_agent'])<a class="font-semibold text-teal-700 hover:underline" href="{{ route('agents.show', $agent['id']) }}" wire:navigate>{{ $agent['name'] }}</a>@else<span>{{ $agent['name'] }}</span>@endif<div class="text-xs text-zinc-500">{{ $agent['code'] }}</div></td>
+                                <td>@if ($agent['can_view_agent'])<a class="hover:underline" href="{{ route('customers.index', ['businessGroupId' => $selectedGroup['id'], 'agentId' => $agent['id']]) }}" wire:navigate>{{ number_format($agent['customer_pool']) }}</a>@else{{ number_format($agent['customer_pool']) }}@endif</td>
+                                <td>{{ number_format($agent['customers']) }}</td>
+                                <td>{{ number_format($agent['orders']) }}</td>
+                                <td>₩ {{ number_format($agent['amount_krw']) }}</td>
+                                <td>@if ($agent['can_view_agent'])<a class="font-semibold text-teal-700 hover:underline" href="{{ route('orders.index', ['agentFilter' => $agent['id'], 'sourceTypeFilter' => 'agent', 'dateField' => 'occurred_on', 'dateFrom' => $selectedGroup['period_from'], 'dateTo' => $selectedGroup['period_to']]) }}" wire:navigate>{{ __('team.view_orders') }} →</a>@else<span class="text-zinc-400">—</span>@endif</td>
+                            </tr>
+                        @empty
+                            <tr><td colspan="7" class="py-8 text-center text-zinc-500">{{ __('team.empty_agents') }}</td></tr>
+                        @endforelse
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="mt-6 overflow-x-auto">
                 <h4 class="mb-3 text-base font-semibold">{{ __('team.workload') }}</h4>
                 <table class="crm-table min-w-[760px]">
                     <thead>
@@ -91,7 +126,7 @@
                             <th>{{ __('team.customers') }}</th>
                             <th>{{ __('team.pending_followups') }}</th>
                             <th>{{ __('team.overdue') }}</th>
-                            <th>{{ __('team.new_customers') }}</th>
+                            <th>{{ __('team.new_customers_for_month', ['month' => $selectedGroup['month']]) }}</th>
                             <th>{{ __('team.monthly_sales') }}</th>
                             <th>{{ __('team.actions') }}</th>
                         </tr>

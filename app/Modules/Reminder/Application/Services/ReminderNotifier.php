@@ -41,7 +41,7 @@ final readonly class ReminderNotifier
                 $content['title'],
                 $body,
                 [$owner->id],
-                route('reminders.index'),
+                route('customers.show', ['customer' => $reminder->customer_id, 'reminder' => $reminder->id]),
             );
         }
         if (! $this->sender->enabled()) {
@@ -62,7 +62,7 @@ final readonly class ReminderNotifier
         $this->sender->send(
             $content['title'],
             $body,
-            route('reminders.index'),
+            route('customers.show', ['customer' => $reminder->customer_id, 'reminder' => $reminder->id]),
             $recipients,
         );
         $reminder->update(['notification_status' => 'sent', 'notified_at' => now()]);

@@ -9,6 +9,7 @@ use App\Modules\Settlement\Application\Contracts\DirectCommissionConfigurationGa
 use App\Modules\Settlement\Application\Contracts\DirectOrderCommissionGateway;
 use App\Modules\Settlement\Application\Data\DirectOrderCommissionData;
 use App\Modules\Settlement\Infrastructure\Models\DirectOrderCommission;
+use Carbon\CarbonImmutable;
 use DomainException;
 
 final readonly class DatabaseDirectOrderCommissionGateway implements DirectOrderCommissionGateway
@@ -99,11 +100,17 @@ final readonly class DatabaseDirectOrderCommissionGateway implements DirectOrder
             });
     }
 
-    public function recordsForViewer(): array
+    public function recordsForViewer(?CarbonImmutable $from = null, ?CarbonImmutable $to = null, ?int $ownerId = null): array
     {
         $context = $this->access->current();
         abort_unless($context->isSuperAdmin() || $context->isDirectCustomerManager(), 403);
         $query = DirectOrderCommission::query()->orderByDesc('completed_at')->orderByDesc('id');
+        if ($from !== null && $to !== null) {
+            $query->whereBetween('completed_at', [$from, $to]);
+        }
+        if ($ownerId !== null) {
+            $query->where('owner_id', $ownerId);
+        }
         if (! $context->isSuperAdmin()) {
             $query->where('owner_id', $context->userId);
         }

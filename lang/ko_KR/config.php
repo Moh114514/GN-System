@@ -14,12 +14,14 @@ return [
     'center' => [
         'title' => '설정 센터',
         'description' => '현재 제공되는 업무 규칙과 기본 설정을 한곳에서 관리합니다.',
+        'groups' => ['employees' => '직원 및 권한', 'institutions' => '협력 기관 정보', 'commissions' => '수수료 규칙', 'basics' => '기본 설정'],
         'cards' => [
             'time_travel' => ['title' => '시간 시뮬레이션', 'description' => '개발 및 UAT에서만 업무 시간을 시뮬레이션하여 정산과 알림 규칙을 확인합니다.', 'action' => '시간 시뮬레이션 열기'],
             'history' => ['title' => '설정 이력 및 롤백', 'description' => '각 설정의 저장 버전, 변경 차이와 롤백 기록을 확인합니다.', 'action' => '이력 보기'],
             'users' => ['title' => '사용자 및 권한 / 알림 설정', 'description' => '사용자를 초대하고 역할과 계정 상태, 내부 알림 및 DingTalk 담당자를 관리합니다.', 'action' => '관리 열기'],
             'catalog' => ['title' => '기관, 사전 및 시스템 매개변수', 'description' => '기관 연락처, 시술 항목, 번역 언어와 보고서 매개변수를 관리합니다.', 'action' => '설정 열기'],
             'direct_customer' => ['title' => '직접 고객 업무 설정', 'description' => '직접 고객 유입 채널, 수수료율과 적용 이력을 관리하며 과거 주문의 스냅샷은 보존합니다.', 'action' => '설정 열기'],
+            'bd_commission' => ['title' => 'BD 분기 수수료 규칙 및 정산', 'description' => 'BD 수수료 규칙 버전, 적용 기간과 분기 정산 기록을 확인합니다.', 'action' => '정산 센터 열기'],
             'customer_statuses' => ['title' => '고객 라이프사이클 상태 설정', 'description' => '고객 단계, 상태 표시, 활성 규칙과 허용된 전환 경로를 관리합니다.', 'action' => '설정 열기'],
             'agent' => ['title' => '에이전시 및 수수료 설정', 'description' => '에이전시 유형, 정책 등급, 기관 수수료와 특별 승인을 관리합니다.', 'action' => '설정 열기'],
             'reminders' => ['title' => '적극 알림 규칙 및 템플릿', 'description' => '고정 트리거 유형, 적용 범위, 권장 방향과 전역 알림 템플릿을 관리합니다.', 'action' => '설정 열기'],

@@ -1,5 +1,26 @@
 # GN-System 完整运维手册
 
+## 2026-10-25 剩余业务模块改造（本地工作区，尚未发布）
+
+本地 `develop` 工作区按剩余业务模块方案增加五类侧栏入口、线上/线下月度报表、跟进提醒闭环、订单卡片、
+机构来源筛选与明细导出，以及配置中心分组。新增 migration
+`2026_10_25_000001_extend_customer_followups_for_reminders`，为跟进记录增加可空结果文本和可空、唯一的提醒外键。
+Codex 内置浏览器已对总览、提醒中心、客户/订单详情、团队与提成、机构明细及配置中心完成只读验收，未提交表单或写入业务数据。
+
+已通过 `docker compose exec app composer ci:check`（589 项测试、4130 条断言；Pint、PHPStan、架构和文档检查通过）及
+`docker compose exec vite npm run build`（597 个模块）。PHPUnit 结果缓存权限与 Vite 大包体积有非阻断警告。
+运行时已核实为 `APP_ENV=local`、PostgreSQL 数据库 `gn_system`；新增 migration 已在该本地开发库应用并复核状态为 `Ran`（batch 31）。
+测试只连接隔离的 `gn_system_test`。UAT/Production 未操作，浏览器和本机门禁结果不代表目标环境已验收。
+
+未来版本发布必须遵循 feature PR、develop、main、RC、UAT 验收和制品晋级流程。目标环境发布前分别核验并备份数据库及私有文件，
+再由标准发布脚本执行 migration；旧代码不使用新增列，代码回退时保留已扩展的 schema。新增跟进结果或 reminder 关联事实后，
+不得直接回滚此 migration，因为 down migration 会移除这些事实；恢复必须使用事先核验的数据库备份及匹配应用版本。
+UAT/Production 的角色权限、双语页面、跟进闭环与提醒通知仍需在对应 RC 部署后验收。运营总监角色、外部平台账号编号、
+机构属性分类和合作状态定义、跟进结果选项及提醒天数仍待业务确认，当前代码没有为这些事项猜测性建模。
+
+已检查小白运维指南并同步相同的本地 migration、浏览器验收和自动化门禁结果。下方正式制品与服务器状态记录保持原意，
+本地工作区改动不代表 UAT 或 Production 已更新。
+
 ## 2026-10-22 v0.7.0 正式制品与生产升级交接
 
 用户确认服务器 UAT 已验收通过后，已推送不可变 annotated `v0.7.0`，与 `v0.7.0-rc.1` 均指向

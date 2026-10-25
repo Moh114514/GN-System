@@ -58,6 +58,32 @@
             </tr>
         <?php endforeach; ?>
     </table>
+    <?php if (isset($snapshot['panels']['calendar_new_customers'])): ?>
+        <div class="chart-title">{{ __('dashboard.export.calendar_new_customers') }}</div>
+        <table class="charts">
+            <thead><tr><th>{{ __('dashboard.export.item') }}</th><th>{{ __('dashboard.export.value') }}</th></tr></thead>
+            <tbody>
+                <tr><td>{{ __('dashboard.metrics.month_new_customers') }}</td><td>{{ number_format($snapshot['panels']['calendar_new_customers']['month']) }}</td></tr>
+                <tr><td>{{ __('dashboard.metrics.quarter_new_customers') }}</td><td>{{ number_format($snapshot['panels']['calendar_new_customers']['quarter']) }}</td></tr>
+            </tbody>
+        </table>
+    <?php endif; ?>
+    <?php if (isset($snapshot['panels']['customer_channel_share'])): ?>
+        <?php $channelShare = $snapshot['panels']['customer_channel_share']; ?>
+        <div class="chart-title">{{ __('dashboard.panels.customer_channel_share') }}</div>
+        <table class="charts">
+            <thead><tr><th>{{ __('dashboard.export.item') }}</th><th>{{ __('dashboard.export.value') }}</th><th>{{ __('dashboard.export.share') }}</th></tr></thead>
+            <tbody>
+                <?php if ($channelShare['total'] === 0): ?>
+                    <tr><td colspan="3">{{ __('dashboard.panels.no_customer_channel_data') }}</td></tr>
+                <?php else: ?>
+                    <tr><td>{{ __('dashboard.panels.direct_customer_channel') }}</td><td>{{ number_format($channelShare['direct_count']) }}</td><td>{{ number_format($channelShare['direct_percentage'], 1) }}%</td></tr>
+                    <tr><td>{{ __('dashboard.panels.agent_customer_channel') }}</td><td>{{ number_format($channelShare['agent_count']) }}</td><td>{{ number_format($channelShare['agent_percentage'], 1) }}%</td></tr>
+                    <tr><td>{{ __('dashboard.panels.customer_total') }}</td><td colspan="2">{{ number_format($channelShare['total']) }} {{ __('dashboard.panels.customer_unit') }}</td></tr>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    <?php endif; ?>
     <?php foreach ($chartLabels as $key => $label): ?>
         <?php
             $rows = $snapshot['charts'][$key];

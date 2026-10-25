@@ -52,7 +52,7 @@ final readonly class CustomerDirectory
     ) {}
 
     /**
-     * @param  array{search?: string, source_type?: string|null, status_id?: int|null, agent_id?: int|null, institution_id?: int|null, owner_id?: int|null, owner_state?: string, transfer_status?: string, business_group_id?: int|null, created_from?: string, created_to?: string}  $filters
+     * @param  array{search?: string, source_type?: string|null, status_id?: int|null, agent_id?: int|null, institution_id?: int|null, owner_id?: int|null, owner_state?: string, transfer_status?: string, business_group_id?: int|null, created_from?: string, created_to?: string, followup_status?: string|null}  $filters
      * @return LengthAwarePaginator<int, array{id: int, code: string, name: string, contact_masked: string, document_masked: string, status: string, source_type: string, source: string, owner_id: int|null, owner: string|null, created_at: string|null}>
      */
     public function paginate(array $filters, int $perPage): LengthAwarePaginator
@@ -135,6 +135,17 @@ final readonly class CustomerDirectory
         if ($createdRange->endExclusive !== null) {
             $query->where('created_at', '<', $createdRange->endExclusive);
         }
+        if (($filters['source_type'] ?? null) === 'direct' && ($filters['followup_status'] ?? null) !== null) {
+            $status = (string) $filters['followup_status'];
+            $customerIds = $this->followups->customerIdsWithFollowupStatus($status === 'none' ? 'pending' : $status, $this->clock->now());
+            if ($status === 'none') {
+                if ($customerIds !== []) {
+                    $query->whereNotIn('customers.id', $customerIds);
+                }
+            } else {
+                $query->whereIn('customers.id', $customerIds);
+            }
+        }
 
         if ($context->isCustomerService() && $context->userId !== null) {
             $query->orderByRaw('CASE WHEN owner_id = ? THEN 0 ELSE 1 END', [$context->userId]);
@@ -166,6 +177,19 @@ final readonly class CustomerDirectory
                 'created_at' => $customer->created_at?->format('Y-m-d H:i'),
             ];
         });
+
+        if (($filters['source_type'] ?? null) === 'direct') {
+            $summaries = $this->followups->summariesForCustomers(
+                $items->pluck('id')->map(fn (mixed $id): int => (int) $id)->all(),
+                $this->clock->now(),
+            );
+            $items = $items->map(fn (array $item): array => array_merge($item, $summaries[$item['id']] ?? [
+                'last_followup_on' => null,
+                'last_followup_content' => null,
+                'next_followup_at' => null,
+                'followup_status' => 'none',
+            ]));
+        }
 
         // PHPStan treats the inferred array shape as invariant even though it matches the declared shape.
         // @phpstan-ignore return.type
@@ -278,6 +302,22 @@ final readonly class CustomerDirectory
     {
         $context = $this->access->current();
         abort_unless($context->isSuperAdmin() || $context->isBdManager() || $context->isCustomerService(), 403);
+    }
+
+    /** @return array{today: int, overdue: int, upcoming: int} */
+    public function directFollowupStats(?int $ownerId = null): array
+    {
+        $context = $this->access->current();
+        abort_unless($context->isSuperAdmin() || $context->isDirectCustomerManager(), 403);
+        $query = Customer::query()->where('source_type', 'direct');
+        $this->applyScope($query);
+        if ($ownerId !== null) {
+            $query->where('owner_id', $ownerId);
+        }
+
+        $customerIds = $query->pluck('id')->map(fn (mixed $id): int => (int) $id)->all();
+
+        return $this->followups->statusCountsForCustomers($customerIds, $this->clock->now());
     }
 
     /** @return list<array{id: int, name: string}> */

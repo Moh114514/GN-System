@@ -54,7 +54,7 @@ final readonly class InstitutionMonthlySalesExportGenerator
             if ($export->format === 'pdf') {
                 $disk->put($path, $this->template->renderPdf($this->document($summary, $export, $detailOrders, $customerNames)));
             } else {
-                $this->writeXlsx($summary, $absolutePath);
+                $this->writeXlsx($summary, $detailOrders, $customerNames, $absolutePath);
             }
             if (! is_file($absolutePath)) {
                 throw new RuntimeException(__('institution_sales.errors.file_missing'));
@@ -81,8 +81,16 @@ final readonly class InstitutionMonthlySalesExportGenerator
         }
     }
 
-    private function writeXlsx(InstitutionMonthlySalesSummaryData $summary, string $absolutePath): void
-    {
+    /**
+     * @param  list<InstitutionMonthlySalesOrderData>  $detailOrders
+     * @param  array<int, string>  $customerNames
+     */
+    private function writeXlsx(
+        InstitutionMonthlySalesSummaryData $summary,
+        array $detailOrders,
+        array $customerNames,
+        string $absolutePath,
+    ): void {
         $spreadsheet = new Spreadsheet;
         try {
             $sheet = $spreadsheet->getActiveSheet();
@@ -140,6 +148,64 @@ final readonly class InstitutionMonthlySalesExportGenerator
             $sheet->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(4, 4);
             $sheet->getPageMargins()->setTop(0.35)->setRight(0.3)->setBottom(0.35)->setLeft(0.3);
             $sheet->getPageSetup()->setPrintArea("A1:E{$totalRow}");
+
+            $details = $spreadsheet->createSheet();
+            $details->setTitle(__('institution_sales.export.orders_sheet_title'));
+            $details->mergeCells('A1:G1');
+            $details->setCellValue('A1', __('institution_sales.export.order_details_title'));
+            $details->mergeCells('A2:G2');
+            $details->setCellValue('A2', __('institution_sales.export.period', ['month' => $summary->month]));
+            $details->fromArray([[
+                __('institution_sales.export.date'),
+                __('institution_sales.export.order'),
+                __('institution_sales.export.institution'),
+                __('institution_sales.export.customer'),
+                __('institution_sales.export.source'),
+                __('institution_sales.export.project'),
+                __('institution_sales.export.amount'),
+            ]], null, 'A4');
+            $institutionNames = [];
+            foreach ($summary->rows as $row) {
+                $institutionNames[$row->institutionId] = $row->institutionName;
+            }
+            foreach ($detailOrders as $index => $order) {
+                $excelRow = $index + 5;
+                $details->fromArray([[
+                    $order->occurredOn,
+                    '#'.$order->id,
+                    $institutionNames[$order->institutionId] ?? __('institution_sales.fallbacks.missing_institution'),
+                    $customerNames[$order->customerId] ?? __('institution_sales.fallbacks.missing_customer'),
+                    $order->sourceType === 'direct' ? __('orders.sources.direct') : __('orders.sources.agent'),
+                    $order->projectName,
+                    $order->amountKrw,
+                ]], null, "A{$excelRow}");
+            }
+            $detailsLastRow = max(4, 4 + count($detailOrders));
+            $details->getStyle('A1:G1')->applyFromArray([
+                'font' => ['bold' => true, 'size' => 16],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            ]);
+            $details->getStyle('A4:G4')->applyFromArray([
+                'fill' => ['fillType' => Fill::FILL_SOLID, 'fgColor' => ['rgb' => '0F766E']],
+                'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+                'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+            ]);
+            if ($detailsLastRow > 4) {
+                $details->getStyle("A4:G{$detailsLastRow}")->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+                $details->getStyle("G5:G{$detailsLastRow}")->getNumberFormat()->setFormatCode('#,##0');
+            }
+            foreach (['A' => 14, 'B' => 14, 'C' => 28, 'D' => 24, 'E' => 16, 'F' => 32, 'G' => 18] as $column => $width) {
+                $details->getColumnDimension($column)->setWidth($width);
+            }
+            $details->freezePane('A5');
+            $details->setShowGridlines(false);
+            $details->getPageSetup()->setPaperSize(PageSetup::PAPERSIZE_A4);
+            $details->getPageSetup()->setOrientation(PageSetup::ORIENTATION_LANDSCAPE);
+            $details->getPageSetup()->setFitToWidth(1)->setFitToHeight(0);
+            $details->getPageSetup()->setRowsToRepeatAtTopByStartAndEnd(4, 4);
+            $details->getPageMargins()->setTop(0.35)->setRight(0.3)->setBottom(0.35)->setLeft(0.3);
+            $details->getPageSetup()->setPrintArea("A1:G{$detailsLastRow}");
+            $spreadsheet->setActiveSheetIndex(0);
             (new Xlsx($spreadsheet))->save($absolutePath);
         } finally {
             $spreadsheet->disconnectWorksheets();

@@ -135,6 +135,9 @@
                                 <time class="text-xs text-zinc-500">{{ \Carbon\CarbonImmutable::parse($event['occurred_at'])->format('Y-m-d H:i') }}</time>
                             </div>
                             <p class="mt-1 text-sm text-zinc-600">{{ $event['content'] }}</p>
+                            @if (!empty($event['meta']['result']))
+                                <p class="mt-1 text-sm text-zinc-500"><span class="font-medium">{{ __('customers.detail.followup.result') }}:</span> {{ $event['meta']['result'] }}</p>
+                            @endif
                             <p class="mt-1 text-xs text-zinc-400">
                                 {{ $event['institution'] ?? '' }}
                                 @if ($event['owner'])
@@ -241,6 +244,8 @@
                         <flux:input wire:model="followupType" :label="__('customers.detail.followup.type')" required />
                         <x-date-time-picker wire:model="followedUpOn" :value="$followedUpOn" :label="__('customers.detail.followup.date')" required />
                         <flux:textarea wire:model="followupContent" :label="__('customers.detail.followup.content')" rows="4" required />
+                        <flux:textarea wire:model="followupResult" :label="__('customers.detail.followup.result')" rows="3" required />
+                        <x-date-time-picker wire:model="nextFollowupAt" mode="datetime" :label="__('customers.detail.followup.next_at')" />
                         <flux:button type="submit" class="w-full">{{ __('customers.detail.followup.submit') }}</flux:button>
                     </form>
                 @endif

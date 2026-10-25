@@ -8,6 +8,7 @@ use App\Modules\Agent\Application\Contracts\AgentAccessScopeReader;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Auth\Application\Contracts\BusinessGroupReferenceReader;
 use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
+use App\Modules\Config\Application\Contracts\NotificationRecipientGateway;
 use App\Modules\Customer\Application\Contracts\ReminderCustomerReader;
 use App\Modules\Customer\Application\Data\ReminderCustomerData;
 use App\Modules\Reminder\Infrastructure\Models\Reminder;
@@ -29,6 +30,7 @@ final readonly class ReminderWorkspace
         private AccessContextResolver $access,
         private AgentAccessScopeReader $agentScope,
         private BusinessGroupReferenceReader $groups,
+        private NotificationRecipientGateway $notifications,
     ) {}
 
     /** @return array<int, ReminderCustomerData> */
@@ -65,7 +67,7 @@ final readonly class ReminderWorkspace
     }
 
     /** @return LengthAwarePaginator<int, Reminder> */
-    public function paginate(User $user, bool $history, ?string $type = null, bool $overdueOnly = false, ?int $businessGroupId = null): LengthAwarePaginator
+    public function paginate(User $user, bool $history, ?string $type = null, bool $overdueOnly = false, ?int $businessGroupId = null, ?int $customerId = null): LengthAwarePaginator
     {
         $customerIds = $businessGroupId === null ? null : $this->customerIdsForBusinessGroup($businessGroupId);
         /** @var LengthAwarePaginator<int, Reminder> $page */
@@ -73,6 +75,7 @@ final readonly class ReminderWorkspace
             ->when($history, fn (Builder $query) => $query->whereIn('status', ['completed', 'cancelled']))
             ->when(! $history, fn (Builder $query) => $query->whereIn('status', ['pending', 'snoozed', 'transferred']))
             ->when($type !== null && $type !== '', fn (Builder $query) => $query->where('reminder_type', $type))
+            ->when($customerId !== null, fn (Builder $query) => $query->where('customer_id', $customerId))
             ->when($overdueOnly && ! $history, fn (Builder $query) => $query->where('due_at', '<', $this->clock->now()))
             ->when($customerIds !== null && $customerIds === [], fn (Builder $query) => $query->whereRaw('1 = 0'))
             ->when($customerIds !== null && $customerIds !== [], fn (Builder $query) => $query->whereIn('customer_id', $customerIds))
@@ -169,6 +172,9 @@ final readonly class ReminderWorkspace
                 'completed_by' => $actor->id,
                 'notes' => $this->nullable($notes) ?? $reminder->notes,
             ]);
+            if ($reminder->assigned_to !== null) {
+                $this->notifications->markReminderNotificationReadForUser((int) $reminder->id, (int) $reminder->assigned_to);
+            }
             $this->event($reminder, 'completed', (int) $actor->id, ['notes' => $this->nullable($notes)]);
             $this->createNextRecurrence($reminder, (int) $actor->id);
         });
@@ -192,6 +198,9 @@ final readonly class ReminderWorkspace
         }
         $reminder = $this->findVisible($id, $actor);
         $before = $reminder->assigned_to;
+        if ($before !== null) {
+            $this->notifications->markReminderNotificationReadForUser((int) $reminder->id, (int) $before);
+        }
         $reminder->update(['status' => 'transferred', 'assigned_to' => $assigneeId, 'notification_status' => 'pending']);
         $this->event($reminder, 'transferred', (int) $actor->id, ['before' => $before, 'after' => $assigneeId]);
     }
@@ -202,6 +211,9 @@ final readonly class ReminderWorkspace
             throw new DomainException(__('reminders.errors.cancel_reason_required'));
         }
         $reminder = $this->findVisible($id, $actor);
+        if ($reminder->assigned_to !== null) {
+            $this->notifications->markReminderNotificationReadForUser((int) $reminder->id, (int) $reminder->assigned_to);
+        }
         $reminder->update(['status' => 'cancelled']);
         $this->event($reminder, 'cancelled', (int) $actor->id, ['reason' => trim($reason)]);
     }
