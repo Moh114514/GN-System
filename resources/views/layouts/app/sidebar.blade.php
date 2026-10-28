@@ -163,7 +163,6 @@
                                         href="{{ route('configuration.index') }}#configuration-employees"
                                         class="crm-subnav-item {{ $configurationEmployeesActive ? 'is-active' : '' }}"
                                         data-test="configuration-subnav-employees"
-                                        wire:navigate
                                     >
                                         {{ __('config.center.groups.employees') }}
                                     </a>
@@ -172,7 +171,6 @@
                                         href="{{ route('configuration.index') }}#configuration-institutions"
                                         class="crm-subnav-item {{ $configurationInstitutionsActive ? 'is-active' : '' }}"
                                         data-test="configuration-subnav-institutions"
-                                        wire:navigate
                                     >
                                         {{ __('config.center.groups.institutions') }}
                                     </a>
@@ -181,7 +179,6 @@
                                         href="{{ route('configuration.index') }}#configuration-commissions"
                                         class="crm-subnav-item {{ $configurationCommissionsActive ? 'is-active' : '' }}"
                                         data-test="configuration-subnav-commissions"
-                                        wire:navigate
                                     >
                                         {{ __('config.center.groups.commissions') }}
                                     </a>
@@ -190,7 +187,6 @@
                                         href="{{ route('configuration.index') }}#configuration-basics"
                                         class="crm-subnav-item {{ $configurationBasicsActive ? 'is-active' : '' }}"
                                         data-test="configuration-subnav-basics"
-                                        wire:navigate
                                     >
                                         {{ __('config.center.groups.basics') }}
                                     </a>

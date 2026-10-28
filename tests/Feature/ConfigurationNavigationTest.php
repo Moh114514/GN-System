@@ -66,6 +66,11 @@ class ConfigurationNavigationTest extends TestCase
             ->assertSee('class="crm-nav-group-head is-active"', false);
 
         $this->assertDoesNotMatchRegularExpression(
+            '/<a\s+[^>]*data-test="configuration-subnav-(?:employees|institutions|commissions|basics)"[^>]*wire:navigate[^>]*>/s',
+            $response->getContent(),
+        );
+
+        $this->assertDoesNotMatchRegularExpression(
             '/<div\s+id="configuration-subnav"[^>]*x-show="open"/s',
             $response->getContent(),
         );

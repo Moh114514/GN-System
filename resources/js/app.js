@@ -127,32 +127,6 @@ function restorePageScrollPosition(navigationVersion) {
     window.requestAnimationFrame(() => window.requestAnimationFrame(restore));
 }
 
-function scrollToPageHash(navigationVersion) {
-    const hash = window.location.hash.slice(1);
-    if (!hash) {
-        return false;
-    }
-
-    let target;
-    try {
-        target = document.getElementById(decodeURIComponent(hash));
-    } catch {
-        return false;
-    }
-
-    if (!target) {
-        return false;
-    }
-
-    window.requestAnimationFrame(() => window.requestAnimationFrame(() => {
-        if (navigationVersion === pageNavigationVersion) {
-            target.scrollIntoView({ behavior: 'auto', block: 'start' });
-        }
-    }));
-
-    return true;
-}
-
 let pageScrollSaveTimer = null;
 
 window.addEventListener('scroll', () => {
@@ -180,9 +154,7 @@ document.addEventListener('livewire:navigate', (event) => {
 document.addEventListener('livewire:navigated', () => {
     pageNavigationVersion += 1;
     applyPageReturnContext();
-    if (!scrollToPageHash(pageNavigationVersion)) {
-        restorePageScrollPosition(pageNavigationVersion);
-    }
+    restorePageScrollPosition(pageNavigationVersion);
 });
 
 if (typeof window.__gnStartAlpine === 'function') {
