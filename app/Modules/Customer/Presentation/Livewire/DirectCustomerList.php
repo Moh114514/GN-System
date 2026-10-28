@@ -48,8 +48,8 @@ class DirectCustomerList extends Component
 
     public function mount(CustomerDirectory $directory): void
     {
-        abort_unless(Auth::user()?->isSuperAdmin() || Auth::user()?->isDirectCustomerManager(), 403);
-        $this->options = $directory->directCustomerOptions(Auth::user()->isSuperAdmin());
+        abort_unless(Auth::user()?->isSuperAdmin() || Auth::user()?->isOperationsDirector() || Auth::user()?->isDirectCustomerManager(), 403);
+        $this->options = $directory->directCustomerOptions(Auth::user()->isSuperAdmin() || Auth::user()->isOperationsDirector());
     }
 
     public function updated(string $property): void

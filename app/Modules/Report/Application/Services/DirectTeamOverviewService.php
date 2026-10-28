@@ -24,12 +24,12 @@ final readonly class DirectTeamOverviewService
     public function snapshot(string $month, ?int $requestedOwnerId = null): array
     {
         $context = $this->access->current();
-        abort_unless($context->isSuperAdmin() || $context->isDirectCustomerManager(), 403);
+        abort_unless($context->hasOrganizationWideReadAccess() || $context->isDirectCustomerManager(), 403);
         $month = $this->normalizeMonth($month);
         $from = CarbonImmutable::createFromFormat('!Y-m-d', $month.'-01', (string) config('app.timezone'));
         $to = $from->endOfMonth();
 
-        $eligibleOwners = $context->isSuperAdmin()
+        $eligibleOwners = $context->hasOrganizationWideReadAccess()
             ? $this->users->eligibleDirectCustomerManagers()
             : ($context->userId === null ? [] : [['id' => $context->userId, 'name' => '']]);
         $allowedOwnerIds = array_values(array_unique(array_map(
@@ -67,7 +67,7 @@ final readonly class DirectTeamOverviewService
                 'amount_krw' => (int) $stats['amount_krw'],
                 'customers' => (int) $stats['customers'],
             ],
-            'can_filter_owner' => $context->isSuperAdmin(),
+            'can_filter_owner' => $context->hasOrganizationWideReadAccess(),
         ];
     }
 

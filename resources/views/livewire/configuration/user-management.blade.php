@@ -9,10 +9,12 @@
             <h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ __('config.user_management.title') }}</h2>
             <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ __('config.user_management.description') }}</p>
         </div>
-        <a href="{{ route('audit-logs.index') }}" class="inline-flex items-center gap-1 text-sm font-semibold text-teal-700 hover:underline dark:text-teal-300" wire:navigate>
-            {{ __('config.user_management.audit_link') }}
-            <flux:icon.arrow-right class="size-4" aria-hidden="true" />
-        </a>
+        @if (auth()->user()->isSuperAdmin())
+            <a href="{{ route('audit-logs.index') }}" class="inline-flex items-center gap-1 text-sm font-semibold text-teal-700 hover:underline dark:text-teal-300" wire:navigate>
+                {{ __('config.user_management.audit_link') }}
+                <flux:icon.arrow-right class="size-4" aria-hidden="true" />
+            </a>
+        @endif
     </section>
     @endunless
 
@@ -23,7 +25,10 @@
             <flux:input wire:model="name" :label="__('config.user_management.name')" class="min-w-0" />
             <flux:input wire:model="email" type="email" :label="__('config.user_management.email')" class="min-w-0" />
             <flux:select wire:model="inviteRole" :label="__('config.user_management.role')">
-                <flux:select.option value="super_admin">{{ __('config.user_management.roles.super_admin') }}</flux:select.option>
+                @if (auth()->user()->isSuperAdmin())
+                    <flux:select.option value="super_admin">{{ __('config.user_management.roles.super_admin') }}</flux:select.option>
+                @endif
+                <flux:select.option value="operations_director">{{ __('config.user_management.roles.operations_director') }}</flux:select.option>
                 <flux:select.option value="bd_manager">{{ __('config.user_management.roles.bd_manager') }}</flux:select.option>
                 <flux:select.option value="customer_service">{{ __('config.user_management.roles.customer_service') }}</flux:select.option>
                 <flux:select.option value="direct_customer_manager">{{ __('config.user_management.roles.direct_customer_manager') }}</flux:select.option>
@@ -45,24 +50,35 @@
                             <td><strong>{{ $user['name'] }}</strong><br><span class="text-xs text-zinc-500">{{ $user['email'] }}</span></td>
                             <td>
                                 <div class="flex items-end gap-2">
-                                    <flux:select wire:model="dingtalkMentionTypes.{{ $user['id'] }}" :label="__('config.user_management.dingtalk_mention_type')" size="sm">
-                                        <flux:select.option value="">{{ __('config.user_management.dingtalk_mention_empty') }}</flux:select.option>
-                                        <flux:select.option value="user_id">{{ __('config.user_management.dingtalk_mention_types.user_id') }}</flux:select.option>
-                                        <flux:select.option value="mobile">{{ __('config.user_management.dingtalk_mention_types.mobile') }}</flux:select.option>
-                                    </flux:select>
-                                    <flux:input wire:model="dingtalkMentionValues.{{ $user['id'] }}" :label="__('config.user_management.dingtalk_mention_value')" size="sm" />
-                                    <flux:button wire:click="saveDingTalkMention({{ $user['id'] }})" variant="ghost" size="sm">{{ __('config.user_management.actions.save_dingtalk_mention') }}</flux:button>
+                                    @if (! auth()->user()->isOperationsDirector() || $user['role'] !== 'super_admin')
+                                        <flux:select wire:model="dingtalkMentionTypes.{{ $user['id'] }}" :label="__('config.user_management.dingtalk_mention_type')" size="sm">
+                                            <flux:select.option value="">{{ __('config.user_management.dingtalk_mention_empty') }}</flux:select.option>
+                                            <flux:select.option value="user_id">{{ __('config.user_management.dingtalk_mention_types.user_id') }}</flux:select.option>
+                                            <flux:select.option value="mobile">{{ __('config.user_management.dingtalk_mention_types.mobile') }}</flux:select.option>
+                                        </flux:select>
+                                        <flux:input wire:model="dingtalkMentionValues.{{ $user['id'] }}" :label="__('config.user_management.dingtalk_mention_value')" size="sm" />
+                                        <flux:button wire:click="saveDingTalkMention({{ $user['id'] }})" variant="ghost" size="sm">{{ __('config.user_management.actions.save_dingtalk_mention') }}</flux:button>
+                                    @else
+                                        <span>{{ $user['dingtalk_mention_value'] ?: __('config.user_management.dingtalk_mention_empty') }}</span>
+                                    @endif
                                 </div>
                             </td>
                             <td>
                                 <div class="flex items-end gap-2">
-                                    <flux:select wire:model="roleSelections.{{ $user['id'] }}" :label="__('config.user_management.role')" size="sm">
-                                        <flux:select.option value="super_admin">{{ __('config.user_management.roles.super_admin') }}</flux:select.option>
-                                        <flux:select.option value="bd_manager">{{ __('config.user_management.roles.bd_manager') }}</flux:select.option>
-                                        <flux:select.option value="customer_service">{{ __('config.user_management.roles.customer_service') }}</flux:select.option>
-                                        <flux:select.option value="direct_customer_manager">{{ __('config.user_management.roles.direct_customer_manager') }}</flux:select.option>
-                                    </flux:select>
-                                    <flux:button wire:click="saveRole({{ $user['id'] }})" variant="ghost" size="sm">{{ __('config.user_management.actions.save_role') }}</flux:button>
+                                    @if (! auth()->user()->isOperationsDirector() || $user['role'] !== 'super_admin')
+                                        <flux:select wire:model="roleSelections.{{ $user['id'] }}" :label="__('config.user_management.role')" size="sm">
+                                            @if (auth()->user()->isSuperAdmin())
+                                                <flux:select.option value="super_admin">{{ __('config.user_management.roles.super_admin') }}</flux:select.option>
+                                            @endif
+                                            <flux:select.option value="operations_director">{{ __('config.user_management.roles.operations_director') }}</flux:select.option>
+                                            <flux:select.option value="bd_manager">{{ __('config.user_management.roles.bd_manager') }}</flux:select.option>
+                                            <flux:select.option value="customer_service">{{ __('config.user_management.roles.customer_service') }}</flux:select.option>
+                                            <flux:select.option value="direct_customer_manager">{{ __('config.user_management.roles.direct_customer_manager') }}</flux:select.option>
+                                        </flux:select>
+                                        <flux:button wire:click="saveRole({{ $user['id'] }})" variant="ghost" size="sm">{{ __('config.user_management.actions.save_role') }}</flux:button>
+                                    @else
+                                        <span>{{ __('config.user_management.roles.super_admin') }}</span>
+                                    @endif
                                 </div>
                             </td>
                             <td>{{ $user['is_active'] ? __('config.status.enabled') : __('config.status.disabled') }}</td>
@@ -71,16 +87,18 @@
                                 @if ($user['invitation_sent_at'])<br><span class="text-xs text-zinc-500">{{ $user['invitation_sent_at'] }}</span>@endif
                             </td>
                             <td>
-                                <div class="flex flex-wrap gap-2">
-                                    <flux:button wire:click="toggleActive({{ $user['id'] }}, {{ $user['is_active'] ? 'false' : 'true' }})" variant="ghost" size="sm">
-                                        {{ $user['is_active'] ? __('config.user_management.actions.disable') : __('config.user_management.actions.enable') }}
-                                    </flux:button>
-                                    @if (in_array($user['invitation_status'], ['pending', 'failed', 'sent'], true))
-                                        <flux:button wire:click="resend({{ $user['id'] }})" variant="ghost" size="sm">{{ __('config.user_management.actions.resend') }}</flux:button>
-                                    @elseif ($user['invitation_status'] === 'accepted')
-                                        <flux:button wire:click="resetPassword({{ $user['id'] }})" variant="ghost" size="sm">{{ __('config.user_management.toast.password_reset_action') }}</flux:button>
-                                    @endif
-                                </div>
+                                @if (! auth()->user()->isOperationsDirector() || $user['role'] !== 'super_admin')
+                                    <div class="flex flex-wrap gap-2">
+                                        <flux:button wire:click="toggleActive({{ $user['id'] }}, {{ $user['is_active'] ? 'false' : 'true' }})" variant="ghost" size="sm">
+                                            {{ $user['is_active'] ? __('config.user_management.actions.disable') : __('config.user_management.actions.enable') }}
+                                        </flux:button>
+                                        @if (in_array($user['invitation_status'], ['pending', 'failed', 'sent'], true))
+                                            <flux:button wire:click="resend({{ $user['id'] }})" variant="ghost" size="sm">{{ __('config.user_management.actions.resend') }}</flux:button>
+                                        @elseif ($user['invitation_status'] === 'accepted')
+                                            <flux:button wire:click="resetPassword({{ $user['id'] }})" variant="ghost" size="sm">{{ __('config.user_management.toast.password_reset_action') }}</flux:button>
+                                        @endif
+                                    </div>
+                                @endif
                             </td>
                         </tr>
                     @endforeach

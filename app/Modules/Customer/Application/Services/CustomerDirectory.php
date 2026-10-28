@@ -4,6 +4,7 @@ namespace App\Modules\Customer\Application\Services;
 
 use App\Infrastructure\Time\BusinessClock;
 use App\Modules\Agent\Application\Contracts\AgentAccessScopeReader;
+use App\Modules\Agent\Application\Contracts\AgentBusinessAttributionReader;
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
@@ -38,6 +39,7 @@ final readonly class CustomerDirectory
         private CustomerLabelLocalizer $labels,
         private SensitiveValueMasker $masker,
         private AgentReferenceReader $agents,
+        private AgentBusinessAttributionReader $attributions,
         private AgentAccessScopeReader $agentScope,
         private InternalUserReferenceReader $assignableUsers,
         private ReportUserReader $userNames,
@@ -52,8 +54,8 @@ final readonly class CustomerDirectory
     ) {}
 
     /**
-     * @param  array{search?: string, source_type?: string|null, status_id?: int|null, agent_id?: int|null, institution_id?: int|null, owner_id?: int|null, owner_state?: string, transfer_status?: string, business_group_id?: int|null, created_from?: string, created_to?: string, followup_status?: string|null}  $filters
-     * @return LengthAwarePaginator<int, array{id: int, code: string, name: string, contact_masked: string, document_masked: string, status: string, source_type: string, source: string, owner_id: int|null, owner: string|null, created_at: string|null}>
+     * @param  array{search?: string, source_type?: string|null, status_id?: int|null, agent_id?: int|null, bd_manager_id?: int|null, institution_id?: int|null, owner_id?: int|null, owner_state?: string, transfer_status?: string, business_group_id?: int|null, created_from?: string, created_to?: string, followup_status?: string|null}  $filters
+     * @return LengthAwarePaginator<int, array{id: int, code: string, name: string, contact_masked: string, document_masked: string, status: string, source_type: string, source: string, bd_manager_id: int|null, bd_manager: string|null, owner_id: int|null, owner: string|null, created_at: string|null}>
      */
     public function paginate(array $filters, int $perPage): LengthAwarePaginator
     {
@@ -61,7 +63,7 @@ final readonly class CustomerDirectory
             $this->assertAgentCustomerAccess();
         } elseif (($filters['source_type'] ?? null) === 'direct') {
             $context = $this->access->current();
-            abort_unless($context->isSuperAdmin() || $context->isDirectCustomerManager(), 403);
+            abort_unless($context->hasOrganizationWideReadAccess() || $context->isDirectCustomerManager(), 403);
         }
         $query = Customer::query()->with(['primaryContact', 'identityDocument', 'currentStatus', 'directChannel']);
         $this->applyScope($query);
@@ -89,6 +91,14 @@ final readonly class CustomerDirectory
         if (($filters['agent_id'] ?? null) !== null) {
             $query->where('source_agent_id', $filters['agent_id']);
         }
+        if (($filters['bd_manager_id'] ?? null) !== null) {
+            $agentIds = $this->agentIdsForBdManager((int) $filters['bd_manager_id']);
+            if ($agentIds === []) {
+                $query->whereRaw('1 = 0');
+            } else {
+                $query->whereIn('source_agent_id', $agentIds);
+            }
+        }
         if (($filters['institution_id'] ?? null) !== null) {
             $query->whereKey($this->orders->customerIdsForInstitution((int) $filters['institution_id']));
         }
@@ -112,7 +122,7 @@ final readonly class CustomerDirectory
             $validOwnerIds = $this->memberships->activeCustomerServiceUserIds(
                 $businessGroupId !== null
                     ? [$businessGroupId]
-                    : ($context->isSuperAdmin() ? null : $context->businessGroupIds),
+                    : ($context->hasOrganizationWideReadAccess() ? null : $context->businessGroupIds),
                 $this->clock->now()->toDateString(),
             );
             $query->whereNotNull('owner_id');
@@ -153,10 +163,13 @@ final readonly class CustomerDirectory
         $page = $query->orderByDesc('customers.created_at')->orderByDesc('customers.id')->paginate($perPage);
         $agentIds = $page->getCollection()->pluck('source_agent_id')->filter()->map(fn ($id): int => (int) $id)->all();
         $agentLabels = $this->agents->agentsByIds($agentIds);
+        $bdLabels = $this->bdLabelsForAgents($agentIds);
         $ownerIds = $page->getCollection()->pluck('owner_id')->filter()->map(fn ($id): int => (int) $id)->all();
         $ownerLabels = $this->userNames->namesByIds($ownerIds);
 
-        $items = $page->getCollection()->map(function (Customer $customer) use ($agentLabels, $ownerLabels): array {
+        $items = $page->getCollection()->map(function (Customer $customer) use ($agentLabels, $bdLabels, $ownerLabels): array {
+            $bd = $bdLabels[(int) $customer->source_agent_id] ?? null;
+
             return [
                 'id' => $customer->id,
                 'code' => $customer->code,
@@ -172,6 +185,8 @@ final readonly class CustomerDirectory
                         ? __('customers.fallback.unknown_source')
                         : (string) $customer->directChannel->name)
                     : (string) ($agentLabels[(int) $customer->source_agent_id]['name'] ?? __('customers.fallback.unknown_agent')),
+                'bd_manager_id' => is_array($bd) ? $bd['user_id'] : null,
+                'bd_manager' => is_array($bd) ? $bd['user_name'] : null,
                 'owner_id' => $customer->owner_id === null ? null : (int) $customer->owner_id,
                 'owner' => $customer->owner_id === null ? null : ($ownerLabels[(int) $customer->owner_id] ?? null),
                 'created_at' => $customer->created_at?->format('Y-m-d H:i'),
@@ -205,7 +220,7 @@ final readonly class CustomerDirectory
     private function assertBusinessGroupVisible(int $businessGroupId, AccessContext $context): void
     {
         abort_unless(
-            $context->isSuperAdmin()
+            $context->hasOrganizationWideReadAccess()
                 ? $this->groups->exists($businessGroupId, true)
                 : in_array($businessGroupId, $context->businessGroupIds, true),
             404,
@@ -228,6 +243,7 @@ final readonly class CustomerDirectory
 
         return [
             'agents' => $agents,
+            'bd_managers' => $this->bdManagerOptions($agents),
             'institutions' => array_values($this->institutions->activeInstitutions()),
             'direct_channels' => DirectCustomerChannel::query()
                 ->where('is_active', true)
@@ -261,8 +277,8 @@ final readonly class CustomerDirectory
     public function directCustomerOptions(bool $includeOwnerCandidates = false): array
     {
         $context = $this->access->current();
-        abort_unless($context->isSuperAdmin() || $context->isDirectCustomerManager(), 403);
-        abort_unless(! $includeOwnerCandidates || $context->isSuperAdmin(), 403);
+        abort_unless($context->hasOrganizationWideReadAccess() || $context->isDirectCustomerManager(), 403);
+        abort_unless(! $includeOwnerCandidates || $context->hasOrganizationWideReadAccess(), 403);
         $options = [
             'institutions' => array_values($this->institutions->activeInstitutions()),
             'direct_channels' => DirectCustomerChannel::query()
@@ -301,14 +317,14 @@ final readonly class CustomerDirectory
     public function assertAgentCustomerAccess(): void
     {
         $context = $this->access->current();
-        abort_unless($context->isSuperAdmin() || $context->isBdManager() || $context->isCustomerService(), 403);
+        abort_unless($context->hasOrganizationWideReadAccess() || $context->isBdManager() || $context->isCustomerService(), 403);
     }
 
     /** @return array{today: int, overdue: int, upcoming: int} */
     public function directFollowupStats(?int $ownerId = null): array
     {
         $context = $this->access->current();
-        abort_unless($context->isSuperAdmin() || $context->isDirectCustomerManager(), 403);
+        abort_unless($context->hasOrganizationWideReadAccess() || $context->isDirectCustomerManager(), 403);
         $query = Customer::query()->where('source_type', 'direct');
         $this->applyScope($query);
         if ($ownerId !== null) {
@@ -325,13 +341,84 @@ final readonly class CustomerDirectory
     {
         $users = $this->assignableUsers->eligibleUsers();
         $context = $this->access->current();
-        $groupIds = $context->isSuperAdmin()
+        $groupIds = $context->hasOrganizationWideReadAccess()
             ? null
             : $context->businessGroupIds;
         $allowedIds = $this->memberships->activeCustomerServiceUserIds($groupIds, $this->clock->now()->toDateString());
         $allowed = array_flip($allowedIds);
 
         return array_values(array_filter($users, fn (array $user): bool => isset($allowed[(int) $user['id']])));
+    }
+
+    /** @param list<int|string> $agentIds
+     * @return array<int, array{user_id: int, user_name: string}>
+     */
+    private function bdLabelsForAgents(array $agentIds): array
+    {
+        $date = $this->clock->now();
+        $labels = [];
+        foreach (array_values(array_unique(array_map('intval', $agentIds))) as $agentId) {
+            if ($agentId <= 0) {
+                continue;
+            }
+            $attribution = $this->attributions->forAgentOnDate($agentId, $date);
+            $bd = is_array($attribution) && is_array($attribution['bd_manager'] ?? null)
+                ? $attribution['bd_manager']
+                : null;
+            if ($bd !== null && isset($bd['user_id'])) {
+                $labels[$agentId] = [
+                    'user_id' => (int) $bd['user_id'],
+                    'user_name' => (string) ($bd['user_name'] ?? ''),
+                ];
+            }
+        }
+
+        return $labels;
+    }
+
+    /** @return list<int> */
+    private function agentIdsForBdManager(int $bdManagerId): array
+    {
+        if ($bdManagerId <= 0) {
+            return [];
+        }
+
+        $query = Customer::query()
+            ->where('source_type', 'agent')
+            ->whereNotNull('source_agent_id');
+        $this->applyScope($query);
+        $agentIds = $query->distinct()->pluck('source_agent_id')->map(fn (mixed $id): int => (int) $id)->all();
+
+        return array_values(array_filter($agentIds, function (int $agentId) use ($bdManagerId): bool {
+            $labels = $this->bdLabelsForAgents([$agentId]);
+
+            return ($labels[$agentId]['user_id'] ?? null) === $bdManagerId;
+        }));
+    }
+
+    /** @param list<array{id: int, code: string, name: string, cooperation_status: string}> $agents
+     * @return list<array{id: int, name: string}>
+     */
+    private function bdManagerOptions(array $agents): array
+    {
+        $context = $this->access->current();
+        $agentIds = array_column($agents, 'id');
+        if (! $context->hasOrganizationWideReadAccess()) {
+            $agentIds = array_values(array_intersect($agentIds, $context->agentIds));
+        }
+        $labels = $this->bdLabelsForAgents($agentIds);
+        $options = [];
+        foreach ($labels as $label) {
+            $id = $label['user_id'];
+            $name = $label['user_name'];
+            if ($id > 0 && $name !== '') {
+                $options[$id] = ['id' => $id, 'name' => $name];
+            }
+        }
+
+        usort($options, static fn (array $left, array $right): int => strcmp($left['name'], $right['name']));
+
+        return $options;
     }
 
     /** @return list<array{id: int, name: string}> */
@@ -347,8 +434,12 @@ final readonly class CustomerDirectory
         $this->applyScope($customer);
         $customer = $customer->findOrFail($customerId);
         $context = $this->access->current();
-        abort_unless($customer->source_type === 'agent' || $context->isSuperAdmin() || $context->isDirectCustomerManager(), 404);
+        abort_unless($customer->source_type === 'agent' || $context->hasOrganizationWideReadAccess() || $context->isDirectCustomerManager(), 404);
         $canViewSensitive = $context->canDownloadSensitiveCustomerData($customer->owner_id === null ? null : (int) $customer->owner_id);
+
+        $bd = $customer->source_agent_id === null
+            ? null
+            : $this->bdLabelsForAgents([(int) $customer->source_agent_id])[(int) $customer->source_agent_id] ?? null;
 
         return [
             'id' => $customer->id,
@@ -361,6 +452,8 @@ final readonly class CustomerDirectory
             'source_agent_name' => $customer->source_agent_id === null
                 ? null
                 : ($this->agents->agentsByIds([(int) $customer->source_agent_id])[(int) $customer->source_agent_id]['name'] ?? null),
+            'bd_manager_id' => is_array($bd) ? $bd['user_id'] : null,
+            'bd_manager_name' => is_array($bd) ? $bd['user_name'] : null,
             'direct_channel_id' => $customer->direct_channel_id === null ? null : (int) $customer->direct_channel_id,
             'direct_channel_name' => $customer->directChannel?->name,
             'current_status_id' => $customer->current_status_id,
@@ -644,7 +737,7 @@ final readonly class CustomerDirectory
     private function applyScope(Builder $query): void
     {
         $context = $this->access->current();
-        if ($context->isSuperAdmin()) {
+        if ($context->hasOrganizationWideReadAccess()) {
             return;
         }
 

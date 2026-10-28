@@ -74,9 +74,9 @@ final readonly class DashboardService
     private function aggregate(DashboardRangeData $range, CarbonImmutable $asOf): DashboardSnapshotData
     {
         $context = $this->access->current();
-        $agentFinance = $context->isSuperAdmin() || $context->isBdManager();
+        $agentFinance = $context->hasOrganizationWideReadAccess() || $context->isBdManager();
         $directOwnerId = $context->isDirectCustomerManager() ? $context->userId : null;
-        $onlineRevenue = $context->isSuperAdmin() || $directOwnerId !== null;
+        $onlineRevenue = $context->hasOrganizationWideReadAccess() || $directOwnerId !== null;
         $offlineRevenue = $agentFinance || $context->isCustomerService();
         $current = $this->period($range->from, $range->to);
         $previous = $this->period($range->previousFrom, $range->previousTo);
@@ -124,7 +124,7 @@ final readonly class DashboardService
         if ($offlineRevenue) {
             $metrics['offline_revenue'] = $this->metric($current['order']['agent_amount'], $previous['order']['agent_amount']);
         }
-        if ($context->isSuperAdmin()) {
+        if ($context->hasOrganizationWideReadAccess()) {
             $sourceCounts = $current['customer']['customer_source_counts'];
             $sourceTotal = $sourceCounts['direct'] + $sourceCounts['agent'];
             $directPercentage = $sourceTotal === 0 ? 0.0 : round($sourceCounts['direct'] / $sourceTotal * 100, 1);
@@ -176,7 +176,7 @@ final readonly class DashboardService
                 'settlement_progress' => $agentFinance,
                 'online_revenue' => $onlineRevenue,
                 'offline_revenue' => $offlineRevenue,
-                'customer_channel_share' => $context->isSuperAdmin(),
+                'customer_channel_share' => $context->hasOrganizationWideReadAccess(),
             ],
             generatedAt: now('Asia/Shanghai')->toIso8601String(),
         );
@@ -190,7 +190,7 @@ final readonly class DashboardService
         return [
             'customer' => $this->customers->dashboard($from, $to),
             'order' => $this->orders->dashboard($from, $to),
-            'settlement' => $this->access->current()->isSuperAdmin() || $this->access->current()->isBdManager()
+            'settlement' => $this->access->current()->hasOrganizationWideReadAccess() || $this->access->current()->isBdManager()
                 ? $this->settlements->dashboard($orderMonths, $to)
                 : [],
             'reminder' => $this->reminders->dashboard($from, $to),
@@ -214,7 +214,7 @@ final readonly class DashboardService
     private function institutionRevenue(array $aggregates): array
     {
         $context = $this->access->current();
-        $visibleIds = $context->isSuperAdmin()
+        $visibleIds = $context->hasOrganizationWideReadAccess()
             ? null
             : array_fill_keys($this->orders->visibleInstitutionIds(), true);
         $amounts = [];

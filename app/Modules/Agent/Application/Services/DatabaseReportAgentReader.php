@@ -71,7 +71,7 @@ final class DatabaseReportAgentReader implements ReportAgentReader
             ->join('policy_grades as grade', 'grade.id', '=', 'assignment.policy_grade_id')
             ->join('agents as agent', 'agent.id', '=', 'assignment.agent_id')
             ->where('agent.cooperation_status', 'active')
-            ->when(! $this->access->current()->isSuperAdmin(), fn ($query) => $query->whereIn('agent.id', $this->access->current()->agentIds))
+            ->when(! $this->access->current()->hasOrganizationWideReadAccess(), fn ($query) => $query->whereIn('agent.id', $this->access->current()->agentIds))
             ->where('assignment.effective_month', '<=', $currentMonth)
             ->whereRaw('assignment.effective_month = (
                 SELECT MAX(latest.effective_month)
@@ -94,7 +94,7 @@ final class DatabaseReportAgentReader implements ReportAgentReader
     private function scoped(Builder $query): Builder
     {
         $context = $this->access->current();
-        if ($context->isSuperAdmin()) {
+        if ($context->hasOrganizationWideReadAccess()) {
             return $query;
         }
 

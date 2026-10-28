@@ -5,7 +5,9 @@
             <h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ __('customers.direct.list.heading') }}</h2>
             <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ __('customers.direct.list.description') }}</p>
         </div>
-        <flux:button :href="route('direct-customers.create')" variant="primary" size="sm" icon="plus" wire:navigate>{{ __('customers.direct.list.create') }}</flux:button>
+        @if (! auth()->user()->isOperationsDirector())
+            <flux:button :href="route('direct-customers.create')" variant="primary" size="sm" icon="plus" wire:navigate>{{ __('customers.direct.list.create') }}</flux:button>
+        @endif
     </section>
 
     <section class="mb-5 grid gap-3 sm:grid-cols-3" aria-label="{{ __('customers.direct.list.followup_stats') }}">
@@ -35,7 +37,7 @@
                         @endforeach
                     </flux:menu>
                 </flux:dropdown>
-                @if (auth()->user()->isSuperAdmin())
+                @if (auth()->user()->isSuperAdmin() || auth()->user()->isOperationsDirector())
                 <flux:dropdown>
                     <flux:button class="w-36 rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">{{ $selectedOwner['name'] ?? __('customers.direct.list.all_owners') }}</flux:button>
                     <flux:menu class="max-h-72 overflow-y-auto">

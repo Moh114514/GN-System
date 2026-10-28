@@ -35,7 +35,7 @@ final readonly class AgentDirectory
     ): LengthAwarePaginator {
         $query = Agent::query();
         $context = $this->access->current();
-        if (! $context->isSuperAdmin()) {
+        if (! $context->hasOrganizationWideReadAccess()) {
             $query->whereKey($context->agentIds);
         }
         $search = trim($search);
@@ -134,7 +134,7 @@ final readonly class AgentDirectory
     {
         $context = $this->access->current();
         $agent = Agent::query()
-            ->when(! $context->isSuperAdmin(), fn ($query) => $query->whereKey($context->agentIds))
+            ->when(! $context->hasOrganizationWideReadAccess(), fn ($query) => $query->whereKey($context->agentIds))
             ->findOrFail($agentId);
         $assignment = AgentGradeAssignment::query()
             ->where('agent_id', $agentId)

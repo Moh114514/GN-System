@@ -67,16 +67,21 @@ class SettlementServiceProvider extends ServiceProvider
     {
         Route::middleware(['web', 'auth', 'verified', 'settlement.read', 'super-admin.2fa'])->group(function (): void {
             Route::get('/settlements', SettlementCenter::class)->name('settlements.index');
-            Route::get('/bd-commissions', BdQuarterlyCommissionCenter::class)->name('bd-commissions.index');
             Route::get('/settlements/{settlement}', SettlementDetail::class)->whereNumber('settlement')->name('settlements.show');
             Route::get('/settlement-documents/{document}', [SettlementDocumentController::class, 'document'])
                 ->whereNumber('document')->name('settlements.documents.download');
+        });
+        Route::middleware(['web', 'auth', 'verified', 'agent.read', 'super-admin.2fa'])->group(function (): void {
+            Route::get('/bd-commissions', BdQuarterlyCommissionCenter::class)->name('bd-commissions.index');
             Route::get('/bd-commissions/{period}/users/{bdUserId}/document/{format}', [BdQuarterlyCommissionDocumentController::class, 'download'])
                 ->whereNumber('period')->whereNumber('bdUserId')->whereIn('format', ['xlsx', 'pdf'])
                 ->name('bd-commissions.documents.download');
         });
+        Route::middleware(['web', 'auth', 'verified', 'configuration.access', 'super-admin.2fa'])->get(
+            '/admin/configuration/direct-customer',
+            DirectCustomerConfiguration::class,
+        )->name('configuration.direct-customer');
         Route::middleware(['web', 'auth', 'verified', 'super-admin.2fa'])->group(function (): void {
-            Route::get('/admin/configuration/direct-customer', DirectCustomerConfiguration::class)->name('configuration.direct-customer');
             Route::get('/direct-commissions', DirectCustomerCommissionCenter::class)->name('direct-commissions.index');
         });
         Route::middleware(['web', 'auth', 'verified', 'super-admin', 'super-admin.2fa'])->group(function (): void {

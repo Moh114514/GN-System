@@ -33,28 +33,74 @@ final readonly class TeamOverviewService
     ) {}
 
     /** @return array<string, mixed> */
-    public function snapshot(?int $requestedGroupId = null, ?string $requestedMonth = null): array
-    {
+    public function snapshot(
+        ?int $requestedGroupId = null,
+        ?string $requestedMonth = null,
+        ?int $requestedBdManagerId = null,
+    ): array {
         $context = $this->access->current();
-        abort_unless($context->isSuperAdmin() || $context->isBdManager(), 403);
+        abort_unless($context->hasOrganizationWideReadAccess() || $context->isBdManager(), 403);
 
         $now = $this->clock->now();
         $date = $now->toDateString();
-        $groups = array_values(array_filter(
-            $this->groups->businessGroups(),
-            fn (array $group): bool => (bool) $group['is_active']
-                && ($context->isSuperAdmin() || in_array((int) $group['id'], $context->businessGroupIds, true)),
-        ));
-        $allowedGroupIds = array_map(fn (array $group): int => (int) $group['id'], $groups);
-        if ($requestedGroupId !== null && ! in_array($requestedGroupId, $allowedGroupIds, true)) {
-            abort(404);
-        }
-
         $currentMemberships = $this->groups->memberships($date);
         $eligibleUserIds = array_map(
             fn (array $user): int => (int) $user['id'],
             $this->userReferences->eligibleUsers(),
         );
+        $groups = array_values(array_filter(
+            $this->groups->businessGroups(),
+            fn (array $group): bool => (bool) $group['is_active']
+                && ($context->hasOrganizationWideReadAccess() || in_array((int) $group['id'], $context->businessGroupIds, true)),
+        ));
+        $bdManagersByGroup = [];
+        $bdManagerOptions = [];
+        foreach ($currentMemberships as $membership) {
+            $userId = (int) ($membership['user_id'] ?? 0);
+            if (! (bool) ($membership['is_current'] ?? false)
+                || ($membership['member_role'] ?? null) !== 'bd_manager'
+                || ! in_array($userId, $eligibleUserIds, true)) {
+                continue;
+            }
+
+            $groupId = (int) ($membership['business_group_id'] ?? 0);
+            $bdManagersByGroup[$groupId] = $userId;
+            $bdManagerOptions[$userId] = [
+                'id' => $userId,
+                'name' => (string) ($membership['user_name'] ?? ''),
+            ];
+        }
+        $allowedGroupIds = array_map(fn (array $group): int => (int) $group['id'], $groups);
+        $allowedBdManagerIds = array_values(array_unique(array_map(
+            fn (array $group): int => (int) ($bdManagersByGroup[(int) $group['id']] ?? 0),
+            $groups,
+        )));
+        $allowedBdManagerIds = array_values(array_filter($allowedBdManagerIds, static fn (int $id): bool => $id > 0));
+        $bdManagerOptions = array_values(array_filter(
+            $bdManagerOptions,
+            fn (array $manager): bool => in_array((int) $manager['id'], $allowedBdManagerIds, true),
+        ));
+        usort($bdManagerOptions, static fn (array $left, array $right): int => strcmp($left['name'], $right['name']));
+        if ($requestedBdManagerId !== null && ! in_array($requestedBdManagerId, $allowedBdManagerIds, true)) {
+            abort(404);
+        }
+        if ($requestedGroupId !== null && ! in_array($requestedGroupId, $allowedGroupIds, true)) {
+            abort(404);
+        }
+        if ($requestedBdManagerId !== null) {
+            $groups = array_values(array_filter(
+                $groups,
+                fn (array $group): bool => ($bdManagersByGroup[(int) $group['id']] ?? null) === $requestedBdManagerId,
+            ));
+        }
+        if ($requestedGroupId !== null && ! in_array(
+            $requestedGroupId,
+            array_map(fn (array $group): int => (int) $group['id'], $groups),
+            true,
+        )) {
+            abort(404);
+        }
+
         $activeAgentIds = array_map(
             fn (array $agent): int => (int) $agent['id'],
             $this->agentReferences->activeAgents(),
@@ -79,13 +125,15 @@ final readonly class TeamOverviewService
             : collect($groupSummaries)->firstWhere('id', $selectedGroupId);
 
         return [
-            'is_global' => $context->isSuperAdmin(),
+            'is_global' => $context->hasOrganizationWideReadAccess(),
             'groups' => $groupSummaries,
             'selected_group_id' => $selectedGroupId,
             'selected_group' => $selectedGroup,
             'overview' => $selectedGroup === null ? $this->overview($groupSummaries) : $this->groupKpis($selectedGroup),
             'month' => $month,
             'month_label' => $from->format('Y-m'),
+            'bd_manager_id' => $requestedBdManagerId,
+            'bd_managers' => $bdManagerOptions,
             'generated_at' => $now->format('Y-m-d H:i:s'),
         ];
     }
@@ -165,7 +213,7 @@ final readonly class TeamOverviewService
                 'id' => $agentId,
                 'code' => $row['code'] !== '' ? $row['code'] : ($agentLabels[$agentId]['code'] ?? ''),
                 'name' => $row['name'] !== '' ? $row['name'] : ($agentLabels[$agentId]['name'] ?? __('customers.fallback.unknown_agent')),
-                'can_view_agent' => $viewer->isSuperAdmin() || in_array($agentId, $viewer->agentIds, true),
+                'can_view_agent' => $viewer->hasOrganizationWideReadAccess() || in_array($agentId, $viewer->agentIds, true),
                 'customer_pool' => (int) ($stats['agent_customers'][$agentId] ?? 0),
                 'orders' => (int) $row['orders'],
                 'customers' => (int) $row['customers'],

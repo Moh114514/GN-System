@@ -170,7 +170,7 @@ class ConfigurationNavigationTest extends TestCase
         $this->assertStringContainsString('data-test="offline-channel-nav-group"', $bdNavigation);
         $this->assertStringContainsString('data-test="offline-channel-team-overview"', $bdNavigation);
         $this->assertStringContainsString('data-test="offline-channel-agents"', $bdNavigation);
-        $this->assertStringContainsString('data-test="institution-nav-group"', $bdNavigation);
+        $this->assertStringNotContainsString('data-test="institution-nav-group"', $bdNavigation);
         $this->assertStringNotContainsString('data-test="online-direct-nav-group"', $bdNavigation);
         $this->assertStringNotContainsString('data-test="configuration-nav-group"', $bdNavigation);
 
@@ -181,9 +181,69 @@ class ConfigurationNavigationTest extends TestCase
         $this->assertStringContainsString('data-test="online-direct-nav-group"', $directNavigation);
         $this->assertStringContainsString('data-test="online-direct-customers"', $directNavigation);
         $this->assertStringContainsString('data-test="online-direct-team-overview"', $directNavigation);
-        $this->assertStringContainsString('data-test="institution-nav-group"', $directNavigation);
+        $this->assertStringNotContainsString('data-test="institution-nav-group"', $directNavigation);
         $this->assertStringNotContainsString('data-test="offline-channel-nav-group"', $directNavigation);
         $this->assertStringNotContainsString('data-test="configuration-nav-group"', $directNavigation);
+    }
+
+    public function test_operations_director_gets_read_access_to_required_modules_but_not_super_admin_tools(): void
+    {
+        $operationsDirector = User::factory()->withTwoFactor()->create(['role' => UserRole::OperationsDirector]);
+        $content = $this->actingAs($operationsDirector)->get(route('dashboard'))->assertOk()->getContent();
+        preg_match('/<nav class="crm-nav">(?<navigation>.*?)<\/nav>/s', $content, $matches);
+        $navigation = $matches['navigation'] ?? '';
+
+        foreach ([
+            'online-direct-nav-group',
+            'offline-channel-nav-group',
+            'institution-nav-group',
+            'configuration-nav-group',
+            'online-direct-customers',
+            'offline-channel-team-overview',
+            'offline-channel-bd-commissions',
+            'offline-channel-agents',
+            'offline-channel-customers',
+            'institution-monthly-sales',
+            'institution-returns',
+            'configuration-subnav-overview',
+        ] as $testId) {
+            $this->assertStringContainsString('data-test="'.$testId.'"', $navigation);
+        }
+        $this->assertStringNotContainsString('configuration-subnav-data-maintenance', $navigation);
+        $this->assertStringNotContainsString('configuration-subnav-time-travel', $navigation);
+
+        foreach ([
+            'direct-customers.index',
+            'direct-commissions.index',
+            'direct-team-overview.index',
+            'orders.index',
+            'customers.index',
+            'team-overview.index',
+            'agents.index',
+            'bd-commissions.index',
+            'reports.institution-sales',
+            'reports.search',
+            'institution-returns.index',
+            'configuration.index',
+            'configuration.users-and-notifications',
+        ] as $routeName) {
+            $response = $this->get(route($routeName));
+            $this->assertSame(200, $response->getStatusCode(), "Operations director cannot read {$routeName}.");
+        }
+
+        $configurationContent = $this->get(route('configuration.index'))->assertOk()->getContent();
+        $userManagementContent = $this->get(route('configuration.users-and-notifications'))->assertOk()->getContent();
+        $this->assertStringNotContainsString('href="'.route('configuration.data-maintenance').'"', $configurationContent);
+        $this->assertStringNotContainsString('href="'.route('audit-logs.index').'"', $userManagementContent);
+
+        $this->get(route('configuration.data-maintenance'))->assertForbidden();
+        $this->get(route('audit-logs.index'))->assertForbidden();
+        if (app(BusinessClock::class)->isAvailable()) {
+            $this->get(route('configuration.time-travel'))->assertForbidden();
+        }
+        $this->get(route('audit-logs.index'))->assertForbidden();
+        $this->get(route('customers.create'))->assertForbidden();
+        $this->get(route('direct-customers.create'))->assertForbidden();
     }
 
     public function test_configuration_pages_return_to_center_and_keep_configuration_navigation_active(): void

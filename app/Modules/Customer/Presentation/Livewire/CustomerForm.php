@@ -65,11 +65,12 @@ class CustomerForm extends Component
 
     public function mount(CustomerDirectory $directory, ?int $customer = null): void
     {
+        abort_unless(Auth::user()?->isSuperAdmin() || Auth::user()?->isBdManager() || Auth::user()?->isCustomerService(), 403);
         $this->options = $directory->options();
         $this->options['users'] = $directory->ownerCandidates();
         $this->customerId = $customer;
         if ($customer === null) {
-            $this->ownerId = Auth::user()?->isCustomerService() ? (string) Auth::id() : '';
+            $this->ownerId = Auth::user()->isCustomerService() ? (string) Auth::id() : '';
 
             return;
         }

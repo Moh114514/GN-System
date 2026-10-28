@@ -164,7 +164,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
     {
         $context = $this->access->current();
         abort_unless(
-            $context->isSuperAdmin()
+            $context->hasOrganizationWideReadAccess()
                 || ($context->isBdManager() && in_array($businessGroupId, $context->businessGroupIds, true)),
             403,
         );
@@ -211,7 +211,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
     {
         $context = $this->access->current();
         abort_unless(
-            $context->isSuperAdmin() || ($context->isBdManager() && in_array($businessGroupId, $context->businessGroupIds, true)),
+            $context->hasOrganizationWideReadAccess() || ($context->isBdManager() && in_array($businessGroupId, $context->businessGroupIds, true)),
             403,
         );
         $agentIds = array_values(array_unique(array_filter(array_map('intval', $agentIds), static fn (int $id): bool => $id > 0)));
@@ -253,7 +253,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
     public function directTeamOverview(array $ownerIds, CarbonImmutable $from, CarbonImmutable $to): array
     {
         $context = $this->access->current();
-        abort_unless($context->isSuperAdmin() || $context->isDirectCustomerManager(), 403);
+        abort_unless($context->hasOrganizationWideReadAccess() || $context->isDirectCustomerManager(), 403);
         $ownerIds = array_values(array_unique(array_filter(array_map('intval', $ownerIds), fn (int $id): bool => $id > 0)));
         if ($context->isDirectCustomerManager()) {
             $ownerIds = $context->userId === null ? [] : array_values(array_intersect($ownerIds, [$context->userId]));
@@ -619,7 +619,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
     private function applyScope(Builder|QueryBuilder $query): void
     {
         $context = $this->access->current();
-        if ($context->isSuperAdmin()) {
+        if ($context->hasOrganizationWideReadAccess()) {
             return;
         }
 
@@ -648,7 +648,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
     {
         $context = $this->access->current();
         $query = Appointment::query();
-        if (! $context->isSuperAdmin()) {
+        if (! $context->hasOrganizationWideReadAccess()) {
             if (! $context->hasEffectiveBusinessScope()) {
                 return $query->whereRaw('1 = 0');
             }

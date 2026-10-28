@@ -12,7 +12,7 @@ final class EnsureInstitutionSalesReadAccess
     {
         $user = $request->user();
         abort_unless(
-            $user?->isSuperAdmin() || $user?->isBdManager() || $user?->isDirectCustomerManager(),
+            $user?->isSuperAdmin() || $user?->isOperationsDirector(),
             403,
         );
 

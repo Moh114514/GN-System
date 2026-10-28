@@ -33,6 +33,9 @@
                     <div><dt class="text-xs text-zinc-500">{{ __('customers.detail.profile.identity_document') }}</dt><dd class="mt-1 font-medium">{{ $customer['identity_document'] }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('customers.detail.profile.birth_date') }}</dt><dd class="mt-1 font-medium">{{ $customer['birth_date'] ?: __('customers.fallback.unset') }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('customers.detail.profile.source_type') }}</dt><dd class="mt-1 font-medium">{{ $customer['source_type'] === 'direct' ? ($customer['direct_channel_name'] ?? __('customers.fallback.unknown_source')) : ($customer['source_agent_name'] ?? __('customers.fallback.unknown_agent')) }}</dd></div>
+                    @if (($customer['source_type'] ?? 'agent') === 'agent')
+                        <div><dt class="text-xs text-zinc-500">{{ __('customers.detail.profile.bd_manager') }}</dt><dd class="mt-1 font-medium">{{ $customer['bd_manager_name'] ?: __('customers.fallback.unset') }}</dd></div>
+                    @endif
                     <div><dt class="text-xs text-zinc-500">{{ __('customers.detail.profile.project_intention') }}</dt><dd class="mt-1 font-medium">{{ $customer['project_intention'] ?: __('customers.fallback.unset') }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('customers.detail.profile.owner') }}</dt><dd class="mt-1 font-medium">{{ $customer['owner_name'] ?: __('customers.fallback.unset') }}</dd></div>
                     <div><dt class="text-xs text-zinc-500">{{ __('customers.detail.profile.arrived_at') }}</dt><dd class="mt-1 font-medium">{{ $customer['arrived_at'] ?: __('customers.fallback.unset') }}</dd></div>

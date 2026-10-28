@@ -30,7 +30,7 @@ final readonly class DirectCustomerCommissionReportService
         $context = $this->access->current();
         $eligibleOwners = $this->users->eligibleDirectCustomerManagers();
         $eligibleIds = array_map(static fn (array $user): int => (int) $user['id'], $eligibleOwners);
-        if ($context->isSuperAdmin() && $requestedOwnerId !== null && ! in_array($requestedOwnerId, $eligibleIds, true)) {
+        if ($context->hasOrganizationWideReadAccess() && $requestedOwnerId !== null && ! in_array($requestedOwnerId, $eligibleIds, true)) {
             abort(404);
         }
         if ($context->isDirectCustomerManager() && $requestedOwnerId !== null && $requestedOwnerId !== $context->userId) {
@@ -83,7 +83,7 @@ final readonly class DirectCustomerCommissionReportService
                 'order_amount_krw' => array_sum(array_column($summaries, 'order_amount_krw')),
                 'commission_amount_krw' => array_sum(array_column($summaries, 'commission_amount_krw')),
             ],
-            'owner_options' => $context->isSuperAdmin() ? $eligibleOwners : [],
+            'owner_options' => $context->hasOrganizationWideReadAccess() ? $eligibleOwners : [],
         ];
     }
 

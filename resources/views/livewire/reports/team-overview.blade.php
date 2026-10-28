@@ -21,6 +21,16 @@
             <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ __('team.description') }}</p>
         </div>
         <div class="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-end">
+            @if ($snapshot['is_global'] && $snapshot['bd_managers'] !== [])
+            <div class="w-full sm:w-72">
+                <flux:select wire:model.live="bdManagerId" :label="__('team.bd_filter')" data-test="team-overview-bd-manager">
+                    <flux:select.option value="">{{ __('team.all_bd_managers') }}</flux:select.option>
+                    @foreach ($snapshot['bd_managers'] as $bdManager)
+                        <flux:select.option value="{{ $bdManager['id'] }}">{{ $bdManager['name'] }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            </div>
+            @endif
             <label class="block text-sm font-medium text-zinc-600 dark:text-zinc-300">
                 <span class="mb-1 block">{{ __('team.month_filter') }}</span>
                 <input type="month" wire:model.live="month" value="{{ $month }}" class="w-full rounded-lg border-zinc-300 bg-white text-sm shadow-sm dark:border-zinc-700 dark:bg-zinc-900 sm:w-44" data-test="team-overview-month" />

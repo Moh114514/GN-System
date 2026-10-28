@@ -103,7 +103,7 @@ final readonly class DatabaseDirectOrderCommissionGateway implements DirectOrder
     public function recordsForViewer(?CarbonImmutable $from = null, ?CarbonImmutable $to = null, ?int $ownerId = null): array
     {
         $context = $this->access->current();
-        abort_unless($context->isSuperAdmin() || $context->isDirectCustomerManager(), 403);
+        abort_unless($context->hasOrganizationWideReadAccess() || $context->isDirectCustomerManager(), 403);
         $query = DirectOrderCommission::query()->orderByDesc('completed_at')->orderByDesc('id');
         if ($from !== null && $to !== null) {
             $query->whereBetween('completed_at', [$from, $to]);
@@ -111,7 +111,7 @@ final readonly class DatabaseDirectOrderCommissionGateway implements DirectOrder
         if ($ownerId !== null) {
             $query->where('owner_id', $ownerId);
         }
-        if (! $context->isSuperAdmin()) {
+        if (! $context->hasOrganizationWideReadAccess()) {
             $query->where('owner_id', $context->userId);
         }
 

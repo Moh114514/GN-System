@@ -875,6 +875,51 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $users->changeRole($admin->id, false, $actor->id, null);
     }
 
+    public function test_operations_director_cannot_create_or_manage_super_admin_accounts(): void
+    {
+        $operationsDirector = User::factory()->withTwoFactor()->create(['role' => UserRole::OperationsDirector]);
+        $superAdmin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $users = app(UserManagementGateway::class);
+        $expected = __('auth.errors.super_admin_management_restricted');
+
+        foreach ([
+            fn () => $users->inviteWithRole('Another Admin', 'another-admin@example.com', 'super_admin', $operationsDirector->id, null),
+            fn () => $users->setRole($superAdmin->id, 'bd_manager', $operationsDirector->id, null),
+            fn () => $users->setActive($superAdmin->id, false, $operationsDirector->id, null),
+            fn () => $users->resendInvitation($superAdmin->id, $operationsDirector->id, null),
+            fn () => $users->sendPasswordResetLink($superAdmin->id, $operationsDirector->id, null),
+            fn () => $users->setDingTalkMention($superAdmin->id, 'user_id', 'admin', $operationsDirector->id, null),
+        ] as $operation) {
+            try {
+                $operation();
+                $this->fail('Operations director should not manage super admin accounts.');
+            } catch (DomainException $exception) {
+                $this->assertSame($expected, $exception->getMessage());
+            }
+        }
+
+        $this->assertTrue($superAdmin->fresh()->is_active);
+        $this->assertSame(UserRole::SuperAdmin, $superAdmin->fresh()->roleValue());
+    }
+
+    public function test_operations_director_role_migration_refuses_rollback_while_role_is_in_use(): void
+    {
+        $operationsDirector = User::factory()->create(['role' => UserRole::OperationsDirector]);
+        $migration = require database_path('migrations/2026_10_28_000100_add_operations_director_role.php');
+
+        try {
+            $migration->down();
+            $this->fail('The role constraint migration must not remove a role still assigned to users.');
+        } catch (\RuntimeException $exception) {
+            $this->assertStringContainsString('found 1 operations director user(s)', $exception->getMessage());
+        }
+
+        $this->assertDatabaseHas('users', [
+            'id' => $operationsDirector->id,
+            'role' => UserRole::OperationsDirector->value,
+        ]);
+    }
+
     public function test_phase_six_migration_backfills_local_midnight_and_can_roll_back_without_dropping_completed_on(): void
     {
         $order = Order::query()->create([

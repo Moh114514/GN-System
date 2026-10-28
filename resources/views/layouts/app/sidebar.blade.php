@@ -30,12 +30,15 @@
 
                 @php
                     $isSuperAdmin = auth()->user()->isSuperAdmin();
+                    $isOperationsDirector = auth()->user()->isOperationsDirector();
                     $isBdManager = auth()->user()->isBdManager();
                     $isCustomerService = auth()->user()->isCustomerService();
                     $isDirectCustomerManager = auth()->user()->isDirectCustomerManager();
-                    $canAccessOnlineDirect = $isSuperAdmin || $isDirectCustomerManager;
-                    $canAccessOfflineChannels = $isSuperAdmin || $isBdManager || $isCustomerService;
-                    $canAccessInstitutions = $isSuperAdmin || $isBdManager || $isDirectCustomerManager;
+                    $canManageConfiguration = auth()->user()->canManageConfiguration();
+                    $canAccessOnlineDirect = $isSuperAdmin || $isOperationsDirector || $isDirectCustomerManager;
+                    $canAccessOfflineChannels = $isSuperAdmin || $isOperationsDirector || $isBdManager || $isCustomerService;
+                    $canAccessInstitutions = $isSuperAdmin || $isOperationsDirector;
+                    $canManageOfflineChannels = $isSuperAdmin || $isOperationsDirector || $isBdManager;
                     $onlineDirectNavigationActive = request()->routeIs('direct-customers.*', 'direct-commissions.*', 'direct-team-overview.*')
                         || (request()->routeIs('orders.*') && request()->query('sourceTypeFilter') === 'direct')
                         || request()->routeIs('reminders.*', 'reports.search');
@@ -72,11 +75,11 @@
                         </button>
                         <div id="offline-channel-subnav" class="crm-subnav-collapse {{ $offlineChannelNavigationActive ? 'is-open' : '' }}" aria-hidden="{{ $offlineChannelNavigationActive ? 'false' : 'true' }}" x-bind:class="{ 'is-open': open }" x-bind:aria-hidden="(!open).toString()" @if (! $offlineChannelNavigationActive) inert @endif x-bind:inert="!open" data-test="offline-channel-subnav">
                             <div class="crm-subnav-collapse-inner"><div class="crm-subnav">
-                                @if ($isSuperAdmin || $isBdManager)
+                                @if ($canManageOfflineChannels)
                                     <a href="{{ route('team-overview.index') }}" class="crm-subnav-item {{ request()->routeIs('team-overview.*') ? 'is-active' : '' }}" data-test="offline-channel-team-overview" wire:navigate>{{ __('navigation.team_overview_page') }}</a>
                                     <a href="{{ route('bd-commissions.index') }}" class="crm-subnav-item {{ request()->routeIs('bd-commissions.*') ? 'is-active' : '' }}" data-test="offline-channel-bd-commissions" wire:navigate>{{ __('navigation.bd_commissions') }}</a>
                                 @endif
-                                @if ($isSuperAdmin || $isBdManager)
+                                @if ($canManageOfflineChannels)
                                     <a href="{{ route('agents.index') }}" class="crm-subnav-item {{ request()->routeIs('agents.*') ? 'is-active' : '' }}" data-test="offline-channel-agents" wire:navigate>{{ __('navigation.agents') }}</a>
                                 @endif
                                 <a href="{{ route('customers.index') }}" class="crm-subnav-item {{ request()->routeIs('customers.index', 'customers.create', 'customers.show', 'customers.edit') ? 'is-active' : '' }}" data-test="offline-channel-customers" wire:navigate>{{ __('navigation.agent_customers') }}</a>
@@ -109,7 +112,7 @@
                     </div>
                 @endif
 
-                @if (auth()->user()->isSuperAdmin())
+                @if ($canManageConfiguration)
                     @php
                         $configurationNavigationActive = request()->routeIs(
                             'configuration.*',
@@ -223,24 +226,26 @@
                                         {{ __('navigation.history') }}
                                     </a>
 
-                                    <a
-                                        href="{{ route('configuration.data-maintenance') }}"
-                                        class="crm-subnav-item {{ request()->routeIs('configuration.data-maintenance', 'reference-configuration-imports.*', 'data-imports.*') ? 'is-active' : '' }}"
-                                        data-test="configuration-subnav-data-maintenance"
-                                        wire:navigate
-                                    >
-                                        {{ __('navigation.data_maintenance') }}
-                                    </a>
-
-                                    @if (app(\App\Infrastructure\Time\BusinessClock::class)->isAvailable())
+                                    @if ($isSuperAdmin)
                                         <a
-                                            href="{{ route('configuration.time-travel') }}"
-                                            class="crm-subnav-item {{ request()->routeIs('configuration.time-travel') ? 'is-active' : '' }}"
-                                            data-test="configuration-subnav-time-travel"
+                                            href="{{ route('configuration.data-maintenance') }}"
+                                            class="crm-subnav-item {{ request()->routeIs('configuration.data-maintenance', 'reference-configuration-imports.*', 'data-imports.*') ? 'is-active' : '' }}"
+                                            data-test="configuration-subnav-data-maintenance"
                                             wire:navigate
                                         >
-                                            {{ __('navigation.time_travel') }}
+                                            {{ __('navigation.data_maintenance') }}
                                         </a>
+
+                                        @if (app(\App\Infrastructure\Time\BusinessClock::class)->isAvailable())
+                                            <a
+                                                href="{{ route('configuration.time-travel') }}"
+                                                class="crm-subnav-item {{ request()->routeIs('configuration.time-travel') ? 'is-active' : '' }}"
+                                                data-test="configuration-subnav-time-travel"
+                                                wire:navigate
+                                            >
+                                                {{ __('navigation.time_travel') }}
+                                            </a>
+                                        @endif
                                     @endif
                                 </div>
                             </div>
@@ -397,7 +402,7 @@
                             <flux:icon.clipboard-document-list aria-hidden="true" />
                             <span>{{ __('navigation.search_order') }}<strong x-text="query ? `“${query}”` : ''"></strong></span>
                         </a>
-                        @if (auth()->user()->isSuperAdmin())
+                        @if (auth()->user()->isSuperAdmin() || auth()->user()->isOperationsDirector())
                             <a
                                 x-bind:href="'{{ route('agents.index') }}?search=' + encodeURIComponent(query)"
                                 @click="open = false"
@@ -467,7 +472,7 @@
                         <span class="crm-avatar">{{ auth()->user()->initials() }}</span>
                         <span class="crm-user-copy">
                             <strong>{{ auth()->user()->name }}</strong>
-                            <small>{{ auth()->user()->isSuperAdmin() ? __('navigation.super_admin') : __('navigation.internal_user') }}</small>
+                            <small>{{ auth()->user()->isSuperAdmin() ? __('navigation.super_admin') : (auth()->user()->isOperationsDirector() ? __('config.user_management.roles.operations_director') : __('navigation.internal_user')) }}</small>
                         </span>
                         <flux:icon.chevron-down aria-hidden="true" />
                     </button>
@@ -502,10 +507,12 @@
             @if ($businessClockActive)
                 <div class="mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100" data-test="business-clock-warning">
                     <span class="font-semibold">{{ __('navigation.time_travel_warning', ['time' => $businessClock->now()->format('Y-m-d H:i')]) }}</span>
-                    <form method="POST" action="{{ route('configuration.time-travel.disable') }}">
-                        @csrf
-                        <button type="submit" class="font-semibold underline underline-offset-2">{{ __('navigation.restore_real_time') }}</button>
-                    </form>
+                    @if (auth()->user()->isSuperAdmin())
+                        <form method="POST" action="{{ route('configuration.time-travel.disable') }}">
+                            @csrf
+                            <button type="submit" class="font-semibold underline underline-offset-2">{{ __('navigation.restore_real_time') }}</button>
+                        </form>
+                    @endif
                 </div>
             @endif
 

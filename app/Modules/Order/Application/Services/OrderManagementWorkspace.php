@@ -41,7 +41,7 @@ final readonly class OrderManagementWorkspace
     public function options(): array
     {
         $context = $this->access->current();
-        $ownerUsers = $context->isSuperAdmin()
+        $ownerUsers = $context->hasOrganizationWideReadAccess()
             ? $this->users->eligibleDirectCustomerManagers()
             : [];
         if ($context->isDirectCustomerManager() && $context->userId !== null) {
@@ -391,7 +391,7 @@ final readonly class OrderManagementWorkspace
     private function applyScope(Builder $query): void
     {
         $context = $this->access->current();
-        if ($context->isSuperAdmin()) {
+        if ($context->hasOrganizationWideReadAccess()) {
             return;
         }
 

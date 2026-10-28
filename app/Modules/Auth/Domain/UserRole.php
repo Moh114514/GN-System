@@ -5,6 +5,7 @@ namespace App\Modules\Auth\Domain;
 enum UserRole: string
 {
     case SuperAdmin = 'super_admin';
+    case OperationsDirector = 'operations_director';
     case BdManager = 'bd_manager';
     case CustomerService = 'customer_service';
     case DirectCustomerManager = 'direct_customer_manager';

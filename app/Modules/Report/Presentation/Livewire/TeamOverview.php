@@ -15,6 +15,8 @@ class TeamOverview extends Component
 
     public string $month = '';
 
+    public string $bdManagerId = '';
+
     /** @var array<string, mixed> */
     public array $snapshot = [];
 
@@ -22,6 +24,7 @@ class TeamOverview extends Component
     protected array $queryString = [
         'groupId' => ['except' => ''],
         'month' => ['except' => ''],
+        'bdManagerId' => ['except' => ''],
     ];
 
     public function mount(TeamOverviewService $overview, BusinessClock $clock): void
@@ -40,6 +43,11 @@ class TeamOverview extends Component
         $this->loadSnapshot($overview);
     }
 
+    public function updatedBdManagerId(TeamOverviewService $overview): void
+    {
+        $this->loadSnapshot($overview);
+    }
+
     public function render(): View
     {
         return view('livewire.reports.team-overview')->title(__('team.title'));
@@ -51,6 +59,14 @@ class TeamOverview extends Component
             abort(404);
         }
 
-        $this->snapshot = $overview->snapshot($this->groupId === '' ? null : (int) $this->groupId, $this->month);
+        if ($this->bdManagerId !== '' && preg_match('/^\d+$/D', $this->bdManagerId) !== 1) {
+            abort(404);
+        }
+
+        $this->snapshot = $overview->snapshot(
+            $this->groupId === '' ? null : (int) $this->groupId,
+            $this->month,
+            $this->bdManagerId === '' ? null : (int) $this->bdManagerId,
+        );
     }
 }

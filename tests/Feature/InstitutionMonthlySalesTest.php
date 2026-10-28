@@ -17,7 +17,6 @@ use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Report\Application\Services\InstitutionMonthlySalesDetailService;
 use App\Modules\Report\Application\Services\InstitutionMonthlySalesService;
 use App\Modules\Report\Application\Services\ReportExportManager;
-use App\Modules\Report\Application\Services\ReportSearch;
 use App\Modules\Report\Presentation\Livewire\InstitutionMonthlySales;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
@@ -296,9 +295,7 @@ class InstitutionMonthlySalesTest extends TestCase
             $this->assertSame('所选机构不在当前权限范围内或已停用。', $exception->getMessage());
         }
 
-        $this->get(route('reports.institution-sales'))->assertOk()->assertSee('机构销售额');
-        $this->get(route('reports.institution-sales'))->assertDontSee('9,000,000');
-        $this->get(route('reports.institution-sales'))->assertSee('1,000,000');
+        $this->get(route('reports.institution-sales'))->assertForbidden();
     }
 
     public function test_customer_service_cannot_open_or_export_institution_sales(): void
@@ -312,54 +309,54 @@ class InstitutionMonthlySalesTest extends TestCase
         app(ReportExportManager::class)->startInstitutionMonthlySales($customerService, '2026-08');
     }
 
-    public function test_direct_customer_manager_sees_only_owned_direct_institution_sales_and_can_search(): void
+    public function test_direct_customer_manager_cannot_open_or_export_institution_sales(): void
     {
         $manager = User::factory()->create(['role' => UserRole::DirectCustomerManager]);
-        $otherManager = User::factory()->create(['role' => UserRole::DirectCustomerManager]);
-        $channelId = (int) DB::table('direct_customer_channels')->value('id');
-        $customerA = Customer::query()->create([
-            'code' => 'DC-SALES-'.uniqid(),
-            'name' => '直客销售客户 A',
-            'source_type' => 'direct',
-            'source_agent_id' => null,
-            'direct_channel_id' => $channelId,
-            'owner_id' => $manager->id,
-            'current_status_id' => CustomerStatus::query()->where('key', 'booked')->value('id'),
-        ]);
-        $customerB = Customer::query()->create([
-            'code' => 'DC-SALES-'.uniqid(),
-            'name' => '其他负责人客户',
-            'source_type' => 'direct',
-            'source_agent_id' => null,
-            'direct_channel_id' => $channelId,
-            'owner_id' => $otherManager->id,
-            'current_status_id' => CustomerStatus::query()->where('key', 'booked')->value('id'),
-        ]);
-        $orderA = $this->order($customerA, $this->institutionA, 700_000, '2026-08-10', 'completed', 'active');
-        $orderA->update(['source_type' => 'direct', 'agent_id' => null, 'owner_id' => $manager->id]);
-        $orderB = $this->order($customerB, $this->institutionA, 9_000_000, '2026-08-10', 'completed', 'active');
-        $orderB->update(['source_type' => 'direct', 'agent_id' => null, 'owner_id' => $otherManager->id]);
-
         $this->actingAs($manager)
             ->get(route('reports.institution-sales', ['month' => '2026-08']))
-            ->assertOk()
-            ->assertSee('700,000')
-            ->assertDontSee('9,000,000');
+            ->assertForbidden();
         $this->get(route('reports.institution-sales.show', [
             'institution' => $this->institutionA->id,
             'month' => '2026-08',
-        ]))->assertOk()
-            ->assertSee('700,000')
-            ->assertDontSee('9,000,000')
-            ->assertDontSee(__('institution_sales.detail.agent_breakdown'));
-        $this->assertSame(1, app(ReportSearch::class)->count([]));
+        ]))->assertForbidden();
+
+        $this->expectException(HttpException::class);
+        app(ReportExportManager::class)->startInstitutionMonthlySales($manager, '2026-08');
+    }
+
+    public function test_operations_director_can_read_and_export_all_institution_sales(): void
+    {
+        $operationsDirector = User::factory()->withTwoFactor()->create(['role' => UserRole::OperationsDirector]);
+        $agentCustomer = $this->customer('运营总监可见代理商客户');
+        $this->order($agentCustomer, $this->institutionA, 1_000_000, '2026-08-10', 'completed', 'active');
+
+        $directOwner = User::factory()->create(['role' => UserRole::DirectCustomerManager]);
+        $channelId = (int) DB::table('direct_customer_channels')->value('id');
+        $directCustomer = Customer::query()->create([
+            'code' => 'DC-OPS-'.uniqid(),
+            'name' => '运营总监可见直客',
+            'source_type' => 'direct',
+            'source_agent_id' => null,
+            'direct_channel_id' => $channelId,
+            'owner_id' => $directOwner->id,
+            'current_status_id' => CustomerStatus::query()->where('key', 'booked')->value('id'),
+        ]);
+        $directOrder = $this->order($directCustomer, $this->institutionB, 700_000, '2026-08-11', 'completed', 'active');
+        $directOrder->update(['source_type' => 'direct', 'agent_id' => null, 'owner_id' => $directOwner->id]);
+
+        $this->actingAs($operationsDirector)
+            ->get(route('reports.institution-sales', ['month' => '2026-08']))
+            ->assertOk()
+            ->assertSee('1,700,000');
+        $this->get(route('reports.institution-sales.show', [
+            'institution' => $this->institutionA->id,
+            'month' => '2026-08',
+        ]))->assertOk()->assertSee('1,000,000');
 
         Storage::fake('local');
-        $searchExport = app(ReportExportManager::class)->startSearch($manager, []);
-        $this->assertSame('completed', $searchExport->status);
-        $export = app(ReportExportManager::class)->startInstitutionMonthlySales($manager, '2026-08');
+        $export = app(ReportExportManager::class)->startInstitutionMonthlySales($operationsDirector, '2026-08');
         $this->assertSame('completed', $export->status);
-        $this->assertSame(700_000, $export->data_snapshot['total_amount_krw']);
+        $this->assertSame(1_700_000, $export->data_snapshot['total_amount_krw']);
     }
 
     public function test_page_filter_and_xlsx_export_use_the_same_summary_values(): void
@@ -463,6 +460,8 @@ class InstitutionMonthlySalesTest extends TestCase
             $this->assertStringContainsString('机构', $text);
             $this->assertStringContainsString('PDF 明细客户', $text);
             $this->assertStringContainsString('#'.$order->id, $text);
+            $this->assertStringContainsString(__('institution_sales.export.source'), $text);
+            $this->assertStringContainsString(__('orders.sources.agent'), $text);
             $this->assertStringContainsString('水光针', $text);
             $this->assertStringContainsString('Botox', $text);
             $this->assertStringContainsString('500,000', $text);

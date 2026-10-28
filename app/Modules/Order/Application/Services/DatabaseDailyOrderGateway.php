@@ -295,7 +295,7 @@ final readonly class DatabaseDailyOrderGateway implements DailyOrderGateway
         return $orders->map(function (Order $order) use ($commissions, $directCommissions, $context): OrderSummaryData {
             $commission = $commissions->get($order->id);
             $directCommission = $directCommissions->get($order->id);
-            $canViewDirectCommission = $context->isSuperAdmin()
+            $canViewDirectCommission = $context->hasOrganizationWideReadAccess()
                 || ($context->userId !== null && (int) ($directCommission->owner_id ?? 0) === $context->userId);
             $showDirectCommission = $order->source_type !== 'direct' || $canViewDirectCommission;
 

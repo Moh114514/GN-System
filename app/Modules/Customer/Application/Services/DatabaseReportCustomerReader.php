@@ -328,7 +328,7 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
     private function applyScope($query): void
     {
         $context = $this->access->current();
-        if ($context->isSuperAdmin()) {
+        if ($context->hasOrganizationWideReadAccess()) {
             return;
         }
 
