@@ -11,7 +11,7 @@ return [
     'actions' => '操作',
     'view_orders' => '查看订单',
     'empty' => '所选月份暂无直客成交订单。',
-    'back' => '返回直客管理',
+    'back' => '返回客户管理',
     'metrics' => [
         'heading' => '线上业绩指标',
         'amount' => '直客成交额',

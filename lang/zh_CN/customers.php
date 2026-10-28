@@ -7,7 +7,7 @@ return [
         'detail' => '客户详情',
     ],
     'direct' => [
-        'detail' => ['back' => '返回直客管理'],
+        'detail' => ['back' => '返回客户管理'],
         'title' => [
             'list' => '直客管理',
             'form' => '直客档案',
@@ -52,7 +52,7 @@ return [
             ],
         ],
         'form' => [
-            'back_to_list' => '返回直客管理',
+            'back_to_list' => '返回客户管理',
             'create_heading' => '新建直客',
             'edit_heading' => '编辑直客',
             'create_description' => '建档会同时创建首次到店预约并记录操作日志。',

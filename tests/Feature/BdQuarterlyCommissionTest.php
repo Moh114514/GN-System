@@ -241,14 +241,14 @@ final class BdQuarterlyCommissionTest extends TestCase
         $this->actingAs($this->admin)
             ->get(route('bd-commissions.index'))
             ->assertOk()
-            ->assertSee('BD季度提成')
+            ->assertSee('BD绩效与提成')
             ->assertSee(route('dashboard'), false)
             ->assertSee('wire:navigate', false);
 
         $this->actingAs($this->firstBd)
             ->get(route('bd-commissions.index'))
             ->assertOk()
-            ->assertSee('BD季度提成');
+            ->assertSee('BD绩效与提成');
     }
 
     public function test_bd_can_download_own_formal_documents_but_not_another_bd_document(): void

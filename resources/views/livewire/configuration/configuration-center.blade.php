@@ -7,7 +7,7 @@
     </section>
 
     <div class="space-y-8">
-        <section data-test="configuration-section-employees">
+        <section id="configuration-employees" class="scroll-mt-20" data-test="configuration-section-employees">
             <h3 class="mb-3 text-lg font-semibold">{{ __('config.center.groups.employees') }}</h3>
             <div class="grid gap-5 lg:grid-cols-2">
                 <a href="{{ route('configuration.users-and-notifications') }}" class="group rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:border-teal-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-teal-700" wire:navigate data-test="configuration-card-users">
@@ -19,7 +19,7 @@
             </div>
         </section>
 
-        <section data-test="configuration-section-institutions">
+        <section id="configuration-institutions" class="scroll-mt-20" data-test="configuration-section-institutions">
             <h3 class="mb-3 text-lg font-semibold">{{ __('config.center.groups.institutions') }}</h3>
             <div class="grid gap-5 lg:grid-cols-2">
                 <a href="{{ route('configuration.catalog') }}" class="group rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:border-teal-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-teal-700" wire:navigate data-test="configuration-card-catalog">
@@ -31,7 +31,7 @@
             </div>
         </section>
 
-        <section data-test="configuration-section-commissions">
+        <section id="configuration-commissions" class="scroll-mt-20" data-test="configuration-section-commissions">
             <h3 class="mb-3 text-lg font-semibold">{{ __('config.center.groups.commissions') }}</h3>
             <div class="grid gap-5 lg:grid-cols-2">
                 <a href="{{ route('configuration.direct-customer') }}" class="group rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:border-teal-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-teal-700" wire:navigate>
@@ -55,7 +55,7 @@
             </div>
         </section>
 
-        <section data-test="configuration-section-basics">
+        <section id="configuration-basics" class="scroll-mt-20" data-test="configuration-section-basics">
             <h3 class="mb-3 text-lg font-semibold">{{ __('config.center.groups.basics') }}</h3>
             <div class="grid gap-5 lg:grid-cols-2">
                 <a href="{{ route('customer-statuses.index') }}" class="group rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm transition hover:border-teal-300 hover:shadow-md dark:border-zinc-700 dark:bg-zinc-900 dark:hover:border-teal-700" wire:navigate>

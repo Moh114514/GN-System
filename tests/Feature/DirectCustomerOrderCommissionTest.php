@@ -129,7 +129,7 @@ class DirectCustomerOrderCommissionTest extends TestCase
                 'dateFrom' => '2026-09-01',
                 'dateTo' => '2026-09-30',
             ])).'"', false)
-            ->assertSee('返回直客管理')
+            ->assertSee('返回客户管理')
             ->assertSee('href="'.route('direct-customers.index').'"', false);
 
         $this->actingAs($this->manager)->get(route('direct-team-overview.index', ['month' => '2026-09']))

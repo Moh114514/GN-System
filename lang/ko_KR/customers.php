@@ -7,7 +7,7 @@ return [
         'detail' => '고객 상세',
     ],
     'direct' => [
-        'detail' => ['back' => '직접 고객 관리로 돌아가기'],
+        'detail' => ['back' => '고객 관리로 돌아가기'],
         'title' => [
             'list' => '직접 고객 관리',
             'form' => '직접 고객 프로필',
@@ -52,7 +52,7 @@ return [
             ],
         ],
         'form' => [
-            'back_to_list' => '직접 고객 관리로 돌아가기',
+            'back_to_list' => '고객 관리로 돌아가기',
             'create_heading' => '직접 고객 추가',
             'edit_heading' => '직접 고객 편집',
             'create_description' => '프로필을 만들면 첫 방문 예약과 작업 기록도 함께 생성됩니다.',

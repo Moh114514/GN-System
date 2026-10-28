@@ -2,7 +2,7 @@
 
 return [
     'bd_commission' => [
-        'title' => 'BD 분기 인센티브', 'back' => '대시보드로 돌아가기', 'eyebrow' => '리포트 · BD 인센티브',
+        'title' => 'BD 실적 및 인센티브', 'back' => '대시보드로 돌아가기', 'eyebrow' => '오프라인 채널 · BD 실적 및 인센티브',
         'description' => '주문 발생일과 불변 업무 귀속 스냅샷으로 분기 인센티브를 집계합니다. 현재 기본값은 주문 금액 KRW와 버전별 기준점 요율입니다.',
         'quarter' => '분기 시작일', 'preview' => '분기 미리보기', 'generate' => '정식 생성', 'preview_title' => '분기 미리보기',
         'item_count' => '주문 수', 'basis' => '산정 기준액', 'adjustment' => '수동 조정', 'total' => '인센티브 합계',
@@ -169,7 +169,7 @@ return [
     'quote_failures' => ['unavailable' => '현재 환율 시세를 가져올 수 없습니다. 잠시 후 다시 시도하거나 직접 입력하세요.'],
     'adjustments' => ['negative_balance_carry' => '이전 기간 마이너스 잔액 이월'],
     'direct_commission' => [
-        'title' => '온라인 CS 실적 및 인센티브', 'back' => '직접 고객 관리로 돌아가기',
+        'title' => '온라인 CS 실적 및 인센티브', 'back' => '고객 관리로 돌아가기',
         'description' => '월별 및 담당자별 실제 매출과 확정된 주문별 수수료를 확인합니다.',
         'month' => '통계 월', 'owner' => '담당자', 'all_owners' => '모든 담당자', 'orders' => '유효 주문 수',
         'summary' => '이번 달 수수료 요약', 'monthly_performance' => '담당자 월간 실적', 'details' => '주문 수수료 상세',

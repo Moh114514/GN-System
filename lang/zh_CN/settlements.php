@@ -2,7 +2,7 @@
 
 return [
     'bd_commission' => [
-        'title' => 'BD季度提成', 'back' => '返回Dashboard', 'eyebrow' => '报表 · BD激励',
+        'title' => 'BD绩效与提成', 'back' => '返回Dashboard', 'eyebrow' => '线下渠道 · BD绩效与提成',
         'description' => '按订单发生日期和不可变业务归属快照汇总季度提成。当前版本默认以订单金额 KRW 为基数，按版本化基点费率计算。',
         'quarter' => '季度起始日', 'preview' => '季度预览', 'generate' => '正式生成', 'preview_title' => '季度预览',
         'item_count' => '订单数', 'basis' => '提成基数', 'adjustment' => '人工调整', 'total' => '提成合计',
@@ -387,7 +387,7 @@ return [
     'quote_failures' => ['unavailable' => '暂时无法获取汇率报价，请稍后重试或手动填写。'],
     'adjustments' => ['negative_balance_carry' => '上期负余额结转'],
     'direct_commission' => [
-        'title' => '客服绩效与提成', 'back' => '返回直客管理',
+        'title' => '客服绩效与提成', 'back' => '返回客户管理',
         'description' => '按月份和负责人查看直客实际成交额与已固化的逐单提成。',
         'month' => '统计月份', 'owner' => '负责人', 'all_owners' => '全部负责人', 'orders' => '有效订单数',
         'summary' => '本月提成汇总', 'monthly_performance' => '负责人月度业绩', 'details' => '订单提成明细',
