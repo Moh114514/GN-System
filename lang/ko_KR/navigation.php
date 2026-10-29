@@ -42,6 +42,7 @@ return [
     'open_nav' => '탐색 열기',
     'close_nav' => '탐색 닫기',
     'toggle_configuration' => '설정 센터 펼치기 또는 접기',
+    'toggle_auxiliary' => '보조 기능 펼치기 또는 접기',
     'toggle_team' => '팀 관리 펼치기 또는 접기',
     'toggle_customers' => '고객 관리 펼치기 또는 접기',
     'toggle_online_direct' => '온라인 직접 고객 펼치기 또는 접기',

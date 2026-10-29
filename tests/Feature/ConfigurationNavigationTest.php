@@ -376,9 +376,12 @@ class ConfigurationNavigationTest extends TestCase
         foreach ([
             ['url' => route('reminders.index'), 'testId' => 'auxiliary-reminders'],
             ['url' => route('reports.search'), 'testId' => 'auxiliary-reports'],
+            ['url' => route('settlements.index'), 'testId' => 'auxiliary-settlements'],
         ] as $page) {
             $content = $this->actingAs($admin)->get($page['url'])->assertOk()->getContent();
-            $this->assertStringContainsString('class="crm-nav-item is-active" data-test="'.$page['testId'].'"', $content);
+            $this->assertStringContainsString('class="crm-subnav-item is-active" data-test="'.$page['testId'].'"', $content);
+            $this->assertMatchesRegularExpression('/<button[^>]*class="crm-nav-group-head is-active"[^>]*aria-expanded="true"[^>]*data-test="auxiliary-nav-toggle"/', $content);
+            $this->assertMatchesRegularExpression('/<div[^>]*id="auxiliary-subnav"[^>]*class="crm-subnav-collapse is-open"[^>]*aria-hidden="false"/', $content);
 
             foreach (['online-direct', 'offline-channel'] as $group) {
                 preg_match('/<button[^>]*data-test="'.$group.'-nav-toggle"[^>]*>/', $content, $toggle);
@@ -386,6 +389,10 @@ class ConfigurationNavigationTest extends TestCase
                 $this->assertStringNotContainsString('is-active', $toggle[0]);
             }
         }
+
+        $dashboardContent = $this->actingAs($admin)->get(route('dashboard'))->assertOk()->getContent();
+        $this->assertMatchesRegularExpression('/<button[^>]*aria-expanded="false"[^>]*aria-controls="auxiliary-subnav"[^>]*data-test="auxiliary-nav-toggle"/', $dashboardContent);
+        $this->assertMatchesRegularExpression('/<div[^>]*id="auxiliary-subnav"[^>]*aria-hidden="true"[^>]* inert[^>]*data-test="auxiliary-subnav"/', $dashboardContent);
     }
 
     public function test_time_travel_page_is_admin_only_and_returns_to_configuration_center(): void

@@ -61,7 +61,7 @@
                 @endif
 
                 @php
-                    $offlineChannelNavigationActive = request()->routeIs('customers.*', 'team-overview.*', 'bd-commissions.*', 'agents.*', 'settlements.*')
+                    $offlineChannelNavigationActive = request()->routeIs('customers.*', 'team-overview.*', 'bd-commissions.*', 'agents.*')
                         || (request()->routeIs('orders.*') && request()->query('sourceTypeFilter') === 'agent');
                 @endphp
                 @if ($canAccessOfflineChannels)
@@ -222,15 +222,25 @@
                 @endif
 
                 @if ($canAccessOnlineDirect || $canAccessOfflineChannels || $isSuperAdmin)
-                    <div class="crm-nav-auxiliary" aria-label="{{ __('navigation.auxiliary') }}" data-test="auxiliary-nav-group">
-                        <p class="crm-nav-auxiliary-label">{{ __('navigation.auxiliary') }}</p>
-                        @if ($canAccessOnlineDirect || $canAccessOfflineChannels)
-                            <a href="{{ route('reminders.index') }}" class="crm-nav-item {{ request()->routeIs('reminders.*') ? 'is-active' : '' }}" data-test="auxiliary-reminders" wire:navigate>{{ __('navigation.reminders') }}</a>
-                            <a href="{{ route('reports.search') }}" class="crm-nav-item {{ request()->routeIs('reports.search', 'reports.exports.*') ? 'is-active' : '' }}" data-test="auxiliary-reports" wire:navigate>{{ __('navigation.reports') }}</a>
-                        @endif
-                        @if ($isSuperAdmin)
-                            <a href="{{ route('settlements.index') }}" class="crm-nav-item {{ request()->routeIs('settlements.*') ? 'is-active' : '' }}" data-test="auxiliary-settlements" wire:navigate>{{ __('navigation.settlements') }}</a>
-                        @endif
+                    @php
+                        $auxiliaryNavigationActive = request()->routeIs('reminders.*', 'reports.search', 'reports.exports.*', 'settlements.*');
+                    @endphp
+                    <div class="crm-nav-group" x-data="{ open: @js($auxiliaryNavigationActive) }" data-test="auxiliary-nav-group">
+                        <button type="button" class="crm-nav-group-head {{ $auxiliaryNavigationActive ? 'is-active' : '' }}" @click="open = !open" aria-expanded="{{ $auxiliaryNavigationActive ? 'true' : 'false' }}" :aria-expanded="open" aria-controls="auxiliary-subnav" aria-label="{{ __('navigation.toggle_auxiliary') }}" data-test="auxiliary-nav-toggle">
+                            <span class="crm-nav-group-link"><flux:icon.squares-2x2 aria-hidden="true" /><span>{{ __('navigation.auxiliary') }}</span></span>
+                            <span class="crm-nav-group-toggle"><flux:icon.chevron-down class="crm-nav-chevron" x-bind:class="{ 'is-open': open }" aria-hidden="true" /></span>
+                        </button>
+                        <div id="auxiliary-subnav" class="crm-subnav-collapse {{ $auxiliaryNavigationActive ? 'is-open' : '' }}" aria-hidden="{{ $auxiliaryNavigationActive ? 'false' : 'true' }}" x-bind:class="{ 'is-open': open }" x-bind:aria-hidden="(!open).toString()" @if (! $auxiliaryNavigationActive) inert @endif x-bind:inert="!open" data-test="auxiliary-subnav">
+                            <div class="crm-subnav-collapse-inner"><div class="crm-subnav">
+                                @if ($canAccessOnlineDirect || $canAccessOfflineChannels)
+                                    <a href="{{ route('reminders.index') }}" class="crm-subnav-item {{ request()->routeIs('reminders.*') ? 'is-active' : '' }}" data-test="auxiliary-reminders" wire:navigate>{{ __('navigation.reminders') }}</a>
+                                    <a href="{{ route('reports.search') }}" class="crm-subnav-item {{ request()->routeIs('reports.search', 'reports.exports.*') ? 'is-active' : '' }}" data-test="auxiliary-reports" wire:navigate>{{ __('navigation.reports') }}</a>
+                                @endif
+                                @if ($isSuperAdmin)
+                                    <a href="{{ route('settlements.index') }}" class="crm-subnav-item {{ request()->routeIs('settlements.*') ? 'is-active' : '' }}" data-test="auxiliary-settlements" wire:navigate>{{ __('navigation.settlements') }}</a>
+                                @endif
+                            </div></div>
+                        </div>
                     </div>
                 @endif
 

@@ -42,6 +42,7 @@ return [
     'open_nav' => '打开导航',
     'close_nav' => '关闭导航',
     'toggle_configuration' => '展开或收起配置中心',
+    'toggle_auxiliary' => '展开或收起辅助入口',
     'toggle_team' => '展开或收起团队管理',
     'toggle_customers' => '展开或收起客户管理',
     'toggle_online_direct' => '展开或收起线上直客',

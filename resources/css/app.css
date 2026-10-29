@@ -240,15 +240,6 @@ select:focus[data-flux-control] {
     padding: 12px;
 }
 
-.crm-nav-auxiliary {
-    display: grid;
-    gap: 2px;
-    margin-top: 8px;
-    border-top: 1px solid var(--crm-line);
-    padding-top: 10px;
-}
-
-.crm-nav-auxiliary-label,
 .crm-subnav-section-label {
     margin: 0;
     padding: 4px 13px;
