@@ -27,11 +27,11 @@ Production 的独立值，不得共用 UAT 数据、凭据、端口或发布历�
 ```bash
 cd /srv/gn-system/repository
 
-grep -E \
+sudo grep -E \
   '^(COMPOSE_PROJECT_NAME|RELEASE_TAG|APP_URL|DB_DATABASE|RELEASE_STATE_PATH)=' \
   .env.uat
 
-stat -c '%a %n' .env.uat
+sudo stat -c '%a %n' .env.uat
 ```
 
 应确认：
@@ -47,18 +47,18 @@ DB_DATABASE=gn_system_uat
 权限不是 `600` 时先修正：
 
 ```bash
-chmod 600 .env.uat
+sudo chmod 600 .env.uat
 ```
 
 验证 Compose 配置和当前服务：
 
 ```bash
-docker compose \
+sudo docker compose \
   --env-file .env.uat \
   -f compose.production.yaml \
   config --quiet
 
-docker compose \
+sudo docker compose \
   --env-file .env.uat \
   -f compose.production.yaml \
   ps
@@ -98,10 +98,13 @@ pkg-containers.githubusercontent.com
 ## 4. 方案 B：办公电脑下载并传输镜像
 
 办公电脑需要 Docker Desktop，并切换到 Linux Containers。以目标版本
-`v0.5.0-rc.11` 为例，在 PowerShell 执行：
+`v0.8.0-rc.1` 为例，在 PowerShell 执行。导出镜像的目录也必须有足够空间；Docker 数据迁到 D 盘后，
+把 tar 导出到 C 盘仍会占用 C 盘空间。下面直接在 D 盘暂存：
 
 ```powershell
-$Tag = "v0.5.0-rc.11"
+$Tag = "v0.8.0-rc.1"
+$ArchivePath = "D:\GN-System-Deployment\gn-system-$Tag.tar"
+New-Item -ItemType Directory -Path (Split-Path $ArchivePath) -Force | Out-Null
 
 docker pull --platform linux/amd64 `
   "ghcr.io/moh114514/gn-system-app:$Tag"
@@ -110,14 +113,21 @@ docker pull --platform linux/amd64 `
   "ghcr.io/moh114514/gn-system-web:$Tag"
 
 docker images | findstr gn-system
+
+docker image inspect `
+  "ghcr.io/moh114514/gn-system-app:$Tag" `
+  "ghcr.io/moh114514/gn-system-web:$Tag" `
+  --format '{{.Id}} {{.Os}}/{{.Architecture}} {{json .RepoDigests}}'
 ```
+
+将两个 `RepoDigests` 与 RC 工作流的制品摘要核对，并分别保存本机 app/web 的镜像 ID，供服务器导入后对比。
 
 `linux/amd64` 必须与 Ubuntu 服务器架构一致。确认 app 和 web 都是目标版本后，将两个
 镜像导出到一个 tar 文件：
 
 ```powershell
 docker save `
-  -o ".\docker-images\gn-system-$Tag.tar" `
+  -o $ArchivePath `
   "ghcr.io/moh114514/gn-system-app:$Tag" `
   "ghcr.io/moh114514/gn-system-web:$Tag"
 ```
@@ -125,20 +135,25 @@ docker save `
 通过局域网传输到服务器临时目录：
 
 ```powershell
-scp ".\docker-images\gn-system-$Tag.tar" `
+Get-FileHash -LiteralPath $ArchivePath -Algorithm SHA256
+
+scp $ArchivePath `
   admin1@192.168.0.141:/tmp/
 ```
 
-镜像 tar 文件只用于传输，不得提交到 Git。仓库根目录的 `docker-images/` 已被
-`.gitignore` 忽略，办公电脑可以把导出的镜像文件集中放在那里。
+镜像 tar 文件只用于传输，不得提交到 Git。也可使用仓库根目录已被 `.gitignore` 忽略的
+`docker-images/`，前提是仓库所在盘有足够空间。传输完成后在服务器运行 `sha256sum`，确认与本机一致再导入。
 
 ## 5. 服务器导入并核对镜像
 
 ```bash
 ssh admin1@192.168.0.141
 
+EXPECTED_ARCHIVE_SHA256='替换为本机 Get-FileHash 输出的 64 位 SHA256'
+printf '%s  %s\n' "$EXPECTED_ARCHIVE_SHA256" /tmp/gn-system-v0.8.0-rc.1.tar |
+  sha256sum -c - &&
 sudo docker load \
-  -i /tmp/gn-system-v0.5.0-rc.11.tar
+  -i /tmp/gn-system-v0.8.0-rc.1.tar
 
 sudo docker images | grep gn-system
 ```
@@ -147,18 +162,28 @@ sudo docker images | grep gn-system
 
 ```bash
 sudo docker image inspect \
-  ghcr.io/moh114514/gn-system-app:v0.5.0-rc.11 \
-  --format '{{.Os}}/{{.Architecture}}'
+  ghcr.io/moh114514/gn-system-app:v0.8.0-rc.1 \
+  --format '{{.Id}} {{.Os}}/{{.Architecture}}'
 
 sudo docker image inspect \
-  ghcr.io/moh114514/gn-system-web:v0.5.0-rc.11 \
-  --format '{{.Os}}/{{.Architecture}}'
+  ghcr.io/moh114514/gn-system-web:v0.8.0-rc.1 \
+  --format '{{.Id}} {{.Os}}/{{.Architecture}}'
 ```
 
-两者都应显示：
+两者的架构都应为 `linux/amd64`，镜像 ID 必须分别与本机记录一致。替换下面两个值后执行校验；
+校验失败时停止，不要继续维护或迁移：
 
-```text
-linux/amd64
+```bash
+(
+set -euo pipefail
+EXPECTED_APP_ID='替换为本机 app 镜像 ID，含 sha256: 前缀'
+EXPECTED_WEB_ID='替换为本机 web 镜像 ID，含 sha256: 前缀'
+test "$(sudo docker image inspect ghcr.io/moh114514/gn-system-app:v0.8.0-rc.1 --format '{{.Id}}')" = "$EXPECTED_APP_ID"
+test "$(sudo docker image inspect ghcr.io/moh114514/gn-system-web:v0.8.0-rc.1 --format '{{.Id}}')" = "$EXPECTED_WEB_ID"
+test "$(sudo docker image inspect ghcr.io/moh114514/gn-system-app:v0.8.0-rc.1 --format '{{.Os}}/{{.Architecture}}')" = linux/amd64
+test "$(sudo docker image inspect ghcr.io/moh114514/gn-system-web:v0.8.0-rc.1 --format '{{.Os}}/{{.Architecture}}')" = linux/amd64
+printf 'Offline image verification passed.\n'
+)
 ```
 
 ## 6. 离线部署
@@ -172,6 +197,8 @@ linux/amd64
 先备份、进入维护模式并停止对外服务和后台任务：
 
 ```bash
+(
+set -euo pipefail
 cd /srv/gn-system/repository
 
 sudo docker compose \
@@ -190,6 +217,7 @@ sudo docker compose \
   --env-file .env.uat \
   -f compose.production.yaml \
   stop web queue scheduler
+)
 ```
 
 ### 6.2 标准脚本已经在 pull 阶段失败
@@ -198,10 +226,24 @@ sudo docker compose \
 GHCR 网络错误，说明备份和维护步骤已经完成，数据库迁移尚未执行。导入目标镜像后，
 不要再次备份或重复进入维护模式，直接继续下一节。
 
+本节只适用于应用仍在维护模式、后台任务仍停止的情况。如果已经按第 9 节恢复旧服务，先完成镜像导入和核对，
+再按第 6.1 节重新生成备份并进入维护模式。2026-10-30 的实际部署采用了这种恢复后重新备份的流程，记录见完整运维手册。
+
 ### 6.3 迁移、启动和健康检查
 
+确认环境文件中的版本为本次已经导入并核对的候选。以下示例在备份及停服务完成后更新版本，保留 `0600`，
+并重新验证 Compose 配置。子 shell 在任一命令失败时停止；先诊断失败，不要继续下一节：
+
 ```bash
+(
+set -euo pipefail
 cd /srv/gn-system/repository
+
+test "$(sudo grep -c '^RELEASE_TAG=' .env.uat)" = 1
+sudo sed -i 's/^RELEASE_TAG=.*/RELEASE_TAG=v0.8.0-rc.1/' .env.uat
+sudo chmod 600 .env.uat
+sudo stat -c '%a %n' .env.uat
+sudo docker compose --env-file .env.uat -f compose.production.yaml config --quiet
 
 sudo docker compose \
   --env-file .env.uat \
@@ -225,6 +267,7 @@ sudo docker compose \
   -f compose.production.yaml \
   exec -T app \
   php artisan up --no-interaction
+)
 ```
 
 ## 7. 部署后验收
@@ -278,11 +321,14 @@ sudo docker compose \
 
 只有健康检查和业务验收全部通过后，才更新 `current` 和 `history.tsv`：
 
+业务验收待完成时保留原发布标记，并在完整运维手册及小白指南明确记录当前运行候选和待验项目。
+此阶段 `RELEASE_TAG`/运行镜像与 `current` 可能不同，不能把标记当作运行镜像版本；传输包也保留到验收完成。
+
 ```bash
 cd /srv/gn-system/repository
 
-TAG=$(sed -n 's/^RELEASE_TAG=//p' .env.uat | tail -n 1)
-RELEASE_DIR=$(sed -n 's/^RELEASE_STATE_PATH=//p' .env.uat | tail -n 1)
+TAG=$(sudo sed -n 's/^RELEASE_TAG=//p' .env.uat | tail -n 1)
+RELEASE_DIR=$(sudo sed -n 's/^RELEASE_STATE_PATH=//p' .env.uat | tail -n 1)
 PREVIOUS=$(sudo cat "$RELEASE_DIR/current" 2>/dev/null || echo none)
 
 printf '%s\n' "$TAG" |
@@ -301,7 +347,7 @@ sudo tail -5 "$RELEASE_DIR/history.tsv"
 确认记录成功后删除服务器上的传输文件：
 
 ```bash
-sudo rm -f /tmp/gn-system-v0.5.0-rc.11.tar
+sudo rm -f /tmp/gn-system-v0.8.0-rc.1.tar
 ```
 
 不要立即删除旧版本 Docker 镜像，至少保留当前版本和上一版本以便快速回退。
