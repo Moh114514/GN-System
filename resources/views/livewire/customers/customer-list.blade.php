@@ -8,7 +8,7 @@
             @if (auth()->user()->is_super_admin)
                 <flux:button :href="route('customer-statuses.index')" variant="ghost" size="sm" wire:navigate>{{ __('customers.list.status_configuration') }}</flux:button>
             @endif
-            @unless (auth()->user()->isDirectCustomerManager())
+            @unless (auth()->user()->isDirectCustomerManager() || auth()->user()->isOperationsDirector())
                 <flux:button :href="route('customers.create')" variant="primary" size="sm" icon="plus" wire:navigate>{{ __('customers.list.create') }}</flux:button>
             @endunless
         </div>
@@ -20,9 +20,10 @@
         @php
             $selectedStatus = collect($options['statuses'])->firstWhere('id', (int) $statusId);
             $selectedAgent = collect($options['agents'])->firstWhere('id', (int) $agentId);
+            $selectedBdManager = collect($options['bd_managers'] ?? [])->firstWhere('id', (int) $bdManagerId);
             $selectedInstitution = collect($options['institutions'])->firstWhere('id', (int) $institutionId);
             $selectedOwner = collect($ownerCandidates)->firstWhere('id', (int) $ownerId);
-            $hasFilters = $search !== '' || $statusId !== '' || $agentId !== '' || $institutionId !== '' || $ownerId !== '' || $ownerState !== '' || $transferStatus !== '' || $createdFrom !== '' || $createdTo !== '' || $perPage !== 20;
+            $hasFilters = $search !== '' || $statusId !== '' || $agentId !== '' || $bdManagerId !== '' || $institutionId !== '' || $ownerId !== '' || $ownerState !== '' || $transferStatus !== '' || $createdFrom !== '' || $createdTo !== '' || $perPage !== 20;
         @endphp
 
         <div class="space-y-4">
@@ -76,6 +77,18 @@
                     <flux:menu.item wire:click="$set('agentId', '')">{{ __('customers.list.all_agents') }}</flux:menu.item>
                     @foreach ($options['agents'] as $agent)
                         <flux:menu.item wire:click="$set('agentId', '{{ $agent['id'] }}')">{{ $agent['name'] }}</flux:menu.item>
+                    @endforeach
+                </flux:menu>
+            </flux:dropdown>
+
+            <flux:dropdown>
+                <flux:button class="w-36 rounded-full bg-zinc-100 dark:bg-zinc-800" variant="ghost" size="sm" icon:trailing="chevron-down">
+                    {{ $selectedBdManager['name'] ?? __('customers.list.all_bd_managers') }}
+                </flux:button>
+                <flux:menu class="max-h-72 overflow-y-auto">
+                    <flux:menu.item wire:click="$set('bdManagerId', '')">{{ __('customers.list.all_bd_managers') }}</flux:menu.item>
+                    @foreach ($options['bd_managers'] ?? [] as $bdManager)
+                        <flux:menu.item wire:click="$set('bdManagerId', '{{ $bdManager['id'] }}')">{{ $bdManager['name'] }}</flux:menu.item>
                     @endforeach
                 </flux:menu>
             </flux:dropdown>
@@ -185,6 +198,7 @@
                         <th>{{ __('customers.list.columns.contact') }}</th>
                         <th>{{ __('customers.list.columns.document') }}</th>
                         <th>{{ __('customers.list.columns.source') }}</th>
+                        <th>{{ __('customers.list.columns.bd_manager') }}</th>
                         <th>{{ __('customers.list.columns.owner') }}</th>
                         <th>{{ __('customers.list.columns.status') }}</th>
                         <th>{{ __('customers.list.columns.created_at') }}</th>
@@ -205,12 +219,13 @@
                             <td>{{ $customer['contact_masked'] }}</td>
                             <td>{{ $customer['document_masked'] }}</td>
                             <td class="font-semibold">{{ $customer['source'] }}</td>
+                            <td>{{ $customer['bd_manager'] ?: __('customers.fallback.unset') }}</td>
                             <td>{{ $customer['owner'] ?: __('customers.fallback.unset') }}</td>
                             <td><span class="crm-pill tone-blue">{{ $customer['status'] }}</span></td>
                             <td>{{ $customer['created_at'] }}</td>
                         </tr>
                     @empty
-                        <tr><td colspan="{{ auth()->user()->is_super_admin || auth()->user()->isBdManager() ? 8 : 7 }}" class="py-10 text-center text-zinc-500">{{ __('customers.list.empty') }}</td></tr>
+                        <tr><td colspan="{{ auth()->user()->is_super_admin || auth()->user()->isBdManager() ? 9 : 8 }}" class="py-10 text-center text-zinc-500">{{ __('customers.list.empty') }}</td></tr>
                     @endforelse
                 </tbody>
             </table>

@@ -796,7 +796,8 @@ class PhaseFiveReminderTest extends TestCase
 
         $component->assertSet('activeReminderId', null)
             ->assertSet('actionMode', '')
-            ->assertSee('href="'.route('customers.show', $this->customer->id).'"', false)
+            ->assertSee('href="'.route('customers.show', ['customer' => $this->customer->id, 'reminder' => $first->id]).'"', false)
+            ->assertSee('href="'.route('customers.show', ['customer' => $this->customer->id, 'reminder' => $second->id]).'"', false)
             ->assertDontSee(__('reminders.center.complete_notes'))
             ->assertDontSee(__('reminders.center.snooze_until'))
             ->assertDontSee(__('reminders.center.snooze_reason'))

@@ -56,6 +56,14 @@
                             @endforeach
                         </flux:select>
                     @endif
+                    @if (count($monthOptions) > 0)
+                        <flux:select wire:model.live="selectedMonth" aria-label="{{ __('settlements.bd_commission.month_filter') }}">
+                            <flux:select.option value="">{{ __('settlements.bd_commission.all_months') }}</flux:select.option>
+                            @foreach ($monthOptions as $monthOption)
+                                <flux:select.option value="{{ $monthOption }}">{{ $monthOption }}</flux:select.option>
+                            @endforeach
+                        </flux:select>
+                    @endif
                     @if ($detail['period']->items->isNotEmpty() || $detail['period']->adjustments->isNotEmpty())
                         @php
                             $exportBdId = auth()->user()->is_super_admin
@@ -76,8 +84,26 @@
                     <flux:button size="sm" variant="ghost" wire:click="$set('selectedPeriodId', null)">{{ __('settlements.bd_commission.collapse') }}</flux:button>
                 </div>
             </div>
+            <div class="mt-6 rounded-xl border border-teal-100 bg-teal-50/60 p-4 dark:border-teal-900 dark:bg-teal-950/20">
+                <div class="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                        <h3 class="font-semibold">{{ __('settlements.bd_commission.monthly_performance') }}</h3>
+                        <p class="mt-1 text-xs text-zinc-600 dark:text-zinc-300">{{ __('settlements.bd_commission.monthly_snapshot_note') }}</p>
+                    </div>
+                    @if ($detail['period']->total_adjustment_krw !== 0)
+                        <span class="text-sm text-zinc-600">{{ __('settlements.bd_commission.quarter_adjustments') }}：₩ {{ number_format($detail['period']->total_adjustment_krw) }}</span>
+                    @endif
+                </div>
+                <div class="mt-3 overflow-x-auto"><table class="min-w-full text-left text-sm"><thead><tr class="border-b text-zinc-500"><th class="p-2">{{ __('settlements.bd_commission.month_filter') }}</th><th class="p-2">{{ __('settlements.bd_commission.bd') }}</th><th class="p-2">{{ __('settlements.bd_commission.item_count') }}</th><th class="p-2">{{ __('settlements.bd_commission.basis') }}</th><th class="p-2">{{ __('settlements.bd_commission.commission') }}</th></tr></thead><tbody>
+                    @forelse ($monthlyPerformance as $monthRow)
+                        <tr class="border-b"><td class="p-2">{{ $monthRow['month'] }}</td><td class="p-2">{{ $monthRow['bd_name'] }}</td><td class="p-2">{{ number_format($monthRow['orders']) }}</td><td class="p-2">₩ {{ number_format($monthRow['basis_krw']) }}</td><td class="p-2">₩ {{ number_format($monthRow['commission_krw']) }}</td></tr>
+                    @empty
+                        <tr><td colspan="5" class="p-4 text-center text-zinc-500">{{ __('settlements.bd_commission.empty_items') }}</td></tr>
+                    @endforelse
+                </tbody></table></div>
+            </div>
             <div class="mt-4 overflow-x-auto"><table class="min-w-full text-left text-sm"><thead><tr class="border-b text-zinc-500"><th class="p-2">{{ __('settlements.bd_commission.order') }}</th><th class="p-2">{{ __('settlements.bd_commission.bd') }}</th><th class="p-2">{{ __('settlements.bd_commission.occurred_on') }}</th><th class="p-2">{{ __('settlements.bd_commission.basis') }}</th><th class="p-2">{{ __('settlements.bd_commission.rate') }}</th><th class="p-2">{{ __('settlements.bd_commission.commission') }}</th></tr></thead><tbody>
-                @forelse ($detail['items'] as $item)<tr class="border-b"><td class="p-2">#{{ $item['order_id'] }}</td><td class="p-2">{{ $item['bd_name'] }}</td><td class="p-2">{{ $item['occurred_on'] }}</td><td class="p-2">₩ {{ number_format($item['basis_krw']) }}</td><td class="p-2">{{ number_format($item['rate_bps'] / 100, 2) }}%</td><td class="p-2">₩ {{ number_format($item['commission_krw']) }}</td></tr>@empty<tr><td colspan="6" class="p-4 text-center text-zinc-500">{{ __('settlements.bd_commission.empty_items') }}</td></tr>@endforelse
+                @forelse ($visibleItems as $item)<tr class="border-b"><td class="p-2">#{{ $item['order_id'] }}</td><td class="p-2">{{ $item['bd_name'] }}</td><td class="p-2">{{ $item['occurred_on'] }}</td><td class="p-2">₩ {{ number_format($item['basis_krw']) }}</td><td class="p-2">{{ number_format($item['rate_bps'] / 100, 2) }}%</td><td class="p-2">₩ {{ number_format($item['commission_krw']) }}</td></tr>@empty<tr><td colspan="6" class="p-4 text-center text-zinc-500">{{ __('settlements.bd_commission.empty_items') }}</td></tr>@endforelse
             </tbody></table></div>
             @if (auth()->user()->is_super_admin && $detail['period']->status !== 'confirmed')
                 <div class="mt-5 grid gap-3 md:grid-cols-4"><flux:select wire:model="adjustmentBdUserId" label="{{ __('settlements.bd_commission.bd') }}"><option value="">{{ __('settlements.bd_commission.allocation') }}</option>@foreach ($users as $user)<option value="{{ $user['id'] }}">{{ $user['name'] }}</option>@endforeach</flux:select><flux:input type="number" wire:model="adjustmentAmountKrw" label="{{ __('settlements.bd_commission.adjustment_amount') }}" /><flux:input wire:model="adjustmentReason" label="{{ __('settlements.bd_commission.reason') }}" /><div class="flex items-end"><flux:button wire:click="addAdjustment" variant="primary" class="w-auto">{{ __('settlements.bd_commission.add_adjustment') }}</flux:button></div></div>

@@ -41,7 +41,8 @@ class OrderManagementTest extends TestCase
             ->assertSee('机构表单回传')
             ->assertDontSee('新建订单')
             ->assertDontSee('标记完成')
-            ->assertSee('href="'.route('orders.index').'"', false)
+            ->assertSee('href="'.route('orders.index', ['sourceTypeFilter' => 'agent']).'"', false)
+            ->assertSee('href="'.route('orders.index', ['sourceTypeFilter' => 'direct']).'"', false)
             ->assertDontSee('功能将在后续阶段开放');
     }
 
@@ -65,6 +66,11 @@ class OrderManagementTest extends TestCase
 
         Livewire::actingAs($user)->test(OrderCenter::class)
             ->assertSee($projectName)
+            ->assertSee('TEST-JG-0001')
+            ->assertSee('测试订单客户')
+            ->assertSee($institution->name)
+            ->assertSee(__('orders.fields.project_name'))
+            ->assertSee(__('orders.fields.transaction_amount'))
             ->assertSee('grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5', false)
             ->assertSee('line-clamp-2', false)
             ->assertSee('min-h-[230px]', false)
@@ -129,6 +135,68 @@ class OrderManagementTest extends TestCase
             ->set('dateTo', '2026-09-02')
             ->assertSee('#'.$inside->id)
             ->assertDontSee('#'.$outside->id);
+    }
+
+    public function test_direct_order_owner_filter_drills_down_without_exposing_other_managers_orders(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $ownerA = User::factory()->create(['name' => '线上订单负责人 A', 'role' => UserRole::DirectCustomerManager]);
+        $ownerB = User::factory()->create(['name' => '线上订单负责人 B', 'role' => UserRole::DirectCustomerManager]);
+        $institution = Institution::query()->firstOrFail();
+        $channelId = (int) DB::table('direct_customer_channels')->where('code', 'wechat')->value('id');
+        $customerA = Customer::query()->create([
+            'code' => 'ORDER-DIRECT-A',
+            'name' => '线上订单客户 A',
+            'source_type' => 'direct',
+            'direct_channel_id' => $channelId,
+            'owner_id' => $ownerA->id,
+        ]);
+        $customerB = Customer::query()->create([
+            'code' => 'ORDER-DIRECT-B',
+            'name' => '线上订单客户 B',
+            'source_type' => 'direct',
+            'direct_channel_id' => $channelId,
+            'owner_id' => $ownerB->id,
+        ]);
+        $orderA = Order::query()->create([
+            'customer_id' => $customerA->id,
+            'institution_id' => $institution->id,
+            'source_type' => 'direct',
+            'project_name' => '负责人 A 线上订单',
+            'amount_krw' => 100000,
+            'status' => 'completed',
+            'owner_id' => $ownerA->id,
+            'occurred_on' => '2026-09-10',
+        ]);
+        $orderB = Order::query()->create([
+            'customer_id' => $customerB->id,
+            'institution_id' => $institution->id,
+            'source_type' => 'direct',
+            'project_name' => '负责人 B 线上订单',
+            'amount_krw' => 200000,
+            'status' => 'completed',
+            'owner_id' => $ownerB->id,
+            'occurred_on' => '2026-09-11',
+        ]);
+
+        $filters = [
+            'sourceTypeFilter' => 'direct',
+            'ownerIdFilter' => $ownerA->id,
+            'dateField' => 'occurred_on',
+            'dateFrom' => '2026-09-01',
+            'dateTo' => '2026-09-30',
+        ];
+        $this->actingAs($admin)->get(route('orders.index', $filters))
+            ->assertOk()
+            ->assertSee('线上订单负责人 A')
+            ->assertSee('#'.$orderA->id)
+            ->assertDontSee('#'.$orderB->id);
+
+        $this->actingAs($ownerA)->get(route('orders.index', [...$filters, 'ownerIdFilter' => $ownerB->id]))
+            ->assertOk()
+            ->assertSee('线上订单负责人 A')
+            ->assertDontSee('#'.$orderB->id);
     }
 
     public function test_completed_order_card_shows_business_date_and_completion_time_separately(): void

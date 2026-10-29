@@ -54,9 +54,17 @@
             $visibility = $snapshot['visibility'] ?? [];
             $metricDefinitions = [
                 ['revenue', __('dashboard.metrics.revenue'), true, 'banknotes', 'teal', 'M0,22 Q15,8 30,18 T60,12 T90,20 T110,8'],
+            ];
+            if ($visibility['online_revenue'] ?? false) {
+                $metricDefinitions[] = ['online_revenue', __('dashboard.metrics.online_revenue'), true, 'globe-alt', 'green', 'M0,22 Q15,8 30,18 T60,12 T90,20 T110,8'];
+            }
+            if ($visibility['offline_revenue'] ?? false) {
+                $metricDefinitions[] = ['offline_revenue', __('dashboard.metrics.offline_revenue'), true, 'building-storefront', 'blue', 'M0,22 Q15,8 30,18 T60,12 T90,20 T110,8'];
+            }
+            $metricDefinitions = [...$metricDefinitions,
+                ['completed_orders', __('dashboard.metrics.completed_orders'), false, 'clipboard-document-list', 'blue', 'M0,24 Q15,16 30,20 T60,14 T90,18 T110,10'],
                 ['new_customers', __('dashboard.metrics.new_customers'), false, 'users', 'teal', 'M0,20 Q15,14 30,16 T60,10 T90,14 T110,6'],
                 ['completed_customers', __('dashboard.metrics.customer_count'), false, 'users', 'teal', 'M0,20 Q15,14 30,16 T60,10 T90,14 T110,6'],
-                ['completed_orders', __('dashboard.metrics.completed_orders'), false, 'clipboard-document-list', 'blue', 'M0,24 Q15,16 30,20 T60,14 T90,18 T110,10'],
                 ['repurchase_rate', __('dashboard.metrics.repurchase_rate'), false, 'arrow-path', 'purple', 'M0,18 Q15,14 30,12 T60,16 T90,10 T110,6'],
             ];
             if ($visibility['agent_finance'] ?? false) {
@@ -76,6 +84,7 @@
             $institutionRevenueTotal = array_sum(array_column($institutionRevenue, 'value'));
             $institutionRevenueMax = max(1, ...array_column($institutionRevenue ?: [['value' => 0]], 'value'));
             $institutionMonth = (string) ($snapshot['panels']['institution_revenue_month'] ?? '');
+            $customerChannelShare = $snapshot['panels']['customer_channel_share'] ?? null;
             $metricLinks = [
                 'revenue' => route('reports.search', $reportRange),
                 'new_customers' => auth()->user()->isSuperAdmin()
@@ -97,6 +106,7 @@
                                 'value' => -abs($snapshot['panels']['promotion_fee']),
                                 'change' => null,
                             ],
+                            'online_revenue', 'offline_revenue' => $snapshot['metrics'][$key],
                             'repurchase_rate' => [
                                 'value' => data_get($snapshot, 'charts.repurchase_rate.0.value', 0),
                                 'change' => null,
@@ -121,6 +131,12 @@
                                 {{ number_format($metric['value']) }}
                             @endif
                         </strong>
+                        @if ($key === 'new_customers')
+                            <div class="crm-metric-calendar" aria-label="{{ __('dashboard.metrics.calendar_new_customers') }}">
+                                <span>{{ __('dashboard.metrics.month_new_customers') }} <b>{{ number_format($snapshot['panels']['calendar_new_customers']['month'] ?? 0) }}</b></span>
+                                <span>{{ __('dashboard.metrics.quarter_new_customers') }} <b>{{ number_format($snapshot['panels']['calendar_new_customers']['quarter'] ?? 0) }}</b></span>
+                            </div>
+                        @endif
                         <span class="crm-delta {{ $metric['change'] === null ? '' : ($metric['change'] >= 0 ? 'is-positive' : 'is-negative') }}">
                             {{ __('dashboard.metrics.period_change') }}
                             @if ($metric['change'] === null)
@@ -140,6 +156,39 @@
                     @endif
                 @endforeach
             </section>
+
+            @if ($visibility['customer_channel_share'] ?? false)
+                <section class="crm-card crm-customer-share" aria-label="{{ __('dashboard.panels.customer_channel_share') }}">
+                    <header class="crm-card-header">
+                        <h2>{{ __('dashboard.panels.customer_channel_share') }}</h2>
+                        <span class="crm-customer-share-total">
+                            {{ __('dashboard.panels.customer_total') }}
+                            <strong>{{ number_format($customerChannelShare['total']) }}</strong>
+                            {{ __('dashboard.panels.customer_unit') }}
+                        </span>
+                    </header>
+                    @if ($customerChannelShare['total'] === 0)
+                        <div class="crm-panel-empty"><flux:icon name="users" />{{ __('dashboard.panels.no_customer_channel_data') }}</div>
+                    @else
+                        <div class="crm-customer-share-grid">
+                            <div class="crm-customer-share-item">
+                                <span class="crm-customer-share-label"><i class="crm-customer-share-dot is-direct"></i>{{ __('dashboard.panels.direct_customer_channel') }}</span>
+                                <strong>{{ number_format($customerChannelShare['direct_count']) }} {{ __('dashboard.panels.customer_unit') }}</strong>
+                                <b>{{ number_format($customerChannelShare['direct_percentage'], 1) }}%</b>
+                            </div>
+                            <div class="crm-customer-share-item">
+                                <span class="crm-customer-share-label"><i class="crm-customer-share-dot is-agent"></i>{{ __('dashboard.panels.agent_customer_channel') }}</span>
+                                <strong>{{ number_format($customerChannelShare['agent_count']) }} {{ __('dashboard.panels.customer_unit') }}</strong>
+                                <b>{{ number_format($customerChannelShare['agent_percentage'], 1) }}%</b>
+                            </div>
+                        </div>
+                        <div class="crm-customer-share-bar" role="img" aria-label="{{ __('dashboard.panels.customer_channel_share') }}">
+                            <span class="is-direct" style="width: {{ $customerChannelShare['direct_percentage'] }}%"></span>
+                            <span class="is-agent" style="width: {{ $customerChannelShare['agent_percentage'] }}%"></span>
+                        </div>
+                    @endif
+                </section>
+            @endif
 
             <section class="crm-dashboard-grid crm-dashboard-grid-top">
                 <article class="crm-card crm-trend-card">

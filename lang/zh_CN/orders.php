@@ -136,6 +136,8 @@ return [
         'notes' => '备注',
         'status_filter' => '订单状态筛选',
         'source_filter' => '订单来源筛选',
+        'owner_filter' => '直客负责人筛选',
+        'all_owners' => '全部负责人',
         'all_sources' => '全部来源',
         'date_field' => '日期类型',
         'created_date' => '创建日期',

@@ -39,10 +39,8 @@ class ConfigServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        Route::middleware(['web', 'auth', 'verified', 'super-admin', 'super-admin.2fa'])->group(function (): void {
+        Route::middleware(['web', 'auth', 'verified', 'configuration.access', 'super-admin.2fa'])->group(function (): void {
             Route::get('/admin/configuration', ConfigurationCenter::class)->name('configuration.index');
-            Route::get('/admin/configuration/data-maintenance', DataMaintenanceCenter::class)
-                ->name('configuration.data-maintenance');
             Route::get('/admin/configuration/catalog', CatalogConfiguration::class)
                 ->name('configuration.catalog');
             Route::get('/admin/configuration/users-and-notifications', UserAndNotificationSettings::class)
@@ -53,6 +51,11 @@ class ConfigServiceProvider extends ServiceProvider
                 ->name('configuration.notifications');
             Route::get('/admin/configuration/history', ConfigurationHistory::class)
                 ->name('configuration.history');
+        });
+
+        Route::middleware(['web', 'auth', 'verified', 'super-admin', 'super-admin.2fa'])->group(function (): void {
+            Route::get('/admin/configuration/data-maintenance', DataMaintenanceCenter::class)
+                ->name('configuration.data-maintenance');
 
             if (app(BusinessClock::class)->isAvailable()) {
                 Route::get('/admin/configuration/time-travel', TimeTravel::class)

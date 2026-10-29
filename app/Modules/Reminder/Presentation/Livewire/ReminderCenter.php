@@ -25,11 +25,14 @@ class ReminderCenter extends Component
 
     public string $businessGroupId = '';
 
+    public string $customerIdFilter = '';
+
     /** @var array<string, array<string, bool|string>> */
     protected array $queryString = [
         'type' => ['except' => ''],
         'overdue' => ['except' => false],
         'businessGroupId' => ['except' => ''],
+        'customerIdFilter' => ['except' => ''],
     ];
 
     public string $actionNotes = '';
@@ -97,7 +100,7 @@ class ReminderCenter extends Component
     public function render(ReminderWorkspace $workspace): View
     {
         return view('livewire.reminders.reminder-center', [
-            'reminders' => $workspace->paginate(Auth::user(), false, $this->type, $this->overdue, $this->businessGroupId === '' ? null : (int) $this->businessGroupId),
+            'reminders' => $workspace->paginate(Auth::user(), false, $this->type, $this->overdue, $this->businessGroupId === '' ? null : (int) $this->businessGroupId, $this->customerIdFilter === '' ? null : (int) $this->customerIdFilter),
             'users' => $workspace->assigneeCandidates(),
             'stats' => Auth::user()->isSuperAdmin() || Auth::user()->isBdManager()
                 ? $workspace->completionStats(Auth::user())

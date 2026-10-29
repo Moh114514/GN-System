@@ -240,6 +240,20 @@ select:focus[data-flux-control] {
     padding: 12px;
 }
 
+.crm-subnav-section-label {
+    margin: 0;
+    padding: 4px 13px;
+    color: var(--crm-muted);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .04em;
+}
+
+.crm-subnav-section-label {
+    padding-left: 0;
+    padding-top: 8px;
+}
+
 .crm-nav-item {
     position: relative;
     display: flex;
@@ -959,6 +973,21 @@ select:focus[data-flux-control] {
     color: var(--crm-red);
 }
 
+.crm-metric-calendar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 12px;
+    margin-top: 4px;
+    color: var(--crm-muted);
+    font-size: 11px;
+}
+
+.crm-metric-calendar b {
+    color: var(--crm-ink);
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+}
+
 .crm-delta {
     display: inline-flex;
     align-items: center;
@@ -982,6 +1011,92 @@ select:focus[data-flux-control] {
 
 .crm-delta.is-negative b {
     color: var(--crm-red);
+}
+
+.crm-customer-share {
+    margin-bottom: 16px;
+}
+
+.crm-customer-share-total {
+    color: var(--crm-muted);
+    font-size: 12px;
+}
+
+.crm-customer-share-total strong {
+    margin: 0 3px;
+    color: var(--crm-ink);
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+}
+
+.crm-customer-share-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+}
+
+.crm-customer-share-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px 12px;
+    color: var(--crm-muted);
+    font-size: 12px;
+}
+
+.crm-customer-share-label {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 7px;
+}
+
+.crm-customer-share-dot {
+    width: 8px;
+    height: 8px;
+    flex: 0 0 auto;
+    border-radius: 50%;
+}
+
+.crm-customer-share-dot.is-direct,
+.crm-customer-share-bar .is-direct {
+    background: var(--crm-primary);
+}
+
+.crm-customer-share-dot.is-agent,
+.crm-customer-share-bar .is-agent {
+    background: var(--crm-blue);
+}
+
+.crm-customer-share-item strong {
+    grid-column: 1;
+    color: var(--crm-ink);
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 500;
+}
+
+.crm-customer-share-item>b {
+    grid-column: 2;
+    grid-row: 2;
+    color: var(--crm-ink);
+    font-size: 16px;
+    font-variant-numeric: tabular-nums;
+}
+
+.crm-customer-share-bar {
+    display: flex;
+    height: 9px;
+    overflow: hidden;
+    margin-top: 13px;
+    border-radius: 999px;
+    background: var(--crm-line-soft);
+}
+
+.crm-customer-share-bar span {
+    display: block;
+    min-width: 0;
+    transition: width .2s ease;
 }
 
 .crm-spark {

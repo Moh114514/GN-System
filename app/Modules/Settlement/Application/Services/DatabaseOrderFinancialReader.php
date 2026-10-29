@@ -35,7 +35,7 @@ final class DatabaseOrderFinancialReader implements OrderFinancialReader
             $this->customers->customerForOrder($customerId);
         }
         $directCommissionVisible = $directCommission === null
-            || $context->isSuperAdmin()
+            || $context->hasOrganizationWideReadAccess()
             || (int) $directCommission->owner_id === $context->userId;
         $item = DB::table('settlement_items')
             ->join('settlements', 'settlements.id', '=', 'settlement_items.settlement_id')

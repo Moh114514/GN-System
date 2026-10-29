@@ -114,6 +114,12 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
         $activeCustomers = $this->scoped(Customer::query())
             ->where('created_at', '<=', $to)
             ->count();
+        $customerSourceCounts = $this->scoped(Customer::query())
+            ->where('customers.created_at', '<=', $to)
+            ->select('customers.source_type')
+            ->selectRaw('COUNT(customers.id)::int AS value')
+            ->groupBy('customers.source_type')
+            ->pluck('value', 'source_type');
         $sourceDistribution = $this->scoped(Customer::query())
             ->where('customers.source_type', 'agent')
             ->whereBetween('customers.created_at', [$from, $to])
@@ -136,7 +142,25 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
             'new_customers' => $newCustomers,
             'active_customers' => $activeCustomers,
             'total_customers' => $activeCustomers,
+            'customer_source_counts' => [
+                'direct' => (int) ($customerSourceCounts['direct'] ?? 0),
+                'agent' => (int) ($customerSourceCounts['agent'] ?? 0),
+            ],
             'source_distribution' => $sourceDistribution,
+        ];
+    }
+
+    public function calendarNewCustomers(CarbonImmutable $asOf): array
+    {
+        $base = $this->scoped(Customer::query());
+
+        return [
+            'month' => (clone $base)
+                ->whereBetween('customers.created_at', [$asOf->startOfMonth(), $asOf])
+                ->count(),
+            'quarter' => (clone $base)
+                ->whereBetween('customers.created_at', [$asOf->startOfQuarter(), $asOf])
+                ->count(),
         ];
     }
 
@@ -268,6 +292,28 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
     }
 
     /**
+     * @param  list<int>  $agentIds
+     * @return array<int, int> agent ID => total customer pool size
+     */
+    public function agentCustomerPortfolio(array $agentIds): array
+    {
+        $agentIds = array_values(array_unique(array_filter(array_map('intval', $agentIds), static fn (int $id): bool => $id > 0)));
+        if ($agentIds === []) {
+            return [];
+        }
+
+        return $this->scoped(Customer::query())
+            ->where('customers.source_type', 'agent')
+            ->whereIn('customers.source_agent_id', $agentIds)
+            ->selectRaw('customers.source_agent_id::int as agent_id, COUNT(customers.id)::int as customers')
+            ->groupBy('customers.source_agent_id')
+            ->get()
+            ->mapWithKeys(fn (Customer $customer): array => [
+                (int) $customer->getAttribute('agent_id') => (int) $customer->getAttribute('customers'),
+            ])->all();
+    }
+
+    /**
      * @param  Builder<Customer>  $query
      * @return Builder<Customer>
      */
@@ -282,7 +328,7 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
     private function applyScope($query): void
     {
         $context = $this->access->current();
-        if ($context->isSuperAdmin()) {
+        if ($context->hasOrganizationWideReadAccess()) {
             return;
         }
 

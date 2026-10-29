@@ -35,10 +35,14 @@ interface ReportCustomerReader
      *   new_customers: int,
      *   active_customers: int,
      *   total_customers: int,
+     *   customer_source_counts: array{direct: int, agent: int},
      *   source_distribution: array<int, array{source_type: string, source_id: int, key: string, value: int}>
      * }
      */
     public function dashboard(CarbonImmutable $from, CarbonImmutable $to): array;
+
+    /** @return array{month: int, quarter: int} */
+    public function calendarNewCustomers(CarbonImmutable $asOf): array;
 
     /**
      * @return array{
@@ -73,4 +77,10 @@ interface ReportCustomerReader
      * }
      */
     public function teamOverview(array $ownerIds, CarbonImmutable $from, CarbonImmutable $to): array;
+
+    /**
+     * @param  list<int>  $agentIds
+     * @return array<int, int> agent ID => total customer pool size
+     */
+    public function agentCustomerPortfolio(array $agentIds): array;
 }

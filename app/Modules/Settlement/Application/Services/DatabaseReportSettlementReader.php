@@ -34,7 +34,7 @@ final class DatabaseReportSettlementReader implements ReportSettlementReader
         $commissions = $orderIds === []
             ? collect()
             : OrderCommission::query()->whereIn('order_id', $orderIds)->get();
-        if (! $this->access->current()->isSuperAdmin()) {
+        if (! $this->access->current()->hasOrganizationWideReadAccess()) {
             $commissions = $commissions->whereIn('agent_id', $this->access->current()->agentIds)->values();
         }
         $monthly = [];
@@ -53,14 +53,14 @@ final class DatabaseReportSettlementReader implements ReportSettlementReader
                 $query->where('settlement.confirmed_at', '<=', $asOf)
                     ->orWhere('settlement.settled_on', '<=', $asOf->toDateString());
             })
-            ->when(! $this->access->current()->isSuperAdmin(), fn ($query) => $query->whereIn('settlement.agent_id', $this->access->current()->agentIds))
+            ->when(! $this->access->current()->hasOrganizationWideReadAccess(), fn ($query) => $query->whereIn('settlement.agent_id', $this->access->current()->agentIds))
             ->pluck('item.order_commission_id');
 
         return [
             'promotion_fee' => (int) $commissions->sum('amount_krw'),
             'pending_settlement' => (int) OrderCommission::query()
                 ->where('created_at', '<=', $asOf)
-                ->when(! $this->access->current()->isSuperAdmin(), fn ($query) => $query->whereIn('agent_id', $this->access->current()->agentIds))
+                ->when(! $this->access->current()->hasOrganizationWideReadAccess(), fn ($query) => $query->whereIn('agent_id', $this->access->current()->agentIds))
                 ->whereNotIn('id', $settledCommissionIds)
                 ->sum('amount_krw'),
             'agent_ranking' => $commissions->groupBy('agent_id')
@@ -105,7 +105,7 @@ final class DatabaseReportSettlementReader implements ReportSettlementReader
         }
 
         $settlements = Settlement::query()->where('settlement_run_id', $run->id)
-            ->when(! $this->access->current()->isSuperAdmin(), fn ($query) => $query->whereIn('agent_id', $this->access->current()->agentIds))
+            ->when(! $this->access->current()->hasOrganizationWideReadAccess(), fn ($query) => $query->whereIn('agent_id', $this->access->current()->agentIds))
             ->get();
         $settledAmount = (int) $settlements
             ->whereIn('status', ['settled', 'paid'])

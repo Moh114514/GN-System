@@ -52,6 +52,42 @@ final readonly class DatabaseNotificationRecipientGateway implements Notificatio
         $this->queueDingTalk($eventType, $eventKey, $title, $body, $link, $userIds);
     }
 
+    public function unreadForUser(int $userId, int $limit = 8): array
+    {
+        return InternalNotification::query()->where('user_id', $userId)->whereNull('read_at')
+            ->orderByDesc('created_at')->limit(max(1, min($limit, 20)))->get()
+            ->map(fn (InternalNotification $notification): array => [
+                'id' => (int) $notification->id,
+                'title' => (string) $notification->title,
+                'body' => (string) $notification->body,
+                'link' => $notification->link === null ? null : (string) $notification->link,
+                'created_at' => $notification->created_at?->toIso8601String(),
+            ])->all();
+    }
+
+    public function unreadCountForUser(int $userId): int
+    {
+        return InternalNotification::query()->where('user_id', $userId)->whereNull('read_at')->count();
+    }
+
+    public function markNotificationRead(int $notificationId, int $userId): ?string
+    {
+        $notification = InternalNotification::query()->where('user_id', $userId)
+            ->whereKey($notificationId)->first();
+        if ($notification === null) {
+            return null;
+        }
+        $notification->update(['read_at' => $notification->read_at ?? now()]);
+
+        return $notification->link === null ? null : (string) $notification->link;
+    }
+
+    public function markReminderNotificationReadForUser(int $reminderId, int $userId): void
+    {
+        InternalNotification::query()->where('user_id', $userId)->where('event_type', 'reminder')
+            ->where('event_key', 'reminder:'.$reminderId)->whereNull('read_at')->update(['read_at' => now()]);
+    }
+
     /** @param list<int> $userIds */
     private function queueDingTalk(string $eventType, string $eventKey, string $title, string $body, ?string $link, array $userIds): void
     {

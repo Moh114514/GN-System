@@ -87,7 +87,7 @@ final readonly class DirectCustomerChannelManager
     private function actorId(): int
     {
         $context = $this->access->current();
-        abort_unless($context->isSuperAdmin() && $context->userId !== null, 403);
+        abort_unless($context->hasOrganizationWideReadAccess() && $context->userId !== null, 403);
 
         return $context->userId;
     }

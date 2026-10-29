@@ -42,7 +42,7 @@ class ReminderServiceProvider extends ServiceProvider
             Route::get('/reminders', ReminderCenter::class)->name('reminders.index');
             Route::get('/reminders/create', ReminderCreate::class)->name('reminders.create');
             Route::get('/reminders/history', ReminderHistory::class)->name('reminders.history');
-            Route::middleware('super-admin')->get('/admin/reminder-configuration', ReminderConfiguration::class)
+            Route::middleware('configuration.access')->get('/admin/reminder-configuration', ReminderConfiguration::class)
                 ->name('reminder-configuration.index');
         });
     }

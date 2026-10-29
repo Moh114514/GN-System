@@ -26,6 +26,11 @@ final readonly class AccessContext
         return $this->unrestricted || $this->role === UserRole::SuperAdmin->value;
     }
 
+    public function hasOrganizationWideReadAccess(): bool
+    {
+        return $this->isSuperAdmin() || $this->role === UserRole::OperationsDirector->value;
+    }
+
     public function isBdManager(): bool
     {
         return ! $this->isSuperAdmin() && $this->role === UserRole::BdManager->value;
@@ -43,19 +48,19 @@ final readonly class AccessContext
 
     public function hasEffectiveBusinessScope(): bool
     {
-        return $this->isSuperAdmin()
+        return $this->hasOrganizationWideReadAccess()
             || ($this->businessGroupIds !== [] && $this->agentIds !== []);
     }
 
     public function canViewAgent(int $agentId): bool
     {
-        return $this->isSuperAdmin()
+        return $this->hasOrganizationWideReadAccess()
             || ($this->hasEffectiveBusinessScope() && in_array($agentId, $this->agentIds, true));
     }
 
     public function canViewCustomer(string $sourceType, ?int $sourceAgentId, ?int $ownerId): bool
     {
-        if ($this->isSuperAdmin()) {
+        if ($this->hasOrganizationWideReadAccess()) {
             return true;
         }
 
@@ -75,7 +80,7 @@ final readonly class AccessContext
 
     public function canViewOrder(string $sourceType, ?int $agentId, ?int $customerOwnerId = null, ?int $customerSourceAgentId = null): bool
     {
-        if ($this->isSuperAdmin()) {
+        if ($this->hasOrganizationWideReadAccess()) {
             return true;
         }
 

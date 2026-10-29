@@ -129,6 +129,11 @@ class User extends Authenticatable implements HasLocalePreference
         return $this->roleValue() === UserRole::BdManager && ! $this->isSuperAdmin();
     }
 
+    public function isOperationsDirector(): bool
+    {
+        return $this->roleValue() === UserRole::OperationsDirector && ! $this->isSuperAdmin();
+    }
+
     public function isCustomerService(): bool
     {
         return $this->roleValue() === UserRole::CustomerService && ! $this->isSuperAdmin();
@@ -141,7 +146,7 @@ class User extends Authenticatable implements HasLocalePreference
 
     public function canManageConfiguration(): bool
     {
-        return $this->isSuperAdmin();
+        return $this->isSuperAdmin() || $this->isOperationsDirector();
     }
 
     /** @return HasMany<BusinessGroupMembership, $this> */

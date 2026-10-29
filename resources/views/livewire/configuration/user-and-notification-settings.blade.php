@@ -7,10 +7,12 @@
             <h2 class="mt-1 text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-50">{{ __('config.center.cards.users.title') }}</h2>
             <p class="mt-2 text-sm text-zinc-500 dark:text-zinc-400">{{ __('config.center.cards.users.description') }}</p>
         </div>
-        <a href="{{ route('audit-logs.index') }}" class="inline-flex items-center gap-1 text-sm font-semibold text-teal-700 hover:underline dark:text-teal-300" wire:navigate>
-            {{ __('config.user_management.audit_link') }}
-            <flux:icon.arrow-right class="size-4" aria-hidden="true" />
-        </a>
+        @if (auth()->user()->isSuperAdmin())
+            <a href="{{ route('audit-logs.index') }}" class="inline-flex items-center gap-1 text-sm font-semibold text-teal-700 hover:underline dark:text-teal-300" wire:navigate>
+                {{ __('config.user_management.audit_link') }}
+                <flux:icon.arrow-right class="size-4" aria-hidden="true" />
+            </a>
+        @endif
     </section>
 
     <div class="mb-6 flex flex-wrap gap-2 border-b border-zinc-200 dark:border-zinc-700" role="tablist" aria-label="{{ __('config.center.cards.users.title') }}">

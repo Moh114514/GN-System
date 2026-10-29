@@ -169,6 +169,43 @@ class AccessScopeTest extends TestCase
         $this->assertCount(3, Livewire::actingAs($this->admin)->test(CustomerList::class)->get('options')['agents']);
     }
 
+    public function test_offline_customer_list_resolves_and_filters_by_bd_manager(): void
+    {
+        $otherBd = User::factory()->create(['name' => '范围 B BD', 'role' => UserRole::BdManager]);
+        BusinessGroupMembership::query()->create([
+            'business_group_id' => $this->groupB->id,
+            'user_id' => $otherBd->id,
+            'member_role' => 'bd_manager',
+            'effective_from' => '2026-01-01',
+            'effective_until' => null,
+            'assigned_by' => $this->admin->id,
+            'reason' => 'BD 归属筛选测试',
+        ]);
+
+        $this->actingAs($this->admin);
+        $directory = app(CustomerDirectory::class);
+        $page = $directory->paginate(['source_type' => 'agent'], 20);
+        $items = $page->getCollection()->keyBy('id');
+
+        $this->assertSame($this->bd->name, $items[$this->groupACustomer->id]['bd_manager']);
+        $this->assertSame($otherBd->name, $items[$this->groupBCustomer->id]['bd_manager']);
+        $this->assertSame(
+            [$this->groupACustomer->id],
+            $directory->paginate(['source_type' => 'agent', 'bd_manager_id' => $this->bd->id], 20)->getCollection()->pluck('id')->all(),
+        );
+
+        Livewire::actingAs($this->admin)->test(CustomerList::class)
+            ->set('bdManagerId', (string) $this->bd->id)
+            ->assertSee($this->groupACustomer->name)
+            ->assertDontSee($this->groupBCustomer->name)
+            ->assertSee(__('customers.list.columns.bd_manager'));
+
+        $this->assertSame(
+            $this->bd->name,
+            $directory->profile($this->groupACustomer->id)['bd_manager_name'],
+        );
+    }
+
     public function test_customer_list_supports_owner_only_customer_service_scope(): void
     {
         $peerCustomer = Customer::query()->create([
@@ -229,6 +266,20 @@ class AccessScopeTest extends TestCase
             $adminContent,
         );
 
+        $bdFilteredContent = $this->actingAs($this->admin)
+            ->get(route('team-overview.index', ['bdManagerId' => $this->bd->id]))
+            ->assertOk()
+            ->assertSee('BD经理')
+            ->assertSee('data-test="team-overview-bd-manager"', false)
+            ->assertSee('范围 A')
+            ->assertDontSee('范围 B')
+            ->getContent();
+        $this->assertStringNotContainsString('客户 B', $bdFilteredContent);
+
+        $this->actingAs($this->bd)
+            ->get(route('team-overview.index', ['bdManagerId' => $this->admin->id]))
+            ->assertNotFound();
+
         $this->actingAs($this->admin)->get(route('team-overview.index', ['groupId' => $this->groupA->id]))
             ->assertOk()
             ->assertSee(__('team.group_detail'))
@@ -236,6 +287,32 @@ class AccessScopeTest extends TestCase
             ->assertSee('组内负责人客服');
 
         $this->actingAs($this->bd)->get(route('team-overview.index', ['groupId' => $this->groupB->id]))
+            ->assertNotFound();
+    }
+
+    public function test_team_overview_bd_filter_uses_only_current_business_group_memberships(): void
+    {
+        $previousBd = User::factory()->create(['name' => '历史 BD', 'role' => UserRole::BdManager]);
+        BusinessGroupMembership::query()->create([
+            'business_group_id' => $this->groupA->id,
+            'user_id' => $previousBd->id,
+            'member_role' => 'bd_manager',
+            'effective_from' => '2025-01-01',
+            'effective_until' => '2025-12-31',
+            'assigned_by' => $this->admin->id,
+            'reason' => '历史 BD 归属筛选回归测试',
+        ]);
+
+        $this->actingAs($this->admin);
+        $snapshot = app(TeamOverviewService::class)->snapshot();
+
+        $this->assertSame(
+            [['id' => $this->bd->id, 'name' => $this->bd->name]],
+            array_values($snapshot['bd_managers']),
+        );
+        $this->assertSame($this->bd->name, $snapshot['groups'][0]['bd_name']);
+
+        $this->get(route('team-overview.index', ['bdManagerId' => $previousBd->id]))
             ->assertNotFound();
     }
 
@@ -369,6 +446,18 @@ class AccessScopeTest extends TestCase
         $this->assertSame(3_000_000, $team['overview']['amount_krw']);
         $this->assertSame(1, $selected['customer_service_count']);
         $this->assertSame(1, $selected['owners'][0]['unset']);
+        $historicalAgent = collect($selected['agent_performance'])->firstWhere('id', (int) $movedAgent->id);
+        $this->assertNotNull($historicalAgent);
+        $this->assertSame('迁移代理商', $historicalAgent['name']);
+        $this->assertSame(3_000_000, $historicalAgent['amount_krw']);
+        $this->assertSame(2, $historicalAgent['orders']);
+
+        $this->actingAs($this->bd);
+        $bdSelected = app(TeamOverviewService::class)->snapshot($this->groupA->id)['selected_group'];
+        $bdHistoricalAgent = collect($bdSelected['agent_performance'])->firstWhere('id', (int) $movedAgent->id);
+        $this->assertNotNull($bdHistoricalAgent);
+        $this->assertSame(3_000_000, $bdHistoricalAgent['amount_krw']);
+        $this->assertFalse($bdHistoricalAgent['can_view_agent']);
     }
 
     public function test_team_overview_includes_paused_agents_and_marks_invalid_owners(): void

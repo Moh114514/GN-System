@@ -23,6 +23,8 @@ return [
         'custom_due_past' => '自定义提醒时间不能早于当前时间。',
         'invalid_recurrence_unit' => '周期提醒单位无效。',
         'invalid_completion_status' => '当前提醒状态不可完成。',
+        'followup_task_not_open' => '这条提醒已关闭，无法再登记为其跟进记录。',
+        'followup_task_already_recorded' => '这条提醒已经登记过跟进记录。',
         'snooze_reason_and_future' => '延期必须填写原因并选择未来时间。',
         'cancel_reason_required' => '关闭提醒必须填写原因。',
         'retry_forbidden' => '无权重试此提醒的通知。',
@@ -67,6 +69,7 @@ return [
     ],
     'events' => ['appointment_cancelled' => '关联预约已取消'],
     'timeline' => ['customer_followup' => '客户跟进'],
+    'followup' => ['next_title' => '客户跟进'],
     'report_types' => ['appointment' => '到院提醒', 'pre_visit' => '到院提醒', 'post_treatment' => '术后回访', 'birthday' => '生日提醒', 'holiday_date' => '节日提醒', 'repurchase' => '复购窗口', 'manual' => '人工提醒', 'custom' => '自定义提醒', 'default' => '待办提醒'],
     'toasts' => ['completed' => '提醒已完成。', 'snoozed' => '提醒已延期。', 'transferred' => '提醒已转交。', 'cancelled' => '提醒已关闭。', 'retry_notification' => '钉钉通知已重新进入队列。', 'created' => '提醒已创建。', 'rule_saved' => '主动提醒规则已保存。', 'template_saved' => '全局提醒模板已保存。'],
     'notifications' => [

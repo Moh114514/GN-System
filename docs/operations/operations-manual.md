@@ -1,5 +1,88 @@
 # GN-System 完整运维手册
 
+## 2026-10-28 角色视角验收修复（本地 PR，尚未合入）
+
+当前未合并 PR 按客户需求文档新增 `operations_director` 角色：登录需启用 TOTP；可全局只读查看 Dashboard、线上直客、线下渠道、机构及报表，并可使用业务配置中心。客户/订单编辑、敏感字段解密和财务更正仍由原有角色控制；运营总监不能创建、修改或停用超级管理员，数据维护、时间模拟和审计日志也仍仅限超级管理员。
+
+同时按需求角色矩阵限制机构月报和导出为老板/运营总监，修复客户所属 BD 过滤、团队月报 BD 过滤以及机构 PDF 订单来源列。新增 `2026_10_28_000100_add_operations_director_role` migration，将新角色加入 `users_role_check`；无依赖或环境变量变更，当前 PR 尚未合入，UAT/Production 未操作。目标环境必须通过标准发布脚本执行 migration，并在 RC 中用老板、运营总监、线上负责人和 BD 经理账号逐一核对菜单、直达 URL、只读边界和报表来源。若要回滚代码，数据库约束的 down migration 会在仍存在运营总监账号时拒绝执行；应先按经批准的账号处置流程移除该角色，再评估回滚，不得直接删除账号或绕过约束。
+
+团队月报 BD 筛选只依据当前业务日期有效的业务组成员关系生成，避免历史 BD 被错误纳入筛选或覆盖当前负责人。当前本地 `gn_system` 没有有效且已接受的 BD 经理归属，因此页面按设计隐藏筛选器；Feature 测试在存在有效 BD 时验证筛选器和结果范围。回归测试及本轮 `docker compose exec app composer ci:check` 通过（595 项测试、4192 条断言；Pint、PHPStan、架构和文档检查通过）；`docker compose exec vite npm run build` 成功转换 597 个模块。Codex 浏览器只读检查了 Dashboard、机构月报、客户列表和团队月报；角色 Feature 测试覆盖路由与操作边界。没有提交表单或写入业务数据。浏览器未使用老板、运营总监、线上负责人或 BD 经理的独立账号，因此这些角色的真实账号页面验收仍须在 RC 完成。PHPUnit 缓存权限和 Vite 大包体积有非阻断告警。
+
+已核对小白运维指南同步记录该角色、未发布状态、门禁结果和目标环境验收要求。机构属性分类、合作状态取值及订单状态可配置规则仍需业务确认，不得在目标环境手工补字段或改权限以绕过本次定义。
+
+## 2026-10-25 剩余业务模块改造（本地工作区，尚未发布）
+
+本地 `develop` 工作区按剩余业务模块方案增加五类侧栏入口、线上/线下月度报表、跟进提醒闭环、订单卡片、
+机构来源筛选与明细导出，以及配置中心分组。新增 migration
+`2026_10_25_000001_extend_customer_followups_for_reminders`，为跟进记录增加可空结果文本和可空、唯一的提醒外键。
+Codex 内置浏览器已对总览、提醒中心、客户/订单详情、团队与提成、机构明细及配置中心完成只读验收，未提交表单或写入业务数据。
+
+已通过 `docker compose exec app composer ci:check`（589 项测试、4130 条断言；Pint、PHPStan、架构和文档检查通过）及
+`docker compose exec vite npm run build`（597 个模块）。PHPUnit 结果缓存权限与 Vite 大包体积有非阻断警告。
+运行时已核实为 `APP_ENV=local`、PostgreSQL 数据库 `gn_system`；新增 migration 已在该本地开发库应用并复核状态为 `Ran`（batch 31）。
+测试只连接隔离的 `gn_system_test`。UAT/Production 未操作，浏览器和本机门禁结果不代表目标环境已验收。
+
+未来版本发布必须遵循 feature PR、develop、main、RC、UAT 验收和制品晋级流程。目标环境发布前分别核验并备份数据库及私有文件，
+再由标准发布脚本执行 migration；旧代码不使用新增列，代码回退时保留已扩展的 schema。新增跟进结果或 reminder 关联事实后，
+不得直接回滚此 migration，因为 down migration 会移除这些事实；恢复必须使用事先核验的数据库备份及匹配应用版本。
+UAT/Production 的角色权限、双语页面、跟进闭环与提醒通知仍需在对应 RC 部署后验收。运营总监角色在 10 月 28 日按需求矩阵新增，
+尚未在目标环境验收；外部平台账号编号、机构属性分类和合作状态定义、跟进结果选项及提醒天数仍待业务确认，未对这些事项猜测性建模。
+
+已检查小白运维指南并同步相同的本地 migration、浏览器验收和自动化门禁结果。下方正式制品与服务器状态记录保持原意，
+本地工作区改动不代表 UAT 或 Production 已更新。
+
+## 2026-10-22 v0.7.0 正式制品与生产升级交接
+
+用户确认服务器 UAT 已验收通过后，已推送不可变 annotated `v0.7.0`，与 `v0.7.0-rc.1` 均指向
+`4d81dca1685eb9fb324ba0d0d71d48d8356eb4d4`，与发布时的 `origin/main` 一致。
+[RC 工作流](https://github.com/Moh114514/GN-System/actions/runs/39776845868)和
+[正式工作流](https://github.com/Moh114514/GN-System/actions/runs/39781680735)均成功；正式工作流只晋级
+已验收 RC 的镜像，未重新构建。已独立读取正式与 RC 的 manifest，核对类型及摘要均一致：
+
+| 镜像 | 正式引用 | 与已验收 RC 相同的 digest |
+|---|---|---|
+| app | `ghcr.io/moh114514/gn-system-app:v0.7.0` | `sha256:cac6bded34ef2bb2d0444b73261a6e5492730790c01d75ef70755c6edbaa5a82` |
+| web | `ghcr.io/moh114514/gn-system-web:v0.7.0` | `sha256:0df337f5806dd04cf208b73b369200c17bd11b719dade4ea4bc4c841f38cd073` |
+
+正式标签共享 hook 完整通过 `composer ci:check`（579 项测试/3928 断言）和前端构建（597 个模块）；
+本次没有新增 migration、依赖或配置。发布记录继续经功能分支 PR 更新 `develop`，不移动现有标签或发布提交。
+UAT 通过是用户确认的服务器验收结果；Agent 本轮没有连接服务器复核，也未执行生产部署、迁移或健康检查。
+
+生产升级前在目标环境核对当前版本，分别核验数据库与私有文件备份，按本手册部署流程在
+`/srv/gn-system/production/repository` 获取标签并切换 detached `v0.7.0`，将独立 `.env.production`
+的 `RELEASE_TAG` 设置为 `v0.7.0`、权限保持 `0600`，核对拉取镜像摘要后运行仓库发布脚本。
+UAT 继续使用 `/srv/gn-system` 下独立目录、配置、数据和发布历史；不得共用生产凭据、卷或持久化目录。
+本版包含 2026-10-20 的订单登记 migration，升级时须核对异常与历史到院资料，并按目标环境完成登记幂等、
+同次追加、付款截止日、已付款更正、终止合作差额和负余额结转验收，以及三个健康接口、队列/调度和文件授权检查。
+写入新业务事实后不得直接回滚 migration；需要恢复时使用事先核验的数据库、私有文件备份和匹配应用版本，
+不能仅切回旧镜像就宣称数据已恢复。生产实际版本、迁移与健康检查结果仍待部署后记录。
+
+下方日期记录保留对应阶段当时状态，当前正式制品以上述工作流与镜像核对结果为准。
+
+## 2026-10-22 UAT 候选版本 v0.7.0-rc.1
+
+订单登记与月结改造经 PR #52、#53 依次合入 `develop`、`main`，两个 PR 的应用与生产镜像门禁均成功。
+annotated `v0.7.0-rc.1` 固定指向 `4d81dca1685eb9fb324ba0d0d71d48d8356eb4d4`，创建和推送前已核对与
+`origin/main` 一致；本机及标签共享 hook 完整通过 579 项测试/3928 断言和前端构建，PHP/npm 安全审计通过。
+
+[RC 发布流水线](https://github.com/Moh114514/GN-System/actions/runs/39776845868)记录候选制品的构建与发布结果。
+部署前确认该运行成功，再分别读取 `ghcr.io/moh114514/gn-system-app:v0.7.0-rc.1` 和
+`ghcr.io/moh114514/gn-system-web:v0.7.0-rc.1` 的 manifest digest；可使用
+`docker buildx imagetools inspect <镜像引用>` 核对，并与对应 `sha-4d81dca1685eb9fb324ba0d0d71d48d8356eb4d4` 镜像标签一致。
+不要把创建 RC 标签当作镜像已可用或 UAT 已验收；可用性以该运行和 GHCR 实际结果为准。
+
+本轮未连接服务器执行部署、迁移、旧到院补录或人工业务验收，服务器实际版本和备份需现场核对。UAT 继续使用
+`/srv/gn-system/repository`、独立 `.env.uat` 和 Compose 项目；Production 使用
+`/srv/gn-system/production/repository` 及独立配置、数据和发布历史。UAT 更新前分别备份数据库和私有文件，
+将 `RELEASE_TAG` 设置为 `v0.7.0-rc.1`，保持环境文件权限 `0600`，按发布手册切换明确 detached tag 并运行仓库脚本。
+此版本新增 2026-10-20 的 migration；迁移后、开放业务前执行异常检查并核对旧到院资料，再验收登记幂等、
+多项目、同次追加、付款截止日、已付款更正、终止合作差额和负余额结转。写入业务事实后禁止直接回滚迁移；
+恢复必须使用事先核验的备份、匹配应用版本与私有文件，并保留 UAT/Production 隔离。
+
+文档发布记录可在后续 `develop` 提交更新，`main` 保持 RC 发布提交。正式 `v0.7.0` 必须指向本 RC 的确切提交，
+并按已验收镜像的原 digest 晋级；不能把后续文档提交误作正式标签目标，也不得移动或复用 RC 标签。
+下方记录保留对应阶段当时状态，当前候选制品信息以上述流水线与镜像核对结果为准。
+
 ## 2026-10-22 新 UAT 候选发布准备
 
 计划通过 `feature/order-registration-settlement-review` → `develop` → `main` 发布 `v0.7.0-rc.1`。

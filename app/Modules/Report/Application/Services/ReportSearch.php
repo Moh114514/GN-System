@@ -29,7 +29,7 @@ final readonly class ReportSearch
     {
         $context = $this->access->current();
         $institutions = $this->config->activeInstitutions();
-        if (! $context->isSuperAdmin()) {
+        if (! $context->hasOrganizationWideReadAccess()) {
             $visibleIds = array_fill_keys($this->orders->visibleInstitutionIds(), true);
             $institutions = array_values(array_filter(
                 $institutions,

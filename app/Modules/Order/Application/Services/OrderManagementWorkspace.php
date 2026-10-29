@@ -5,6 +5,8 @@ namespace App\Modules\Order\Application\Services;
 use App\Modules\Agent\Application\Contracts\AgentReferenceReader;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
+use App\Modules\Auth\Application\Contracts\InternalUserReferenceReader;
+use App\Modules\Auth\Application\Contracts\ReportUserReader;
 use App\Modules\Config\Application\Contracts\InstitutionReferenceReader;
 use App\Modules\Config\Application\Contracts\OrderDictionaryReader;
 use App\Modules\Customer\Application\Contracts\CustomerOrderReferenceReader;
@@ -31,12 +33,21 @@ final readonly class OrderManagementWorkspace
         private OrderReminderReader $reminders,
         private OrderFinancialReader $financials,
         private AccessContextResolver $access,
+        private InternalUserReferenceReader $users,
+        private ReportUserReader $userNames,
     ) {}
 
     /** @return array<string, array<int, array<string, mixed>>> */
     public function options(): array
     {
         $context = $this->access->current();
+        $ownerUsers = $context->hasOrganizationWideReadAccess()
+            ? $this->users->eligibleDirectCustomerManagers()
+            : [];
+        if ($context->isDirectCustomerManager() && $context->userId !== null) {
+            $names = $this->userNames->namesByIds([$context->userId]);
+            $ownerUsers = [['id' => $context->userId, 'name' => $names[$context->userId] ?? __('customers.fallback.unknown_owner')]];
+        }
         $agents = $context->isDirectCustomerManager() || $context->userId === null
             ? []
             : array_values($this->agents->activeAgents());
@@ -46,6 +57,7 @@ final readonly class OrderManagementWorkspace
         }
 
         return [
+            'owners' => $ownerUsers,
             'agents' => $agents,
             'institutions' => array_values($this->institutions->activeInstitutions()),
             'treatment_projects' => $this->dictionary->activeItems('treatment_project'),
@@ -66,7 +78,7 @@ final readonly class OrderManagementWorkspace
     }
 
     /**
-     * @param  array{search?: string, status?: string, institution_id?: int|null, agent_id?: int|null, date_field?: string, date_from?: string, date_to?: string, source_type?: string}  $filters
+     * @param  array{search?: string, status?: string, institution_id?: int|null, agent_id?: int|null, date_field?: string, date_from?: string, date_to?: string, source_type?: string, owner_id?: int|null}  $filters
      * @return LengthAwarePaginator<int, array{
      *     id: int,
      *     customer_id: int,
@@ -134,6 +146,9 @@ final readonly class OrderManagementWorkspace
                 throw ValidationException::withMessages(['sourceTypeFilter' => __('orders.errors.invalid_source_type')]);
             }
             $query->where('source_type', $sourceType);
+        }
+        if (($filters['owner_id'] ?? null) !== null) {
+            $query->where('owner_id', (int) $filters['owner_id']);
         }
 
         $page = $query->latest('id')->paginate($perPage);
@@ -376,7 +391,7 @@ final readonly class OrderManagementWorkspace
     private function applyScope(Builder $query): void
     {
         $context = $this->access->current();
-        if ($context->isSuperAdmin()) {
+        if ($context->hasOrganizationWideReadAccess()) {
             return;
         }
 

@@ -136,6 +136,8 @@ return [
         'notes' => '메모',
         'status_filter' => '주문 상태 필터',
         'source_filter' => '주문 출처 필터',
+        'owner_filter' => '직접 고객 담당자 필터',
+        'all_owners' => '모든 담당자',
         'all_sources' => '전체 출처',
         'date_field' => '날짜 유형',
         'created_date' => '생성 날짜',

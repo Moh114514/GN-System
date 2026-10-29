@@ -16,7 +16,7 @@
         @php
             $selectedInstitution = collect($options['institutions'])->firstWhere('id', (int) $institutionFilter);
             $selectedAgent = collect($options['agents'])->firstWhere('id', (int) $agentFilter);
-            $hasFilters = $search !== '' || $statusFilter !== '' || $institutionFilter !== '' || $agentFilter !== '' || $dateFrom !== '' || $dateTo !== '' || $sourceTypeFilter !== '' || $dateField !== 'created_at' || $perPage !== 20;
+            $hasFilters = $search !== '' || $statusFilter !== '' || $institutionFilter !== '' || $agentFilter !== '' || $dateFrom !== '' || $dateTo !== '' || $sourceTypeFilter !== '' || $ownerIdFilter !== '' || $dateField !== 'created_at' || $perPage !== 20;
         @endphp
         <div class="flex flex-wrap items-center gap-2">
             <flux:input class="mr-1 w-full sm:w-72" wire:model.live.debounce.350ms="search" icon="magnifying-glass" :placeholder="__('orders.center.search')" size="sm" />
@@ -31,6 +31,14 @@
                 <flux:select.option value="agent">{{ __('orders.sources.agent') }}</flux:select.option>
                 <flux:select.option value="direct">{{ __('orders.sources.direct') }}</flux:select.option>
             </flux:select>
+            @if ($sourceTypeFilter === 'direct' && $options['owners'] !== [])
+                <flux:select class="w-44" wire:model.live="ownerIdFilter" size="sm" :aria-label="__('orders.fields.owner_filter')">
+                    <flux:select.option value="">{{ __('orders.fields.all_owners') }}</flux:select.option>
+                    @foreach ($options['owners'] as $owner)
+                        <flux:select.option value="{{ $owner['id'] }}">{{ $owner['name'] }}</flux:select.option>
+                    @endforeach
+                </flux:select>
+            @endif
             <flux:select class="w-36" wire:model.live="dateField" size="sm" :aria-label="__('orders.fields.date_field')">
                 <flux:select.option value="created_at">{{ __('orders.fields.created_date') }}</flux:select.option>
                 <flux:select.option value="completed_at">{{ __('orders.fields.completed_date') }}</flux:select.option>
@@ -78,37 +86,31 @@
             @forelse ($orders as $order)
                 <a wire:key="order-card-{{ $order['id'] }}" href="{{ route('orders.show', $order['id']) }}" wire:navigate aria-label="{{ __('orders.fields.order') }} #{{ $order['id'] }}: {{ $order['project_name'] }}" class="group flex min-h-[230px] min-w-0 flex-col rounded-xl border border-zinc-300 bg-zinc-50/50 p-3 shadow-sm transition hover:border-teal-500 hover:shadow-md dark:border-zinc-600 dark:bg-zinc-800/40">
                     <div class="flex min-w-0 items-start justify-between gap-3">
-                        <div class="min-w-0">
-                            <span class="line-clamp-2 overflow-hidden break-words font-semibold leading-5 text-teal-700 group-hover:underline" title="{{ $order['project_name'] }}">{{ $order['project_name'] }}</span>
-                            <div class="mt-1 text-xs text-zinc-500">#{{ $order['id'] }}</div>
+                        <div class="min-w-0 flex-1">
+                            <div class="text-xs font-medium text-zinc-600 dark:text-zinc-300">{{ $order['customer_code'] }}</div>
+                            <div class="mt-1 line-clamp-2 break-words text-lg font-bold leading-6 text-teal-700 group-hover:underline" title="{{ $order['customer_name'] }}">{{ $order['customer_name'] }}</div>
+                            <div class="mt-1 flex min-w-0 items-start gap-1.5 text-sm font-medium text-teal-700 dark:text-teal-300">
+                                <flux:icon.building-office class="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+                                <span class="line-clamp-2 break-words">{{ $order['institution'] }}</span>
+                            </div>
                         </div>
                         <span class="crm-pill shrink-0 {{ $order['status'] === 'completed' ? 'tone-green' : ($order['status'] === 'cancelled' ? 'tone-red' : 'tone-amber') }}">{{ ['pending' => __('orders.statuses.pending'), 'completed' => __('orders.statuses.completed'), 'cancelled' => __('orders.statuses.cancelled')][$order['status']] ?? $order['status'] }}</span>
                     </div>
 
-                    <dl class="mt-2 grid gap-1.5 text-sm">
-                        <div class="min-w-0">
-                            <dt class="sr-only">{{ __('orders.fields.customer') }}</dt>
-                            <dd class="mt-0.5 min-w-0"><span class="line-clamp-2 break-words font-semibold">{{ $order['customer_name'] }}</span><span class="block truncate text-xs text-zinc-500">{{ $order['customer_code'] }}</span></dd>
-                        </div>
-                        <div class="min-w-0">
-                            <dt class="text-xs text-zinc-500">{{ __('orders.fields.institution') }}</dt>
-                            <dd class="mt-1 line-clamp-2 break-words font-medium">{{ $order['institution'] }}</dd>
-                        </div>
-                        <div class="min-w-0">
-                            <dt class="sr-only">{{ $order['source_type'] === 'direct' ? __('orders.sources.direct') : __('orders.sources.agent') }}</dt>
-                            <dd class="mt-0.5 truncate text-xs font-medium text-zinc-600 dark:text-zinc-300">{{ $order['source_type'] === 'direct' ? __('orders.sources.direct') : __('orders.sources.agent') }} · {{ $order['source'] }}</dd>
-                        </div>
-                    </dl>
+                    <div class="mt-3 border-t border-zinc-200 pt-3 dark:border-zinc-700">
+                        <div class="text-xs text-zinc-500">{{ __('orders.fields.project_name') }}</div>
+                        <div class="mt-1 line-clamp-2 break-words font-medium leading-5 text-zinc-900 dark:text-zinc-50" title="{{ $order['project_name'] }}">{{ $order['project_name'] }}</div>
+                        <div class="mt-1 truncate text-xs font-medium text-zinc-600 dark:text-zinc-300">{{ $order['source_type'] === 'direct' ? __('orders.sources.direct') : __('orders.sources.agent') }} · {{ $order['source'] }}</div>
+                    </div>
 
-                    <div class="mt-auto flex flex-wrap items-end justify-between gap-2 border-t border-zinc-200 pt-2 dark:border-zinc-700">
-                        <div>
+                    <div class="mt-auto flex flex-wrap items-end justify-between gap-2 pt-3">
+                        <div class="min-w-0">
                             <div class="text-xs text-zinc-500">{{ __('orders.fields.transaction_amount') }}</div>
-                            <div class="mt-1 text-lg font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">₩ {{ number_format($order['amount_krw']) }}</div>
+                            <div class="mt-1 text-xl font-bold tabular-nums text-zinc-900 dark:text-zinc-50">₩ {{ number_format($order['amount_krw']) }}</div>
                         </div>
                         <div class="text-right text-xs">
                             @if ($order['occurred_on'])
-                                <div class="text-xs text-zinc-500">{{ __('orders.fields.occurred_on') }}</div>
-                                <div class="mt-1 tabular-nums">{{ $order['occurred_on'] }}</div>
+                                <div class="tabular-nums text-sm text-zinc-600 dark:text-zinc-300">{{ $order['occurred_on'] }}</div>
                                 <div class="mt-1 text-xs text-zinc-500">{{ __('orders.fields.settlement_period') }} · {{ substr($order['occurred_on'], 0, 7) }}</div>
                             @endif
                             @if ($order['status'] === 'completed' && $order['completion_precision'] === 'datetime' && $order['completed_at'])
@@ -120,7 +122,10 @@
                             @endif
                         </div>
                     </div>
-                    <span class="mt-1 self-end text-lg leading-none text-zinc-400 transition group-hover:translate-x-0.5 group-hover:text-teal-700" aria-hidden="true">→</span>
+                    <div class="mt-2 flex items-center justify-between border-t border-zinc-200 pt-2 text-xs text-zinc-500 dark:border-zinc-700">
+                        <span>{{ __('orders.fields.order') }} #{{ $order['id'] }}</span>
+                        <span class="text-lg leading-none transition group-hover:translate-x-0.5 group-hover:text-teal-700" aria-hidden="true">→</span>
+                    </div>
                 </a>
             @empty
                 <div class="col-span-full py-10 text-center text-zinc-500">{{ __('orders.center.no_orders') }}</div>

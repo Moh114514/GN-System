@@ -28,6 +28,8 @@ class DirectCustomerList extends Component
 
     public string $createdTo = '';
 
+    public string $followupStatus = '';
+
     public int $perPage = 20;
 
     /** @var array<string, mixed> */
@@ -40,25 +42,26 @@ class DirectCustomerList extends Component
         'ownerId' => ['except' => ''],
         'createdFrom' => ['except' => ''],
         'createdTo' => ['except' => ''],
+        'followupStatus' => ['except' => ''],
         'perPage' => ['except' => 20],
     ];
 
     public function mount(CustomerDirectory $directory): void
     {
-        abort_unless(Auth::user()?->isSuperAdmin() || Auth::user()?->isDirectCustomerManager(), 403);
-        $this->options = $directory->directCustomerOptions(Auth::user()->isSuperAdmin());
+        abort_unless(Auth::user()?->isSuperAdmin() || Auth::user()?->isOperationsDirector() || Auth::user()?->isDirectCustomerManager(), 403);
+        $this->options = $directory->directCustomerOptions(Auth::user()->isSuperAdmin() || Auth::user()->isOperationsDirector());
     }
 
     public function updated(string $property): void
     {
-        if (in_array($property, ['search', 'statusId', 'ownerId', 'createdFrom', 'createdTo', 'perPage'], true)) {
+        if (in_array($property, ['search', 'statusId', 'ownerId', 'createdFrom', 'createdTo', 'followupStatus', 'perPage'], true)) {
             $this->resetPage();
         }
     }
 
     public function clearFilters(): void
     {
-        $this->reset('search', 'statusId', 'ownerId', 'createdFrom', 'createdTo');
+        $this->reset('search', 'statusId', 'ownerId', 'createdFrom', 'createdTo', 'followupStatus');
         $this->perPage = 20;
         $this->resetPage();
     }
@@ -92,6 +95,9 @@ class DirectCustomerList extends Component
 
     public function render(CustomerDirectory $directory): View
     {
+        if (! in_array($this->followupStatus, ['', 'today', 'overdue', 'upcoming', 'none', 'pending'], true)) {
+            $this->followupStatus = '';
+        }
         $hasDateError = false;
         try {
             $this->validate();
@@ -110,11 +116,13 @@ class DirectCustomerList extends Component
                 'owner_id' => $this->ownerId === '' ? null : (int) $this->ownerId,
                 'created_from' => $this->createdFrom,
                 'created_to' => $this->createdTo,
+                'followup_status' => $this->followupStatus === '' ? null : $this->followupStatus,
             ], $perPage);
 
         return view('livewire.customers.direct-customer-list', [
             'customers' => $customers,
             'ownerCandidates' => $this->options['users'] ?? [],
+            'followupStats' => $directory->directFollowupStats($this->ownerId === '' ? null : (int) $this->ownerId),
         ])->title(__('customers.direct.title.list'));
     }
 }
