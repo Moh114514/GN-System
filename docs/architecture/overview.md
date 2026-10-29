@@ -148,8 +148,9 @@ send grade-adjustment notifications.
 
 ## PR7 发布收尾边界
 
-新规划 PR1–PR6 的代码在当前 feature worktree 中完成，但尚未合入 `develop`/`main`，也没有
-UAT/Production migration 或人工验收结论。发布必须沿
-`feature -> develop -> main -> v0.6.0-rc.1 -> UAT -> v0.6.0` 执行，并在 UAT 先完成角色、业务组、
-代理商归属和订单事实预检。具体备份、迁移、抽样和恢复步骤见
+新规划 PR1–PR6 已合入 `develop` 和 `main`，候选标签为 `v0.8.0-rc.1`。RC 自动化门禁通过，
+但 2026-10-29 UAT 部署在 GHCR 镜像拉取阶段因连接重置失败，候选 migration 未执行；UAT 已恢复
+`v0.6.0-rc.1`，Production 未操作。不得把本地或 CI 结果描述为候选版本的 UAT 验收结论。继续部署前
+先核对备份和迁移状态，完成镜像转运后再按 UAT 清单验收角色、业务组、代理商归属和订单事实。具体
+备份、迁移、抽样和恢复步骤见
 [PR7 UAT 迁移与发布收尾手册](../operations/pr7-uat-migration-runbook.md)。

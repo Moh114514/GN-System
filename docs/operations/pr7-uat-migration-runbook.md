@@ -1,10 +1,17 @@
 # PR7 UAT 迁移与发布收尾手册
 
+## 2026-10-29 当前状态
+
+本手册早期的 PR1–PR6 改造已进入 `v0.8.0-rc.1`，标签固定指向
+`3e0d9f935c4756b845fe4e931fe53b591c0bb14c`，RC 工作流已成功。UAT 当前仍运行
+`v0.6.0-rc.1`：部署前备份成功，但从 GHCR 拉取候选镜像时连接被重置；迁移尚未执行，服务已恢复且健康。
+不要把本次尝试记录为 UAT 验收通过。后续部署先按[离线镜像部署指南](offline-deployment.md)解决镜像转运，
+再按本手册执行目标版本的迁移前检查和业务验收。
+
 ## 目的和范围
 
-本手册用于新规划 PR1–PR6 的 UAT 迁移、角色/业务组/代理商映射、业务抽样和失败恢复。
-建议该能力从 `v0.6.0-rc.1` 开始新的不可变 RC 序列。这里的“完成”只表示目标环境按清单
-验收完成；当前工作站没有连接或修改 UAT/Production。
+本手册记录 PR1–PR6 的 UAT 迁移、角色/业务组/代理商映射、业务抽样和失败恢复。目标候选版本为
+`v0.8.0-rc.1`；只有目标环境按清单验收完成才可记录“完成”。
 
 服务器只能获取明确标签、切换到 detached tag、修改权限为 `0600` 的环境文件并运行发布脚本。
 不得在服务器 `git pull` 后部署、安装应用依赖、修改业务代码、手工建表或手工删除数据。完整
@@ -16,14 +23,14 @@
 开发电脑按以下顺序完成 PR：
 
 ```text
-feature/business-groups-and-roles -> develop -> main -> v0.6.0-rc.1 -> UAT -> v0.6.0
+feature/business-groups-and-roles -> develop -> main -> v0.8.0-rc.1 -> UAT -> v0.8.0
 ```
 
 在处理 `main` 与 `develop` 的分叉前，先由维护者核对两条分支的提交、未合入 PR、迁移顺序和
 当前 RC；不得在服务器解决分叉。只有 PR 合入 `main`、完整门禁通过且 `HEAD` 与 `origin/main`
 一致后，才创建新的 annotated RC。失败的 RC 不删除、不移动、不复用，修复后递增 RC。
 
-本轮在工作站只完成文档和本地验证，不执行合并、推送、标签、部署或数据库恢复。
+2026-10-29 已合并功能 PR、发布 RC 并尝试部署 UAT；本次部署在镜像拉取阶段失败，没有执行 migration 或数据库恢复。
 
 ## 2. UAT 备份和只读预检
 
@@ -45,37 +52,42 @@ sudo docker compose --env-file .env.uat -f compose.production.yaml exec -T app p
 
 数据库目标和业务前置条件使用仓库已批准的只读 SQL/应用查询执行，至少输出并归档以下计数；
 SQL 必须由负责数据库的运维人员按当前 `.env.uat` 连接参数执行，禁止把密码写入命令行或聊天。
-迁移前只能执行旧 schema 中已经存在的列；PR1/PR4/PR6 新表和新列必须在迁移后再执行对应检查。
+SQL 必须按本节标明的 schema 版本执行；PR1/PR4/PR6 新表和新列必须在迁移后再执行对应检查。
 
 ```sql
 select current_database(), current_user;
 
--- 迁移前：PR1/PR4 migration 会读取的旧 schema 阻塞项
+-- 当前 schema：PR1/PR4 业务阻塞项
 select count(*) as active_super_admins
 from users where is_super_admin = true and is_active = true;
 select count(*) as pending_orders from orders where status = 'pending';
 select count(*) as completed_orders_without_date
 from orders where status = 'completed' and completed_on is null;
 select count(*) as completed_orders_without_agent
-from orders where status = 'completed' and agent_id is null;
+from orders where status = 'completed' and source_type = 'agent' and agent_id is null;
 select count(*) as completed_orders_without_commission_snapshot
 from orders o
 where o.status = 'completed'
+  and o.source_type = 'agent'
   and not exists (select 1 from order_commissions c where c.order_id = o.id);
 select count(*) as orders_with_unmapped_status
 from orders where status not in ('pending', 'completed', 'cancelled');
 
--- PR1 直销残留和代理商归属
-select count(*) as direct_customer_residual
-from customers where original_channel = 'direct' or source_direct_sales_id is not null;
-select count(*) as direct_order_residual
-from orders where channel = 'direct' or direct_sales_source_id is not null;
-select count(*) as customers_without_agent from customers where source_agent_id is null;
-select count(*) as orders_without_agent from orders where agent_id is null;
+-- 当前 source_type schema：仅代理商来源要求代理商关联
+select count(*) as agent_customers_without_agent
+from customers where source_type = 'agent' and source_agent_id is null;
+select count(*) as agent_orders_without_agent
+from orders where source_type = 'agent' and agent_id is null;
 ```
 
-迁移前的待完成订单、完成日期、代理商、推广费快照、状态、直销残留和缺少代理商归属必须为零；
-这与 PR1/PR4 migration 的中止条件一致。`active_super_admins` 只用于确认至少存在
+`2026_08_14_000100_remove_direct_sales_business` 已从当前 schema 移除 `customers.original_channel`、
+`customers.source_direct_sales_id`、`orders.channel` 和 `orders.direct_sales_source_id`。该迁移状态为 `Ran` 后，
+不要再查询这些列，也不要把列不存在解释为零；旧 schema 检查仅适用于该迁移尚未执行的环境，详见
+[运维手册迁移说明](operations-manual.md#332-pr1-客户与订单归属收敛迁移)。当前代理商完整性检查按
+`source_type = 'agent'` 过滤，直客订单没有代理商推广费快照。
+
+当前 schema 的待完成订单、完成日期、代理商订单推广费快照、不可映射状态和代理商归属阻塞项必须为零；
+该条件与目标 migration 的中止条件一致。`active_super_admins` 只用于确认至少存在
 一个可用超级管理员，不是业务组归属计数。
 
 迁移完成且页面尚未开放前，再执行新 schema 的只读核对：
@@ -167,8 +179,8 @@ RC 页面为准。不要通过直接 SQL 更新角色、成员或代理商归属
 
 ```bash
 git fetch --tags --prune origin
-git show --no-patch v0.6.0-rc.1
-git switch --detach v0.6.0-rc.1
+git show --no-patch v0.8.0-rc.1
+git switch --detach v0.8.0-rc.1
 sudo ./deploy/deploy.sh .env.uat
 ```
 
@@ -184,6 +196,8 @@ Scheduler 和备份列表，再按第 3 节完成映射并运行迁移后预检�
 - 代理商客户只生成预约前一天与到院当天两条系统提醒，不生成生日、固定周期、状态变化或其他通用规则提醒；直客客户仍可使用通用 Reminder Rule。核对新登记订单的 `completed_at` 为登记时点、`occurred_on` 为业务日期，直客费率按完成时点生效，并检查插入历史费率后相邻区间无重叠。
 - 机构模板在 Excel/WPS 中下载、填写和回传；检查日期、跨月业务日、多个项目、金额、重复/篡改/
   并发回传、原始文件私有下载、订单/客户/推广费/提醒/审计是否原子一致。
+- 检查订单回传凭证规则：沟通截图与结算小票至少上传一类，可单独上传任一类，也可两类都上传；两类都空时应阻止提交。
+  此项须在候选版本部署后用 UAT 测试数据和浏览器验收，不能以本地实现说明代替环境验收。
 - 订单编辑的乐观锁和已结算锁定；月结预览与正式生成相等，默认每月 5 日窗口，旧配置仍按历史
   生效日；等级评价开关关闭时无副作用但佣金仍生成。
 - BD 季度规则版本、季度边界、代理商/BD 中途转移、草稿重算、确认锁定、人工调整审计及订单
@@ -207,7 +221,7 @@ Scheduler 和备份列表，再按第 3 节完成映射并运行迁移后预检�
 
 ## 6. Production 晋级
 
-UAT 全部通过后，正式标签 `v0.6.0` 必须与已验收 RC 指向同一提交，并晋级同一 app/web 镜像
+UAT 全部通过后，正式标签 `v0.8.0` 必须与已验收 RC 指向同一提交，并晋级同一 app/web 镜像
 digest；不得重新构建。Production 使用 `/srv/gn-system/production` 独立仓库、环境文件、数据卷、
 端口、凭据和发布历史，不得复制 UAT 业务数据或 UAT 通知凭据。生产只执行一次经过备份和预检的
 迁移，并用新版本初始化角色、业务组、代理商归属、费率和模板配置；BusinessClock 只用于非生产/UAT，
