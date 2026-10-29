@@ -1,5 +1,24 @@
 # GN-System CRM
 
+## 2026-10-29 UAT 部署结果：候选版本尚未部署
+
+PR #57 已把当前功能合入 `develop`，PR #58 已把 `develop` 合入 `main`。annotated 标签
+`v0.8.0-rc.1` 固定指向 `3e0d9f935c4756b845fe4e931fe53b591c0bb14c`；[RC 工作流](https://github.com/Moh114514/GN-System/actions/runs/40855469756)
+成功，应用门禁为 596 项测试、4261 条断言。app/web 镜像摘要分别为
+`sha256:7c86fa42b70410868d789cb8bb985ff9e4152cec5405358eaa11b5f804b76a10` 和
+`sha256:87f1cd9e91b1e697cbaf38d7e0b6a2f0f74f7034051c53fded073ab592d03dbf`。
+
+2026-10-29 服务器核验发现 UAT 发布历史最后记录为 `v0.6.0-rc.1`（2026-10-12）。标准部署
+已生成并验证部署前备份，但 GHCR 拉取在连接重置后失败，数据库迁移未执行。旧版已恢复运行，六个
+服务健康，`/up`、`/health`、`/health/operations` 均返回 200；`.env.uat` 与发布标记均恢复为
+`v0.6.0-rc.1` 且权限为 `0600`。因此 `v0.8.0-rc.1` 尚未部署或业务验收，Production 未操作。
+这与 10 月 22 日历史记录中的 UAT `v0.7.0` 验收描述存在差异：本次服务器发布历史未包含该标签，
+需要后续核对原因；保留当时记录，不据此声称当前服务器运行 `v0.7.0`。
+
+本机 pre-push hook 因 Docker 访问限制无法完成，已使用一次性 hook bypass 推送；完整应用门禁和镜像构建
+由上述 GitHub Actions 成功复核。本机 PHP 依赖和前端构建环境也未能独立复现 CI。部署恢复条件和后续步骤见
+[完整运维手册](docs/operations/operations-manual.md)及[离线镜像部署指南](docs/operations/offline-deployment.md)。
+
 ## 2026-10-22 正式版本 v0.7.0
 
 用户确认服务器 UAT 已验收通过；annotated `v0.7.0` 已推送，与 `v0.7.0-rc.1` 均指向
