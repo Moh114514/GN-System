@@ -2,6 +2,7 @@
 
 namespace App\Modules\Customer\Application\Services;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Audit\Application\Contracts\AuditRecorder;
 use App\Modules\Auth\Application\Contracts\AccessContextResolver;
@@ -17,6 +18,7 @@ final readonly class CustomerFollowupManager
         private CustomerFollowupGateway $followups,
         private AuditRecorder $audit,
         private AccessContextResolver $access,
+        private BusinessClock $clock,
     ) {}
 
     public function record(
@@ -26,8 +28,15 @@ final readonly class CustomerFollowupManager
         string $content,
         int $actorId,
         ?string $ipAddress,
+        string $result = '',
+        ?int $reminderId = null,
+        ?CarbonImmutable $nextFollowupAt = null,
     ): void {
-        DB::transaction(function () use ($customerId, $type, $followedUpOn, $content, $actorId, $ipAddress): void {
+        if ($nextFollowupAt !== null && $nextFollowupAt->lessThanOrEqualTo($this->clock->now())) {
+            throw new \DomainException(__('customers.detail.followup.next_must_be_future'));
+        }
+
+        DB::transaction(function () use ($customerId, $type, $followedUpOn, $content, $result, $reminderId, $nextFollowupAt, $actorId, $ipAddress): void {
             $customer = Customer::query()->findOrFail($customerId);
             $context = $this->access->forUser(User::query()->findOrFail($actorId));
             abort_unless($context->canViewCustomer(
@@ -48,10 +57,13 @@ final readonly class CustomerFollowupManager
                 followedUpOn: $followedUpOn,
                 content: trim($content),
                 ownerId: $actorId,
+                result: trim($result),
+                reminderId: $reminderId,
+                nextFollowupAt: $nextFollowupAt,
             ));
             $this->audit->record(
                 description: '登记客户跟进',
-                properties: ['followup_id' => $followupId, 'type' => trim($type), 'followed_up_on' => $followedUpOn->toDateString()],
+                properties: ['followup_id' => $followupId, 'type' => trim($type), 'followed_up_on' => $followedUpOn->toDateString(), 'reminder_id' => $reminderId],
                 causerId: $actorId,
                 subject: $customer,
                 logName: 'customer',

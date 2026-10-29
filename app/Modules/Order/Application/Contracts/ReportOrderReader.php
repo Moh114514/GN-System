@@ -26,6 +26,8 @@ interface ReportOrderReader
     /**
      * @return array{
      *   completed_amount: int,
+     *   direct_amount: int,
+     *   agent_amount: int,
      *   completed_orders: int,
      *   completed_customers: int,
      *   repurchase_rate: float,
@@ -49,6 +51,18 @@ interface ReportOrderReader
      */
     public function teamOverview(array $ownerIds, int $businessGroupId, CarbonImmutable $from, CarbonImmutable $to): array;
 
+    /**
+     * @param  list<int>  $agentIds
+     * @return list<array{agent_id: int, code: string, name: string, orders: int, amount_krw: int, customers: int}>
+     */
+    public function teamAgentPerformance(array $agentIds, int $businessGroupId, CarbonImmutable $from, CarbonImmutable $to): array;
+
+    /**
+     * @param  list<int>  $ownerIds
+     * @return array{orders: int, amount_krw: int, customers: int, owners: array<int, array{orders: int, amount_krw: int, customers: int}>}
+     */
+    public function directTeamOverview(array $ownerIds, CarbonImmutable $from, CarbonImmutable $to): array;
+
     /** @return list<InstitutionMonthlySalesAggregateData> */
     public function institutionMonthlySales(CarbonImmutable $from, CarbonImmutable $to, ?int $institutionId = null): array;
 
@@ -60,6 +74,7 @@ interface ReportOrderReader
         CarbonImmutable $to,
         int $institutionId,
         ?int $agentId,
+        string $sourceType,
         string $search,
         string $sort,
         string $direction,

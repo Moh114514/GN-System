@@ -9,6 +9,7 @@ use App\Modules\Customer\Application\Services\CustomerStatusApprovalManager;
 use App\Modules\Customer\Application\Services\CustomerStatusManager;
 use App\Modules\Customer\Application\Services\CustomerTransferManager;
 use Carbon\CarbonImmutable;
+use DomainException;
 use Flux\Flux;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
@@ -33,6 +34,12 @@ class CustomerDetail extends Component
 
     public string $followupContent = '';
 
+    public string $followupResult = '';
+
+    public string $nextFollowupAt = '';
+
+    public ?int $activeReminderId = null;
+
     public string $transferTargetOwnerId = '';
 
     public string $transferReason = '';
@@ -52,11 +59,15 @@ class CustomerDetail extends Component
             abort_unless($isDirectCustomer, 404);
         }
         $this->customerId = $customer;
+        $this->activeReminderId = request()->integer('reminder') ?: null;
         $this->options = $isDirectCustomer ? $directory->directCustomerOptions() : $directory->options();
         $this->followedUpOn = $clock->now()->toDateString();
         $this->followupType = __('customers.detail.followup.default_type');
         if ($isDirectCustomer && request()->routeIs('customers.show')) {
-            $this->redirectRoute('direct-customers.show', ['customer' => $customer], navigate: true);
+            $this->redirectRoute('direct-customers.show', array_filter([
+                'customer' => $customer,
+                'reminder' => $this->activeReminderId,
+            ]), navigate: true);
         }
     }
 
@@ -78,23 +89,36 @@ class CustomerDetail extends Component
         Flux::toast(variant: 'success', text: __('customers.toasts.status_updated'));
     }
 
-    public function recordFollowup(CustomerFollowupManager $manager): void
+    public function recordFollowup(CustomerFollowupManager $manager, CustomerDirectory $directory): void
     {
         $this->validate([
             'followupType' => ['required', 'string', 'max:32'],
             'followedUpOn' => ['required', 'date'],
             'followupContent' => ['required', 'string', 'max:5000'],
+            'followupResult' => ['required', 'string', 'max:2000'],
+            'nextFollowupAt' => ['nullable', 'date'],
         ]);
-        $manager->record(
-            customerId: $this->customerId,
-            type: $this->followupType,
-            followedUpOn: CarbonImmutable::parse($this->followedUpOn),
-            content: $this->followupContent,
-            actorId: (int) Auth::id(),
-            ipAddress: request()->ip(),
-        );
-        $this->followupContent = '';
+        try {
+            $manager->record(
+                customerId: $this->customerId,
+                type: $this->followupType,
+                followedUpOn: CarbonImmutable::parse($this->followedUpOn),
+                content: $this->followupContent,
+                actorId: (int) Auth::id(),
+                ipAddress: request()->ip(),
+                result: $this->followupResult,
+                reminderId: $this->activeReminderId,
+                nextFollowupAt: $this->nextFollowupAt === '' ? null : CarbonImmutable::parse($this->nextFollowupAt),
+            );
+        } catch (DomainException $exception) {
+            Flux::toast(variant: 'danger', text: $exception->getMessage());
+
+            return;
+        }
+        $this->reset('followupContent', 'followupResult', 'nextFollowupAt', 'activeReminderId');
         Flux::toast(variant: 'success', text: __('customers.toasts.followup_saved'));
+        $route = $directory->profile($this->customerId)['source_type'] === 'direct' ? 'direct-customers.show' : 'customers.show';
+        $this->redirectRoute($route, ['customer' => $this->customerId], navigate: true);
     }
 
     public function requestTransfer(CustomerTransferManager $manager): void

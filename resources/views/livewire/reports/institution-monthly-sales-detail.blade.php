@@ -51,9 +51,16 @@
     <section class="rounded-xl border border-zinc-200 bg-white p-4 shadow-none dark:border-zinc-700 dark:bg-zinc-900 sm:p-5">
         <div class="flex flex-wrap items-center justify-between gap-3">
             <h3 class="text-lg font-bold">{{ __('institution_sales.detail.order_details') }}</h3>
-            <span class="text-sm text-zinc-500">{{ __('institution_sales.detail.order_summary', ['total' => number_format($detail['orders_total'])]) }}</span>
+            <span class="text-sm text-zinc-500">{{ __('institution_sales.detail.order_summary', ['total' => number_format($detail['orders_total']), 'amount' => number_format($detail['orders_amount_krw'])]) }}</span>
         </div>
         <div class="mt-4 grid gap-3 md:grid-cols-3">
+            <flux:select wire:model.live="sourceTypeFilter" :label="__('institution_sales.detail.source_filter')">
+                <flux:select.option value="">{{ __('institution_sales.detail.all_sources') }}</flux:select.option>
+                <flux:select.option value="direct">{{ __('institution_sales.detail.direct_source') }}</flux:select.option>
+                @unless (auth()->user()->isDirectCustomerManager())
+                    <flux:select.option value="agent">{{ __('institution_sales.detail.agent_source') }}</flux:select.option>
+                @endunless
+            </flux:select>
             @unless (auth()->user()->isDirectCustomerManager())
             <flux:select wire:model.live="agentId" :label="__('institution_sales.detail.agent_filter')">
                 <flux:select.option value="">{{ __('institution_sales.detail.all_agents') }}</flux:select.option>

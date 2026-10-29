@@ -347,6 +347,7 @@ class PhaseSixReportingConfigurationTest extends TestCase
     public function test_dashboard_uses_real_snapshot_for_metrics_charts_and_server_exports(): void
     {
         Storage::fake('local');
+        $this->actingAs($this->user);
         CarbonImmutable::setTestNow(CarbonImmutable::parse('2026-07-30 12:00:00', 'Asia/Shanghai'));
         $this->customer->update([
             'created_at' => CarbonImmutable::now()->subMinute(),
@@ -390,6 +391,11 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $range = app(DashboardRangeFactory::class)->make('month');
         $snapshot = app(DashboardService::class)->snapshot($range, true)->toArray();
         $this->assertSame(880000, $snapshot['metrics']['completed_amount']['value']);
+        $this->assertSame(880000, $snapshot['metrics']['offline_revenue']['value']);
+        $this->assertArrayNotHasKey('online_revenue', $snapshot['metrics']);
+        $this->assertFalse($snapshot['visibility']['customer_channel_share']);
+        $this->assertArrayNotHasKey('customer_channel_share', $snapshot['panels']);
+        $this->assertArrayHasKey('calendar_new_customers', $snapshot['panels']);
         $this->assertSame(1, $snapshot['metrics']['overdue_customers']['value']);
         $this->assertCount(8, $snapshot['charts']);
         $this->assertSame(880000, $snapshot['charts']['agent_sales_ranking'][0]['value']);
@@ -429,6 +435,8 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->actingAs($this->user)->get(route('dashboard'))
             ->assertOk()
             ->assertSee('数据看板')
+            ->assertSee('线下销售额（代理商）')
+            ->assertDontSee('线上销售额（直客）')
             ->assertSee('营收与订单趋势')
             ->assertSee('代理商业绩排行')
             ->assertSee('本月各机构销售额')
@@ -444,7 +452,8 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->assertSee('href="'.e(route('reports.institution-sales', ['month' => '2026-07'])).'"', false)
             ->assertSee('href="'.e(route('reminders.index')).'"', false)
             ->assertDontSee('href="'.e(route('settlements.index')).'"', false)
-            ->assertDontSee('href="'.e(route('agents.index')).'"', false);
+            ->assertSee('href="'.e(route('agents.index')).'"', false)
+            ->assertDontSee('href="'.e(route('agents.index')).'?search=', false);
 
         $admin = User::factory()->superAdmin()->withTwoFactor()->create();
         $this->actingAs($admin)->get(route('dashboard'))
@@ -514,6 +523,9 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $range = app(DashboardRangeFactory::class)->make('month');
         $snapshot = app(DashboardService::class)->snapshot($range, true)->toArray();
         $this->assertSame(700000, $snapshot['metrics']['revenue']['value']);
+        $this->assertSame(700000, $snapshot['metrics']['offline_revenue']['value']);
+        $this->assertArrayNotHasKey('online_revenue', $snapshot['metrics']);
+        $this->assertArrayNotHasKey('customer_channel_share', $snapshot['panels']);
         $this->assertSame(1, $snapshot['metrics']['completed_customers']['value']);
         $this->assertSame(1, $snapshot['metrics']['completed_orders']['value']);
         $this->assertFalse($snapshot['visibility']['agent_finance']);
@@ -526,6 +538,8 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $export = app(DashboardExportGenerator::class)->generate($service, 'html', $snapshot);
         $this->assertSame('completed', $export->status);
         $this->assertSame(700000, $export->data_snapshot['metrics']['revenue']['value']);
+        $this->assertArrayNotHasKey('online_revenue', $export->data_snapshot['metrics']);
+        $this->assertArrayNotHasKey('customer_channel_share', $export->data_snapshot['panels']);
         $searchExport = app(ReportExportManager::class)->startSearch($service, []);
         $this->assertSame('completed', $searchExport->status);
     }
@@ -593,6 +607,9 @@ class PhaseSixReportingConfigurationTest extends TestCase
             ->snapshot(app(DashboardRangeFactory::class)->make('month'), true)
             ->toArray();
         $this->assertSame(700000, $snapshot['metrics']['revenue']['value']);
+        $this->assertSame(700000, $snapshot['metrics']['online_revenue']['value']);
+        $this->assertArrayNotHasKey('offline_revenue', $snapshot['metrics']);
+        $this->assertArrayNotHasKey('customer_channel_share', $snapshot['panels']);
         $this->assertSame(1, $snapshot['metrics']['completed_customers']['value']);
         $this->assertSame(1, $snapshot['metrics']['completed_orders']['value']);
         $this->assertSame(35000, $snapshot['metrics']['direct_commission']['value']);
@@ -603,6 +620,9 @@ class PhaseSixReportingConfigurationTest extends TestCase
             'institution_revenue' => true,
             'direct_commission' => true,
             'settlement_progress' => false,
+            'online_revenue' => true,
+            'offline_revenue' => false,
+            'customer_channel_share' => false,
         ], $snapshot['visibility']);
         $this->assertArrayNotHasKey('agent_sales_ranking', $snapshot['charts']);
         $this->assertArrayNotHasKey('promotion_fee', $snapshot['panels']);
@@ -627,6 +647,111 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->assertIsArray($zeroSalesRow);
         $this->assertSame(0, $zeroSalesRow['value']);
         $this->assertSame('Phase Six Zero Sales Institution', $zeroSalesRow['key']);
+    }
+
+    public function test_dashboard_splits_sales_and_shows_calendar_customer_mix_for_super_admin(): void
+    {
+        Storage::fake('local');
+        $asOf = CarbonImmutable::parse('2026-10-23 12:00:00', 'Asia/Shanghai');
+        CarbonImmutable::setTestNow($asOf);
+        $this->customer->update([
+            'created_at' => CarbonImmutable::parse('2026-10-05 09:00:00', 'Asia/Shanghai'),
+            'updated_at' => $asOf,
+        ]);
+        $oldAgentCustomer = Customer::query()->create([
+            'code' => 'P6-OLD-AGENT-CUSTOMER',
+            'name' => '旧代理商客户',
+            'source_type' => 'agent',
+            'source_agent_id' => $this->agentId,
+            'owner_id' => $this->user->id,
+            'created_at' => CarbonImmutable::parse('2026-07-01 09:00:00', 'Asia/Shanghai'),
+            'updated_at' => $asOf,
+        ]);
+        $directCustomer = Customer::query()->create([
+            'code' => 'P6-DIRECT-CUSTOMER',
+            'name' => '直客客户',
+            'source_type' => 'direct',
+            'source_agent_id' => null,
+            'direct_channel_id' => (int) DB::table('direct_customer_channels')->value('id'),
+            'owner_id' => $this->user->id,
+            'created_at' => CarbonImmutable::parse('2026-10-20 09:00:00', 'Asia/Shanghai'),
+            'updated_at' => $asOf,
+        ]);
+        $createOrder = function (Customer $customer, string $source, int $amount, CarbonImmutable $completedAt): void {
+            Order::query()->create([
+                'customer_id' => $customer->id,
+                'institution_id' => $this->institutionId,
+                'source_type' => $source,
+                'agent_id' => $source === 'agent' ? $this->agentId : null,
+                'project_name' => '看板渠道口径',
+                'amount_krw' => $amount,
+                'completed_on' => $completedAt->toDateString(),
+                'occurred_on' => $completedAt->toDateString(),
+                'completed_at' => $completedAt,
+                'completion_precision' => 'datetime',
+                'owner_id' => $this->user->id,
+                'business_attribution_snapshot' => $source === 'direct' ? ['source' => 'direct'] : null,
+                'record_status' => 'active',
+                'status' => 'completed',
+            ]);
+        };
+        $createOrder($this->customer, 'agent', 700000, $asOf->setDay(5));
+        $createOrder($directCustomer, 'direct', 300000, $asOf->setDay(20));
+
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $this->actingAs($admin);
+        $range = app(DashboardRangeFactory::class)->make('custom', '2026-10-01', '2026-10-31');
+        $snapshot = app(DashboardService::class)->snapshot($range, true)->toArray();
+
+        $this->assertSame(1000000, $snapshot['metrics']['revenue']['value']);
+        $this->assertSame(300000, $snapshot['metrics']['online_revenue']['value']);
+        $this->assertSame(700000, $snapshot['metrics']['offline_revenue']['value']);
+        $this->assertSame([
+            'direct_count' => 1,
+            'agent_count' => 2,
+            'total' => 3,
+            'direct_percentage' => 33.3,
+            'agent_percentage' => 66.7,
+        ], $snapshot['panels']['customer_channel_share']);
+        $this->assertSame(['month' => 2, 'quarter' => 2], $snapshot['panels']['calendar_new_customers']);
+        $this->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('线上销售额（直客）')
+            ->assertSee('线下销售额（代理商）')
+            ->assertSee('客户来源占比')
+            ->assertSee('本月新增')
+            ->assertSee('本季度新增');
+
+        $html = app(DashboardExportGenerator::class)->generate($admin, 'html', $snapshot);
+        $content = Storage::disk('local')->get($html->path);
+        $this->assertStringContainsString('线上销售额（直客）', $content);
+        $this->assertStringContainsString('线下销售额（代理商）', $content);
+        $this->assertStringContainsString('33.3%', $content);
+        $this->assertStringContainsString('66.7%', $content);
+
+        $nextMonth = CarbonImmutable::parse('2026-11-01 12:00:00', 'Asia/Shanghai');
+        CarbonImmutable::setTestNow($nextMonth);
+        $nextDaySnapshot = app(DashboardService::class)->snapshot($range)->toArray();
+        $this->assertSame(['month' => 0, 'quarter' => 2], $nextDaySnapshot['panels']['calendar_new_customers']);
+    }
+
+    public function test_dashboard_customer_channel_share_has_an_empty_state(): void
+    {
+        Storage::fake('local');
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $this->actingAs($admin);
+        $range = app(DashboardRangeFactory::class)->make('custom', '2020-01-01', '2020-01-31');
+        $snapshot = app(DashboardService::class)->snapshot($range, true)->toArray();
+
+        $this->assertSame([
+            'direct_count' => 0,
+            'agent_count' => 0,
+            'total' => 0,
+            'direct_percentage' => 0.0,
+            'agent_percentage' => 0.0,
+        ], $snapshot['panels']['customer_channel_share']);
+        $html = app(DashboardExportGenerator::class)->generate($admin, 'html', $snapshot);
+        $this->assertStringContainsString('暂无客户数据', Storage::disk('local')->get($html->path));
     }
 
     public function test_export_failures_store_safe_keys_and_localize_recent_exports(): void
@@ -748,6 +873,51 @@ class PhaseSixReportingConfigurationTest extends TestCase
         $this->expectException(DomainException::class);
         $this->expectExceptionMessage('不能降级最后一个启用中的超级管理员。');
         $users->changeRole($admin->id, false, $actor->id, null);
+    }
+
+    public function test_operations_director_cannot_create_or_manage_super_admin_accounts(): void
+    {
+        $operationsDirector = User::factory()->withTwoFactor()->create(['role' => UserRole::OperationsDirector]);
+        $superAdmin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $users = app(UserManagementGateway::class);
+        $expected = __('auth.errors.super_admin_management_restricted');
+
+        foreach ([
+            fn () => $users->inviteWithRole('Another Admin', 'another-admin@example.com', 'super_admin', $operationsDirector->id, null),
+            fn () => $users->setRole($superAdmin->id, 'bd_manager', $operationsDirector->id, null),
+            fn () => $users->setActive($superAdmin->id, false, $operationsDirector->id, null),
+            fn () => $users->resendInvitation($superAdmin->id, $operationsDirector->id, null),
+            fn () => $users->sendPasswordResetLink($superAdmin->id, $operationsDirector->id, null),
+            fn () => $users->setDingTalkMention($superAdmin->id, 'user_id', 'admin', $operationsDirector->id, null),
+        ] as $operation) {
+            try {
+                $operation();
+                $this->fail('Operations director should not manage super admin accounts.');
+            } catch (DomainException $exception) {
+                $this->assertSame($expected, $exception->getMessage());
+            }
+        }
+
+        $this->assertTrue($superAdmin->fresh()->is_active);
+        $this->assertSame(UserRole::SuperAdmin, $superAdmin->fresh()->roleValue());
+    }
+
+    public function test_operations_director_role_migration_refuses_rollback_while_role_is_in_use(): void
+    {
+        $operationsDirector = User::factory()->create(['role' => UserRole::OperationsDirector]);
+        $migration = require database_path('migrations/2026_10_28_000100_add_operations_director_role.php');
+
+        try {
+            $migration->down();
+            $this->fail('The role constraint migration must not remove a role still assigned to users.');
+        } catch (\RuntimeException $exception) {
+            $this->assertStringContainsString('found 1 operations director user(s)', $exception->getMessage());
+        }
+
+        $this->assertDatabaseHas('users', [
+            'id' => $operationsDirector->id,
+            'role' => UserRole::OperationsDirector->value,
+        ]);
     }
 
     public function test_phase_six_migration_backfills_local_midnight_and_can_roll_back_without_dropping_completed_on(): void

@@ -27,7 +27,7 @@
                             </div>
                             <p class="mt-2 flex flex-wrap items-center gap-x-2 text-sm text-zinc-600 dark:text-zinc-300">
                                 @if (isset($customerNames[$reminder->customer_id]))
-                                    <a class="font-semibold text-teal-700 underline-offset-2 hover:underline dark:text-teal-300" href="{{ route('customers.show', $reminder->customer_id) }}" wire:navigate>{{ $customerNames[$reminder->customer_id] }}</a>
+                                    <a class="font-semibold text-teal-700 underline-offset-2 hover:underline dark:text-teal-300" href="{{ route('customers.show', ['customer' => $reminder->customer_id, 'reminder' => $reminder->id]) }}" wire:navigate>{{ $customerNames[$reminder->customer_id] }}</a>
                                 @else
                                     <span class="font-semibold">{{ __('reminders.center.unknown_customer') }}</span>
                                 @endif

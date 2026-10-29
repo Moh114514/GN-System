@@ -8,6 +8,7 @@ use App\Modules\Agent\Infrastructure\Models\Agent;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Auth\Application\Contracts\BusinessGroupManagementGateway;
 use App\Modules\Auth\Domain\UserRole;
+use App\Modules\Config\Application\Contracts\NotificationRecipientGateway;
 use App\Modules\Config\Application\Jobs\SendDingTalkNotification;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Config\Infrastructure\Models\NotificationDelivery;
@@ -75,6 +76,77 @@ class CustomerTransferAndApprovalTest extends TestCase
         ]);
         app(AgentBusinessGroupAssignmentGateway::class)->assign($this->agent->id, $this->groupId, '2026-08-01', null, 'PR3 fixture', $this->admin->id, null);
         $this->institution = Institution::query()->firstOrFail();
+    }
+
+    public function test_recording_followup_completes_linked_task_creates_next_task_and_clears_unread_notification(): void
+    {
+        $customerId = $this->createCustomer();
+        $reminder = Reminder::query()->create([
+            'customer_id' => $customerId,
+            'assigned_to' => $this->owner->id,
+            'created_by' => $this->owner->id,
+            'source_type' => 'manual',
+            'reminder_type' => 'followup',
+            'title' => 'PR3 closure reminder',
+            'due_at' => CarbonImmutable::now()->addDay(),
+            'status' => 'pending',
+            'notification_status' => 'pending',
+            'dedupe_key' => str_repeat('c', 64),
+        ]);
+        app(NotificationRecipientGateway::class)->notifyInternalUsers(
+            'reminder', 'reminder:'.$reminder->id, '跟进提醒', '请联系客户', [$this->owner->id], route('reminders.index'),
+        );
+
+        app(CustomerFollowupManager::class)->record(
+            customerId: $customerId,
+            type: 'call',
+            followedUpOn: CarbonImmutable::now(),
+            content: '客户确认近期到店',
+            actorId: $this->owner->id,
+            ipAddress: null,
+            result: '客户已确认预约，需再次确认时间',
+            reminderId: (int) $reminder->id,
+            nextFollowupAt: CarbonImmutable::now()->addDays(2),
+        );
+
+        $this->assertDatabaseHas('followup_records', [
+            'customer_id' => $customerId,
+            'reminder_id' => $reminder->id,
+            'result' => '客户已确认预约，需再次确认时间',
+        ]);
+        $this->assertDatabaseHas('reminders', [
+            'id' => $reminder->id,
+            'status' => 'completed',
+            'completed_by' => $this->owner->id,
+        ]);
+        $this->assertDatabaseHas('reminder_events', [
+            'reminder_id' => $reminder->id,
+            'event' => 'completed',
+        ]);
+        $followupId = (int) DB::table('followup_records')->where('reminder_id', $reminder->id)->value('id');
+        $this->assertDatabaseHas('reminders', [
+            'dedupe_key' => hash('sha256', 'customer-followup:'.$followupId),
+            'customer_id' => $customerId,
+            'assigned_to' => $this->owner->id,
+            'status' => 'pending',
+        ]);
+        $this->assertNotNull(DB::table('internal_notifications')->where('user_id', $this->owner->id)->where('event_key', 'reminder:'.$reminder->id)->value('read_at'));
+
+        try {
+            app(CustomerFollowupManager::class)->record(
+                customerId: $customerId,
+                type: 'call',
+                followedUpOn: CarbonImmutable::now(),
+                content: '重复提交',
+                actorId: $this->owner->id,
+                ipAddress: null,
+                result: '重复提交',
+                reminderId: (int) $reminder->id,
+            );
+            $this->fail('A reminder can be linked to only one follow-up record.');
+        } catch (DomainException) {
+            $this->assertSame(1, DB::table('followup_records')->where('reminder_id', $reminder->id)->count());
+        }
     }
 
     public function test_transfer_request_keeps_old_owner_until_approval_and_moves_only_open_work(): void
@@ -168,6 +240,9 @@ class CustomerTransferAndApprovalTest extends TestCase
             'notification_status' => 'pending',
             'dedupe_key' => str_repeat('b', 64),
         ]);
+        app(NotificationRecipientGateway::class)->notifyInternalUsers(
+            'reminder', 'reminder:'.$reminder->id, '待联系客户', '请尽快联系', [$this->owner->id], route('reminders.index'),
+        );
         app(CustomerFollowupManager::class)->record($customerId, 'call', CarbonImmutable::now(), '历史跟进', $this->owner->id, null);
         $requestId = app(CustomerTransferManager::class)->request($customerId, $this->targetOwner->id, '客户交接', $this->owner, null);
 
@@ -185,6 +260,7 @@ class CustomerTransferAndApprovalTest extends TestCase
         $this->assertDatabaseHas('appointments', ['id' => $futureAppointment->id, 'owner_id' => $this->targetOwner->id]);
         $this->assertDatabaseHas('appointments', ['id' => $pastAppointment->id, 'owner_id' => $this->owner->id]);
         $this->assertDatabaseHas('reminders', ['id' => $reminder->id, 'assigned_to' => $this->targetOwner->id, 'status' => 'transferred']);
+        $this->assertNotNull(DB::table('internal_notifications')->where('user_id', $this->owner->id)->where('event_key', 'reminder:'.$reminder->id)->value('read_at'));
         $this->assertDatabaseHas('followup_records', ['customer_id' => $customerId, 'owner_id' => $this->owner->id, 'content' => '历史跟进']);
         $historyId = (int) DB::table('customer_owner_histories')->where('transfer_request_id', $requestId)->value('id');
         $this->assertDatabaseHas('internal_notifications', [

@@ -51,7 +51,7 @@ class AgentServiceProvider extends ServiceProvider
             Route::get('/agents', AgentList::class)->name('agents.index');
             Route::get('/agents/{agent}', AgentDetail::class)->whereNumber('agent')->name('agents.show');
         });
-        Route::middleware(['web', 'auth', 'verified', 'super-admin', 'super-admin.2fa'])->group(function (): void {
+        Route::middleware(['web', 'auth', 'verified', 'configuration.access', 'super-admin.2fa'])->group(function (): void {
             Route::get('/agents/create', AgentForm::class)->name('agents.create');
             Route::get('/agents/{agent}/edit', AgentForm::class)->whereNumber('agent')->name('agents.edit');
             Route::get('/admin/agent-configuration', AgentConfiguration::class)->name('agent-configuration.index');

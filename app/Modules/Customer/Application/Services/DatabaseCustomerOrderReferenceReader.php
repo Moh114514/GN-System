@@ -119,7 +119,7 @@ final class DatabaseCustomerOrderReferenceReader implements CustomerOrderReferen
     private function scoped(): Builder
     {
         $context = $this->access->current();
-        if ($context->isSuperAdmin()) {
+        if ($context->hasOrganizationWideReadAccess()) {
             return Customer::query();
         }
 

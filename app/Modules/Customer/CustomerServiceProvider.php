@@ -60,7 +60,7 @@ class CustomerServiceProvider extends ServiceProvider
             Route::get('/direct-customers/create', DirectCustomerForm::class)->name('direct-customers.create');
             Route::get('/direct-customers/{customer}', CustomerDetail::class)->whereNumber('customer')->name('direct-customers.show');
             Route::get('/direct-customers/{customer}/edit', DirectCustomerForm::class)->whereNumber('customer')->name('direct-customers.edit');
-            Route::middleware('super-admin')->get('/admin/customer-statuses', CustomerStatusConfiguration::class)
+            Route::middleware('configuration.access')->get('/admin/customer-statuses', CustomerStatusConfiguration::class)
                 ->name('customer-statuses.index');
         });
     }

@@ -60,6 +60,9 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
             throw new DomainException(__('auth.errors.user_role_invalid'));
         }
         $inviter = User::query()->find($actorId);
+        if ($inviter?->isOperationsDirector() && $userRole === UserRole::SuperAdmin) {
+            throw new DomainException(__('auth.errors.super_admin_management_restricted'));
+        }
         $preferredLocale = $inviter?->preferredLocale() ?? SupportedLocale::default()->value;
 
         $user = User::query()->create([
@@ -89,6 +92,7 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
     public function resendInvitation(int $userId, int $actorId, ?string $ipAddress): string
     {
         $user = User::query()->findOrFail($userId);
+        $this->assertOperationsDirectorMayManageTarget($actorId, $user);
         if ($user->invitation_status === 'accepted') {
             throw new DomainException(__('auth.errors.invitation_already_completed'));
         }
@@ -109,6 +113,7 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
     public function sendPasswordResetLink(int $userId, int $actorId, ?string $ipAddress): string
     {
         $user = User::query()->findOrFail($userId);
+        $this->assertOperationsDirectorMayManageTarget($actorId, $user);
         if ($user->invitation_status !== 'accepted') {
             throw new DomainException(__('auth.errors.password_reset_not_available'));
         }
@@ -152,6 +157,10 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
 
         DB::transaction(function () use ($userId, $newRole, $actorId, $ipAddress): void {
             $user = User::query()->lockForUpdate()->findOrFail($userId);
+            $this->assertOperationsDirectorMayManageTarget($actorId, $user);
+            if ($this->actorIsOperationsDirector($actorId) && $newRole === UserRole::SuperAdmin) {
+                throw new DomainException(__('auth.errors.super_admin_management_restricted'));
+            }
             $currentRole = $user->roleValue();
             if ($currentRole === UserRole::SuperAdmin && $newRole !== UserRole::SuperAdmin && $user->is_active
                 && $this->activeSuperAdminCountForUpdate() <= 1) {
@@ -193,6 +202,7 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
                 throw new DomainException(__('auth.errors.current_account_disable'));
             }
             $user = User::query()->lockForUpdate()->findOrFail($userId);
+            $this->assertOperationsDirectorMayManageTarget($actorId, $user);
             if ($user->isSuperAdmin() && $user->is_active && ! $active
                 && $this->activeSuperAdminCountForUpdate() <= 1) {
                 throw new DomainException(__('auth.errors.last_super_admin_disable'));
@@ -237,6 +247,7 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
             throw new DomainException(__('auth.errors.dingtalk_mention_value_invalid'));
         }
         $user = User::query()->findOrFail($userId);
+        $this->assertOperationsDirectorMayManageTarget($actorId, $user);
         $before = [
             'type' => $user->dingtalk_mention_type,
             'value' => $user->dingtalk_mention_value,
@@ -274,6 +285,18 @@ final readonly class DatabaseUserManagementGateway implements UserManagementGate
 
             return 'failed';
         }
+    }
+
+    private function assertOperationsDirectorMayManageTarget(int $actorId, User $target): void
+    {
+        if ($this->actorIsOperationsDirector($actorId) && $target->isSuperAdmin()) {
+            throw new DomainException(__('auth.errors.super_admin_management_restricted'));
+        }
+    }
+
+    private function actorIsOperationsDirector(int $actorId): bool
+    {
+        return User::query()->find($actorId)?->isOperationsDirector() ?? false;
     }
 
     private function activeSuperAdminCountForUpdate(): int

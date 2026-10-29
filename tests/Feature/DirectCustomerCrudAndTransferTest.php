@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Infrastructure\Time\BusinessClock;
 use App\Models\User;
 use App\Modules\Agent\Infrastructure\Models\Agent;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
@@ -19,6 +20,7 @@ use App\Modules\Customer\Presentation\Livewire\CustomerForm;
 use App\Modules\Customer\Presentation\Livewire\CustomerList;
 use App\Modules\Customer\Presentation\Livewire\DirectCustomerForm;
 use App\Modules\Customer\Presentation\Livewire\DirectCustomerList;
+use App\Modules\Reminder\Infrastructure\Models\Reminder;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -91,8 +93,8 @@ class DirectCustomerCrudAndTransferTest extends TestCase
             ->assertDontSee('直客 B')
             ->assertSee('href="'.route('direct-customers.show', $customerId).'"', false)
             ->assertSee(__('navigation.direct_customers'))
-            ->assertSee(__('navigation.customer_management'))
-            ->assertDontSee('data-test="customer-subnav-agent"')
+            ->assertSee(__('navigation.online_direct'))
+            ->assertDontSee('data-test="offline-channel-customers"')
             ->assertDontSee(route('customers.create'));
         $this->actingAs($this->manager)->get(route('direct-customers.edit', $customerId))
             ->assertOk()
@@ -102,7 +104,8 @@ class DirectCustomerCrudAndTransferTest extends TestCase
         $this->actingAs($this->admin)->get(route('direct-customers.create'))
             ->assertOk()
             ->assertSee(__('customers.direct.form.create_heading'))
-            ->assertSee(__('navigation.customer_management'))
+            ->assertSee(__('navigation.online_direct'))
+            ->assertSee(__('navigation.offline_channel'))
             ->assertSee(__('navigation.agent_customers'))
             ->assertSee(__('navigation.direct_customers'));
 
@@ -114,6 +117,45 @@ class DirectCustomerCrudAndTransferTest extends TestCase
             ->assertDontSee('不可见代理商选项');
         $this->assertArrayNotHasKey('users', Livewire::actingAs($this->manager)->test(DirectCustomerList::class)->get('options'));
         $this->assertArrayHasKey('users', Livewire::actingAs($this->admin)->test(DirectCustomerList::class)->get('options'));
+    }
+
+    public function test_direct_customer_list_shows_followup_summary_filters_and_status_counts(): void
+    {
+        $now = app(BusinessClock::class)->now();
+        $todayCustomerId = $this->createCustomer($this->manager, '今日待跟进客户');
+        $overdueCustomerId = $this->createCustomer($this->manager, '逾期客户');
+        $upcomingCustomerId = $this->createCustomer($this->manager, '即将到期客户');
+        $noTaskCustomerId = $this->createCustomer($this->manager, '无待办客户');
+        $this->createReminder($todayCustomerId, $now->addHours(2), 'today');
+        $this->createReminder($overdueCustomerId, $now->subDay(), 'overdue');
+        $this->createReminder($upcomingCustomerId, $now->addDays(2), 'upcoming');
+        DB::table('followup_records')->insert([
+            'customer_id' => $todayCustomerId,
+            'type' => 'call',
+            'followed_up_on' => $now->subDay()->toDateString(),
+            'content' => '最近一次联系客户',
+            'owner_id' => $this->manager->id,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->assertSame(['today' => 1, 'overdue' => 1, 'upcoming' => 1], app(CustomerDirectory::class)->directFollowupStats());
+
+        $component = Livewire::actingAs($this->admin)->test(DirectCustomerList::class)
+            ->assertSee('今日待跟进客户')
+            ->assertSee('逾期客户')
+            ->assertSee('即将到期客户')
+            ->assertSee('无待办客户')
+            ->assertSee('最近一次联系客户')
+            ->assertSee('今日待跟进')
+            ->assertSee('已逾期')
+            ->assertSee('即将到期')
+            ->set('followupStatus', 'today')
+            ->assertSee('今日待跟进客户')
+            ->assertDontSee('逾期客户')
+            ->assertDontSee('即将到期客户')
+            ->assertDontSee('无待办客户');
+
     }
 
     public function test_agent_customer_list_excludes_direct_customers_and_detail_returns_to_matching_list(): void
@@ -165,8 +207,8 @@ class DirectCustomerCrudAndTransferTest extends TestCase
                 ->assertOk()
                 ->assertSee('href="'.route('direct-customers.index').'"', false)
                 ->assertSee(__('customers.direct.detail.back'));
-            $this->assertMatchesRegularExpression('/<a[^>]*class="crm-subnav-item is-active"[^>]*data-test="customer-subnav-direct"/', $response->getContent());
-            $this->assertDoesNotMatchRegularExpression('/<a[^>]*class="crm-subnav-item is-active"[^>]*data-test="customer-subnav-agent"/', $response->getContent());
+            $this->assertMatchesRegularExpression('/<a[^>]*class="crm-subnav-item is-active"[^>]*data-test="online-direct-customers"/', $response->getContent());
+            $this->assertDoesNotMatchRegularExpression('/<a[^>]*class="crm-subnav-item is-active"[^>]*data-test="offline-channel-customers"/', $response->getContent());
             $this->assertArrayNotHasKey('agents', Livewire::actingAs($user)->test(CustomerDetail::class, ['customer' => $customerId])->get('options'));
             $this->get(route('direct-customers.edit', $customerId))
                 ->assertOk()->assertSee('href="'.route('direct-customers.show', $customerId).'"', false);
@@ -276,6 +318,22 @@ class DirectCustomerCrudAndTransferTest extends TestCase
             automaticCode: true,
             ipAddress: null,
         );
+    }
+
+    private function createReminder(int $customerId, CarbonImmutable $dueAt, string $key): Reminder
+    {
+        return Reminder::query()->create([
+            'customer_id' => $customerId,
+            'assigned_to' => $this->manager->id,
+            'created_by' => $this->manager->id,
+            'source_type' => 'manual',
+            'reminder_type' => 'followup',
+            'title' => '跟进 '.$key,
+            'due_at' => $dueAt,
+            'status' => 'pending',
+            'notification_status' => 'pending',
+            'dedupe_key' => hash('sha256', 'direct-list:'.$key),
+        ]);
     }
 
     private function profile(string $name, int $channelId): CustomerProfileData

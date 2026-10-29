@@ -28,153 +28,88 @@
                     <span>{{ __('navigation.dashboard') }}</span>
                 </a>
 
-                <a href="{{ route('reminders.index') }}" class="crm-nav-item {{ request()->routeIs('reminders.*') ? 'is-active' : '' }}" wire:navigate>
-                    <flux:icon.bell-alert aria-hidden="true" />
-                    <span>{{ __('navigation.reminders') }}</span>
-                </a>
+                @php
+                    $isSuperAdmin = auth()->user()->isSuperAdmin();
+                    $isOperationsDirector = auth()->user()->isOperationsDirector();
+                    $isBdManager = auth()->user()->isBdManager();
+                    $isCustomerService = auth()->user()->isCustomerService();
+                    $isDirectCustomerManager = auth()->user()->isDirectCustomerManager();
+                    $canManageConfiguration = auth()->user()->canManageConfiguration();
+                    $canAccessOnlineDirect = $isSuperAdmin || $isOperationsDirector || $isDirectCustomerManager;
+                    $canAccessOfflineChannels = $isSuperAdmin || $isOperationsDirector || $isBdManager || $isCustomerService;
+                    $canAccessInstitutions = $isSuperAdmin || $isOperationsDirector;
+                    $canManageOfflineChannels = $isSuperAdmin || $isOperationsDirector || $isBdManager;
+                    $onlineDirectNavigationActive = request()->routeIs('direct-customers.*', 'direct-commissions.*', 'direct-team-overview.*')
+                        || (request()->routeIs('orders.*') && request()->query('sourceTypeFilter') === 'direct');
+                @endphp
+
+                @if ($canAccessOnlineDirect)
+                    <div class="crm-nav-group" x-data="{ open: @js($onlineDirectNavigationActive) }" data-test="online-direct-nav-group">
+                        <button type="button" class="crm-nav-group-head {{ $onlineDirectNavigationActive ? 'is-active' : '' }}" @click="open = !open" aria-expanded="{{ $onlineDirectNavigationActive ? 'true' : 'false' }}" :aria-expanded="open" aria-controls="online-direct-subnav" aria-label="{{ __('navigation.toggle_online_direct') }}" data-test="online-direct-nav-toggle">
+                            <span class="crm-nav-group-link"><flux:icon.user aria-hidden="true" /><span>{{ __('navigation.online_direct') }}</span></span>
+                            <span class="crm-nav-group-toggle"><flux:icon.chevron-down class="crm-nav-chevron" x-bind:class="{ 'is-open': open }" aria-hidden="true" /></span>
+                        </button>
+                        <div id="online-direct-subnav" class="crm-subnav-collapse {{ $onlineDirectNavigationActive ? 'is-open' : '' }}" aria-hidden="{{ $onlineDirectNavigationActive ? 'false' : 'true' }}" x-bind:class="{ 'is-open': open }" x-bind:aria-hidden="(!open).toString()" @if (! $onlineDirectNavigationActive) inert @endif x-bind:inert="!open" data-test="online-direct-subnav">
+                            <div class="crm-subnav-collapse-inner"><div class="crm-subnav">
+                                <a href="{{ route('direct-team-overview.index') }}" class="crm-subnav-item {{ request()->routeIs('direct-team-overview.*') ? 'is-active' : '' }}" data-test="online-direct-team-overview" wire:navigate>{{ __('navigation.direct_team_overview') }}</a>
+                                <a href="{{ route('direct-customers.index') }}" class="crm-subnav-item {{ request()->routeIs('direct-customers.*') ? 'is-active' : '' }}" data-test="online-direct-customers" wire:navigate>{{ __('navigation.direct_customers') }}</a>
+                                <a href="{{ route('orders.index', ['sourceTypeFilter' => 'direct']) }}" class="crm-subnav-item {{ request()->routeIs('orders.*') && request()->query('sourceTypeFilter') === 'direct' ? 'is-active' : '' }}" data-test="online-direct-orders" wire:navigate>{{ __('navigation.online_orders') }}</a>
+                                <a href="{{ route('direct-commissions.index') }}" class="crm-subnav-item {{ request()->routeIs('direct-commissions.*') ? 'is-active' : '' }}" data-test="online-direct-commissions" wire:navigate>{{ __('navigation.direct_commissions') }}</a>
+                            </div></div>
+                        </div>
+                    </div>
+                @endif
 
                 @php
-                    $customerNavigationActive = request()->routeIs('customers.index', 'customers.create', 'customers.show', 'customers.edit', 'direct-customers.*');
-                    $canViewAgentCustomers = ! auth()->user()->isDirectCustomerManager();
-                    $canViewDirectCustomers = auth()->user()->isSuperAdmin() || auth()->user()->isDirectCustomerManager();
+                    $offlineChannelNavigationActive = request()->routeIs('customers.*', 'team-overview.*', 'bd-commissions.*', 'agents.*')
+                        || (request()->routeIs('orders.*') && request()->query('sourceTypeFilter') === 'agent');
                 @endphp
-                <div
-                    class="crm-nav-group"
-                    x-data="{ open: @js($customerNavigationActive) }"
-                    data-test="customer-nav-group"
-                >
-                    <button
-                        type="button"
-                        class="crm-nav-group-head {{ $customerNavigationActive ? 'is-active' : '' }}"
-                        @click="open = !open"
-                        aria-expanded="{{ $customerNavigationActive ? 'true' : 'false' }}"
-                        :aria-expanded="open"
-                        aria-controls="customer-subnav"
-                        aria-label="{{ __('navigation.toggle_customers') }}"
-                        data-test="customer-nav-toggle"
-                    >
-                        <span class="crm-nav-group-link">
-                            <flux:icon.users aria-hidden="true" />
-                            <span>{{ __('navigation.customer_management') }}</span>
-                        </span>
-                        <span class="crm-nav-group-toggle">
-                            <flux:icon.chevron-down class="crm-nav-chevron" x-bind:class="{ 'is-open': open }" aria-hidden="true" />
-                        </span>
-                    </button>
-                    <div
-                        id="customer-subnav"
-                        class="crm-subnav-collapse {{ $customerNavigationActive ? 'is-open' : '' }}"
-                        aria-hidden="{{ $customerNavigationActive ? 'false' : 'true' }}"
-                        x-bind:class="{ 'is-open': open }"
-                        x-bind:aria-hidden="(!open).toString()"
-                        @if (! $customerNavigationActive) inert @endif
-                        x-bind:inert="!open"
-                        data-test="customer-subnav"
-                    >
-                        <div class="crm-subnav-collapse-inner">
-                            <div class="crm-subnav">
-                                @if ($canViewAgentCustomers)
-                                    <a href="{{ route('customers.index') }}" class="crm-subnav-item {{ request()->routeIs('customers.index', 'customers.create', 'customers.show', 'customers.edit') ? 'is-active' : '' }}" data-test="customer-subnav-agent" wire:navigate>
-                                        <span>{{ __('navigation.agent_customers') }}</span>
-                                    </a>
-                                @endif
-                                @if ($canViewDirectCustomers)
-                                    <a href="{{ route('direct-customers.index') }}" class="crm-subnav-item {{ request()->routeIs('direct-customers.*') ? 'is-active' : '' }}" data-test="customer-subnav-direct" wire:navigate>
-                                        <span>{{ __('navigation.direct_customers') }}</span>
-                                    </a>
-                                @endif
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <a href="{{ route('orders.index') }}" class="crm-nav-item {{ request()->routeIs('orders.*', 'customers.orders') ? 'is-active' : '' }}" wire:navigate>
-                    <flux:icon.clipboard-document-list aria-hidden="true" />
-                    <span>{{ __('navigation.orders') }}</span>
-                </a>
-
-                @if (auth()->user()->isSuperAdmin() || auth()->user()->isBdManager())
-                    @php
-                        $teamNavigationActive = request()->routeIs('team-overview.*', 'bd-commissions.*');
-                    @endphp
-                    <div
-                        class="crm-nav-group"
-                        x-data="{ open: @js($teamNavigationActive) }"
-                        data-test="team-nav-group"
-                    >
-                        <button
-                            type="button"
-                            class="crm-nav-group-head {{ $teamNavigationActive ? 'is-active' : '' }}"
-                            @click="open = !open"
-                            aria-expanded="{{ $teamNavigationActive ? 'true' : 'false' }}"
-                            :aria-expanded="open"
-                            aria-controls="team-subnav"
-                            aria-label="{{ __('navigation.toggle_team') }}"
-                            data-test="team-nav-toggle"
-                        >
-                            <span class="crm-nav-group-link">
-                                <flux:icon.user-group aria-hidden="true" />
-                                <span>{{ __('navigation.team_management') }}</span>
-                            </span>
-                            <span class="crm-nav-group-toggle">
-                                <flux:icon.chevron-down class="crm-nav-chevron" x-bind:class="{ 'is-open': open }" aria-hidden="true" />
-                            </span>
+                @if ($canAccessOfflineChannels)
+                    <div class="crm-nav-group" x-data="{ open: @js($offlineChannelNavigationActive) }" data-test="offline-channel-nav-group">
+                        <button type="button" class="crm-nav-group-head {{ $offlineChannelNavigationActive ? 'is-active' : '' }}" @click="open = !open" aria-expanded="{{ $offlineChannelNavigationActive ? 'true' : 'false' }}" :aria-expanded="open" aria-controls="offline-channel-subnav" aria-label="{{ __('navigation.toggle_offline_channel') }}" data-test="offline-channel-nav-toggle">
+                            <span class="crm-nav-group-link"><flux:icon.building-office-2 aria-hidden="true" /><span>{{ __('navigation.offline_channel') }}</span></span>
+                            <span class="crm-nav-group-toggle"><flux:icon.chevron-down class="crm-nav-chevron" x-bind:class="{ 'is-open': open }" aria-hidden="true" /></span>
                         </button>
-                        <div
-                            id="team-subnav"
-                            class="crm-subnav-collapse {{ $teamNavigationActive ? 'is-open' : '' }}"
-                            aria-hidden="{{ $teamNavigationActive ? 'false' : 'true' }}"
-                            x-bind:class="{ 'is-open': open }"
-                            x-bind:aria-hidden="(!open).toString()"
-                            @if (! $teamNavigationActive) inert @endif
-                            x-bind:inert="!open"
-                        >
-                            <div class="crm-subnav-collapse-inner">
-                                <div class="crm-subnav">
-                                    <a href="{{ route('team-overview.index') }}" class="crm-subnav-item {{ request()->routeIs('team-overview.*') ? 'is-active' : '' }}" data-test="team-subnav-overview" wire:navigate>
-                                        {{ __('navigation.team_overview_page') }}
-                                    </a>
-                                    <a href="{{ route('bd-commissions.index') }}" class="crm-subnav-item {{ request()->routeIs('bd-commissions.*') ? 'is-active' : '' }}" data-test="team-subnav-bd-commissions" wire:navigate>
-                                        {{ __('navigation.bd_commissions') }}
-                                    </a>
-                                </div>
-                            </div>
+                        <div id="offline-channel-subnav" class="crm-subnav-collapse {{ $offlineChannelNavigationActive ? 'is-open' : '' }}" aria-hidden="{{ $offlineChannelNavigationActive ? 'false' : 'true' }}" x-bind:class="{ 'is-open': open }" x-bind:aria-hidden="(!open).toString()" @if (! $offlineChannelNavigationActive) inert @endif x-bind:inert="!open" data-test="offline-channel-subnav">
+                            <div class="crm-subnav-collapse-inner"><div class="crm-subnav">
+                                @if ($canManageOfflineChannels)
+                                    <a href="{{ route('team-overview.index') }}" class="crm-subnav-item {{ request()->routeIs('team-overview.*') ? 'is-active' : '' }}" data-test="offline-channel-team-overview" wire:navigate>{{ __('navigation.team_overview_page') }}</a>
+                                    <a href="{{ route('agents.index') }}" class="crm-subnav-item {{ request()->routeIs('agents.*') ? 'is-active' : '' }}" data-test="offline-channel-agents" wire:navigate>{{ __('navigation.agents') }}</a>
+                                @endif
+                                <a href="{{ route('customers.index') }}" class="crm-subnav-item {{ request()->routeIs('customers.index', 'customers.create', 'customers.show', 'customers.edit') ? 'is-active' : '' }}" data-test="offline-channel-customers" wire:navigate>{{ __('navigation.agent_customers') }}</a>
+                                <a href="{{ route('orders.index', ['sourceTypeFilter' => 'agent']) }}" class="crm-subnav-item {{ request()->routeIs('orders.*') && request()->query('sourceTypeFilter') === 'agent' ? 'is-active' : '' }}" data-test="offline-channel-orders" wire:navigate>{{ __('navigation.offline_orders') }}</a>
+                                @if ($canManageOfflineChannels)
+                                    <a href="{{ route('bd-commissions.index') }}" class="crm-subnav-item {{ request()->routeIs('bd-commissions.*') ? 'is-active' : '' }}" data-test="offline-channel-bd-commissions" wire:navigate>{{ __('navigation.bd_commissions') }}</a>
+                                @endif
+                            </div></div>
                         </div>
                     </div>
                 @endif
 
-                @if (auth()->user()->isSuperAdmin() || auth()->user()->isDirectCustomerManager())
-                    <a href="{{ route('direct-commissions.index') }}" class="crm-nav-item {{ request()->routeIs('direct-commissions.*') ? 'is-active' : '' }}" wire:navigate>
-                        <flux:icon.banknotes aria-hidden="true" />
-                        <span>{{ __('navigation.direct_commissions') }}</span>
-                    </a>
+                @php
+                    $institutionNavigationActive = request()->routeIs('reports.institution-sales', 'institution-returns.*');
+                @endphp
+                @if ($canAccessInstitutions)
+                    <div class="crm-nav-group" x-data="{ open: @js($institutionNavigationActive) }" data-test="institution-nav-group">
+                        <button type="button" class="crm-nav-group-head {{ $institutionNavigationActive ? 'is-active' : '' }}" @click="open = !open" aria-expanded="{{ $institutionNavigationActive ? 'true' : 'false' }}" :aria-expanded="open" aria-controls="institution-subnav" aria-label="{{ __('navigation.toggle_institutions') }}" data-test="institution-nav-toggle">
+                            <span class="crm-nav-group-link"><flux:icon.building-office aria-hidden="true" /><span>{{ __('navigation.partner_institutions') }}</span></span>
+                            <span class="crm-nav-group-toggle"><flux:icon.chevron-down class="crm-nav-chevron" x-bind:class="{ 'is-open': open }" aria-hidden="true" /></span>
+                        </button>
+                        <div id="institution-subnav" class="crm-subnav-collapse {{ $institutionNavigationActive ? 'is-open' : '' }}" aria-hidden="{{ $institutionNavigationActive ? 'false' : 'true' }}" x-bind:class="{ 'is-open': open }" x-bind:aria-hidden="(!open).toString()" @if (! $institutionNavigationActive) inert @endif x-bind:inert="!open" data-test="institution-subnav">
+                            <div class="crm-subnav-collapse-inner"><div class="crm-subnav">
+                                <a href="{{ route('reports.institution-sales') }}" class="crm-subnav-item {{ request()->routeIs('reports.institution-sales') ? 'is-active' : '' }}" data-test="institution-monthly-sales" wire:navigate>{{ __('navigation.institution_sales') }}</a>
+                                <a href="{{ route('institution-returns.index') }}" class="crm-subnav-item {{ request()->routeIs('institution-returns.*') ? 'is-active' : '' }}" data-test="institution-returns" wire:navigate>{{ __('navigation.institution_returns') }}</a>
+                            </div></div>
+                        </div>
+                    </div>
                 @endif
 
-                @if (auth()->user()->isSuperAdmin())
-                    <a href="{{ route('agents.index') }}" class="crm-nav-item {{ request()->routeIs('agents.*') ? 'is-active' : '' }}" wire:navigate>
-                        <flux:icon.building-office aria-hidden="true" />
-                        <span>{{ __('navigation.agents') }}</span>
-                    </a>
-                    <a href="{{ route('settlements.index') }}" class="crm-nav-item {{ request()->routeIs('settlements.*') ? 'is-active' : '' }}" wire:navigate>
-                        <flux:icon.banknotes aria-hidden="true" />
-                        <span>{{ __('navigation.settlements') }}</span>
-                    </a>
-                @endif
-
-                <a href="{{ route('reports.search') }}" class="crm-nav-item {{ request()->routeIs('reports.search', 'reports.exports.*') ? 'is-active' : '' }}" wire:navigate>
-                    <flux:icon.magnifying-glass aria-hidden="true" />
-                    <span>{{ __('navigation.reports') }}</span>
-                </a>
-
-                @if (auth()->user()->isSuperAdmin() || auth()->user()->isBdManager() || auth()->user()->isDirectCustomerManager())
-                    <a href="{{ route('reports.institution-sales') }}" class="crm-nav-item {{ request()->routeIs('reports.institution-sales') ? 'is-active' : '' }}" wire:navigate>
-                        <flux:icon.chart-bar aria-hidden="true" />
-                        <span>{{ __('navigation.institution_sales') }}</span>
-                    </a>
-                @endif
-
-                @if (auth()->user()->isSuperAdmin())
+                @if ($canManageConfiguration)
                     @php
+                        $configurationEmployeesActive = request()->routeIs('configuration.users-and-notifications', 'configuration.users', 'configuration.notifications');
+                        $configurationInstitutionsActive = request()->routeIs('configuration.catalog');
+                        $configurationCommissionsActive = request()->routeIs('configuration.direct-customer', 'agent-configuration.*');
+                        $configurationBasicsActive = request()->routeIs('customer-statuses.*', 'reminder-configuration.*');
                         $configurationNavigationActive = request()->routeIs(
                             'configuration.*',
                             'agent-configuration.*',
@@ -225,89 +160,86 @@
                             <div class="crm-subnav-collapse-inner">
                                 <div class="crm-subnav">
                                     <a
-                                        href="{{ route('configuration.index') }}"
-                                        class="crm-subnav-item {{ request()->routeIs('configuration.index') ? 'is-active' : '' }}"
-                                        data-test="configuration-subnav-overview"
-                                        wire:navigate
+                                        href="{{ route('configuration.index') }}#configuration-employees"
+                                        class="crm-subnav-item {{ $configurationEmployeesActive ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-employees"
                                     >
-                                        {{ __('navigation.configuration_overview') }}
+                                        {{ __('config.center.groups.employees') }}
                                     </a>
 
                                     <a
-                                        href="{{ route('configuration.catalog') }}"
-                                        class="crm-subnav-item {{ request()->routeIs('configuration.catalog') ? 'is-active' : '' }}"
-                                        data-test="configuration-subnav-catalog"
-                                        wire:navigate
+                                        href="{{ route('configuration.index') }}#configuration-institutions"
+                                        class="crm-subnav-item {{ $configurationInstitutionsActive ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-institutions"
                                     >
-                                        {{ __('navigation.catalog') }}
+                                        {{ __('config.center.groups.institutions') }}
                                     </a>
 
                                     <a
-                                        href="{{ route('customer-statuses.index') }}"
-                                        class="crm-subnav-item {{ request()->routeIs('customer-statuses.*') ? 'is-active' : '' }}"
-                                        data-test="configuration-subnav-customer-statuses"
-                                        wire:navigate
+                                        href="{{ route('configuration.index') }}#configuration-commissions"
+                                        class="crm-subnav-item {{ $configurationCommissionsActive ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-commissions"
                                     >
-                                        {{ __('navigation.customer_statuses') }}
+                                        {{ __('config.center.groups.commissions') }}
                                     </a>
 
                                     <a
-                                        href="{{ route('agent-configuration.index') }}"
-                                        class="crm-subnav-item {{ request()->routeIs('agent-configuration.*') ? 'is-active' : '' }}"
-                                        data-test="configuration-subnav-agent"
-                                        wire:navigate
+                                        href="{{ route('configuration.index') }}#configuration-basics"
+                                        class="crm-subnav-item {{ $configurationBasicsActive ? 'is-active' : '' }}"
+                                        data-test="configuration-subnav-basics"
                                     >
-                                        {{ __('navigation.agent_configuration') }}
+                                        {{ __('config.center.groups.basics') }}
                                     </a>
 
-                                    <a
-                                        href="{{ route('reminder-configuration.index') }}"
-                                        class="crm-subnav-item {{ request()->routeIs('reminder-configuration.*') ? 'is-active' : '' }}"
-                                        data-test="configuration-subnav-reminder"
-                                        wire:navigate
-                                    >
-                                        {{ __('navigation.reminder_configuration') }}
-                                    </a>
+                                    <p class="crm-subnav-section-label">{{ __('navigation.configuration_more_tools') }}</p>
+                                    <a href="{{ route('configuration.history') }}" class="crm-subnav-item {{ request()->routeIs('configuration.history') ? 'is-active' : '' }}" data-test="configuration-subnav-history" wire:navigate>{{ __('navigation.history') }}</a>
 
-                                    <a
-                                        href="{{ route('configuration.users-and-notifications') }}"
-                                        class="crm-subnav-item {{ request()->routeIs('configuration.users-and-notifications', 'configuration.users', 'configuration.notifications') ? 'is-active' : '' }}"
-                                        data-test="configuration-subnav-users"
-                                        wire:navigate
-                                    >
-                                        {{ __('navigation.users') }}
-                                    </a>
-
-                                    <a
-                                        href="{{ route('configuration.history') }}"
-                                        class="crm-subnav-item {{ request()->routeIs('configuration.history') ? 'is-active' : '' }}"
-                                        data-test="configuration-subnav-history"
-                                        wire:navigate
-                                    >
-                                        {{ __('navigation.history') }}
-                                    </a>
-
-                                    <a
-                                        href="{{ route('configuration.data-maintenance') }}"
-                                        class="crm-subnav-item {{ request()->routeIs('configuration.data-maintenance', 'reference-configuration-imports.*', 'data-imports.*') ? 'is-active' : '' }}"
-                                        data-test="configuration-subnav-data-maintenance"
-                                        wire:navigate
-                                    >
-                                        {{ __('navigation.data_maintenance') }}
-                                    </a>
-
-                                    @if (app(\App\Infrastructure\Time\BusinessClock::class)->isAvailable())
+                                    @if ($isSuperAdmin)
                                         <a
-                                            href="{{ route('configuration.time-travel') }}"
-                                            class="crm-subnav-item {{ request()->routeIs('configuration.time-travel') ? 'is-active' : '' }}"
-                                            data-test="configuration-subnav-time-travel"
+                                            href="{{ route('configuration.data-maintenance') }}"
+                                            class="crm-subnav-item {{ request()->routeIs('configuration.data-maintenance', 'reference-configuration-imports.*', 'data-imports.*') ? 'is-active' : '' }}"
+                                            data-test="configuration-subnav-data-maintenance"
                                             wire:navigate
                                         >
-                                            {{ __('navigation.time_travel') }}
+                                            {{ __('navigation.data_maintenance') }}
                                         </a>
+
+                                        @if (app(\App\Infrastructure\Time\BusinessClock::class)->isAvailable())
+                                            <a
+                                                href="{{ route('configuration.time-travel') }}"
+                                                class="crm-subnav-item {{ request()->routeIs('configuration.time-travel') ? 'is-active' : '' }}"
+                                                data-test="configuration-subnav-time-travel"
+                                                wire:navigate
+                                            >
+                                                {{ __('navigation.time_travel') }}
+                                            </a>
+                                        @endif
                                     @endif
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                @endif
+
+                @if ($canAccessOnlineDirect || $canAccessOfflineChannels || $isSuperAdmin)
+                    @php
+                        $auxiliaryNavigationActive = request()->routeIs('reminders.*', 'reports.search', 'reports.exports.*', 'settlements.*');
+                    @endphp
+                    <div class="crm-nav-group" x-data="{ open: @js($auxiliaryNavigationActive) }" data-test="auxiliary-nav-group">
+                        <button type="button" class="crm-nav-group-head {{ $auxiliaryNavigationActive ? 'is-active' : '' }}" @click="open = !open" aria-expanded="{{ $auxiliaryNavigationActive ? 'true' : 'false' }}" :aria-expanded="open" aria-controls="auxiliary-subnav" aria-label="{{ __('navigation.toggle_auxiliary') }}" data-test="auxiliary-nav-toggle">
+                            <span class="crm-nav-group-link"><flux:icon.squares-2x2 aria-hidden="true" /><span>{{ __('navigation.auxiliary') }}</span></span>
+                            <span class="crm-nav-group-toggle"><flux:icon.chevron-down class="crm-nav-chevron" x-bind:class="{ 'is-open': open }" aria-hidden="true" /></span>
+                        </button>
+                        <div id="auxiliary-subnav" class="crm-subnav-collapse {{ $auxiliaryNavigationActive ? 'is-open' : '' }}" aria-hidden="{{ $auxiliaryNavigationActive ? 'false' : 'true' }}" x-bind:class="{ 'is-open': open }" x-bind:aria-hidden="(!open).toString()" @if (! $auxiliaryNavigationActive) inert @endif x-bind:inert="!open" data-test="auxiliary-subnav">
+                            <div class="crm-subnav-collapse-inner"><div class="crm-subnav">
+                                @if ($canAccessOnlineDirect || $canAccessOfflineChannels)
+                                    <a href="{{ route('reminders.index') }}" class="crm-subnav-item {{ request()->routeIs('reminders.*') ? 'is-active' : '' }}" data-test="auxiliary-reminders" wire:navigate>{{ __('navigation.reminders') }}</a>
+                                    <a href="{{ route('reports.search') }}" class="crm-subnav-item {{ request()->routeIs('reports.search', 'reports.exports.*') ? 'is-active' : '' }}" data-test="auxiliary-reports" wire:navigate>{{ __('navigation.reports') }}</a>
+                                @endif
+                                @if ($isSuperAdmin)
+                                    <a href="{{ route('settlements.index') }}" class="crm-subnav-item {{ request()->routeIs('settlements.*') ? 'is-active' : '' }}" data-test="auxiliary-settlements" wire:navigate>{{ __('navigation.settlements') }}</a>
+                                @endif
+                            </div></div>
                         </div>
                     </div>
                 @endif
@@ -461,7 +393,7 @@
                             <flux:icon.clipboard-document-list aria-hidden="true" />
                             <span>{{ __('navigation.search_order') }}<strong x-text="query ? `“${query}”` : ''"></strong></span>
                         </a>
-                        @if (auth()->user()->isSuperAdmin())
+                        @if (auth()->user()->isSuperAdmin() || auth()->user()->isOperationsDirector())
                             <a
                                 x-bind:href="'{{ route('agents.index') }}?search=' + encodeURIComponent(query)"
                                 @click="open = false"
@@ -487,15 +419,7 @@
                     </label>
                 </form>
 
-                <a
-                    href="{{ route('reminders.index') }}"
-                    class="crm-icon-button crm-notification-button"
-                    data-test="reminder-notification-button"
-                    aria-label="{{ __('navigation.view_reminders') }}"
-                    wire:navigate
-                >
-                    <flux:icon.bell aria-hidden="true" />
-                </a>
+                @livewire(\App\Modules\Config\Presentation\Livewire\NotificationBell::class)
 
                 <flux:dropdown position="bottom" align="end">
                     <button
@@ -539,7 +463,7 @@
                         <span class="crm-avatar">{{ auth()->user()->initials() }}</span>
                         <span class="crm-user-copy">
                             <strong>{{ auth()->user()->name }}</strong>
-                            <small>{{ auth()->user()->isSuperAdmin() ? __('navigation.super_admin') : __('navigation.internal_user') }}</small>
+                            <small>{{ auth()->user()->isSuperAdmin() ? __('navigation.super_admin') : (auth()->user()->isOperationsDirector() ? __('config.user_management.roles.operations_director') : __('navigation.internal_user')) }}</small>
                         </span>
                         <flux:icon.chevron-down aria-hidden="true" />
                     </button>
@@ -574,10 +498,12 @@
             @if ($businessClockActive)
                 <div class="mx-4 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900 shadow-sm dark:border-amber-700 dark:bg-amber-950/40 dark:text-amber-100" data-test="business-clock-warning">
                     <span class="font-semibold">{{ __('navigation.time_travel_warning', ['time' => $businessClock->now()->format('Y-m-d H:i')]) }}</span>
-                    <form method="POST" action="{{ route('configuration.time-travel.disable') }}">
-                        @csrf
-                        <button type="submit" class="font-semibold underline underline-offset-2">{{ __('navigation.restore_real_time') }}</button>
-                    </form>
+                    @if (auth()->user()->isSuperAdmin())
+                        <form method="POST" action="{{ route('configuration.time-travel.disable') }}">
+                            @csrf
+                            <button type="submit" class="font-semibold underline underline-offset-2">{{ __('navigation.restore_real_time') }}</button>
+                        </form>
+                    @endif
                 </div>
             @endif
 

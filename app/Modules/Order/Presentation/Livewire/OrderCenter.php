@@ -30,6 +30,8 @@ class OrderCenter extends Component
 
     public string $sourceTypeFilter = '';
 
+    public string $ownerIdFilter = '';
+
     public int $perPage = 20;
 
     /** @var array<string, array<int, array<string, mixed>>> */
@@ -45,6 +47,7 @@ class OrderCenter extends Component
         'dateFrom' => ['except' => ''],
         'dateTo' => ['except' => ''],
         'sourceTypeFilter' => ['except' => ''],
+        'ownerIdFilter' => ['except' => ''],
         'perPage' => ['except' => 20],
     ];
 
@@ -55,14 +58,14 @@ class OrderCenter extends Component
 
     public function updated(string $property): void
     {
-        if (in_array($property, ['search', 'statusFilter', 'institutionFilter', 'agentFilter', 'dateField', 'dateFrom', 'dateTo', 'sourceTypeFilter', 'perPage'], true)) {
+        if (in_array($property, ['search', 'statusFilter', 'institutionFilter', 'agentFilter', 'dateField', 'dateFrom', 'dateTo', 'sourceTypeFilter', 'ownerIdFilter', 'perPage'], true)) {
             $this->resetPage();
         }
     }
 
     public function clearFilters(): void
     {
-        $this->reset('search', 'statusFilter', 'institutionFilter', 'agentFilter', 'dateFrom', 'dateTo', 'sourceTypeFilter');
+        $this->reset('search', 'statusFilter', 'institutionFilter', 'agentFilter', 'dateFrom', 'dateTo', 'sourceTypeFilter', 'ownerIdFilter');
         $this->dateField = 'created_at';
         $this->perPage = 20;
         $this->resetPage();
@@ -75,6 +78,7 @@ class OrderCenter extends Component
             'dateFrom' => ['nullable', 'date_format:Y-m-d'],
             'dateTo' => ['nullable', 'date_format:Y-m-d'],
             'sourceTypeFilter' => ['nullable', 'in:agent,direct'],
+            'ownerIdFilter' => ['nullable', 'integer', 'min:1'],
         ]);
 
         if ($this->dateFrom !== '' && $this->dateTo !== '' && $this->dateTo < $this->dateFrom) {
@@ -90,6 +94,7 @@ class OrderCenter extends Component
             'date_from' => $this->dateFrom,
             'date_to' => $this->dateTo,
             'source_type' => $this->sourceTypeFilter,
+            'owner_id' => $this->ownerIdFilter === '' ? null : (int) $this->ownerIdFilter,
         ], in_array($this->perPage, [20, 50, 100], true) ? $this->perPage : 20);
 
         return view('livewire.orders.order-center', compact('orders'))->title(__('orders.title'));

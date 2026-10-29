@@ -93,10 +93,13 @@ class UserManagement extends Component
 
     public function invite(ConfigurationUserCoordinator $users): void
     {
+        $allowedRoles = Auth::user()?->isOperationsDirector()
+            ? 'bd_manager,customer_service,direct_customer_manager,operations_director'
+            : 'super_admin,bd_manager,customer_service,direct_customer_manager,operations_director';
         $this->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
-            'inviteRole' => ['required', 'string', 'in:super_admin,bd_manager,customer_service,direct_customer_manager'],
+            'inviteRole' => ['required', 'string', 'in:'.$allowedRoles],
         ]);
         $result = $users->inviteWithRole($this->name, $this->email, $this->inviteRole, (int) Auth::id(), request()->ip());
         $this->reset('name', 'email', 'inviteRole');
@@ -143,8 +146,11 @@ class UserManagement extends Component
     public function saveRole(int $id, ConfigurationUserCoordinator $users): void
     {
         $role = (string) ($this->roleSelections[$id] ?? '');
+        $allowedRoles = Auth::user()?->isOperationsDirector()
+            ? 'bd_manager,customer_service,direct_customer_manager,operations_director'
+            : 'super_admin,bd_manager,customer_service,direct_customer_manager,operations_director';
         $this->validate([
-            "roleSelections.{$id}" => ['required', 'string', 'in:super_admin,bd_manager,customer_service,direct_customer_manager'],
+            "roleSelections.{$id}" => ['required', 'string', 'in:'.$allowedRoles],
         ]);
         $this->run(
             fn () => $users->setRole($id, $role, (int) Auth::id(), request()->ip()),

@@ -27,7 +27,7 @@ final class DashboardExportGenerator
     {
         $context = $this->access->forUser($user);
         abort_unless(
-            $context->isSuperAdmin()
+            $context->hasOrganizationWideReadAccess()
                 || ($context->isBdManager() && $context->hasEffectiveBusinessScope())
                 || ($context->isCustomerService() && $context->userId !== null)
                 || ($context->isDirectCustomerManager() && $context->userId !== null),

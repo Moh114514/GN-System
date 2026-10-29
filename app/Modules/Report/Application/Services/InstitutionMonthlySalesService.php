@@ -43,7 +43,7 @@ final readonly class InstitutionMonthlySalesService
         $to = $from->endOfMonth();
         $activeInstitutions = $this->institutionOptions();
         $activeIds = array_column($activeInstitutions, 'id');
-        $visibleIds = $this->access->current()->isSuperAdmin()
+        $visibleIds = $this->access->current()->hasOrganizationWideReadAccess()
             ? null
             : $this->orders->visibleInstitutionIds();
         $aggregates = $this->orders->institutionMonthlySales($from, $to, $institutionId);
@@ -102,7 +102,7 @@ final readonly class InstitutionMonthlySalesService
     public function institutionOptions(): array
     {
         $institutions = $this->config->activeInstitutions();
-        if ($this->access->current()->isSuperAdmin()) {
+        if ($this->access->current()->hasOrganizationWideReadAccess()) {
             return $institutions;
         }
 

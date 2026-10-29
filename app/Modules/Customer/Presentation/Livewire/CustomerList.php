@@ -25,6 +25,8 @@ class CustomerList extends Component
 
     public string $agentId = '';
 
+    public string $bdManagerId = '';
+
     public string $institutionId = '';
 
     public string $ownerId = '';
@@ -56,6 +58,7 @@ class CustomerList extends Component
         'search' => ['except' => ''],
         'statusId' => ['except' => ''],
         'agentId' => ['except' => ''],
+        'bdManagerId' => ['except' => ''],
         'institutionId' => ['except' => ''],
         'ownerId' => ['except' => ''],
         'ownerState' => ['except' => ''],
@@ -79,14 +82,14 @@ class CustomerList extends Component
         if ($property === 'ownerState' && $this->ownerState !== '') {
             $this->ownerId = '';
         }
-        if (in_array($property, ['search', 'statusId', 'agentId', 'institutionId', 'ownerId', 'ownerState', 'transferStatus', 'businessGroupId', 'createdFrom', 'createdTo', 'perPage'], true)) {
+        if (in_array($property, ['search', 'statusId', 'agentId', 'bdManagerId', 'institutionId', 'ownerId', 'ownerState', 'transferStatus', 'businessGroupId', 'createdFrom', 'createdTo', 'perPage'], true)) {
             $this->resetPage();
         }
     }
 
     public function clearFilters(): void
     {
-        $this->reset('search', 'statusId', 'agentId', 'institutionId', 'ownerId', 'ownerState', 'transferStatus', 'businessGroupId', 'createdFrom', 'createdTo');
+        $this->reset('search', 'statusId', 'agentId', 'bdManagerId', 'institutionId', 'ownerId', 'ownerState', 'transferStatus', 'businessGroupId', 'createdFrom', 'createdTo');
         $this->perPage = 20;
         $this->resetPage();
     }
@@ -156,6 +159,7 @@ class CustomerList extends Component
                 'search' => $this->search,
                 'status_id' => $this->statusId === '' ? null : (int) $this->statusId,
                 'agent_id' => $this->agentId === '' ? null : (int) $this->agentId,
+                'bd_manager_id' => $this->bdManagerId === '' ? null : (int) $this->bdManagerId,
                 'institution_id' => $this->institutionId === '' ? null : (int) $this->institutionId,
                 'owner_id' => $this->ownerId === '' ? null : (int) $this->ownerId,
                 'owner_state' => $this->ownerState,

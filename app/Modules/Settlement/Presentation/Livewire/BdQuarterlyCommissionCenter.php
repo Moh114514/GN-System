@@ -7,6 +7,7 @@ use App\Modules\Settlement\Application\Services\BdQuarterlyCommissionService;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -19,6 +20,8 @@ class BdQuarterlyCommissionCenter extends Component
     public ?int $selectedPeriodId = null;
 
     public string $selectedBdUserId = '';
+
+    public string $selectedMonth = '';
 
     public string $ruleEffectiveFrom = '';
 
@@ -49,6 +52,12 @@ class BdQuarterlyCommissionCenter extends Component
             $this->previewData = $service->preview($this->date($this->quarterStart));
             $this->selectedPeriodId = $this->selectedPeriodId ?? $this->periodId($service);
         });
+    }
+
+    public function updatedSelectedPeriodId(): void
+    {
+        $this->selectedBdUserId = '';
+        $this->selectedMonth = '';
     }
 
     public function generate(BdQuarterlyCommissionService $service): void
@@ -121,6 +130,37 @@ class BdQuarterlyCommissionCenter extends Component
             ->filter(fn (array $item): bool => isset($item['bd_user_id']))
             ->map(fn (array $item): array => ['id' => (int) $item['bd_user_id'], 'name' => (string) $item['bd_name']])
             ->unique('id')->values()->all();
+        $monthOptions = [];
+        if ($detail !== null) {
+            $month = CarbonImmutable::parse($detail['period']->quarter_start)->startOfMonth();
+            $quarterEnd = CarbonImmutable::parse($detail['period']->quarter_end)->startOfMonth();
+            while ($month <= $quarterEnd) {
+                $monthOptions[] = $month->format('Y-m');
+                $month = $month->addMonth();
+            }
+        }
+        /** @var Collection<int, array{order_id: int, bd_user_id: int|null, bd_name: string, occurred_on: string, business_group_id: int|null, business_group_name: string, agent_name: string, basis_krw: int, rate_bps: int, commission_krw: int}> $visibleItems */
+        $visibleItems = collect($detail['items'] ?? []);
+        if ($this->selectedMonth !== '') {
+            $visibleItems = $visibleItems
+                ->filter(fn (array $item): bool => str_starts_with($item['occurred_on'], $this->selectedMonth))
+                ->values();
+        }
+        $monthlyPerformance = $visibleItems
+            ->groupBy(fn (array $item): string => substr($item['occurred_on'], 0, 7).'|'.($item['bd_user_id'] ?? 'unassigned'))
+            ->map(function ($items): array {
+                $first = $items->first();
+
+                return [
+                    'month' => substr($first['occurred_on'], 0, 7),
+                    'bd_name' => $first['bd_name'],
+                    'orders' => $items->count(),
+                    'basis_krw' => $items->sum('basis_krw'),
+                    'commission_krw' => $items->sum('commission_krw'),
+                ];
+            })
+            ->sortBy([['month', 'asc'], ['bd_name', 'asc']])
+            ->values();
 
         return view('livewire.settlements.bd-quarterly-commission-center', [
             'periods' => $periods,
@@ -128,6 +168,9 @@ class BdQuarterlyCommissionCenter extends Component
             'rules' => auth()->user()?->isSuperAdmin() ? $service->rules() : collect(),
             'users' => auth()->user()?->isSuperAdmin() ? $service->eligibleBdUsers() : [],
             'availableBdUsers' => $availableBdUsers,
+            'monthOptions' => $monthOptions,
+            'visibleItems' => $visibleItems,
+            'monthlyPerformance' => $monthlyPerformance,
         ])->title(__('settlements.bd_commission.title'));
     }
 

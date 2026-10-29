@@ -12,5 +12,8 @@ final readonly class CustomerFollowupData
         public CarbonImmutable $followedUpOn,
         public string $content,
         public int $ownerId,
+        public string $result = '',
+        public ?int $reminderId = null,
+        public ?CarbonImmutable $nextFollowupAt = null,
     ) {}
 }

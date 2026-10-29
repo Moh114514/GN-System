@@ -76,7 +76,12 @@ final class DatabaseReportOrderReader implements ReportOrderReader
     {
         $base = Order::query()->where('status', 'completed')->where('record_status', 'active')->whereBetween('completed_at', [$from, $to]);
         $this->applyScope($base);
-        $amount = (int) (clone $base)->sum('amount_krw');
+        $channelAmounts = (clone $base)
+            ->select('source_type')
+            ->selectRaw('SUM(amount_krw)::bigint AS amount')
+            ->groupBy('source_type')
+            ->pluck('amount', 'source_type');
+        $amount = (int) $channelAmounts->sum();
         $customerCounts = (clone $base)
             ->select('customer_id', DB::raw('COUNT(*)::int AS order_count'))
             ->groupBy('customer_id')
@@ -106,6 +111,8 @@ final class DatabaseReportOrderReader implements ReportOrderReader
 
         return [
             'completed_amount' => $amount,
+            'direct_amount' => (int) ($channelAmounts['direct'] ?? 0),
+            'agent_amount' => (int) ($channelAmounts['agent'] ?? 0),
             'completed_orders' => (clone $base)->count(),
             'completed_customers' => $purchasers,
             'repurchase_rate' => $purchasers === 0 ? 0.0 : round($repeaters / $purchasers * 100, 2),
@@ -157,7 +164,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
     {
         $context = $this->access->current();
         abort_unless(
-            $context->isSuperAdmin()
+            $context->hasOrganizationWideReadAccess()
                 || ($context->isBdManager() && in_array($businessGroupId, $context->businessGroupIds, true)),
             403,
         );
@@ -196,6 +203,103 @@ final class DatabaseReportOrderReader implements ReportOrderReader
         ];
     }
 
+    /**
+     * @param  list<int>  $agentIds
+     * @return list<array{agent_id: int, code: string, name: string, orders: int, amount_krw: int, customers: int}>
+     */
+    public function teamAgentPerformance(array $agentIds, int $businessGroupId, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $context = $this->access->current();
+        abort_unless(
+            $context->hasOrganizationWideReadAccess() || ($context->isBdManager() && in_array($businessGroupId, $context->businessGroupIds, true)),
+            403,
+        );
+        $agentIds = array_values(array_unique(array_filter(array_map('intval', $agentIds), static fn (int $id): bool => $id > 0)));
+
+        $query = Order::query()
+            ->where('source_type', 'agent')
+            ->where('status', 'completed')
+            ->where('record_status', 'active')
+            ->whereNotNull('occurred_on')
+            ->whereNotNull('agent_id')
+            ->whereBetween('occurred_on', [$from->toDateString(), $to->toDateString()])
+            ->whereJsonContains('business_attribution_snapshot->business_group->business_group_id', $businessGroupId);
+        // Group authorization is checked above and the historical attribution snapshot
+        // is the source of truth for this period. Current agent assignments must not
+        // erase sales by agents who have since moved to another group.
+        $rows = $query->selectRaw("agent_id::int as agent_id, MAX(business_attribution_snapshot->'agent'->>'code') as agent_code, MAX(business_attribution_snapshot->'agent'->>'name') as agent_name, COUNT(*)::int as orders, SUM(amount_krw)::bigint as amount_krw, COUNT(DISTINCT customer_id)::int as customers")
+            ->groupBy('agent_id')->get()->keyBy(fn (Order $row): int => (int) $row->getAttribute('agent_id'));
+        $performance = [];
+        $allAgentIds = array_values(array_unique([
+            ...$agentIds,
+            ...$rows->keys()->map(static fn (mixed $id): int => (int) $id)->all(),
+        ]));
+        foreach ($allAgentIds as $agentId) {
+            $row = $rows->get($agentId);
+            $performance[] = [
+                'agent_id' => $agentId,
+                'code' => (string) ($row?->getAttribute('agent_code') ?? ''),
+                'name' => (string) ($row?->getAttribute('agent_name') ?? ''),
+                'orders' => (int) ($row?->getAttribute('orders') ?? 0),
+                'amount_krw' => (int) ($row?->getAttribute('amount_krw') ?? 0),
+                'customers' => (int) ($row?->getAttribute('customers') ?? 0),
+            ];
+        }
+        usort($performance, static fn (array $left, array $right): int => $right['amount_krw'] <=> $left['amount_krw'] ?: $left['agent_id'] <=> $right['agent_id']);
+
+        return $performance;
+    }
+
+    public function directTeamOverview(array $ownerIds, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $context = $this->access->current();
+        abort_unless($context->hasOrganizationWideReadAccess() || $context->isDirectCustomerManager(), 403);
+        $ownerIds = array_values(array_unique(array_filter(array_map('intval', $ownerIds), fn (int $id): bool => $id > 0)));
+        if ($context->isDirectCustomerManager()) {
+            $ownerIds = $context->userId === null ? [] : array_values(array_intersect($ownerIds, [$context->userId]));
+        }
+
+        $base = Order::query()
+            ->where('source_type', 'direct')
+            ->where('status', 'completed')
+            ->where('record_status', 'active')
+            ->whereNotNull('occurred_on')
+            ->whereNotNull('owner_id')
+            ->whereBetween('occurred_on', [$from->toDateString(), $to->toDateString()]);
+        $this->applyScope($base);
+        if ($ownerIds === []) {
+            $base->whereRaw('1 = 0');
+        } else {
+            $base->whereIn('owner_id', $ownerIds);
+        }
+
+        $ownerRows = (clone $base)
+            ->selectRaw('owner_id::int as owner_id, COUNT(*)::int as orders, SUM(amount_krw)::bigint as amount_krw, COUNT(DISTINCT customer_id)::int as customers')
+            ->groupBy('owner_id')
+            ->get();
+        $owners = [];
+        foreach ($ownerIds as $ownerId) {
+            $owners[$ownerId] = ['orders' => 0, 'amount_krw' => 0, 'customers' => 0];
+        }
+        foreach ($ownerRows as $row) {
+            $ownerId = (int) $row->owner_id;
+            if (isset($owners[$ownerId])) {
+                $owners[$ownerId] = [
+                    'orders' => (int) $row->getAttribute('orders'),
+                    'amount_krw' => (int) $row->amount_krw,
+                    'customers' => (int) $row->getAttribute('customers'),
+                ];
+            }
+        }
+
+        return [
+            'orders' => (int) (clone $base)->count(),
+            'amount_krw' => (int) (clone $base)->sum('amount_krw'),
+            'customers' => (int) (clone $base)->distinct('customer_id')->count('customer_id'),
+            'owners' => $owners,
+        ];
+    }
+
     /** @return list<InstitutionMonthlySalesAggregateData> */
     public function institutionMonthlySales(CarbonImmutable $from, CarbonImmutable $to, ?int $institutionId = null): array
     {
@@ -225,6 +329,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
     public function institutionMonthlySalesAgents(CarbonImmutable $from, CarbonImmutable $to, int $institutionId): array
     {
         return $this->institutionSalesQuery($from, $to, $institutionId)
+            ->where('source_type', 'agent')
             ->select('agent_id')
             ->selectRaw('COUNT(DISTINCT customer_id)::int AS customer_count')
             ->selectRaw('COUNT(*)::int AS order_count')
@@ -246,6 +351,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
         CarbonImmutable $to,
         int $institutionId,
         ?int $agentId,
+        string $sourceType,
         string $search,
         string $sort,
         string $direction,
@@ -255,6 +361,12 @@ final class DatabaseReportOrderReader implements ReportOrderReader
         $query = $this->institutionSalesQuery($from, $to, $institutionId);
         if ($agentId !== null) {
             $query->where('agent_id', $agentId);
+        }
+        if ($sourceType !== '') {
+            if (! in_array($sourceType, ['direct', 'agent'], true)) {
+                throw new \DomainException(__('institution_sales.errors.invalid_source_type'));
+            }
+            $query->where('source_type', $sourceType);
         }
         $search = trim($search);
         if ($search !== '') {
@@ -274,10 +386,11 @@ final class DatabaseReportOrderReader implements ReportOrderReader
         ];
         $sort = array_key_exists($sort, $sortColumns) ? $sort : 'occurred_on';
         $direction = $direction === 'asc' ? 'asc' : 'desc';
+        $totalAmountKrw = (int) (clone $query)->sum('amount_krw');
         $paginator = $query
             ->orderBy($sortColumns[$sort], $direction)
             ->orderBy('id', $direction)
-            ->paginate(max(1, $perPage), ['id', 'occurred_on', 'customer_id', 'agent_id', 'project_name', 'treatment_project_snapshot', 'amount_krw'], 'page', max(1, $page));
+            ->paginate(max(1, $perPage), ['id', 'occurred_on', 'customer_id', 'agent_id', 'source_type', 'project_name', 'treatment_project_snapshot', 'amount_krw'], 'page', max(1, $page));
 
         return new InstitutionMonthlySalesOrderPageData(
             items: $paginator->getCollection()
@@ -287,6 +400,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
                     occurredOn: $order->occurred_on?->toDateString() ?? '',
                     customerId: (int) $order->customer_id,
                     agentId: $order->agent_id === null ? null : (int) $order->agent_id,
+                    sourceType: (string) $order->source_type,
                     projectName: (string) ($order->treatment_project_snapshot ?: $order->project_name),
                     amountKrw: (int) $order->amount_krw,
                 ))
@@ -296,6 +410,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
             perPage: $paginator->perPage(),
             currentPage: $paginator->currentPage(),
             lastPage: $paginator->lastPage(),
+            totalAmountKrw: $totalAmountKrw,
         );
     }
 
@@ -319,6 +434,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
             'occurred_on',
             'customer_id',
             'agent_id',
+            'source_type',
             'project_name',
             'treatment_project_snapshot',
             'amount_krw',
@@ -328,6 +444,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
             occurredOn: $order->occurred_on?->toDateString() ?? '',
             customerId: (int) $order->customer_id,
             agentId: $order->agent_id === null ? null : (int) $order->agent_id,
+            sourceType: (string) $order->source_type,
             projectName: (string) ($order->treatment_project_snapshot ?: $order->project_name),
             amountKrw: (int) $order->amount_krw,
             items: $order->items->map(static fn ($item): InstitutionMonthlySalesOrderItemData => new InstitutionMonthlySalesOrderItemData(
@@ -502,7 +619,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
     private function applyScope(Builder|QueryBuilder $query): void
     {
         $context = $this->access->current();
-        if ($context->isSuperAdmin()) {
+        if ($context->hasOrganizationWideReadAccess()) {
             return;
         }
 
@@ -531,7 +648,7 @@ final class DatabaseReportOrderReader implements ReportOrderReader
     {
         $context = $this->access->current();
         $query = Appointment::query();
-        if (! $context->isSuperAdmin()) {
+        if (! $context->hasOrganizationWideReadAccess()) {
             if (! $context->hasEffectiveBusinessScope()) {
                 return $query->whereRaw('1 = 0');
             }

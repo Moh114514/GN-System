@@ -53,7 +53,7 @@ final readonly class DatabaseDirectCommissionConfigurationGateway implements Dir
         int $actorId,
         ?string $ipAddress,
     ): void {
-        abort_unless($this->access->current()->isSuperAdmin(), 403);
+        abort_unless($this->access->current()->hasOrganizationWideReadAccess(), 403);
         if ($rateBps < 0 || $rateBps > 10000) {
             throw new DomainException(__('settlements.direct_commission.errors.rate_out_of_range'));
         }

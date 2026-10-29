@@ -93,7 +93,7 @@ final class DatabaseAgentReferenceReader implements AgentReferenceReader
     private function scoped(Builder $query): Builder
     {
         $context = $this->access->current();
-        if ($context->isSuperAdmin()) {
+        if ($context->hasOrganizationWideReadAccess()) {
             return $query;
         }
 

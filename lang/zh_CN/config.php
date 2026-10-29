@@ -22,12 +22,14 @@ return [
     'center' => [
         'title' => '配置中心',
         'description' => '集中维护系统当前已开放的业务规则与基础配置。',
+        'groups' => ['employees' => '员工与权限', 'institutions' => '合作机构资料', 'commissions' => '提成规则', 'basics' => '基础设置'],
         'cards' => [
             'time_travel' => ['title' => '时间模拟', 'description' => '仅在开发和 UAT 模拟业务时间，帮助验证月结与提醒规则。', 'action' => '进入时间模拟'],
             'history' => ['title' => '配置历史与回滚', 'description' => '集中查看各项配置的保存版本、修改差异和回滚记录。', 'action' => '查看历史'],
             'users' => ['title' => '用户与权限 / 通知设置', 'description' => '邀请用户、管理角色与账号状态，并配置站内通知和钉钉负责人。', 'action' => '进入管理'],
             'catalog' => ['title' => '机构、字典与系统参数', 'description' => '维护机构联系信息、施术项目、翻译语种和报表参数。', 'action' => '进入配置'],
             'direct_customer' => ['title' => '直客业务配置', 'description' => '维护直客渠道、提成比例和生效历史；历史订单按完成时规则保留快照。', 'action' => '进入配置'],
+            'bd_commission' => ['title' => 'BD 季度提成规则与核算', 'description' => '查看 BD 提成规则版本、生效期间和季度核算记录。', 'action' => '进入核算中心'],
             'customer_statuses' => ['title' => '客户生命周期状态配置', 'description' => '维护客户阶段、状态显示、启用规则和允许的流转路径。', 'action' => '进入配置'],
             'agent' => ['title' => '代理商与推广费配置', 'description' => '维护代理商类型、政策等级、机构费率和代理商特批。', 'action' => '进入配置'],
             'reminders' => ['title' => '主动提醒规则与模板', 'description' => '维护固定触发类型、适用范围、建议方向和全局提醒模板。', 'action' => '进入配置'],
@@ -49,7 +51,7 @@ return [
         'name' => '姓名',
         'email' => '邮箱',
         'role' => '角色',
-        'roles' => ['super_admin' => '超级管理员', 'bd_manager' => 'BD经理', 'customer_service' => '客服', 'direct_customer_manager' => '直客负责人'],
+        'roles' => ['super_admin' => '超级管理员', 'operations_director' => '市场部运营总监', 'bd_manager' => 'BD经理', 'customer_service' => '客服', 'direct_customer_manager' => '线上负责人'],
         'super_admin' => '超级管理员',
         'internal_user' => '内部用户',
         'create_invitation' => '创建并发送邀请',

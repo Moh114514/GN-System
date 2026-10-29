@@ -17,6 +17,8 @@ class InstitutionMonthlySalesDetail extends Component
 
     public string $agentId = '';
 
+    public string $sourceTypeFilter = '';
+
     public string $search = '';
 
     public string $sort = 'occurred_on';
@@ -32,6 +34,7 @@ class InstitutionMonthlySalesDetail extends Component
     protected array $queryString = [
         'month' => ['except' => ''],
         'agentId' => ['except' => ''],
+        'sourceTypeFilter' => ['except' => ''],
         'search' => ['except' => ''],
         'sort' => ['except' => 'occurred_on'],
         'direction' => ['except' => 'desc'],
@@ -57,6 +60,9 @@ class InstitutionMonthlySalesDetail extends Component
             }
             if ($property === 'agentId') {
                 $this->agentId = trim($this->agentId);
+            }
+            if ($property === 'sourceTypeFilter' && ! in_array($this->sourceTypeFilter, ['', 'direct', 'agent'], true)) {
+                throw new \DomainException(__('institution_sales.errors.invalid_source_type'));
             }
             $this->refreshSnapshot($sales, $details);
             $this->resetValidation();
@@ -92,6 +98,7 @@ class InstitutionMonthlySalesDetail extends Component
             month: $this->month,
             institutionId: $this->institutionId,
             agentId: $this->agentId === '' ? null : (int) $this->agentId,
+            sourceTypeFilter: $this->sourceTypeFilter,
             search: $this->search,
             sort: $this->sort,
             direction: $this->direction,

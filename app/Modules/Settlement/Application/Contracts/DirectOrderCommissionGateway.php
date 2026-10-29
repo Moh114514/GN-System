@@ -3,6 +3,7 @@
 namespace App\Modules\Settlement\Application\Contracts;
 
 use App\Modules\Settlement\Application\Data\DirectOrderCommissionData;
+use Carbon\CarbonImmutable;
 
 interface DirectOrderCommissionGateway
 {
@@ -11,5 +12,5 @@ interface DirectOrderCommissionGateway
     public function voidForOrder(int $orderId, int $actorId, string $reason): void;
 
     /** @return list<array<string, mixed>> */
-    public function recordsForViewer(): array;
+    public function recordsForViewer(?CarbonImmutable $from = null, ?CarbonImmutable $to = null, ?int $ownerId = null): array;
 }

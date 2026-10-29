@@ -16,6 +16,8 @@ return [
         'custom_due_past' => '사용자 지정 알림 시각은 현재보다 이전일 수 없습니다.',
         'invalid_recurrence_unit' => '반복 알림 단위가 올바르지 않습니다.',
         'invalid_completion_status' => '현재 상태의 알림은 완료할 수 없습니다.',
+        'followup_task_not_open' => '종료된 알림에는 후속 기록을 연결할 수 없습니다.',
+        'followup_task_already_recorded' => '이 알림에는 이미 후속 기록이 있습니다.',
         'snooze_reason_and_future' => '연기 사유와 현재보다 늦은 시각을 입력하세요.',
         'cancel_reason_required' => '알림 종료 사유를 입력하세요.',
         'retry_forbidden' => '이 알림의 통지를 재시도할 권한이 없습니다.',
@@ -60,6 +62,7 @@ return [
     ],
     'events' => ['appointment_cancelled' => '연결된 예약이 취소되었습니다'],
     'timeline' => ['customer_followup' => '고객 후속 관리'],
+    'followup' => ['next_title' => '고객 후속 조치'],
     'report_types' => ['appointment' => '방문 알림', 'pre_visit' => '방문 알림', 'post_treatment' => '시술 후 후속 관리', 'birthday' => '생일 알림', 'holiday_date' => '공휴일 알림', 'repurchase' => '재구매 시점', 'manual' => '수동 알림', 'custom' => '사용자 지정 알림', 'default' => '할 일 알림'],
     'toasts' => ['completed' => '알림을 완료했습니다.', 'snoozed' => '알림을 연기했습니다.', 'transferred' => '알림을 전달했습니다.', 'cancelled' => '알림을 종료했습니다.', 'retry_notification' => '딩톡 알림을 대기열에 다시 넣었습니다.', 'created' => '알림을 만들었습니다.', 'rule_saved' => '능동 알림 규칙을 저장했습니다.', 'template_saved' => '전역 알림 템플릿을 저장했습니다.'],
     'notifications' => [

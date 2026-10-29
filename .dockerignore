@@ -6,6 +6,7 @@
 .phase1-scaffold
 backups
 deploy
+docker-images
 docs
 node_modules
 public/build

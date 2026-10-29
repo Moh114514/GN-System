@@ -10,6 +10,7 @@ final readonly class InstitutionMonthlySalesOrderData
         public string $occurredOn,
         public int $customerId,
         public ?int $agentId,
+        public string $sourceType,
         public string $projectName,
         public int $amountKrw,
         /** @var list<InstitutionMonthlySalesOrderItemData> */

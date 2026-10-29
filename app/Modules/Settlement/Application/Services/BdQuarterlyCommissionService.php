@@ -238,7 +238,7 @@ final readonly class BdQuarterlyCommissionService implements BdCommissionCorrect
         $context = $this->access->current();
 
         $periods = BdQuarterlyCommission::query()
-            ->when(! $context->isSuperAdmin(), function ($query) use ($context): void {
+            ->when(! $context->hasOrganizationWideReadAccess(), function ($query) use ($context): void {
                 $query->where(function ($scope) use ($context): void {
                     $scope->whereHas('items', fn ($items) => $items->where('bd_user_id', $context->userId))
                         ->orWhereHas('adjustments', fn ($adjustments) => $adjustments->where('bd_user_id', $context->userId));
@@ -248,7 +248,7 @@ final readonly class BdQuarterlyCommissionService implements BdCommissionCorrect
             ->orderByDesc('quarter_start')
             ->get();
 
-        if (! $context->isSuperAdmin() && $context->userId !== null) {
+        if (! $context->hasOrganizationWideReadAccess() && $context->userId !== null) {
             $periods->each(function (BdQuarterlyCommission $period) use ($context): void {
                 $this->scopePeriodTotals($period, $context->userId);
             });
@@ -270,7 +270,7 @@ final readonly class BdQuarterlyCommissionService implements BdCommissionCorrect
         $period = BdQuarterlyCommission::query()->with(['items', 'adjustments'])->findOrFail($periodId);
         $context = $this->access->current();
         $targetBdUserId = $bdUserId;
-        if (! $context->isSuperAdmin()) {
+        if (! $context->hasOrganizationWideReadAccess()) {
             if ($targetBdUserId !== null && $targetBdUserId !== $context->userId) {
                 abort(403);
             }
@@ -600,7 +600,7 @@ final readonly class BdQuarterlyCommissionService implements BdCommissionCorrect
         }
         $query = $period->adjustments();
         $context = $this->access->current();
-        if (! $context->isSuperAdmin() && $context->userId !== null) {
+        if (! $context->hasOrganizationWideReadAccess() && $context->userId !== null) {
             $query->where('bd_user_id', $context->userId);
         }
 
@@ -638,14 +638,14 @@ final readonly class BdQuarterlyCommissionService implements BdCommissionCorrect
     private function assertReadAccess(): void
     {
         $context = $this->access->current();
-        abort_unless($context->isSuperAdmin() || $context->isBdManager(), 403);
+        abort_unless($context->hasOrganizationWideReadAccess() || $context->isBdManager(), 403);
     }
 
     private function assertExportOrReadAccess(bool $export): void
     {
         if ($export) {
             $context = $this->access->current();
-            abort_unless($context->isSuperAdmin() || $context->isBdManager(), 403);
+            abort_unless($context->hasOrganizationWideReadAccess() || $context->isBdManager(), 403);
 
             return;
         }

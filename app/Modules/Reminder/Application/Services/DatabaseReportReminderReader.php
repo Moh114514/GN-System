@@ -104,7 +104,7 @@ final class DatabaseReportReminderReader implements ReportReminderReader
     {
         $query = Reminder::query();
         $context = $this->access->current();
-        if ($context->isSuperAdmin()) {
+        if ($context->hasOrganizationWideReadAccess()) {
             return $query;
         }
         if ($context->isCustomerService() || $context->isDirectCustomerManager()) {

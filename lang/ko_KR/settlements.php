@@ -2,12 +2,15 @@
 
 return [
     'bd_commission' => [
-        'title' => 'BD 분기 인센티브', 'back' => '대시보드로 돌아가기', 'eyebrow' => '리포트 · BD 인센티브',
+        'title' => 'BD 실적 및 인센티브', 'back' => '대시보드로 돌아가기', 'eyebrow' => '오프라인 채널 · BD 실적 및 인센티브',
         'description' => '주문 발생일과 불변 업무 귀속 스냅샷으로 분기 인센티브를 집계합니다. 현재 기본값은 주문 금액 KRW와 버전별 기준점 요율입니다.',
         'quarter' => '분기 시작일', 'preview' => '분기 미리보기', 'generate' => '정식 생성', 'preview_title' => '분기 미리보기',
         'item_count' => '주문 수', 'basis' => '산정 기준액', 'adjustment' => '수동 조정', 'total' => '인센티브 합계',
         'periods' => '분기 기록', 'status' => '상태', 'actions' => '작업', 'view' => '보기', 'collapse' => '접기', 'empty' => '분기 인센티브 기록이 없습니다.',
         'detail' => '분기 상세', 'order' => '주문', 'bd' => 'BD', 'occurred_on' => '발생일', 'rate' => '요율',
+        'month_filter' => '월', 'all_months' => '전체 월', 'monthly_performance' => '월별 실적',
+        'monthly_snapshot_note' => '주문 발생 월 기준으로 저장된 주문별 인센티브 스냅샷을 집계합니다. 수동 조정과 수정 차액은 분기에 반영되며 월별로 나누지 않습니다.',
+        'quarter_adjustments' => '분기 수동 조정 및 수정 차액',
         'commission' => '인센티브', 'empty_items' => '표시할 상세가 없습니다.', 'allocation' => 'BD 미지정', 'adjustment_amount' => '조정 금액 KRW',
         'reason' => '사유', 'add_adjustment' => '수동 조정 추가', 'review' => '검토 제출', 'confirm' => '분기 확정',
         'rules' => '인센티브 규칙 버전', 'rule_assumption' => '현재 기본값: 주문 금액 KRW × 기준점 요율, 반올림; 제품 확정 후 새 적용 버전을 추가하고 과거 규칙은 변경하지 않습니다.',
@@ -166,8 +169,11 @@ return [
     'quote_failures' => ['unavailable' => '현재 환율 시세를 가져올 수 없습니다. 잠시 후 다시 시도하거나 직접 입력하세요.'],
     'adjustments' => ['negative_balance_carry' => '이전 기간 마이너스 잔액 이월'],
     'direct_commission' => [
-        'title' => '직접 고객 수수료', 'back' => '대시보드로 돌아가기',
-        'description' => '직접 고객 담당자와 주문 완료 시점의 규칙에 따라 계산된 개인 수수료를 확인합니다.',
+        'title' => '온라인 CS 실적 및 인센티브', 'back' => '고객 관리로 돌아가기',
+        'description' => '월별 및 담당자별 실제 매출과 확정된 주문별 수수료를 확인합니다.',
+        'month' => '통계 월', 'owner' => '담당자', 'all_owners' => '모든 담당자', 'orders' => '유효 주문 수',
+        'summary' => '이번 달 수수료 요약', 'monthly_performance' => '담당자 월간 실적', 'details' => '주문 수수료 상세',
+        'order_id' => '주문 번호', 'multiple_rates' => '복수 요율', 'unknown_owner' => '담당자 미지정',
         'rate' => '수수료율', 'order_amount' => '주문 금액 KRW', 'commission' => '수수료 금액 KRW', 'channel' => '직접 고객 채널', 'completed_at' => '완료 시각', 'status' => '상태', 'active' => '유효', 'voided' => '무효화됨', 'empty' => '직접 고객 수수료 기록이 없습니다.',
         'errors' => ['rate_missing' => '주문 완료일에 적용되는 직접 고객 수수료율이 없습니다. 먼저 규칙을 설정하세요.', 'rate_out_of_range' => '직접 고객 수수료율은 0%에서 100% 사이여야 합니다.', 'reason_required' => '직접 고객 수수료 규칙을 저장하려면 사유를 입력해야 합니다.', 'period_invalid' => '수수료 규칙 종료일은 시작일보다 빠를 수 없습니다.', 'effective_date_exists' => '해당 적용일의 직접 고객 수수료 규칙이 이미 있습니다.', 'void_reason_required' => '직접 고객 수수료를 무효화하려면 사유를 입력해야 합니다.'],
         'audit' => ['rate_saved' => '직접 고객 수수료 규칙 저장', 'commission_created' => '직접 고객 주문 수수료 계산', 'commission_voided' => '직접 고객 주문 수수료 무효화'],

@@ -12,6 +12,7 @@ return [
         'last_super_admin_role' => '不能降级最后一个启用中的超级管理员。',
         'current_account_disable' => '不能停用当前登录账号。',
         'last_super_admin_disable' => '不能停用最后一个启用中的超级管理员。',
+        'super_admin_management_restricted' => '运营总监不能创建、修改或停用超级管理员账户。',
         'user_role_invalid' => '用户角色无效。',
         'user_role_has_active_membership' => '该用户仍有有效业务组成员关系，请先结束原成员关系。',
         'user_role_has_direct_customers' => '该用户仍负责 :count 位直客，请先完成客户转移再调整角色。',

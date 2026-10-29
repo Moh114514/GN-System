@@ -12,6 +12,7 @@ return [
         'last_super_admin_role' => '활성화된 마지막 슈퍼 관리자의 권한을 낮출 수 없습니다.',
         'current_account_disable' => '현재 로그인한 계정을 비활성화할 수 없습니다.',
         'last_super_admin_disable' => '활성화된 마지막 슈퍼 관리자를 비활성화할 수 없습니다.',
+        'super_admin_management_restricted' => '운영 책임자는 슈퍼 관리자 계정을 생성, 수정 또는 비활성화할 수 없습니다.',
         'user_role_invalid' => '사용자 역할이 올바르지 않습니다.',
         'user_role_has_active_membership' => '이 사용자에게 유효한 업무 그룹 구성원 관계가 있습니다. 먼저 기존 관계를 종료하세요.',
         'user_role_has_direct_customers' => '이 사용자가 아직 직접 고객 :count명을 담당하고 있습니다. 고객을 이전한 후 역할을 변경하세요.',

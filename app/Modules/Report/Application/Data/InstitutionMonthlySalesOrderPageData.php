@@ -13,5 +13,6 @@ final readonly class InstitutionMonthlySalesOrderPageData
         public int $perPage,
         public int $currentPage,
         public int $lastPage,
+        public int $totalAmountKrw,
     ) {}
 }
