@@ -1,10 +1,33 @@
 # GN-System 完整运维手册
 
-## 2026-10-28 角色视角验收修复（本地 PR，尚未合入）
+## 2026-10-29 当前 RC 与 UAT 部署状态
 
-当前未合并 PR 按客户需求文档新增 `operations_director` 角色：登录需启用 TOTP；可全局只读查看 Dashboard、线上直客、线下渠道、机构及报表，并可使用业务配置中心。客户/订单编辑、敏感字段解密和财务更正仍由原有角色控制；运营总监不能创建、修改或停用超级管理员，数据维护、时间模拟和审计日志也仍仅限超级管理员。
+`v0.8.0-rc.1` 已通过完整 RC 工作流（596 项测试、4261 条断言），固定提交为
+`3e0d9f935c4756b845fe4e931fe53b591c0bb14c`。app/web 镜像摘要分别为
+`sha256:7c86fa42b70410868d789cb8bb985ff9e4152cec5405358eaa11b5f804b76a10` 和
+`sha256:87f1cd9e91b1e697cbaf38d7e0b6a2f0f74f7034051c53fded073ab592d03dbf`。
 
-同时按需求角色矩阵限制机构月报和导出为老板/运营总监，修复客户所属 BD 过滤、团队月报 BD 过滤以及机构 PDF 订单来源列。新增 `2026_10_28_000100_add_operations_director_role` migration，将新角色加入 `users_role_check`；无依赖或环境变量变更，当前 PR 尚未合入，UAT/Production 未操作。目标环境必须通过标准发布脚本执行 migration，并在 RC 中用老板、运营总监、线上负责人和 BD 经理账号逐一核对菜单、直达 URL、只读边界和报表来源。若要回滚代码，数据库约束的 down migration 会在仍存在运营总监账号时拒绝执行；应先按经批准的账号处置流程移除该角色，再评估回滚，不得直接删除账号或绕过约束。
+UAT 服务器仓库已在该 annotated tag 上，但部署未完成：标准脚本备份 68.14 MB 文件并验证完整后，GHCR
+镜像下载以 `connection reset by peer` 失败，迁移未运行。已恢复 `.env.uat` 的 `RELEASE_TAG`、
+`/srv/gn-system/releases/current` 和服务到 `v0.6.0-rc.1`；app、web、queue、scheduler、PostgreSQL、
+Redis 均运行，三个健康端点返回 200，环境文件权限为 `0600`。候选版本没有完成页面或业务验收，不能标记为
+UAT 已通过；Production 未操作。服务器发布历史最后一条是 2026-10-12 `v0.6.0-rc.1`，与 10 月 22 日
+历史记录中用户确认 `v0.7.0` UAT 验收的描述有差异，需核对原因后再更新当前部署记录。
+
+部署该候选时待核对的 migration 包括 `2026_10_20_000100_add_order_registration_lifecycle`、
+`2026_10_25_000001_extend_customer_followups_for_reminders` 和
+`2026_10_28_000100_add_operations_director_role`；本次一个也未执行。再次部署前重新查看备份列表和
+`migrate:status`，按新的实际版本状态操作。
+
+恢复新 RC 部署前先解决 GHCR 到服务器的连接问题或按[局域网离线镜像部署](offline-deployment.md)转运
+已验证摘要的 app/web 镜像。离线转运须使用有足够空间的主机；部署后才执行候选 migration，并完成健康、队列、
+调度、业务异常和角色流程验收。已生成的备份可用于此次部署前恢复点，但没有实际执行还原，不据此声称备份可恢复。
+
+## 2026-10-28 角色视角验收修复（当日状态：本地 PR，尚未合入）
+
+截至 10 月 28 日的本地 PR 按客户需求文档新增 `operations_director` 角色：登录需启用 TOTP；可全局只读查看 Dashboard、线上直客、线下渠道、机构及报表，并可使用业务配置中心。客户/订单编辑、敏感字段解密和财务更正仍由原有角色控制；运营总监不能创建、修改或停用超级管理员，数据维护、时间模拟和审计日志也仍仅限超级管理员。
+
+同时按需求角色矩阵限制机构月报和导出为老板/运营总监，修复客户所属 BD 过滤、团队月报 BD 过滤以及机构 PDF 订单来源列。新增 `2026_10_28_000100_add_operations_director_role` migration，将新角色加入 `users_role_check`；无依赖或环境变量变更。该 PR 在 10 月 28 日尚未合入，也未操作 UAT/Production；当前发布和验收情况见本手册 10 月 29 日状态。目标环境必须通过标准发布脚本执行 migration，并在 RC 中用老板、运营总监、线上负责人和 BD 经理账号逐一核对菜单、直达 URL、只读边界和报表来源。若要回滚代码，数据库约束的 down migration 会在仍存在运营总监账号时拒绝执行；应先按经批准的账号处置流程移除该角色，再评估回滚，不得直接删除账号或绕过约束。
 
 团队月报 BD 筛选只依据当前业务日期有效的业务组成员关系生成，避免历史 BD 被错误纳入筛选或覆盖当前负责人。当前本地 `gn_system` 没有有效且已接受的 BD 经理归属，因此页面按设计隐藏筛选器；Feature 测试在存在有效 BD 时验证筛选器和结果范围。回归测试及本轮 `docker compose exec app composer ci:check` 通过（595 项测试、4192 条断言；Pint、PHPStan、架构和文档检查通过）；`docker compose exec vite npm run build` 成功转换 597 个模块。Codex 浏览器只读检查了 Dashboard、机构月报、客户列表和团队月报；角色 Feature 测试覆盖路由与操作边界。没有提交表单或写入业务数据。浏览器未使用老板、运营总监、线上负责人或 BD 经理的独立账号，因此这些角色的真实账号页面验收仍须在 RC 完成。PHPUnit 缓存权限和 Vite 大包体积有非阻断告警。
 
@@ -497,7 +520,7 @@ Dashboard 现在显示业务时钟当前自然月的机构销售横向对比条�
 | 证书 | `/srv/gn-system/tls/uat-fullchain.pem` |
 | 私钥 | `/srv/gn-system/tls/uat-privkey.pem` |
 | 备份 | `/srv/gn-system/data/backups` |
-| 当前服务状态 | 待核验；历史记录为六个服务均正常 |
+| 当前服务状态 | 2026-10-29 核验六个服务均运行；服务镜像及发布标记为 `v0.6.0-rc.1`，候选部署未完成 |
 
 Windows 客户端的 hosts 记录为：
 
@@ -717,8 +740,11 @@ where migration = '2026_08_04_000100_add_settlement_generation_state';
 删除 `direct_sales_sources` 表，并将客户 `source_agent_id` 与订单 `agent_id` 设为非空。该迁移只允许
 通过明确版本的发布脚本执行，不得在服务器直接修改表或手工删除直销数据。
 
-在 UAT 和 Production 分别执行版本升级前，必须完成数据库备份并记录数据库名、备份文件、版本、执行人
-和时间；同时只读核对以下四项均为 0：
+在 UAT 和 Production 执行该历史迁移前，必须完成数据库备份并记录数据库名、备份文件、版本、执行人
+和时间。只有 `migrations` 中尚无该迁移且旧 schema 仍包含原始直销列时，才执行前两项旧 schema 检查；
+迁移已记录为 `Ran` 后，这些列会被删除，禁止再运行旧列查询或把“列不存在”记为 0。当前 schema 应按
+现有 `source_type` 区分代理商和直客数据；仅代理商客户/订单需要代理商外键。不要用全表 `source_agent_id`
+或 `agent_id` 非空作为当前业务模型的通用校验：
 
 ```sql
 select count(*) from customers
@@ -730,6 +756,10 @@ where channel = 'direct' or direct_sales_source_id is not null;
 select count(*) from customers where source_agent_id is null;
 select count(*) from orders where agent_id is null;
 ```
+
+该 SQL 仅适用于迁移前 schema。当前 schema 的代理商归属检查应限定 `source_type = 'agent'`；在迁移后的
+数据库中先确认对应约束和 migration 状态，再执行适用于当前版本的订单和客户预检。迁移会再次校验旧 schema
+的直销残留；不要为已迁移的数据库重复执行过期 SQL。
 
 任一计数不为 0 时必须停止发布，先完成经过批准的数据核验与处理；迁移本身会再次检查并中止，不能通过
 删除测试、绕过迁移或写入默认代理商掩盖问题。迁移成功后核对 `migrations` 记录、客户/订单页面、导入
