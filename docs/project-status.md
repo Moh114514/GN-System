@@ -1,6 +1,26 @@
 # GN-System 项目状态
 
-## 2026-10-30 v0.8.0-rc.1 离线部署与待验状态
+## 2026-10-30 v0.8.0-rc.2 UAT 部署状态（业务验收待完成）
+
+- PR #63 将 UAT 联合验收修复合入 `develop`；PR #65 同步 main 发布历史；PR #64 合入 `main`。
+  annotated `v0.8.0-rc.2` 固定指向 `ce411b7700509a4322752c40c786f94b6adc9ddb`；
+  [RC 发布工作流](https://github.com/Moh114514/GN-System/actions/runs/41039604852)通过应用检查和 app/web 镜像构建。
+  app/web digest 分别为 `sha256:8f1aa5c898f64d69d37edd71156ae51dd218e4c2d55709dbee7524a57531640c`、
+  `sha256:681d417d1f08d02204185df105cb8202a975d9d481d47fc2fe0767d467b4d5b4`。
+- 已按离线流程将 `linux/amd64` 镜像导入 UAT，所有 Compose 操作使用 `--pull never`。
+  本机归档 `D:\GN-System-Deployment\gn-system-v0.8.0-rc.2.tar` 为 369,906,176 bytes，SHA-256
+  `434064174a257b0979334384a17674da96580f1b85fd7d7f092bb5df3539628c`；服务器副本保留在
+  `/tmp/gn-system-v0.8.0-rc.2.tar`。部署前全量备份
+  `/srv/gn-system/data/backups/GN-System UAT/2026-10-30-18-41-50.zip` 为 71,325,256 bytes、257 个文件/目录，完整性验证通过。
+- `.env.uat` 的 `RELEASE_TAG` 为 `v0.8.0-rc.2`、权限 `0600`；实际库为 `gn_system_uat`。
+  迁移命令返回 `Nothing to migrate`，所有 migration 均为 `Ran`。六个服务运行，app/web/queue/scheduler 使用 RC2；
+  `/up`、`/health`、`/health/operations` 严格 TLS 均为 HTTP 200，队列/调度健康为 ok，最近服务日志抽查未发现错误关键字。
+- RC2 首次部署后的业务复验尚未完成；原报告中历史月结/导入、终止合作表单和客户来源占比调整均需在 RC2 重新验收。
+  因此 `/srv/gn-system/releases/current` 与 `history.tsv` 继续保留 `v0.6.0-rc.1`，传输包与旧镜像保留；Production 未操作。
+
+## 2026-10-30 v0.8.0-rc.1 离线部署与待验状态（RC2 部署前）
+
+本节保留 RC1 的部署与联合验收记录；当前运行候选和 RC2 待验范围以上方状态为准。
 
 - 后续[历史与新增联合验收](operations/business-flow-uat-review.md)：原表预检 94 行中 84 行错误，拒绝提交；独立样本 6 行通过。
   事务内模拟 11/12 月，混合月结、费率快照不重算、负余额幂等结转符合预期；确认历史入账缺真实明细/到院/归属快照，

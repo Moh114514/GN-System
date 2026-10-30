@@ -1,6 +1,33 @@
 # GN-System 完整运维手册
 
-## 2026-10-30 当前 RC 已离线部署，业务验收待完成
+## 2026-10-30 v0.8.0-rc.2 已离线部署到 UAT，业务复验待完成
+
+PR #63 将联合验收修复合入 `develop`，PR #65 同步 main 发布历史，PR #64 合入 `main`。
+不可变 annotated tag `v0.8.0-rc.2` 指向 `ce411b7700509a4322752c40c786f94b6adc9ddb`；
+[RC 发布工作流](https://github.com/Moh114514/GN-System/actions/runs/41039604852)通过应用检查及 app/web 镜像构建。
+app/web manifest digest 分别为 `sha256:8f1aa5c898f64d69d37edd71156ae51dd218e4c2d55709dbee7524a57531640c`、
+`sha256:681d417d1f08d02204185df105cb8202a975d9d481d47fc2fe0767d467b4d5b4`。
+
+按[局域网离线部署指南](offline-deployment.md)下载、核对并传输 `linux/amd64` 镜像包：本机
+`D:\GN-System-Deployment\gn-system-v0.8.0-rc.2.tar`，369,906,176 bytes，SHA-256
+`434064174a257b0979334384a17674da96580f1b85fd7d7f092bb5df3539628c`。服务器副本
+`/tmp/gn-system-v0.8.0-rc.2.tar` 已核对相同并通过 `docker load` 导入，业务验收前保留。
+部署前全量备份为 `/srv/gn-system/data/backups/GN-System UAT/2026-10-30-18-41-50.zip`，
+71,325,256 bytes（68.02 MB）、257 个文件/目录，归档完整性校验通过；未做还原演练，不据此承诺恢复结果。
+
+服务器 `.env.uat` 的 `RELEASE_TAG=v0.8.0-rc.2`，权限为 `0600`，实际数据库为 `gn_system_uat`。
+部署期间所有 Compose 操作使用 `--pull never`；迁移命令返回 `Nothing to migrate`，全部迁移状态均为 `Ran`。
+六个服务运行，app/web/queue/scheduler 使用 RC2；app/web 健康。严格 TLS 下 `/up`、`/health`、
+`/health/operations` 均返回 HTTP 200，队列和调度状态为 ok；部署后最近 200 行应用日志未发现
+`ERROR`、`CRITICAL`、`FATAL`、`Unhandled` 或 `panic`。`/srv/gn-system/releases/current` 和
+`history.tsv` 仍记录 `v0.6.0-rc.1`，因为 RC2 业务复验尚未完成；Production 未操作。
+
+RC2 需要重新验收历史导入月结草稿刷新、未知结算状态拒绝、终止合作日期输入和客户来源占比看板及其下钻。
+服务探针正常只说明部署与运行健康，不代表这些页面业务验收通过。验收并签收前保留旧镜像、上方部署包和发布标记。
+
+## 2026-10-30 v0.8.0-rc.1 部署与业务验收记录（RC2 部署前）
+
+以下内容记录 RC1 阶段的联合验收和离线部署；其中“尚未部署”的描述是 RC1 时点状态，当前候选状态以上方 RC2 记录为准。
 
 后续历史与新增业务服务验收见[联合验收报告](business-flow-uat-review.md)：原表预检 94 行中 84 行错误并拒绝提交；
 独立样本通过入账预演，跨月月结、快照幂等与负余额结转符合预期。后续经用户授权重绑临时超管 TOTP，
