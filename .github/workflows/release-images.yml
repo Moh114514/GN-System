@@ -105,7 +105,7 @@ jobs:
 
       - name: Setup PHP
         if: steps.release.outputs.mode == 'rc'
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # v2
         with:
           php-version: '8.3'
           extensions: bcmath, gd, intl, mbstring, pdo_pgsql, redis, zip
@@ -114,7 +114,7 @@ jobs:
 
       - name: Setup Node
         if: steps.release.outputs.mode == 'rc'
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '22'
           cache: npm
@@ -145,7 +145,7 @@ jobs:
           composer ci:check
 
       - name: Login to GHCR
-        uses: docker/login-action@v4.6.0
+        uses: docker/login-action@v4.7.0
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
