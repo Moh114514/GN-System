@@ -77,8 +77,13 @@
                 <?php if ($channelShare['total'] === 0): ?>
                     <tr><td colspan="3">{{ __('dashboard.panels.no_customer_channel_data') }}</td></tr>
                 <?php else: ?>
-                    <tr><td>{{ __('dashboard.panels.direct_customer_channel') }}</td><td>{{ number_format($channelShare['direct_count']) }}</td><td>{{ number_format($channelShare['direct_percentage'], 1) }}%</td></tr>
-                    <tr><td>{{ __('dashboard.panels.agent_customer_channel') }}</td><td>{{ number_format($channelShare['agent_count']) }}</td><td>{{ number_format($channelShare['agent_percentage'], 1) }}%</td></tr>
+                    <?php foreach ($channelShare['sources'] as $source): ?>
+                        <tr>
+                            <td>{{ __('dashboard.panels.customer_source_types.'.$source['key']) }}</td>
+                            <td>{{ number_format($source['count']) }}</td>
+                            <td>{{ number_format($source['percentage'], 1) }}%</td>
+                        </tr>
+                    <?php endforeach; ?>
                     <tr><td>{{ __('dashboard.panels.customer_total') }}</td><td colspan="2">{{ number_format($channelShare['total']) }} {{ __('dashboard.panels.customer_unit') }}</td></tr>
                 <?php endif; ?>
             </tbody>

@@ -712,13 +712,22 @@ class PhaseSixReportingConfigurationTest extends TestCase
             'total' => 3,
             'direct_percentage' => 33.3,
             'agent_percentage' => 66.7,
+            'sources' => [
+                ['key' => 'direct', 'count' => 1, 'percentage' => 33.3],
+                ['key' => 'agent', 'count' => 2, 'percentage' => 66.7],
+            ],
         ], $snapshot['panels']['customer_channel_share']);
         $this->assertSame(['month' => 2, 'quarter' => 2], $snapshot['panels']['calendar_new_customers']);
-        $this->get(route('dashboard'))
+        $this->get(route('dashboard', ['date' => '2026-10-31']))
             ->assertOk()
             ->assertSee('线上销售额（直客）')
             ->assertSee('线下销售额（代理商）')
             ->assertSee('客户来源占比')
+            ->assertSee('data-test="customer-source-share"', false)
+            ->assertSee('data-test="customer-source-row-direct"', false)
+            ->assertSee('data-test="customer-source-row-agent"', false)
+            ->assertSee('href="'.route('customers.all', ['createdTo' => '2026-10-31']).'"', false)
+            ->assertSee('sourceType=direct&amp;createdTo=', false)
             ->assertSee('本月新增')
             ->assertSee('本季度新增');
 
@@ -749,9 +758,18 @@ class PhaseSixReportingConfigurationTest extends TestCase
             'total' => 0,
             'direct_percentage' => 0.0,
             'agent_percentage' => 0.0,
+            'sources' => [
+                ['key' => 'direct', 'count' => 0, 'percentage' => 0.0],
+                ['key' => 'agent', 'count' => 0, 'percentage' => 0.0],
+            ],
         ], $snapshot['panels']['customer_channel_share']);
         $html = app(DashboardExportGenerator::class)->generate($admin, 'html', $snapshot);
         $this->assertStringContainsString('暂无客户数据', Storage::disk('local')->get($html->path));
+        $this->get(route('dashboard', ['date' => '2020-01-31']))
+            ->assertOk()
+            ->assertSee('data-test="customer-source-row-direct"', false)
+            ->assertSee('data-test="customer-source-row-agent"', false)
+            ->assertSee('0 位');
     }
 
     public function test_export_failures_store_safe_keys_and_localize_recent_exports(): void

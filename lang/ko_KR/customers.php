@@ -6,6 +6,30 @@ return [
         'form' => '고객 프로필',
         'detail' => '고객 상세',
     ],
+    'source_list' => [
+        'title' => '전체 고객 목록',
+        'description' => '직접 고객과 대리점 고객 프로필을 함께 확인합니다.',
+        'as_of' => ':date 기준',
+        'back_to_dashboard' => '대시보드로 돌아가기',
+        'count' => '총 :count명',
+        'search' => '고객 검색',
+        'search_placeholder' => '이름, 번호 또는 연락처 검색',
+        'source' => '고객 유형',
+        'all_sources' => '모든 유형',
+        'empty' => '“:source” 조건에 맞는 고객이 없습니다.',
+        'types' => [
+            'direct' => '직접 고객（온라인）',
+            'agent' => '대리점 고객（오프라인）',
+        ],
+        'columns' => [
+            'customer' => '고객',
+            'source_type' => '유형',
+            'source_detail' => '상세 경로',
+            'owner' => '담당자',
+            'status' => '상태',
+            'created_at' => '등록일',
+        ],
+    ],
     'direct' => [
         'detail' => ['back' => '고객 관리로 돌아가기'],
         'title' => [

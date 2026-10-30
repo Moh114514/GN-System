@@ -6,6 +6,30 @@ return [
         'form' => '客户档案',
         'detail' => '客户详情',
     ],
+    'source_list' => [
+        'title' => '客户总列表',
+        'description' => '统一查看直客与代理商客户档案。',
+        'as_of' => '统计截至 :date',
+        'back_to_dashboard' => '返回经营总览',
+        'count' => '共 :count 位客户',
+        'search' => '搜索客户',
+        'search_placeholder' => '搜索姓名、编号或联系方式',
+        'source' => '客户来源',
+        'all_sources' => '全部来源',
+        'empty' => '没有符合“:source”条件的客户。',
+        'types' => [
+            'direct' => '直客（线上）',
+            'agent' => '代理商（线下）',
+        ],
+        'columns' => [
+            'customer' => '客户',
+            'source_type' => '来源类型',
+            'source_detail' => '来源详情',
+            'owner' => '负责人',
+            'status' => '状态',
+            'created_at' => '建档时间',
+        ],
+    ],
     'direct' => [
         'detail' => ['back' => '返回客户管理'],
         'title' => [

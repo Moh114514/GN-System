@@ -51,7 +51,9 @@
                 </flux:select>
                 <x-date-time-picker wire:model="cooperationStartedOn" :value="$cooperationStartedOn" :label="__('agents.form.started')" required />
                 @if ($cooperationStatus === 'terminated')
-                    <x-date-time-picker wire:model="cooperationEndedOn" :value="$cooperationEndedOn" :label="__('agents.form.ended')" required />
+                    <div wire:key="agent-cooperation-ended-on">
+                        <x-date-time-picker wire:model="cooperationEndedOn" :value="$cooperationEndedOn" :label="__('agents.form.ended')" required />
+                    </div>
                 @endif
                 <div class="md:col-span-2"><flux:textarea wire:model="notes" :label="__('agents.form.notes')" rows="4" /></div>
             </div>

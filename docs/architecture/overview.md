@@ -150,7 +150,8 @@ send grade-adjustment notifications.
 
 新规划 PR1–PR6 已合入 `develop` 和 `main`，候选为 `v0.8.0-rc.1`，RC 自动化门禁通过。
 2026-10-30 已通过局域网离线镜像流程部署到 UAT，三项候选 migration 均为 batch 12 / Ran，六个服务运行，
-严格 TLS 健康及队列/调度心跳检查通过。角色、凭证、导入和月结等业务验收仍待完成，发布标记保留
+严格 TLS 健康及队列/调度心跳检查通过。凭证二选一、超管主要页面及部分 BD/客服权限已在 UAT 浏览器实测；
+其余角色、Excel 回传、导入和月结完整流程仍待完成，发布标记保留
 `v0.6.0-rc.1`，实际运行镜像为候选；Production 未操作。历史数据缺口由只读异常清单记录，未推算回写。
 继续按 UAT 清单验收角色、业务组、代理商归属及订单事实。备份、迁移、抽样和恢复步骤见
 [PR7 UAT 迁移与发布收尾手册](../operations/pr7-uat-migration-runbook.md)。

@@ -99,6 +99,9 @@ final readonly class SettlementFreshnessChecker
                 break;
             }
             unset($storedSnapshot['order']);
+            if (($storedSnapshot['source'] ?? null) === 'historical_import') {
+                unset($storedSnapshot['source']);
+            }
             if ($this->normaliseSnapshot($storedSnapshot) !== $this->normaliseSnapshot($commissions->get($orderId)->rule_snapshot)) {
                 $snapshotChanged = true;
                 break;

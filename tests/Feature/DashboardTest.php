@@ -108,6 +108,62 @@ class DashboardTest extends TestCase
         $this->assertSame(2, app(DashboardService::class)->snapshot($range)->toArray()['metrics']['new_customers']['value']);
     }
 
+    public function test_customer_source_share_drills_into_the_combined_list_with_a_source_filter(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $agent = Agent::query()->create([
+            'agent_type_code_id' => AgentTypeCode::query()->firstOrFail()->id,
+            'code' => 'DASHBOARD-ALL-SOURCES',
+            'name' => '来源下钻代理商',
+            'cooperation_status' => 'active',
+        ]);
+        $channel = DirectCustomerChannel::query()->firstOrFail();
+        Customer::query()->create([
+            'code' => 'DASHBOARD-ALL-AGENT',
+            'name' => '来源下钻代理商客户',
+            'source_type' => 'agent',
+            'source_agent_id' => $agent->id,
+        ]);
+        Customer::query()->create([
+            'code' => 'DASHBOARD-ALL-DIRECT',
+            'name' => '来源下钻直客',
+            'source_type' => 'direct',
+            'direct_channel_id' => $channel->id,
+        ]);
+
+        $this->actingAs($admin)->get(route('dashboard'))
+            ->assertOk()
+            ->assertSee('data-test="customer-source-share"', false)
+            ->assertSee('/customers/all?createdTo=', false)
+            ->assertSee('sourceType=direct&amp;createdTo=', false)
+            ->assertSee('sourceType=agent&amp;createdTo=', false);
+
+        $this->get(route('customers.all'))
+            ->assertOk()
+            ->assertSee('客户总列表')
+            ->assertSee('返回经营总览')
+            ->assertSee('来源下钻代理商客户')
+            ->assertSee('来源下钻直客')
+            ->assertSee('href="'.route('dashboard').'"', false);
+
+        $this->get(route('customers.all', ['sourceType' => 'direct']))
+            ->assertOk()
+            ->assertSee('来源下钻直客')
+            ->assertDontSee('来源下钻代理商客户');
+        $this->get(route('customers.all', ['sourceType' => 'agent']))
+            ->assertOk()
+            ->assertSee('来源下钻代理商客户')
+            ->assertDontSee('来源下钻直客');
+    }
+
+    public function test_combined_customer_source_list_is_limited_to_organization_wide_readers(): void
+    {
+        $customerService = User::factory()->create();
+
+        $this->actingAs($customerService)->get(route('customers.all'))->assertForbidden();
+    }
+
     public function test_super_admin_without_two_factor_is_redirected_to_security_settings(): void
     {
         $user = User::factory()->superAdmin()->create();

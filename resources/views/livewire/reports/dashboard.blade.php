@@ -85,6 +85,28 @@
             $institutionRevenueMax = max(1, ...array_column($institutionRevenue ?: [['value' => 0]], 'value'));
             $institutionMonth = (string) ($snapshot['panels']['institution_revenue_month'] ?? '');
             $customerChannelShare = $snapshot['panels']['customer_channel_share'] ?? null;
+            $customerSources = $customerChannelShare['sources'] ?? [];
+            $sourceColorPalette = ['var(--crm-primary)', 'var(--crm-blue)', 'var(--crm-purple)', 'var(--crm-amber)', 'var(--crm-green)'];
+            $sourceColors = [];
+            $sourceGradientSegments = [];
+            $sourceTooltipLines = [];
+            $sourceOffset = 0.0;
+            foreach ($customerSources as $sourceIndex => $source) {
+                $color = $sourceColorPalette[$sourceIndex % count($sourceColorPalette)];
+                $sourceColors[] = $color;
+                $sourceLabel = __('dashboard.panels.customer_source_types.'.$source['key']);
+                $sourceCount = (int) $source['count'];
+                if ($customerChannelShare['total'] > 0 && $sourceCount > 0) {
+                    $sourceEnd = $sourceOffset + ($sourceCount / $customerChannelShare['total'] * 100);
+                    $sourceGradientSegments[] = $color.' '.number_format($sourceOffset, 4, '.', '').'% '.number_format($sourceEnd, 4, '.', '').'%';
+                    $sourceOffset = $sourceEnd;
+                }
+                $sourceTooltipLines[] = $sourceLabel.'：'.number_format($sourceCount).' '.__('dashboard.panels.customer_unit').'，'.__('dashboard.panels.customer_share_percentage', ['percentage' => number_format((float) $source['percentage'], 1)]);
+            }
+            $sourceChartStyle = $sourceGradientSegments === []
+                ? ''
+                : 'background: conic-gradient('.implode(', ', $sourceGradientSegments).')';
+            $sourceChartTooltip = implode("\n", $sourceTooltipLines);
             $metricLinks = [
                 'revenue' => route('reports.search', $reportRange),
                 'new_customers' => auth()->user()->isSuperAdmin()
@@ -158,35 +180,53 @@
             </section>
 
             @if ($visibility['customer_channel_share'] ?? false)
-                <section class="crm-card crm-customer-share" aria-label="{{ __('dashboard.panels.customer_channel_share') }}">
-                    <header class="crm-card-header">
-                        <h2>{{ __('dashboard.panels.customer_channel_share') }}</h2>
-                        <span class="crm-customer-share-total">
-                            {{ __('dashboard.panels.customer_total') }}
-                            <strong>{{ number_format($customerChannelShare['total']) }}</strong>
-                            {{ __('dashboard.panels.customer_unit') }}
-                        </span>
+                <section class="crm-card crm-customer-share" aria-labelledby="customer-channel-share-title" data-test="customer-source-share">
+                    <header class="crm-customer-share-header">
+                        <h2 id="customer-channel-share-title">{{ __('dashboard.panels.customer_channel_share') }}</h2>
                     </header>
-                    @if ($customerChannelShare['total'] === 0)
-                        <div class="crm-panel-empty"><flux:icon name="users" />{{ __('dashboard.panels.no_customer_channel_data') }}</div>
-                    @else
-                        <div class="crm-customer-share-grid">
-                            <div class="crm-customer-share-item">
-                                <span class="crm-customer-share-label"><i class="crm-customer-share-dot is-direct"></i>{{ __('dashboard.panels.direct_customer_channel') }}</span>
-                                <strong>{{ number_format($customerChannelShare['direct_count']) }} {{ __('dashboard.panels.customer_unit') }}</strong>
-                                <b>{{ number_format($customerChannelShare['direct_percentage'], 1) }}%</b>
-                            </div>
-                            <div class="crm-customer-share-item">
-                                <span class="crm-customer-share-label"><i class="crm-customer-share-dot is-agent"></i>{{ __('dashboard.panels.agent_customer_channel') }}</span>
-                                <strong>{{ number_format($customerChannelShare['agent_count']) }} {{ __('dashboard.panels.customer_unit') }}</strong>
-                                <b>{{ number_format($customerChannelShare['agent_percentage'], 1) }}%</b>
+                    <div class="crm-customer-share-main">
+                        <div class="crm-customer-share-chart">
+                            <div
+                                class="crm-customer-share-ring {{ $customerChannelShare['total'] === 0 ? 'is-empty' : '' }}"
+                                @if ($sourceChartStyle !== '') style="{{ $sourceChartStyle }}" @endif
+                                role="group"
+                                aria-label="{{ __('dashboard.panels.customer_channel_share') }}: {{ $sourceChartTooltip }}"
+                                title="{{ $sourceChartTooltip }}"
+                            >
+                                <a class="crm-customer-share-center" href="{{ route('customers.all', ['createdTo' => $rangeTo]) }}" wire:navigate aria-label="{{ __('dashboard.panels.customer_total') }} {{ number_format($customerChannelShare['total']) }} {{ __('dashboard.panels.customer_unit') }}">
+                                    <strong>{{ number_format($customerChannelShare['total']) }}</strong>
+                                    <span>{{ __('dashboard.panels.customer_count_center') }}</span>
+                                </a>
                             </div>
                         </div>
-                        <div class="crm-customer-share-bar" role="img" aria-label="{{ __('dashboard.panels.customer_channel_share') }}">
-                            <span class="is-direct" style="width: {{ $customerChannelShare['direct_percentage'] }}%"></span>
-                            <span class="is-agent" style="width: {{ $customerChannelShare['agent_percentage'] }}%"></span>
+
+                        <div class="crm-customer-share-rows" role="list">
+                            @foreach ($customerSources as $sourceIndex => $source)
+                                @php
+                                    $sourceLabel = __('dashboard.panels.customer_source_types.'.$source['key']);
+                                    $sourceCount = (int) $source['count'];
+                                    $sourceShare = (float) $source['percentage'];
+                                @endphp
+                                <a
+                                    class="crm-customer-share-row"
+                                    role="listitem"
+                                    data-test="customer-source-row-{{ $source['key'] }}"
+                                    href="{{ route('customers.all', ['sourceType' => $source['key'], 'createdTo' => $rangeTo]) }}"
+                                    wire:navigate
+                                    title="{{ $sourceLabel }}：{{ number_format($sourceCount) }} {{ __('dashboard.panels.customer_unit') }}，{{ __('dashboard.panels.customer_share_percentage', ['percentage' => number_format($sourceShare, 1)]) }}"
+                                >
+                                    <span class="crm-customer-share-row-label">
+                                        <i class="crm-customer-share-dot" style="background-color: {{ $sourceColors[$sourceIndex] }}" aria-hidden="true"></i>
+                                        <strong>{{ $sourceLabel }}</strong>
+                                    </span>
+                                    <span class="crm-customer-share-row-values">
+                                        <strong>{{ number_format($sourceCount) }} {{ __('dashboard.panels.customer_unit') }}</strong>
+                                        <span>{{ __('dashboard.panels.customer_share_percentage', ['percentage' => number_format($sourceShare, 1)]) }}</span>
+                                    </span>
+                                </a>
+                            @endforeach
                         </div>
-                    @endif
+                    </div>
                 </section>
             @endif
 

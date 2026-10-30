@@ -1093,10 +1093,14 @@ final readonly class SpreadsheetImportParser
 
     private function settlementStatus(?string $value): string
     {
+        $value = trim((string) $value);
+
         return match (true) {
-            $value !== null && str_contains($value, '结清') => 'paid',
-            $value !== null && str_contains($value, '对账') => 'reconciled',
-            default => 'draft',
+            $value === '' => 'draft',
+            str_contains($value, '结清') => 'paid',
+            str_contains($value, '对账') => 'reconciled',
+            in_array(mb_strtolower($value), ['草稿', 'draft'], true) => 'draft',
+            default => throw new InvalidArgumentException("结算状态“{$value}”无法识别；请填写已结清、已对账、草稿或留空。"),
         };
     }
 

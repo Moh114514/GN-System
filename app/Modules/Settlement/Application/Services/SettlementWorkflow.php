@@ -250,10 +250,15 @@ final readonly class SettlementWorkflow
 
         DB::transaction(function () use ($settlementId, $reason, $actorId, $ipAddress): void {
             $settlement = Settlement::query()->lockForUpdate()->findOrFail($settlementId);
-            if (! in_array($settlement->status, ['pending_review', 'rejected'], true)) {
+            $historicalImportDraft = $settlement->status === 'draft'
+                && $settlement->generation_status === 'not_applicable'
+                && $settlement->settlement_run_id === null
+                && $settlement->import_batch_id !== null
+                && data_get($settlement->snapshot, 'source') === 'historical_import';
+            if (! in_array($settlement->status, ['pending_review', 'rejected'], true) && ! $historicalImportDraft) {
                 throw new DomainException(__('settlements.refresh.errors.status_unavailable'));
             }
-            if ($settlement->generation_status !== 'generated' || $settlement->settlement_run_id === null) {
+            if (! $historicalImportDraft && ($settlement->generation_status !== 'generated' || $settlement->settlement_run_id === null)) {
                 throw new DomainException(__('settlements.refresh.errors.generation_required'));
             }
             $before = [
@@ -285,7 +290,11 @@ final readonly class SettlementWorkflow
             $totalCommission = $calculation['total_commission_krw'];
             $now = now();
             $snapshot = is_array($settlement->snapshot) ? $settlement->snapshot : [];
-            $snapshot['generated_at'] = $now->toIso8601String();
+            if ($historicalImportDraft) {
+                $snapshot['last_refreshed_at'] = $now->toIso8601String();
+            } else {
+                $snapshot['generated_at'] = $now->toIso8601String();
+            }
             $snapshot['adjustments'] = $adjustments->map(static fn (SettlementAdjustment $adjustment): array => [
                 'id' => (int) $adjustment->id,
                 'key' => (string) $adjustment->adjustment_key,
@@ -298,7 +307,7 @@ final readonly class SettlementWorkflow
                 'total_commission_krw' => $totalCommission,
                 'payout_amount_cny_fen' => 0,
                 'item_count' => count($orders) + $adjustments->count(),
-                'generated_at' => $now,
+                'generated_at' => $historicalImportDraft ? $settlement->generated_at : $now,
                 'snapshot' => $snapshot,
             ]);
             $snapshot['adjustment_count'] = $adjustments->count();
@@ -334,13 +343,16 @@ final readonly class SettlementWorkflow
 
             $newOrderIds = array_values(array_map(static fn ($order): int => $order->orderId, $orders));
             sort($newOrderIds);
-            $this->summary->update(SettlementRun::query()->lockForUpdate()->findOrFail($settlement->settlement_run_id));
+            if ($settlement->settlement_run_id !== null) {
+                $this->summary->update(SettlementRun::query()->lockForUpdate()->findOrFail($settlement->settlement_run_id));
+            }
             $settlement->refresh();
             $this->audit->record(
                 description: __('settlements.refresh.audit'),
                 properties: [
                     'settlement_id' => $settlement->id,
                     'settlement_run_id' => $settlement->settlement_run_id,
+                    'import_batch_id' => $settlement->import_batch_id,
                     'reason' => $reason,
                     'before' => $before,
                     'after' => [
