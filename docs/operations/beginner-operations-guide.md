@@ -1,6 +1,23 @@
 # GN-System 小白运维指南
 
-## 2026-10-30 最新版本与服务器情况
+## 2026-10-30 当前 UAT 版本：v0.8.0-rc.2（业务复验待完成）
+
+UAT 已按[局域网离线镜像部署](offline-deployment.md)运行 `v0.8.0-rc.2`，不可变标签指向提交
+`ce411b7700509a4322752c40c786f94b6adc9ddb`。部署前备份
+`/srv/gn-system/data/backups/GN-System UAT/2026-10-30-18-41-50.zip`（68.02 MB、257 个文件/目录）已校验完整。
+服务器 `.env.uat` 记录 RC2、权限为 `0600`，实际数据库为 `gn_system_uat`；升级没有待执行的 migration，
+六个服务运行，严格 TLS 的 `/up`、`/health`、`/health/operations` 均返回 200，队列和调度健康。
+Production 未操作。
+
+RC2 部署包 `D:\GN-System-Deployment\gn-system-v0.8.0-rc.2.tar` 的 SHA-256 为
+`434064174a257b0979334384a17674da96580f1b85fd7d7f092bb5df3539628c`，服务器副本暂保留在
+`/tmp/gn-system-v0.8.0-rc.2.tar`。原验收发现的历史导入/月结、终止合作日期输入和客户来源占比问题需针对 RC2 重新验收。
+验收签收前不要更新 `releases/current` 或 `history.tsv`、不要删除部署包，也不要把当前 UAT 状态写成验收通过；
+当前这两项发布记录继续保留 `v0.6.0-rc.1`。完整步骤、镜像摘要和备份路径见[完整运维手册](operations-manual.md)。
+
+## 2026-10-30 v0.8.0-rc.1 部署与业务验收记录（RC2 发布前）
+
+本节是 RC1 部署时的记录；RC1 时“新代码尚未部署”等描述不代表当前 RC2 状态，请以上方记录为准。
 
 后续用用户历史表和新增跨月订单夹具做了[联合验收](business-flow-uat-review.md)。原表有 84/94 行预检错误，
 没有正式覆盖旧数据；独立样本的混合月结、费率快照和负余额结转结果一致。但历史导入后仍缺明细、到院及业务归属资料，

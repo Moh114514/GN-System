@@ -1,6 +1,27 @@
 # GN-System CRM
 
-## 2026-10-30 UAT 离线部署完成，业务验收待完成
+## 2026-10-30 v0.8.0-rc.2 已离线部署到 UAT，RC2 业务验收待完成
+
+PR #63 已将修复合入 `develop`，PR #65 同步 main 发布历史，PR #64 合入 `main`。
+annotated `v0.8.0-rc.2` 指向 `ce411b7700509a4322752c40c786f94b6adc9ddb`；
+[RC 发布工作流](https://github.com/Moh114514/GN-System/actions/runs/41039604852)通过应用检查和 app/web 镜像构建。
+app/web digest 分别为 `sha256:8f1aa5c898f64d69d37edd71156ae51dd218e4c2d55709dbee7524a57531640c`、
+`sha256:681d417d1f08d02204185df105cb8202a975d9d481d47fc2fe0767d467b4d5b4`。
+
+已按[离线指南](docs/operations/offline-deployment.md)下载、核对并通过局域网部署。
+部署包 `D:\GN-System-Deployment\gn-system-v0.8.0-rc.2.tar` 为 369,906,176 bytes，SHA-256 为
+`434064174a257b0979334384a17674da96580f1b85fd7d7f092bb5df3539628c`；服务器副本保留在
+`/tmp/gn-system-v0.8.0-rc.2.tar`。部署前备份
+`/srv/gn-system/data/backups/GN-System UAT/2026-10-30-18-41-50.zip` 为 71,325,256 bytes，
+257 个文件/目录，完整性验证通过。
+
+服务器 `.env.uat` 为 `RELEASE_TAG=v0.8.0-rc.2`、权限 `0600`，数据库为 `gn_system_uat`。
+迁移命令结果为 `Nothing to migrate`；所有迁移状态均为 `Ran`。六个服务运行，app/web/queue/scheduler
+使用 RC2；`/up`、`/health`、`/health/operations` 严格 TLS 均为 200，队列和调度状态为 ok。
+本次只验证部署与健康，不代表 RC2 中历史月结/导入修复、终止日期输入或客户来源占比看板已完成业务验收。
+因此 `releases/current` 与 `history.tsv` 保留原标记 `v0.6.0-rc.1`，传输包和旧镜像保留；Production 未操作。
+
+## 2026-10-30 v0.8.0-rc.1 离线部署与业务验收记录（RC2 部署前）
 
 PR #57、#58 已依次合入 `develop`、`main`。annotated `v0.8.0-rc.1` 固定指向
 `3e0d9f935c4756b845fe4e931fe53b591c0bb14c`；[RC 工作流](https://github.com/Moh114514/GN-System/actions/runs/40855469756)
