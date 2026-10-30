@@ -1,5 +1,25 @@
 # GN-System 完整运维手册
 
+## 2026-10-31 v0.8.0-rc.3 已构建，UAT 部署待管理员认证
+
+PR #67、#69 已合入 `develop`，PR #68 已合入 `main`。annotated `v0.8.0-rc.3` 指向
+`ab1cb51eef90347c90d38ee4a6cb44b16e1da931`；[RC 发布工作流](https://github.com/Moh114514/GN-System/actions/runs/41083389896)
+门禁与 app/web 镜像构建成功，manifest digest 分别为
+`sha256:be51649457712b42030e8f707306c0f91d136fb35f43b8a5d083b96954fe3dc6`、
+`sha256:416c3c73a9cee5cebfe326012d9ceeaa7f83d0b30fa9882772fd34d9f1f65298`。
+
+已从 GHCR 下载并核对 `linux/amd64` 镜像。离线包位于本机仓库忽略目录
+`docker-images/gn-system-v0.8.0-rc.3.tar`，369,907,200 bytes，SHA-256
+`43bd4157c777353b8fa6b1aa9f101ac850567722b45176f866746208c6acdba7`；服务器 `/tmp/gn-system-v0.8.0-rc.3.tar`
+副本哈希和大小一致。只读核验 UAT 仓库干净且 detached 于 RC2 提交
+`ce411b7700509a4322752c40c786f94b6adc9ddb`。管理员命令 `sudo -n` 要求密码，因此本轮未在服务器导入镜像、
+创建部署备份、切换 RC3、修改 `.env.uat`、停服或迁移；UAT 仍待部署和 RC3 业务验收。安全恢复管理员认证后，
+从本文“更新 UAT”与[局域网离线镜像部署](offline-deployment.md)继续，先完成目标环境预检和部署前备份。
+
+Production 未操作。其 `.env.production` 的 `APP_URL=https://192.168.0.141` 与手册环境表的
+`https://gncrm.local` 不一致；TLS 证书身份、生产备份完整性及缺失的 `current/history.tsv` 仍未核实。
+正式升级前必须确认正确访问域名并验证证书和备份；正式标签须与验收通过的 RC3 指向同一提交，镜像按 RC3 原 digest 晋级。
+
 ## 2026-10-30 v0.8.0-rc.2 UAT 验收通过；Production 晋级暂缓
 
 PR #63 将联合验收修复合入 `develop`，PR #65 同步 main 发布历史，PR #64 合入 `main`。
@@ -26,8 +46,8 @@ Production 预检只读确认现有服务健康，app/web/queue/scheduler 当前
 `RELEASE_TAG=v0.6.2`。Production 仓库 HEAD 为 `290a36809ac2ccdc236a3177fb6b6689bdfeace9`
 （`v0.6.0-rc.1`），工作区有 3 个未提交文件。客户看板翻译和相应测试已包含在 RC2；
 `AppServiceProvider` 的 `URL::useOrigin(config('app.url'))` 生产修正不在 RC2，已在
-`feature/production-origin-url` 纳入代码评审并新增回归测试。不得覆盖或丢弃该预存改动；必须按
-`feature/* → develop → main → 新 RC → UAT 验收` 形成新候选后才能晋级正式版本。`v0.8.0` 尚未创建，Production 未修改或部署。
+`feature/production-origin-url` 纳入代码评审并新增回归测试，修正已包含在 `v0.8.0-rc.3`。
+RC3 当前待 UAT 部署和重新验收；正式标签 `v0.8.0` 尚未创建，Production 未修改或部署。
 
 `.env.production` 当前 `APP_URL=https://192.168.0.141`，与本文环境表中的 `https://gncrm.local` 不同；
 Production `/srv/gn-system/production/releases/current` 与 `history.tsv` 缺失。管理员账户无法读取 root 所有的
