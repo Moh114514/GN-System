@@ -22,6 +22,7 @@ use App\Modules\Customer\Presentation\Livewire\CustomerDetail;
 use App\Modules\Customer\Presentation\Livewire\CustomerForm;
 use App\Modules\Customer\Presentation\Livewire\CustomerList;
 use App\Modules\Customer\Presentation\Livewire\CustomerOverview;
+use App\Modules\Customer\Presentation\Livewire\CustomerSourceList;
 use App\Modules\Customer\Presentation\Livewire\CustomerStatusConfiguration;
 use App\Modules\Customer\Presentation\Livewire\DirectCustomerChannelConfiguration;
 use App\Modules\Customer\Presentation\Livewire\DirectCustomerForm;
@@ -47,12 +48,14 @@ class CustomerServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Livewire::component('customer-overview', CustomerOverview::class);
+        Livewire::component('customer-source-list', CustomerSourceList::class);
         Livewire::component('direct-customer-list', DirectCustomerList::class);
         Livewire::component('direct-customer-form', DirectCustomerForm::class);
         Livewire::component('direct-customer-channel-configuration', DirectCustomerChannelConfiguration::class);
 
         Route::middleware(['web', 'auth', 'verified', 'super-admin.2fa'])->group(function (): void {
             Route::get('/customers', CustomerList::class)->name('customers.index');
+            Route::get('/customers/all', CustomerSourceList::class)->name('customers.all');
             Route::get('/customers/create', CustomerForm::class)->name('customers.create');
             Route::get('/customers/{customer}', CustomerDetail::class)->whereNumber('customer')->name('customers.show');
             Route::get('/customers/{customer}/edit', CustomerForm::class)->whereNumber('customer')->name('customers.edit');

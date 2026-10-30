@@ -1013,90 +1013,168 @@ select:focus[data-flux-control] {
     color: var(--crm-red);
 }
 
-.crm-customer-share {
+.crm-card.crm-customer-share {
     margin-bottom: 16px;
+    min-height: 280px;
+    padding: 20px 22px 12px;
+    border-radius: 16px;
+    box-shadow: none;
 }
 
-.crm-customer-share-total {
-    color: var(--crm-muted);
-    font-size: 12px;
-}
-
-.crm-customer-share-total strong {
-    margin: 0 3px;
-    color: var(--crm-ink);
-    font-size: 16px;
-    font-variant-numeric: tabular-nums;
-}
-
-.crm-customer-share-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+.crm-customer-share-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
     gap: 16px;
+    margin-bottom: 12px;
 }
 
-.crm-customer-share-item {
+.crm-customer-share-header h2 {
+    color: var(--crm-ink);
+    font-size: 20px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.crm-customer-share-main {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    min-height: 200px;
+    grid-template-columns: 180px minmax(0, 1fr);
     align-items: center;
-    gap: 6px 12px;
-    color: var(--crm-muted);
-    font-size: 12px;
+    gap: 28px;
 }
 
-.crm-customer-share-label {
+.crm-customer-share-chart {
+    display: grid;
+    place-items: center;
+}
+
+.crm-customer-share-ring {
+    position: relative;
+    display: grid;
+    width: 156px;
+    height: 156px;
+    place-items: center;
+    border-radius: 50%;
+    background: conic-gradient(var(--crm-line-soft) 0% 100%);
+}
+
+.crm-customer-share-ring::before {
+    position: absolute;
+    inset: 15px;
+    border-radius: 50%;
+    background: var(--crm-surface);
+    content: '';
+}
+
+.crm-customer-share-ring:focus-within {
+    outline: 3px solid var(--crm-primary-soft);
+    outline-offset: 3px;
+}
+
+.crm-customer-share-center {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    min-width: 112px;
+    min-height: 112px;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    color: var(--crm-ink);
+    text-decoration: none;
+}
+
+.crm-customer-share-center strong {
+    font-size: 36px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    line-height: 1.1;
+}
+
+.crm-customer-share-center span {
+    margin-top: 4px;
+    color: var(--crm-muted);
+    font-size: 16px;
+}
+
+.crm-customer-share-center:hover span {
+    color: var(--crm-primary-strong);
+}
+
+.crm-customer-share-rows {
+    display: flex;
+    min-width: 0;
+    flex-direction: column;
+}
+
+.crm-customer-share-row {
+    display: flex;
+    min-height: 100px;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    border-bottom: 1px solid var(--crm-line-soft);
+    padding: 16px 0;
+    color: inherit;
+    text-decoration: none;
+    transition: background-color .16s ease;
+}
+
+.crm-customer-share-row:last-child {
+    border-bottom-color: transparent;
+}
+
+.crm-customer-share-row:hover {
+    background: var(--crm-bg);
+}
+
+.crm-customer-share-row:focus-visible {
+    outline: 2px solid var(--crm-primary);
+    outline-offset: 2px;
+}
+
+.crm-customer-share-row-label {
     display: inline-flex;
     min-width: 0;
     align-items: center;
-    gap: 7px;
+    gap: 11px;
 }
 
 .crm-customer-share-dot {
-    width: 8px;
-    height: 8px;
+    width: 11px;
+    height: 11px;
     flex: 0 0 auto;
     border-radius: 50%;
 }
 
-.crm-customer-share-dot.is-direct,
-.crm-customer-share-bar .is-direct {
-    background: var(--crm-primary);
-}
-
-.crm-customer-share-dot.is-agent,
-.crm-customer-share-bar .is-agent {
-    background: var(--crm-blue);
-}
-
-.crm-customer-share-item strong {
-    grid-column: 1;
+.crm-customer-share-row-label strong {
     color: var(--crm-ink);
-    font-size: 14px;
-    font-variant-numeric: tabular-nums;
-    font-weight: 500;
+    font-size: 18px;
+    font-weight: 400;
+    overflow-wrap: anywhere;
 }
 
-.crm-customer-share-item>b {
-    grid-column: 2;
-    grid-row: 2;
+.crm-customer-share-row-values {
+    display: grid;
+    flex: 0 0 auto;
+    justify-items: end;
+    gap: 8px;
+    text-align: right;
+}
+
+.crm-customer-share-row-values strong {
     color: var(--crm-ink);
-    font-size: 16px;
+    font-size: 20px;
     font-variant-numeric: tabular-nums;
+    font-weight: 700;
 }
 
-.crm-customer-share-bar {
-    display: flex;
-    height: 9px;
-    overflow: hidden;
-    margin-top: 13px;
-    border-radius: 999px;
-    background: var(--crm-line-soft);
-}
-
-.crm-customer-share-bar span {
-    display: block;
-    min-width: 0;
-    transition: width .2s ease;
+.crm-customer-share-row-values span {
+    color: var(--crm-muted);
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
 }
 
 .crm-spark {
@@ -2137,6 +2215,70 @@ select:focus[data-flux-control] {
 
     .crm-card-header {
         align-items: flex-start;
+    }
+
+    .crm-card.crm-customer-share {
+        min-height: 0;
+        padding: 20px 18px;
+    }
+
+    .crm-customer-share-header h2 {
+        font-size: 18px;
+    }
+
+    .crm-customer-share-main {
+        min-height: 0;
+        grid-template-columns: minmax(0, 1fr);
+        gap: 15px;
+    }
+
+    .crm-customer-share-ring {
+        width: 136px;
+        height: 136px;
+    }
+
+    .crm-customer-share-ring::before {
+        inset: 15px;
+    }
+
+    .crm-customer-share-center {
+        min-width: 102px;
+        min-height: 102px;
+    }
+
+    .crm-customer-share-center strong {
+        font-size: 32px;
+    }
+
+    .crm-customer-share-center span {
+        font-size: 14px;
+    }
+
+    .crm-customer-share-dot {
+        width: 10px;
+        height: 10px;
+    }
+
+    .crm-customer-share-row {
+        min-height: 70px;
+        gap: 10px;
+        padding: 10px 8px;
+    }
+
+    .crm-customer-share-row-label strong {
+        font-size: 14px;
+    }
+
+    .crm-customer-share-row-values strong {
+        font-size: 16px;
+    }
+
+    .crm-customer-share-row-values span {
+        font-size: 12px;
+    }
+
+    .crm-customer-share-row-values {
+        gap: 4px;
     }
 
     .crm-tabs {

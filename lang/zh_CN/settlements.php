@@ -295,7 +295,7 @@ return [
     'refresh' => [
         'toast' => '月结明细已刷新，批次汇总和审计已同步更新。',
         'audit' => '月结明细已刷新',
-        'errors' => ['reason_required' => '刷新月结必须填写原因。', 'reason_too_long' => '刷新原因不能超过 2000 个字符。', 'status_unavailable' => '只有待审核或已驳回月结可以直接刷新；已审核或已结清月结请先执行受控状态更正。', 'generation_required' => '当前月结不是可刷新的已生成明细，请先核对生成状态。'],
+        'errors' => ['reason_required' => '刷新月结必须填写原因。', 'reason_too_long' => '刷新原因不能超过 2000 个字符。', 'status_unavailable' => '只有待审核、已驳回月结或未结清的历史导入草稿可以直接刷新；已审核或已结清月结请先执行受控状态更正。', 'generation_required' => '当前月结不是可刷新的已生成明细，请先核对生成状态。'],
     ],
     'notifications' => [
         'title' => '月结生成完成',

@@ -1,33 +1,90 @@
 # GN-System 完整运维手册
 
-## 2026-10-29 当前 RC 与 UAT 部署状态
+## 2026-10-30 当前 RC 已离线部署，业务验收待完成
 
-`v0.8.0-rc.1` 已通过完整 RC 工作流（596 项测试、4261 条断言），固定提交为
-`3e0d9f935c4756b845fe4e931fe53b591c0bb14c`。app/web 镜像摘要分别为
+后续历史与新增业务服务验收见[联合验收报告](business-flow-uat-review.md)：原表预检 94 行中 84 行错误并拒绝提交；
+独立样本通过入账预演，跨月月结、快照幂等与负余额结转符合预期。后续经用户授权重绑临时超管 TOTP，
+网页通过独立历史样本导入、10 月消费/11 月登记、已付款连续更正、重复保存和锁定/回滚保护。
+优先问题为当期历史月结遗漏追加消费、原表“已完成”静默归草稿、终止合作页面 JS 故障。
+服务探针已回滚，网页样本和审计保留；最终 22 笔订单、23 位客户、9 批次，两名测试代理暂停。
+真实时间已恢复、后台重启、临时超管停用；未写全部验收通过记录，详细 ID 和边界见联合报告。
+后续修复已在本地 `feature/uat-business-flow-review-fixes` 编码并补测试，包含历史导入草稿审计刷新、未知结算状态拒绝、终止日期输入渲染，
+以及客户来源占比环图、来源下钻和客户总列表。后续通过授权执行环境访问 Docker，定向测试通过 31 项 / 321 条断言，
+完整本地门禁通过 601 项 / 4315 条断言，前端构建通过 597 个模块；本机浏览器已核对按 demo 重做的布局。
+Vite 开发服务重启后已刷新此前未生效的旧样式。未部署或创建 RC，因此 UAT 仍是 `v0.8.0-rc.1`，新改动须随候选版本重新验收。
+
+`v0.8.0-rc.1` 已通过[完整 RC 工作流](https://github.com/Moh114514/GN-System/actions/runs/40855469756)
+（596 项测试、4261 条断言），固定提交为 `3e0d9f935c4756b845fe4e931fe53b591c0bb14c`。
+app/web 镜像摘要分别为
 `sha256:7c86fa42b70410868d789cb8bb985ff9e4152cec5405358eaa11b5f804b76a10` 和
 `sha256:87f1cd9e91b1e697cbaf38d7e0b6a2f0f74f7034051c53fded073ab592d03dbf`。
 
-UAT 服务器仓库已在该 annotated tag 上，但部署未完成：标准脚本备份 68.14 MB 文件并验证完整后，GHCR
-镜像下载以 `connection reset by peer` 失败，迁移未运行。已恢复 `.env.uat` 的 `RELEASE_TAG`、
-`/srv/gn-system/releases/current` 和服务到 `v0.6.0-rc.1`；app、web、queue、scheduler、PostgreSQL、
-Redis 均运行，三个健康端点返回 200，环境文件权限为 `0600`。候选版本没有完成页面或业务验收，不能标记为
-UAT 已通过；Production 未操作。服务器发布历史最后一条是 2026-10-12 `v0.6.0-rc.1`，与 10 月 22 日
-历史记录中用户确认 `v0.7.0` UAT 验收的描述有差异，需核对原因后再更新当前部署记录。
+2026-10-29 标准部署在 GHCR 下载阶段连接重置、未执行迁移，当时已恢复旧版。2026-10-30 按
+[离线指南](offline-deployment.md)在本机拉取并核对两个 `linux/amd64` 镜像，导出到
+`D:\GN-System-Deployment\gn-system-v0.8.0-rc.1.tar`（369904128 bytes），通过局域网传输后核对 SHA-256
+`411edb6419f306e4804cdbc8c2c65f089febb2a2001484ce978d59ab7eea5fdc`，服务器导入后的镜像 ID 和架构均一致。
 
-部署该候选时待核对的 migration 包括 `2026_10_20_000100_add_order_registration_lifecycle`、
-`2026_10_25_000001_extend_customer_followups_for_reminders` 和
-`2026_10_28_000100_add_operations_director_role`；本次一个也未执行。再次部署前重新查看备份列表和
-`migrate:status`，按新的实际版本状态操作。
+因旧服务已经恢复，本次在切换前重新全量备份：
+`/srv/gn-system/data/backups/GN-System UAT/2026-10-30-00-09-42.zip`，71455203 bytes（68.14 MB）、
+227 个文件和目录，归档完整性校验通过；未执行还原演练，不据此承诺恢复结果。随后进入维护模式、停止
+web/queue/scheduler，将 `.env.uat` 的 `RELEASE_TAG` 改为候选并保留 `0600`，全部 Compose 启动使用
+`--pull never`。三项 migration 均成功且 `migrate:status` 全部为 Ran，本轮 batch 12：
 
-恢复新 RC 部署前先解决 GHCR 到服务器的连接问题或按[局域网离线镜像部署](offline-deployment.md)转运
-已验证摘要的 app/web 镜像。离线转运须使用有足够空间的主机；部署后才执行候选 migration，并完成健康、队列、
-调度、业务异常和角色流程验收。已生成的备份可用于此次部署前恢复点，但没有实际执行还原，不据此声称备份可恢复。
+- `2026_10_20_000100_add_order_registration_lifecycle`；
+- `2026_10_25_000001_extend_customer_followups_for_reminders`；
+- `2026_10_28_000100_add_operations_director_role`。
+
+00:17（Asia/Shanghai）核验：app/web/queue/scheduler 均使用 `v0.8.0-rc.1`，六个服务运行，app/web/数据库/Redis
+健康；`/up`、`/health`、`/health/operations` 严格 TLS 均返回 200，Queue/Scheduler 心跳正常，启动及任务日志
+未见连续应用异常。实际数据库为 `gn_system_uat`，时区为 `Asia/Shanghai`，BusinessClock 未模拟。
+订单仍为 13 笔完成、2 笔取消，完成订单缺业务日期或登记时间均为 0。
+
+Windows 客户端严格 HTTPS 访问 `/up` 为 200，未登录访问 `/orders` 正常跳转 `/login`；这只验证网络、TLS 和
+登录保护。本轮文档同步后，本机 `docker compose exec -T app composer ci:check` 通过（596 项测试、4261 条
+断言；文档检查 49 Markdown / 11 ADR、格式、静态分析和模块边界通过），`docker compose exec -T vite npm run build`
+通过（597 个模块），`git diff --check` 通过。Composer 的容器 Git ownership 提示、PHPUnit 结果缓存写权限、
+Vite 插件耗时和大包体积提示为非阻断项，不代表 UAT 页面业务验收已完成。
+
+`app:business-anomalies` 是只读检查，本次没有推算回写历史事实：
+
+| 历史检查项 | 数量 | 后续处理 |
+|---|---:|---|
+| 完成订单缺项目明细 / 金额与明细合计不符 | 各 11 | 核对原始订单项目与金额依据 |
+| 完成订单未关联到院记录 | 2（订单 29、30） | 核对来源和到院依据 |
+| 完成到院记录缺实际到院时间 | 11 | 依据原始凭据受控补录，不猜测时间 |
+| 月结缺付款截止日 | 35 | 核对原始付款依据，历史账单不自动推算 |
+| 代理商订单缺推广费快照 | 0 | 继续验收费率与历史快照 |
+| 已到可结算期未分配差额 / 负余额缺结转 | 均为 0 | 继续验收更正与结转流程 |
+
+后续在独立隔离的 Edge 无头浏览器完成以下 UAT 实测（正常证书校验，未复用用户浏览器会话）：
+
+- 交互式 `app:create-admin` 创建专用超管 #9（`codex-uat-20261030@example.invalid`），正常页面绑定 TOTP；
+  新会话经密码和 `/two-factor-challenge` 成功进入 Dashboard，未绕过认证。
+- 超管侧栏 19 个独立页面均返回 200，覆盖两类客户/订单、团队、提成、机构、报表、提醒、月结和配置。
+  此项是页面加载检查，不代表全部写入流程或全部角色均通过。
+- 客户 #29 / `YY-KR-0002`（`【验收】Codex20261030凭证二选一`）经正常建档、到院和登记流程测试：
+  两类凭证都为空时明确拒绝；仅沟通截图生成订单 #31，仅结算小票生成 #32，各 100 KRW。
+  两张订单消费日期均为 2026-10-30；#31 首次登记时间为 08:36，账期为 2026-10，匹配 15% 费率、15 KRW 推广费。
+- 登录后凭证下载为 200 / 68 bytes；匿名浏览器下载转到登录页。使用 UAT 已启用的角色切换功能抽查：
+  BD A 可访问客户列表，配置/机构报表为 403、测试客户为 404；客服 A1（负责人）可查看测试客户，客服 A2 为 404，
+  两者配置/机构报表均为 403。这不替代各角色独立登录及老板/运营总监验收。
+- 测试后通过正常页面受控回退并取消 #31/#32，保留原因和审计；只读查询确认二者为 `cancelled`，
+  关联 `order_commissions` 为 0，看板营收恢复验收前金额。测试客户、预约、附件和审计保留，客户总数因此增加 1。
+  通过 `app:disable-admin` 停用临时超管 #9，operator 为 `Codex-user-request-20261030`；原登录会话访问 Dashboard 转到登录页。
+- 1280px 浏览器截图中顶栏“订单详情”出现逐字换行，作为布局待改项记录；未扩展本次功能范围。
+
+老板/运营总监、Excel 回传、导入及月结完整流程仍待验收。按离线指南第 8 节，`releases/current` 和
+`history.tsv` 暂保留原发布标记 `v0.6.0-rc.1`；运行镜像与该标记不同是待验阶段的明确状态，不得提前追加
+候选验收成功记录。服务器传输包和旧镜像保留，完成业务验收后再写记录、清理传输包。
+
+Production 未操作。服务器历史记录截止 2026-10-12 `v0.6.0-rc.1`，与 10 月 22 日历史验收说明有差异，原因
+仍待核对。回退时保留已扩展 schema；业务事实写入后不得直接 down migration，恢复须使用匹配的备份与应用版本。
 
 ## 2026-10-28 角色视角验收修复（当日状态：本地 PR，尚未合入）
 
 截至 10 月 28 日的本地 PR 按客户需求文档新增 `operations_director` 角色：登录需启用 TOTP；可全局只读查看 Dashboard、线上直客、线下渠道、机构及报表，并可使用业务配置中心。客户/订单编辑、敏感字段解密和财务更正仍由原有角色控制；运营总监不能创建、修改或停用超级管理员，数据维护、时间模拟和审计日志也仍仅限超级管理员。
 
-同时按需求角色矩阵限制机构月报和导出为老板/运营总监，修复客户所属 BD 过滤、团队月报 BD 过滤以及机构 PDF 订单来源列。新增 `2026_10_28_000100_add_operations_director_role` migration，将新角色加入 `users_role_check`；无依赖或环境变量变更。该 PR 在 10 月 28 日尚未合入，也未操作 UAT/Production；当前发布和验收情况见本手册 10 月 29 日状态。目标环境必须通过标准发布脚本执行 migration，并在 RC 中用老板、运营总监、线上负责人和 BD 经理账号逐一核对菜单、直达 URL、只读边界和报表来源。若要回滚代码，数据库约束的 down migration 会在仍存在运营总监账号时拒绝执行；应先按经批准的账号处置流程移除该角色，再评估回滚，不得直接删除账号或绕过约束。
+同时按需求角色矩阵限制机构月报和导出为老板/运营总监，修复客户所属 BD 过滤、团队月报 BD 过滤以及机构 PDF 订单来源列。新增 `2026_10_28_000100_add_operations_director_role` migration，将新角色加入 `users_role_check`；无依赖或环境变量变更。该 PR 在 10 月 28 日尚未合入，也未操作 UAT/Production；当前发布和验收情况见本手册顶部当前状态。目标环境按标准发布或离线指南执行 migration，并在 RC 中用老板、运营总监、线上负责人和 BD 经理账号逐一核对菜单、直达 URL、只读边界和报表来源。若要回滚代码，数据库约束的 down migration 会在仍存在运营总监账号时拒绝执行；应先按经批准的账号处置流程移除该角色，再评估回滚，不得直接删除账号或绕过约束。
 
 团队月报 BD 筛选只依据当前业务日期有效的业务组成员关系生成，避免历史 BD 被错误纳入筛选或覆盖当前负责人。当前本地 `gn_system` 没有有效且已接受的 BD 经理归属，因此页面按设计隐藏筛选器；Feature 测试在存在有效 BD 时验证筛选器和结果范围。回归测试及本轮 `docker compose exec app composer ci:check` 通过（595 项测试、4192 条断言；Pint、PHPStan、架构和文档检查通过）；`docker compose exec vite npm run build` 成功转换 597 个模块。Codex 浏览器只读检查了 Dashboard、机构月报、客户列表和团队月报；角色 Feature 测试覆盖路由与操作边界。没有提交表单或写入业务数据。浏览器未使用老板、运营总监、线上负责人或 BD 经理的独立账号，因此这些角色的真实账号页面验收仍须在 RC 完成。PHPUnit 缓存权限和 Vite 大包体积有非阻断告警。
 
@@ -427,8 +484,9 @@ GitHub CI 和 GHCR 是发布基础设施，不是可登录的业务环境。
 | 2026-08-24，`feature/business-groups-and-roles` | 工作区未发布 | 新规划 PR1 增加用户角色兼容回填、业务组/成员有效期历史、代理商业务组有效期历史及配置管理；新增 `2026_08_21_000100_add_roles_business_groups_and_agent_assignments` migration；2026-08-26 补齐开放式成员/代理商归属结束操作、未来转组候选、BusinessClock 统一和排他约束冲突业务化 | 仅完成本地开发和自动化验证，未合入 `develop`，未部署 UAT/Production。正式发布前必须备份数据库，按 RC 流程运行 migration，并人工核对角色、业务组成员、归属结束/未来转组、代理商归属和未归属完整性；本机结果不能替代目标环境验收 |
 | 2026-08-24，`feature/business-groups-and-roles` | 工作区未发布 | 新规划 PR7 完成 README、架构/模块文档、替代 ADR、UAT 角色映射、只读预检、备份迁移、抽样及回退/恢复手册；建议 `v0.6.0-rc.1` | 未处理 `develop`/`main` 分叉，未创建 RC，未推送、部署或执行 UAT/Production migration；发布前必须按 PR7 手册完成完整门禁、备份、映射、迁移和人工验收 |
 
-当前 `main` 高于 `v0.5.0-rc.8`。服务器上的 `releases/current` 和
-`history.tsv` 才能证明 UAT/Production 实际运行版本；本地 Git 日志不能证明目标环境已经升级。
+实际运行版本必须用目标环境的 Compose 服务、容器镜像 ID 和目标制品共同核验。`releases/current` 和
+`history.tsv` 记录上次发布流程写入的版本，不能单独证明运行镜像或业务验收结果；离线候选待验阶段可能与
+运行版本不同。本地 Git 日志也不能证明目标环境已经升级。下方早期实施说明保留当时语境，最新状态见本文顶部。
 
 新规划 PR1 的本地分支包含角色和归属历史 migration，当前只在开发 Compose 的隔离
 测试数据库中验证。不得直接在 UAT/Production 手工建表或执行未审阅的 SQL；发布时
@@ -520,7 +578,7 @@ Dashboard 现在显示业务时钟当前自然月的机构销售横向对比条�
 | 证书 | `/srv/gn-system/tls/uat-fullchain.pem` |
 | 私钥 | `/srv/gn-system/tls/uat-privkey.pem` |
 | 备份 | `/srv/gn-system/data/backups` |
-| 当前服务状态 | 2026-10-29 核验六个服务均运行；服务镜像及发布标记为 `v0.6.0-rc.1`，候选部署未完成 |
+| 当前服务状态 | 2026-10-30 六个服务运行，应用镜像为 `v0.8.0-rc.1`，严格 TLS 健康检查通过；业务验收待完成，发布标记暂保留 `v0.6.0-rc.1` |
 
 Windows 客户端的 hosts 记录为：
 
@@ -1104,7 +1162,10 @@ sudo ./deploy/deploy.sh .env.uat
 8. 执行 `migrate --force --isolated`；
 9. 启动六个服务、优化 Laravel 缓存并退出维护模式；
 10. 在 210 秒内等待三个健康接口；
-11. 成功后更新 `releases/current` 和 `history.tsv`。
+11. 三个健康接口成功后，脚本自动更新 `releases/current` 和 `history.tsv`。
+
+标准脚本的该记录表示技术发布及健康检查成功，不表示人工业务验收已经完成。离线流程没有调用该脚本，
+按离线指南第 8 节在健康和业务验收均通过后再手工写入记录；两条路径的实际验收结果都须另行记录。
 
 `Nothing to migrate` 表示目标版本没有新的 migration，通常是正常结果；仍需完成健康
 和业务验收。
@@ -1710,7 +1771,7 @@ GHCR 网络不稳定时，另确认：
 - [ ] tar 文件通过局域网传输并在服务器 `docker load` 成功
 - [ ] 服务器 app/web 镜像标签和架构与 `RELEASE_TAG` 一致
 - [ ] 离线 Compose 操作使用 `--pull never`
-- [ ] 健康检查成功后才写入 `releases/current` 和 `history.tsv`
+- [ ] 离线路径的健康检查和业务验收均成功后才写入 `releases/current` 和 `history.tsv`
 
 ### 16.3 Production 首次部署或更新
 

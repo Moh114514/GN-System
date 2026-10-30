@@ -35,7 +35,7 @@ interface ReportCustomerReader
      *   new_customers: int,
      *   active_customers: int,
      *   total_customers: int,
-     *   customer_source_counts: array{direct: int, agent: int},
+     *   customer_source_counts: array<string, int>,
      *   source_distribution: array<int, array{source_type: string, source_id: int, key: string, value: int}>
      * }
      */

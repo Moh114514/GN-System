@@ -6,6 +6,7 @@ use App\Modules\Auth\Application\Contracts\AccessContextResolver;
 use App\Modules\Customer\Application\Contracts\ReportCustomerReader;
 use App\Modules\Customer\Domain\BlindIndex;
 use App\Modules\Customer\Domain\CustomerLabelLocalizer;
+use App\Modules\Customer\Domain\CustomerSourceType;
 use App\Modules\Customer\Infrastructure\Models\Customer;
 use App\Modules\Customer\Infrastructure\Models\CustomerContact;
 use App\Modules\Customer\Infrastructure\Models\CustomerIdentityDocument;
@@ -114,12 +115,22 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
         $activeCustomers = $this->scoped(Customer::query())
             ->where('created_at', '<=', $to)
             ->count();
-        $customerSourceCounts = $this->scoped(Customer::query())
+        $rawCustomerSourceCounts = $this->scoped(Customer::query())
             ->where('customers.created_at', '<=', $to)
             ->select('customers.source_type')
             ->selectRaw('COUNT(customers.id)::int AS value')
             ->groupBy('customers.source_type')
-            ->pluck('value', 'source_type');
+            ->orderBy('customers.source_type')
+            ->pluck('value', 'source_type')
+            ->mapWithKeys(fn (mixed $value, mixed $sourceType): array => [(string) $sourceType => (int) $value])
+            ->all();
+        $customerSourceCounts = [];
+        foreach (CustomerSourceType::cases() as $sourceType) {
+            $customerSourceCounts[$sourceType->value] = $rawCustomerSourceCounts[$sourceType->value] ?? 0;
+        }
+        foreach ($rawCustomerSourceCounts as $sourceType => $count) {
+            $customerSourceCounts[$sourceType] ??= $count;
+        }
         $sourceDistribution = $this->scoped(Customer::query())
             ->where('customers.source_type', 'agent')
             ->whereBetween('customers.created_at', [$from, $to])
@@ -142,10 +153,7 @@ final readonly class DatabaseReportCustomerReader implements ReportCustomerReade
             'new_customers' => $newCustomers,
             'active_customers' => $activeCustomers,
             'total_customers' => $activeCustomers,
-            'customer_source_counts' => [
-                'direct' => (int) ($customerSourceCounts['direct'] ?? 0),
-                'agent' => (int) ($customerSourceCounts['agent'] ?? 0),
-            ],
+            'customer_source_counts' => $customerSourceCounts,
             'source_distribution' => $sourceDistribution,
         ];
     }

@@ -13,7 +13,14 @@
         $generationUnverified = $settlement->generation_status === 'unverified';
         $generationNotApplicable = $settlement->generation_status === 'not_applicable';
         $generationRecoveryRequired = $generationUnverified && $settlement->settlement_run_id === null;
-        $canRefresh = in_array($settlement->status, ['pending_review', 'rejected'], true) && $settlement->generation_status === 'generated' && $freshness?->isStale();
+        $historicalImportDraft = $settlement->status === 'draft'
+            && $settlement->generation_status === 'not_applicable'
+            && $settlement->settlement_run_id === null
+            && $settlement->import_batch_id !== null
+            && data_get($settlement->snapshot, 'source') === 'historical_import';
+        $refreshableGeneratedSettlement = in_array($settlement->status, ['pending_review', 'rejected'], true)
+            && $settlement->generation_status === 'generated';
+        $canRefresh = ($refreshableGeneratedSettlement || $historicalImportDraft) && $freshness?->isStale();
     @endphp
     @if ($canRefresh && $canManageSettlements)
         <section id="settlement-freshness-alert" data-business-alert tabindex="-1" class="scroll-mt-20 mb-5 rounded-xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-900 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-100">

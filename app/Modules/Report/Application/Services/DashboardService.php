@@ -38,7 +38,7 @@ final readonly class DashboardService
     public function snapshot(DashboardRangeData $range, bool $force = false): DashboardSnapshotData
     {
         $asOf = $this->clock->now();
-        $key = 'report:dashboard:v9:'.hash('sha256', $range->from->toIso8601String().'|'.$range->to->toIso8601String().'|'.$asOf->toDateString().'|'.$this->access->current()->fingerprint);
+        $key = 'report:dashboard:v10:'.hash('sha256', $range->from->toIso8601String().'|'.$range->to->toIso8601String().'|'.$asOf->toDateString().'|'.$this->access->current()->fingerprint);
         if ($force) {
             try {
                 Cache::forget($key);
@@ -126,14 +126,19 @@ final readonly class DashboardService
         }
         if ($context->hasOrganizationWideReadAccess()) {
             $sourceCounts = $current['customer']['customer_source_counts'];
-            $sourceTotal = $sourceCounts['direct'] + $sourceCounts['agent'];
-            $directPercentage = $sourceTotal === 0 ? 0.0 : round($sourceCounts['direct'] / $sourceTotal * 100, 1);
+            $sourceTotal = array_sum($sourceCounts);
+            $sources = array_map(fn (string $sourceType, int $count): array => [
+                'key' => $sourceType,
+                'count' => $count,
+                'percentage' => $sourceTotal === 0 ? 0.0 : round($count / $sourceTotal * 100, 1),
+            ], array_keys($sourceCounts), array_values($sourceCounts));
             $panels['customer_channel_share'] = [
-                'direct_count' => $sourceCounts['direct'],
-                'agent_count' => $sourceCounts['agent'],
+                'direct_count' => $sourceCounts['direct'] ?? 0,
+                'agent_count' => $sourceCounts['agent'] ?? 0,
                 'total' => $sourceTotal,
-                'direct_percentage' => $directPercentage,
-                'agent_percentage' => $sourceTotal === 0 ? 0.0 : round($sourceCounts['agent'] / $sourceTotal * 100, 1),
+                'direct_percentage' => $sourceTotal === 0 ? 0.0 : round(($sourceCounts['direct'] ?? 0) / $sourceTotal * 100, 1),
+                'agent_percentage' => $sourceTotal === 0 ? 0.0 : round(($sourceCounts['agent'] ?? 0) / $sourceTotal * 100, 1),
+                'sources' => $sources,
             ];
         }
         if ($agentFinance) {

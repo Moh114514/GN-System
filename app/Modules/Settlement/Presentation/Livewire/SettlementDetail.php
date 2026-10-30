@@ -240,7 +240,14 @@ class SettlementDetail extends Component
             'documents' => SettlementDocument::query()->where('settlement_id', $settlement->id)->get(),
             'previousSettlement' => $previousSettlement,
             'nextSettlement' => $nextSettlement,
-            'freshness' => $settlement->generation_status === 'generated' ? $freshnessChecker->check($settlement) : null,
+            'freshness' => $settlement->generation_status === 'generated'
+                || ($settlement->generation_status === 'not_applicable'
+                    && $settlement->status === 'draft'
+                    && $settlement->settlement_run_id === null
+                    && $settlement->import_batch_id !== null
+                    && data_get($settlement->snapshot, 'source') === 'historical_import')
+                ? $freshnessChecker->check($settlement)
+                : null,
             'existingOrderIds' => $orders->existingOrderIds(array_values(array_unique([...$snapshotOrderIds, ...$adjustmentOrderIds]))),
             'isHistoricalArchive' => $settlement->settlement_run_id === null
                 && ! SettlementRunMember::query()->where('settlement_id', $settlement->id)->exists(),
