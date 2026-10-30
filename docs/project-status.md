@@ -1,6 +1,6 @@
 # GN-System 项目状态
 
-## 2026-10-30 v0.8.0-rc.2 UAT 部署状态（业务验收待完成）
+## 2026-10-30 v0.8.0-rc.2 UAT 验收通过；Production 晋级暂缓
 
 - PR #63 将 UAT 联合验收修复合入 `develop`；PR #65 同步 main 发布历史；PR #64 合入 `main`。
   annotated `v0.8.0-rc.2` 固定指向 `ce411b7700509a4322752c40c786f94b6adc9ddb`；
@@ -9,14 +9,19 @@
   `sha256:681d417d1f08d02204185df105cb8202a975d9d481d47fc2fe0767d467b4d5b4`。
 - 已按离线流程将 `linux/amd64` 镜像导入 UAT，所有 Compose 操作使用 `--pull never`。
   本机归档 `D:\GN-System-Deployment\gn-system-v0.8.0-rc.2.tar` 为 369,906,176 bytes，SHA-256
-  `434064174a257b0979334384a17674da96580f1b85fd7d7f092bb5df3539628c`；服务器副本保留在
-  `/tmp/gn-system-v0.8.0-rc.2.tar`。部署前全量备份
+  `434064174a257b0979334384a17674da96580f1b85fd7d7f092bb5df3539628c`；服务器副本曾在
+  `/tmp/gn-system-v0.8.0-rc.2.tar` 完成校验和导入，并在验收后清理。部署前全量备份
   `/srv/gn-system/data/backups/GN-System UAT/2026-10-30-18-41-50.zip` 为 71,325,256 bytes、257 个文件/目录，完整性验证通过。
 - `.env.uat` 的 `RELEASE_TAG` 为 `v0.8.0-rc.2`、权限 `0600`；实际库为 `gn_system_uat`。
   迁移命令返回 `Nothing to migrate`，所有 migration 均为 `Ran`。六个服务运行，app/web/queue/scheduler 使用 RC2；
   `/up`、`/health`、`/health/operations` 严格 TLS 均为 HTTP 200，队列/调度健康为 ok，最近服务日志抽查未发现错误关键字。
-- RC2 首次部署后的业务复验尚未完成；原报告中历史月结/导入、终止合作表单和客户来源占比调整均需在 RC2 重新验收。
-  因此 `/srv/gn-system/releases/current` 与 `history.tsv` 继续保留 `v0.6.0-rc.1`，传输包与旧镜像保留；Production 未操作。
+- 2026-10-30 22:28（Asia/Shanghai）用户确认 RC2 业务验收通过；`/srv/gn-system/releases/current` 和
+  `history.tsv` 已记录 `v0.8.0-rc.2`，服务器传输包已清理，旧镜像保留。
+- Production 当前容器运行 `v0.6.2` 且健康，但独立仓库停在 `v0.6.0-rc.1` 并有 3 个未提交文件。
+  两个翻译/测试改动已存在于 RC2；生产 URL origin 修正不在 RC2，正在新分支 `feature/production-origin-url`
+  按正常代码评审流程纳入，因此必须发布并重新验收新 RC 后才能晋级。尚未创建 `v0.8.0`，Production 未修改或部署。
+- `.env.production` 的 `APP_URL=https://192.168.0.141` 与文档地址 `https://gncrm.local` 不一致，Production
+  `current/history.tsv` 缺失；证书身份和生产备份完整性尚未验证。部署前须核对这些环境差异及备份，不能覆盖现有源码改动。
 
 ## 2026-10-30 v0.8.0-rc.1 离线部署与待验状态（RC2 部署前）
 

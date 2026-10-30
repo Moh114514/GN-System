@@ -57,6 +57,12 @@ class DirectCustomerCrudAndTransferTest extends TestCase
         $this->institution = Institution::query()->firstOrFail();
     }
 
+    protected function tearDown(): void
+    {
+        CarbonImmutable::setTestNow();
+        parent::tearDown();
+    }
+
     public function test_direct_manager_can_create_direct_customer_with_stable_dc_code_and_owner_default(): void
     {
         $manager = app(CustomerProfileManager::class);
@@ -121,6 +127,7 @@ class DirectCustomerCrudAndTransferTest extends TestCase
 
     public function test_direct_customer_list_shows_followup_summary_filters_and_status_counts(): void
     {
+        CarbonImmutable::setTestNow(CarbonImmutable::today()->addHours(10));
         $now = app(BusinessClock::class)->now();
         $todayCustomerId = $this->createCustomer($this->manager, '今日待跟进客户');
         $overdueCustomerId = $this->createCustomer($this->manager, '逾期客户');
