@@ -1,6 +1,6 @@
 # GN-System 完整运维手册
 
-## 2026-10-30 v0.8.0-rc.2 已离线部署到 UAT，业务复验待完成
+## 2026-10-30 v0.8.0-rc.2 UAT 验收通过；Production 晋级暂缓
 
 PR #63 将联合验收修复合入 `develop`，PR #65 同步 main 发布历史，PR #64 合入 `main`。
 不可变 annotated tag `v0.8.0-rc.2` 指向 `ce411b7700509a4322752c40c786f94b6adc9ddb`；
@@ -11,7 +11,7 @@ app/web manifest digest 分别为 `sha256:8f1aa5c898f64d69d37edd71156ae51dd218e4
 按[局域网离线部署指南](offline-deployment.md)下载、核对并传输 `linux/amd64` 镜像包：本机
 `D:\GN-System-Deployment\gn-system-v0.8.0-rc.2.tar`，369,906,176 bytes，SHA-256
 `434064174a257b0979334384a17674da96580f1b85fd7d7f092bb5df3539628c`。服务器副本
-`/tmp/gn-system-v0.8.0-rc.2.tar` 已核对相同并通过 `docker load` 导入，业务验收前保留。
+`/tmp/gn-system-v0.8.0-rc.2.tar` 已核对相同并通过 `docker load` 导入，验收后按离线指南清理。
 部署前全量备份为 `/srv/gn-system/data/backups/GN-System UAT/2026-10-30-18-41-50.zip`，
 71,325,256 bytes（68.02 MB）、257 个文件/目录，归档完整性校验通过；未做还原演练，不据此承诺恢复结果。
 
@@ -19,11 +19,20 @@ app/web manifest digest 分别为 `sha256:8f1aa5c898f64d69d37edd71156ae51dd218e4
 部署期间所有 Compose 操作使用 `--pull never`；迁移命令返回 `Nothing to migrate`，全部迁移状态均为 `Ran`。
 六个服务运行，app/web/queue/scheduler 使用 RC2；app/web 健康。严格 TLS 下 `/up`、`/health`、
 `/health/operations` 均返回 HTTP 200，队列和调度状态为 ok；部署后最近 200 行应用日志未发现
-`ERROR`、`CRITICAL`、`FATAL`、`Unhandled` 或 `panic`。`/srv/gn-system/releases/current` 和
-`history.tsv` 仍记录 `v0.6.0-rc.1`，因为 RC2 业务复验尚未完成；Production 未操作。
+`ERROR`、`CRITICAL`、`FATAL`、`Unhandled` 或 `panic`。2026-10-30 22:28（Asia/Shanghai）用户确认 RC2
+业务验收通过；`/srv/gn-system/releases/current` 和 `history.tsv` 已记录 `v0.8.0-rc.2`，服务器传输包已按离线指南清理，旧镜像保留。
 
-RC2 需要重新验收历史导入月结草稿刷新、未知结算状态拒绝、终止合作日期输入和客户来源占比看板及其下钻。
-服务探针正常只说明部署与运行健康，不代表这些页面业务验收通过。验收并签收前保留旧镜像、上方部署包和发布标记。
+Production 预检只读确认现有服务健康，app/web/queue/scheduler 当前镜像为 `v0.6.2`，`.env.production` 的
+`RELEASE_TAG=v0.6.2`。Production 仓库 HEAD 为 `290a36809ac2ccdc236a3177fb6b6689bdfeace9`
+（`v0.6.0-rc.1`），工作区有 3 个未提交文件。客户看板翻译和相应测试已包含在 RC2；
+`AppServiceProvider` 的 `URL::useOrigin(config('app.url'))` 生产修正不在 RC2，已在
+`feature/production-origin-url` 纳入代码评审并新增回归测试。不得覆盖或丢弃该预存改动；必须按
+`feature/* → develop → main → 新 RC → UAT 验收` 形成新候选后才能晋级正式版本。`v0.8.0` 尚未创建，Production 未修改或部署。
+
+`.env.production` 当前 `APP_URL=https://192.168.0.141`，与本文环境表中的 `https://gncrm.local` 不同；
+Production `/srv/gn-system/production/releases/current` 与 `history.tsv` 缺失。管理员账户无法读取 root 所有的
+发布目录和 TLS 证书（`sudo` 需要密码），因此证书身份和生产备份完整性尚未验证。正式升级前需确认实际访问地址、
+证书、已验证的数据库/私有文件备份，并通过发布脚本建立正确发布记录；不得根据文档猜测或改写生产环境配置。
 
 ## 2026-10-30 v0.8.0-rc.1 部署与业务验收记录（RC2 部署前）
 

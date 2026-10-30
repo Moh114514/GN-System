@@ -1,19 +1,18 @@
 # GN-System 小白运维指南
 
-## 2026-10-30 当前 UAT 版本：v0.8.0-rc.2（业务复验待完成）
+## 2026-10-30 UAT 已验收 v0.8.0-rc.2；Production 尚未升级
 
 UAT 已按[局域网离线镜像部署](offline-deployment.md)运行 `v0.8.0-rc.2`，不可变标签指向提交
 `ce411b7700509a4322752c40c786f94b6adc9ddb`。部署前备份
 `/srv/gn-system/data/backups/GN-System UAT/2026-10-30-18-41-50.zip`（68.02 MB、257 个文件/目录）已校验完整。
 服务器 `.env.uat` 记录 RC2、权限为 `0600`，实际数据库为 `gn_system_uat`；升级没有待执行的 migration，
 六个服务运行，严格 TLS 的 `/up`、`/health`、`/health/operations` 均返回 200，队列和调度健康。
-Production 未操作。
+用户于 2026-10-30 22:28（Asia/Shanghai）确认 RC2 业务验收通过；UAT 发布台账已更新到 RC2，服务器传输包已清理，旧镜像保留。
 
-RC2 部署包 `D:\GN-System-Deployment\gn-system-v0.8.0-rc.2.tar` 的 SHA-256 为
-`434064174a257b0979334384a17674da96580f1b85fd7d7f092bb5df3539628c`，服务器副本暂保留在
-`/tmp/gn-system-v0.8.0-rc.2.tar`。原验收发现的历史导入/月结、终止合作日期输入和客户来源占比问题需针对 RC2 重新验收。
-验收签收前不要更新 `releases/current` 或 `history.tsv`、不要删除部署包，也不要把当前 UAT 状态写成验收通过；
-当前这两项发布记录继续保留 `v0.6.0-rc.1`。完整步骤、镜像摘要和备份路径见[完整运维手册](operations-manual.md)。
+Production 目前仍运行 `v0.6.2`。服务器代码仓库停留在旧提交并有未提交改动，其中生产 URL 修正不在已验收 RC2 中；
+因此需要按正常代码评审流程发布和验收新的 RC，不能直接覆盖服务器文件或创建正式标签。Production 的 `APP_URL` 是
+`https://192.168.0.141`，而手册示例是 `https://gncrm.local`；发布台账文件缺失，证书和生产备份也未核验。
+正式升级前先由发布负责人核对访问地址、证书、备份和台账。完整步骤、镜像摘要和备份路径见[完整运维手册](operations-manual.md)。
 
 ## 2026-10-30 v0.8.0-rc.1 部署与业务验收记录（RC2 发布前）
 
