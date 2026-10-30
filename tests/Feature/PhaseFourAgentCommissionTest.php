@@ -14,6 +14,7 @@ use App\Modules\Agent\Infrastructure\Models\AgentGradeAssignment;
 use App\Modules\Agent\Infrastructure\Models\AgentTypeCode;
 use App\Modules\Agent\Infrastructure\Models\PolicyGrade;
 use App\Modules\Agent\Infrastructure\Models\PolicySystem;
+use App\Modules\Agent\Presentation\Livewire\AgentForm;
 use App\Modules\Agent\Presentation\Livewire\AgentList;
 use App\Modules\Auth\Infrastructure\Models\BusinessGroup;
 use App\Modules\Auth\Infrastructure\Models\BusinessGroupMembership;
@@ -240,6 +241,19 @@ class PhaseFourAgentCommissionTest extends TestCase
         $this->agent->update(['cooperation_status' => 'paused']);
         $this->expectException(DomainException::class);
         app(DailyOrderGateway::class)->create($this->orderData('pending', 10000));
+    }
+
+    public function test_termination_date_field_renders_cleanly_when_cooperation_status_changes(): void
+    {
+        Livewire::actingAs($this->admin)
+            ->test(AgentForm::class, ['agent' => $this->agent->id])
+            ->assertDontSee('wire:model="cooperationEndedOn"', false)
+            ->set('cooperationStatus', 'terminated')
+            ->assertSee('wire:model="cooperationEndedOn"', false)
+            ->set('cooperationStatus', 'paused')
+            ->assertDontSee('wire:model="cooperationEndedOn"', false)
+            ->set('cooperationStatus', 'terminated')
+            ->assertSee('wire:model="cooperationEndedOn"', false);
     }
 
     public function test_agent_number_is_immutable_and_termination_is_permanent(): void

@@ -100,6 +100,26 @@ class SpreadsheetImportParserTest extends TestCase
         $this->assertSame(ImportRowStatus::Valid, $summary->status);
     }
 
+    public function test_unknown_historical_settlement_status_is_rejected_instead_of_becoming_a_draft(): void
+    {
+        Storage::fake('local');
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $user = User::factory()->superAdmin()->withTwoFactor()->create();
+        $batch = ImportBatch::query()->create([
+            'created_by' => $user->id,
+            'status' => ImportBatchStatus::Uploaded,
+        ]);
+
+        $this->attach($batch, '月结汇总.csv', "代理商编号,代理商名称,代理商等级,结算周期,月客户总数,消费总额（KRW),推广费总额（KRW),结算日期,结算汇率,推广费总额（RMB 元）,结算状态,备注\nSZ-JG,神州国际旅行社,黄金代理,2026-07,1,1000000,100000,2026-08-10,200,500,已完成,\n");
+
+        app(SpreadsheetImportParser::class)->parse($batch->fresh('files'));
+
+        $summary = $batch->rows()->where('profile', ImportProfile::SettlementSummary)->firstOrFail();
+        $this->assertSame(ImportRowStatus::Error, $summary->status);
+        $this->assertSame([], $summary->normalized_data);
+        $this->assertStringContainsString('结算状态“已完成”无法识别', $summary->errors[0]);
+    }
+
     public function test_agent_reference_resolution_rejects_cross_field_ambiguity(): void
     {
         $this->seed(PhaseTwoReferenceDataSeeder::class);

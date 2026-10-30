@@ -338,6 +338,82 @@ class PhaseFiveSettlementTest extends TestCase
         $this->assertSame('补录本周期遗漏订单', $properties['reason']);
     }
 
+    public function test_historical_import_draft_can_auditably_refresh_new_period_orders(): void
+    {
+        $firstOrderId = $this->createCompletedOrder(10000);
+        $firstCommission = DB::table('order_commissions')->where('order_id', $firstOrderId)->firstOrFail();
+        $firstOrder = DB::table('orders')->where('id', $firstOrderId)->firstOrFail();
+        $importBatchId = (string) Str::uuid();
+        $settlement = Settlement::query()->create([
+            'agent_id' => $this->agent->id,
+            'period_start' => '2026-07-01',
+            'period_end' => '2026-07-31',
+            'total_consumption_krw' => 10000,
+            'total_commission_krw' => 1000,
+            'payout_amount_cny_fen' => 0,
+            'status' => 'draft',
+            'generation_status' => 'not_applicable',
+            'item_count' => 1,
+            'import_batch_id' => $importBatchId,
+            'snapshot' => ['source' => 'historical_import', 'agent' => ['id' => $this->agent->id]],
+        ]);
+        $commissionSnapshot = is_string($firstCommission->rule_snapshot)
+            ? json_decode($firstCommission->rule_snapshot, true, 512, JSON_THROW_ON_ERROR)
+            : (array) $firstCommission->rule_snapshot;
+        DB::table('settlement_items')->insert([
+            'settlement_id' => $settlement->id,
+            'order_commission_id' => $firstCommission->id,
+            'consumption_krw' => 10000,
+            'commission_krw' => 1000,
+            'rule_snapshot' => json_encode([
+                ...$commissionSnapshot,
+                'source' => 'historical_import',
+                'order' => [
+                    'id' => $firstOrderId,
+                    'customer_id' => $firstOrder->customer_id,
+                    'project_name' => $firstOrder->project_name,
+                    'occurred_on' => $firstOrder->occurred_on,
+                    'completed_on' => $firstOrder->occurred_on,
+                ],
+            ], JSON_THROW_ON_ERROR),
+            'import_batch_id' => $importBatchId,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $secondOrderId = $this->createCompletedOrder(20000);
+        $freshness = app(SettlementFreshnessChecker::class)->check($settlement->fresh());
+        $this->assertSame('stale', $freshness->status);
+        $this->assertSame([$secondOrderId], $freshness->addedOrderIds);
+        $this->actingAs($this->admin)
+            ->get(route('settlements.show', $settlement))
+            ->assertOk()
+            ->assertSee('wire:submit="refreshSettlement"', false);
+
+        app(SettlementWorkflow::class)->refreshSettlement($settlement->id, '纳入当期追加订单', $this->admin->id, '127.0.0.1');
+
+        $settlement->refresh();
+        $this->assertSame(2, (int) $settlement->item_count);
+        $this->assertSame(30000, (int) $settlement->total_consumption_krw);
+        $this->assertSame(3000, (int) $settlement->total_commission_krw);
+        $this->assertSame('draft', $settlement->status);
+        $this->assertSame('not_applicable', $settlement->generation_status);
+        $this->assertNull($settlement->settlement_run_id);
+        $this->assertSame($importBatchId, $settlement->import_batch_id);
+        $this->assertNull($settlement->generated_at);
+        $this->assertSame('historical_import', $settlement->snapshot['source']);
+        $this->assertSame('fresh', app(SettlementFreshnessChecker::class)->check($settlement)->status);
+        $this->assertDatabaseHas('activity_log', [
+            'log_name' => 'settlement',
+            'subject_id' => $settlement->id,
+            'event' => 'refreshed',
+        ]);
+        $properties = json_decode((string) DB::table('activity_log')->where('subject_id', $settlement->id)->where('event', 'refreshed')->value('properties'), true);
+        $this->assertSame([$secondOrderId], $properties['added_order_ids']);
+        $this->assertSame($importBatchId, $properties['import_batch_id']);
+        $this->assertSame('纳入当期追加订单', $properties['reason']);
+    }
+
     public function test_eligible_unassigned_correction_makes_settlement_stale_until_refresh_assigns_it(): void
     {
         $this->createCompletedOrder(10000);
