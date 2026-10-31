@@ -1,5 +1,27 @@
 # GN-System 完整运维手册
 
+## 2026-10-31 v0.8.0-rc.3 已构建，UAT 部署待管理员认证
+
+PR #67、#69 已合入 `develop`，PR #68 已合入 `main`。annotated `v0.8.0-rc.3` 指向
+`ab1cb51eef90347c90d38ee4a6cb44b16e1da931`；[RC 发布工作流](https://github.com/Moh114514/GN-System/actions/runs/41083389896)
+门禁与 app/web 镜像构建成功，manifest digest 分别为
+`sha256:be51649457712b42030e8f707306c0f91d136fb35f43b8a5d083b96954fe3dc6`、
+`sha256:416c3c73a9cee5cebfe326012d9ceeaa7f83d0b30fa9882772fd34d9f1f65298`。
+
+已从 GHCR 下载并核对 `linux/amd64` 镜像。离线包位于本机仓库忽略目录
+`docker-images/gn-system-v0.8.0-rc.3.tar`，369,907,200 bytes，SHA-256
+`43bd4157c777353b8fa6b1aa9f101ac850567722b45176f866746208c6acdba7`；服务器 `/tmp/gn-system-v0.8.0-rc.3.tar`
+副本哈希和大小一致。只读核验 UAT 仓库干净且 detached 于 RC2 提交
+`ce411b7700509a4322752c40c786f94b6adc9ddb`。管理员命令 `sudo -n` 要求密码，因此本轮未在服务器导入镜像、
+创建部署备份、切换 RC3、修改 `.env.uat`、停服或迁移；UAT 仍待部署和 RC3 业务验收。安全恢复管理员认证后，
+从本文“更新 UAT”与[局域网离线镜像部署](offline-deployment.md)继续，先完成目标环境预检和部署前备份。
+
+Production 未修改。用户已于 2026-10-31 确认规范 `APP_URL=https://192.168.0.141`，与当前环境文件一致。只读 TLS 核验发现
+证书 `CN=gncrm.local`，SAN 含 `IP:192.168.0.141` 与 `DNS:gncrm.local`，有效期至 2027-08-11；启用 Windows 系统 CA 后验证通过。
+当前服务 `/up`、`/health`、`/health/operations` 均返回 200，队列和调度状态为 ok。Production 备份完整性及缺失的
+`current/history.tsv` 仍待管理员权限核实。正式升级前必须验证部署前备份并通过发布脚本建立正确发布记录；正式标签须与验收通过的 RC3
+指向同一提交，镜像按 RC3 原 digest 晋级。
+
 ## 2026-10-30 v0.8.0-rc.2 UAT 验收通过；Production 晋级暂缓
 
 PR #63 将联合验收修复合入 `develop`，PR #65 同步 main 发布历史，PR #64 合入 `main`。
@@ -26,13 +48,13 @@ Production 预检只读确认现有服务健康，app/web/queue/scheduler 当前
 `RELEASE_TAG=v0.6.2`。Production 仓库 HEAD 为 `290a36809ac2ccdc236a3177fb6b6689bdfeace9`
 （`v0.6.0-rc.1`），工作区有 3 个未提交文件。客户看板翻译和相应测试已包含在 RC2；
 `AppServiceProvider` 的 `URL::useOrigin(config('app.url'))` 生产修正不在 RC2，已在
-`feature/production-origin-url` 纳入代码评审并新增回归测试。不得覆盖或丢弃该预存改动；必须按
-`feature/* → develop → main → 新 RC → UAT 验收` 形成新候选后才能晋级正式版本。`v0.8.0` 尚未创建，Production 未修改或部署。
+`feature/production-origin-url` 纳入代码评审并新增回归测试，修正已包含在 `v0.8.0-rc.3`。
+RC3 当前待 UAT 部署和重新验收；正式标签 `v0.8.0` 尚未创建，Production 未修改或部署。
 
-`.env.production` 当前 `APP_URL=https://192.168.0.141`，与本文环境表中的 `https://gncrm.local` 不同；
-Production `/srv/gn-system/production/releases/current` 与 `history.tsv` 缺失。管理员账户无法读取 root 所有的
-发布目录和 TLS 证书（`sudo` 需要密码），因此证书身份和生产备份完整性尚未验证。正式升级前需确认实际访问地址、
-证书、已验证的数据库/私有文件备份，并通过发布脚本建立正确发布记录；不得根据文档猜测或改写生产环境配置。
+预检时发现环境文件使用 `https://192.168.0.141`、而文档仍写 `https://gncrm.local`；用户已于 2026-10-31 确认前者为
+Production 规范地址。Production `/srv/gn-system/production/releases/current` 与 `history.tsv` 缺失。已从本机通过系统 CA 核验
+当前证书 SAN、有效期及信任，但管理员账户仍无法读取 root 所有的发布目录和生产备份（`sudo` 需要密码），所以备份完整性未验证。
+正式升级前须完成数据库/私有文件备份并通过发布脚本建立正确发布记录；不得覆盖现有源码改动或猜改生产配置。
 
 ## 2026-10-30 v0.8.0-rc.1 部署与业务验收记录（RC2 部署前）
 
@@ -633,14 +655,15 @@ Windows 客户端的 hosts 记录为：
 | 数据库 | `gn_system` |
 | PostgreSQL volume | `gn-system-production_postgres-data` |
 | Redis volume | `gn-system-production_redis-data` |
-| HTTPS | `https://gncrm.local` |
+| HTTPS | `https://192.168.0.141` |
 | HTTP/HTTPS 端口 | `80` / `443` |
 | 监听地址 | `192.168.0.141` |
 | 备份 | `/srv/gn-system/production/data/backups` |
 | 当前状态 | 待核验；历史记录为目录已初始化、尚未部署 |
 
-原 `gncrm.local` 证书包含 `DNS:gncrm.local` 和 `IP:192.168.0.141`，计划用于
-Production。首次部署前应将证书和私钥安装到
+Production 规范地址使用 IP `192.168.0.141`，因此 TLS 证书必须包含
+`IP:192.168.0.141` SAN。若客户端还要使用 `gncrm.local` 别名，证书还须包含
+`DNS:gncrm.local`，并配置相应内网解析。首次部署前应将证书和私钥安装到
 `/srv/gn-system/production/tls/fullchain.pem` 和
 `/srv/gn-system/production/tls/privkey.pem`，然后核对证书 SAN、有效期和客户端
 信任。Production 必须全新初始化数据库，不复制或迁移 UAT 数据，首个管理员也要
@@ -699,7 +722,7 @@ APP_ENV=production
 APP_DEPLOYMENT_ENV=production
 APP_TIME_TRAVEL_ENABLED=false
 APP_DEBUG=false
-APP_URL=https://gncrm.local
+APP_URL=https://192.168.0.141
 
 DB_DATABASE=gn_system
 DB_USERNAME=gn_system
@@ -1068,20 +1091,22 @@ Docker 应开机自动启动，生产服务由 Compose 的 `restart: unless-stop
 
 ### 7.2 域名解析
 
-部署脚本会在服务器本机请求 `APP_URL`，因此 Ubuntu 服务器自己也必须能解析 UAT 和
-Production 域名。优先配置内网 DNS；尚无内网 DNS 时，在服务器 `/etc/hosts` 中
-保留：
+部署脚本会在服务器本机请求 `APP_URL`，因此 Ubuntu 服务器自己也必须能访问 UAT 和
+Production 地址。UAT 使用主机名，Production 规范地址使用 IP；优先为 UAT 配置内网 DNS，
+尚无内网 DNS 时，在服务器 `/etc/hosts` 中保留：
 
 ```text
-192.168.0.141 gncrm-uat.local gncrm.local
+192.168.0.141 gncrm-uat.local
 ```
 
 检查：
 
 ```bash
 getent hosts gncrm-uat.local
-getent hosts gncrm.local
 ```
+
+Production 规范地址直接使用 IP，无需 `gncrm.local` 解析；只有启用该可选别名时，才额外检查
+`getent hosts gncrm.local`。
 
 Windows 客户端当前至少需要：
 
@@ -1089,8 +1114,9 @@ Windows 客户端当前至少需要：
 192.168.0.141 gncrm-uat.local
 ```
 
-Production 开放时再加入 `192.168.0.141 gncrm.local`。hosts 只负责名称解析，不会
-让证书自动受信任。
+Production 的规范 `APP_URL` 是 `https://192.168.0.141`，不需要 Production 域名 hosts 项；
+若客户端继续使用 `gncrm.local` 别名，再加入 `192.168.0.141 gncrm.local`，并确保证书含对应 DNS SAN。
+hosts 只负责名称解析，不会让证书自动受信任。
 
 ### 7.3 GHCR 登录
 
@@ -1351,9 +1377,9 @@ Scheduler 是否工作以 `/health/operations` 以及日志为准。
 Production 检查：
 
 ```bash
-curl --fail --show-error --silent https://gncrm.local/up
-curl --fail --show-error --silent https://gncrm.local/health
-curl --fail --show-error --silent https://gncrm.local/health/operations
+curl --fail --show-error --silent https://192.168.0.141/up
+curl --fail --show-error --silent https://192.168.0.141/health
+curl --fail --show-error --silent https://192.168.0.141/health/operations
 ```
 
 ### 10.3 业务冒烟

@@ -38,6 +38,15 @@ final class DeployScriptSafetyTest extends TestCase
         self::assertStringNotContainsString('/var/run/docker.sock', $script);
     }
 
+    public function test_production_environment_example_uses_the_confirmed_ip_app_url(): void
+    {
+        $environment = file_get_contents(dirname(__DIR__, 2).'/.env.production.example');
+
+        self::assertIsString($environment);
+        self::assertStringContainsString('APP_URL=https://192.168.0.141', $environment);
+        self::assertStringNotContainsString('APP_URL=https://gncrm.local', $environment);
+    }
+
     public function test_config_reload_script_validates_and_never_prints_secret_values(): void
     {
         $script = file_get_contents(dirname(__DIR__, 2).'/deploy/reload-config.sh');
