@@ -9,7 +9,7 @@ SHA-256 `43bd4157c777353b8fa6b1aa9f101ac850567722b45176f866746208c6acdba7`；已
 
 UAT 仓库当前只读核验在旧 RC2 提交，且干净。服务器要求管理员密码，暂未导入镜像、做部署备份或切换服务；
 RC3 还没有部署，也没有重新验收。请管理员通过安全的交互终端完成认证后，再按[局域网离线镜像部署](offline-deployment.md)
-继续。密码不要发送到聊天。Production 尚未变更；生产地址、证书、备份和发布台账需在正式升级前核实。
+继续。密码不要发送到聊天。Production 尚未变更；用户已确认规范地址为 `https://192.168.0.141`，证书、备份和发布台账仍需核实。
 
 ## 2026-10-30 UAT 已验收 v0.8.0-rc.2；Production 尚未升级
 
@@ -21,9 +21,9 @@ UAT 已按[局域网离线镜像部署](offline-deployment.md)运行 `v0.8.0-rc.
 用户于 2026-10-30 22:28（Asia/Shanghai）确认 RC2 业务验收通过；UAT 发布台账已更新到 RC2，服务器传输包已清理，旧镜像保留。
 
 Production 目前仍运行 `v0.6.2`。服务器代码仓库停留在旧提交并有未提交改动，其中生产 URL 修正已合入 `v0.8.0-rc.3`，
-但 RC3 尚未部署到 UAT 或重新验收，不能创建正式标签。不能直接覆盖服务器文件。Production 的 `APP_URL` 是
-`https://192.168.0.141`，而手册示例是 `https://gncrm.local`；发布台账文件缺失，证书和生产备份也未核验。
-正式升级前先由发布负责人核对访问地址、证书、备份和台账。完整步骤、镜像摘要和备份路径见[完整运维手册](operations-manual.md)。
+但 RC3 尚未部署到 UAT 或重新验收，不能创建正式标签。不能直接覆盖服务器文件。用户已确认 Production 的 `APP_URL` 为
+`https://192.168.0.141`；发布台账文件缺失，当前证书和生产备份也未核验。正式升级前先核验证书、备份和台账。
+完整步骤、镜像摘要和备份路径见[完整运维手册](operations-manual.md)。
 
 ## 2026-10-30 v0.8.0-rc.1 部署与业务验收记录（RC2 发布前）
 
@@ -321,7 +321,7 @@ GN-System 当前有两套服务器环境，不能混用：
 | 仓库目录 | `/srv/gn-system/repository` | `/srv/gn-system/production/repository` |
 | 环境文件 | `.env.uat` | `.env.production` |
 | Compose 名称 | `gn-system-uat` | `gn-system-production` |
-| 访问地址 | `https://gncrm-uat.local:8443` | `https://gncrm.local` |
+| 访问地址 | `https://gncrm-uat.local:8443` | `https://192.168.0.141` |
 | 当前状态 | 待核验（历史记录为已运行） | 待核验（历史记录为仅初始化） |
 
 看到 `/srv/gn-system` 时，不要直接把它当成 Git 仓库。UAT 仓库实际在
@@ -1113,8 +1113,8 @@ https://gncrm-uat.local:8443
 若域名能访问但浏览器仍警告证书，需要把签发该证书的根证书加入 Windows 的受信任根
 证书。客户端只安装根证书或需要公开的证书链，绝不能分发服务器私钥。
 
-Production 开放后使用 `https://gncrm.local`，端口为标准的 443。当前不要把 UAT
-误写成 `https://gncrm.local`。
+Production 开放后使用 `https://192.168.0.141`，端口为标准的 443；TLS 证书必须包含该 IP 的 SAN。
+`gncrm.local` 是可选别名，只有客户端配置该名称解析且证书包含对应 DNS SAN 时才使用。
 
 ## 13. 建议的日常检查频率
 

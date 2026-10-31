@@ -16,9 +16,9 @@ PR #67、#69 已合入 `develop`，PR #68 已合入 `main`。annotated `v0.8.0-r
 创建部署备份、切换 RC3、修改 `.env.uat`、停服或迁移；UAT 仍待部署和 RC3 业务验收。安全恢复管理员认证后，
 从本文“更新 UAT”与[局域网离线镜像部署](offline-deployment.md)继续，先完成目标环境预检和部署前备份。
 
-Production 未操作。其 `.env.production` 的 `APP_URL=https://192.168.0.141` 与手册环境表的
-`https://gncrm.local` 不一致；TLS 证书身份、生产备份完整性及缺失的 `current/history.tsv` 仍未核实。
-正式升级前必须确认正确访问域名并验证证书和备份；正式标签须与验收通过的 RC3 指向同一提交，镜像按 RC3 原 digest 晋级。
+Production 未操作。用户已于 2026-10-31 确认规范 `APP_URL=https://192.168.0.141`，与当前环境文件一致；
+TLS 证书身份、生产备份完整性及缺失的 `current/history.tsv` 仍未核实。正式升级前必须核对证书 SAN、有效期和信任，
+验证部署前备份并通过发布脚本建立正确发布记录；正式标签须与验收通过的 RC3 指向同一提交，镜像按 RC3 原 digest 晋级。
 
 ## 2026-10-30 v0.8.0-rc.2 UAT 验收通过；Production 晋级暂缓
 
@@ -49,10 +49,10 @@ Production 预检只读确认现有服务健康，app/web/queue/scheduler 当前
 `feature/production-origin-url` 纳入代码评审并新增回归测试，修正已包含在 `v0.8.0-rc.3`。
 RC3 当前待 UAT 部署和重新验收；正式标签 `v0.8.0` 尚未创建，Production 未修改或部署。
 
-`.env.production` 当前 `APP_URL=https://192.168.0.141`，与本文环境表中的 `https://gncrm.local` 不同；
-Production `/srv/gn-system/production/releases/current` 与 `history.tsv` 缺失。管理员账户无法读取 root 所有的
-发布目录和 TLS 证书（`sudo` 需要密码），因此证书身份和生产备份完整性尚未验证。正式升级前需确认实际访问地址、
-证书、已验证的数据库/私有文件备份，并通过发布脚本建立正确发布记录；不得根据文档猜测或改写生产环境配置。
+预检时发现环境文件使用 `https://192.168.0.141`、而文档仍写 `https://gncrm.local`；用户已于 2026-10-31 确认前者为
+Production 规范地址。Production `/srv/gn-system/production/releases/current` 与 `history.tsv` 缺失。管理员账户无法读取
+root 所有的发布目录和 TLS 证书（`sudo` 需要密码），因此当前证书身份和生产备份完整性尚未验证。正式升级前需核验证书、
+已验证的数据库/私有文件备份，并通过发布脚本建立正确发布记录；不得根据文档猜测或改写生产环境配置。
 
 ## 2026-10-30 v0.8.0-rc.1 部署与业务验收记录（RC2 部署前）
 
@@ -653,14 +653,15 @@ Windows 客户端的 hosts 记录为：
 | 数据库 | `gn_system` |
 | PostgreSQL volume | `gn-system-production_postgres-data` |
 | Redis volume | `gn-system-production_redis-data` |
-| HTTPS | `https://gncrm.local` |
+| HTTPS | `https://192.168.0.141` |
 | HTTP/HTTPS 端口 | `80` / `443` |
 | 监听地址 | `192.168.0.141` |
 | 备份 | `/srv/gn-system/production/data/backups` |
 | 当前状态 | 待核验；历史记录为目录已初始化、尚未部署 |
 
-原 `gncrm.local` 证书包含 `DNS:gncrm.local` 和 `IP:192.168.0.141`，计划用于
-Production。首次部署前应将证书和私钥安装到
+Production 规范地址使用 IP `192.168.0.141`，因此 TLS 证书必须包含
+`IP:192.168.0.141` SAN。若客户端还要使用 `gncrm.local` 别名，证书还须包含
+`DNS:gncrm.local`，并配置相应内网解析。首次部署前应将证书和私钥安装到
 `/srv/gn-system/production/tls/fullchain.pem` 和
 `/srv/gn-system/production/tls/privkey.pem`，然后核对证书 SAN、有效期和客户端
 信任。Production 必须全新初始化数据库，不复制或迁移 UAT 数据，首个管理员也要
@@ -719,7 +720,7 @@ APP_ENV=production
 APP_DEPLOYMENT_ENV=production
 APP_TIME_TRAVEL_ENABLED=false
 APP_DEBUG=false
-APP_URL=https://gncrm.local
+APP_URL=https://192.168.0.141
 
 DB_DATABASE=gn_system
 DB_USERNAME=gn_system
@@ -1088,20 +1089,22 @@ Docker 应开机自动启动，生产服务由 Compose 的 `restart: unless-stop
 
 ### 7.2 域名解析
 
-部署脚本会在服务器本机请求 `APP_URL`，因此 Ubuntu 服务器自己也必须能解析 UAT 和
-Production 域名。优先配置内网 DNS；尚无内网 DNS 时，在服务器 `/etc/hosts` 中
-保留：
+部署脚本会在服务器本机请求 `APP_URL`，因此 Ubuntu 服务器自己也必须能访问 UAT 和
+Production 地址。UAT 使用主机名，Production 规范地址使用 IP；优先为 UAT 配置内网 DNS，
+尚无内网 DNS 时，在服务器 `/etc/hosts` 中保留：
 
 ```text
-192.168.0.141 gncrm-uat.local gncrm.local
+192.168.0.141 gncrm-uat.local
 ```
 
 检查：
 
 ```bash
 getent hosts gncrm-uat.local
-getent hosts gncrm.local
 ```
+
+Production 规范地址直接使用 IP，无需 `gncrm.local` 解析；只有启用该可选别名时，才额外检查
+`getent hosts gncrm.local`。
 
 Windows 客户端当前至少需要：
 
@@ -1109,8 +1112,9 @@ Windows 客户端当前至少需要：
 192.168.0.141 gncrm-uat.local
 ```
 
-Production 开放时再加入 `192.168.0.141 gncrm.local`。hosts 只负责名称解析，不会
-让证书自动受信任。
+Production 的规范 `APP_URL` 是 `https://192.168.0.141`，不需要 Production 域名 hosts 项；
+若客户端继续使用 `gncrm.local` 别名，再加入 `192.168.0.141 gncrm.local`，并确保证书含对应 DNS SAN。
+hosts 只负责名称解析，不会让证书自动受信任。
 
 ### 7.3 GHCR 登录
 
@@ -1371,9 +1375,9 @@ Scheduler 是否工作以 `/health/operations` 以及日志为准。
 Production 检查：
 
 ```bash
-curl --fail --show-error --silent https://gncrm.local/up
-curl --fail --show-error --silent https://gncrm.local/health
-curl --fail --show-error --silent https://gncrm.local/health/operations
+curl --fail --show-error --silent https://192.168.0.141/up
+curl --fail --show-error --silent https://192.168.0.141/health
+curl --fail --show-error --silent https://192.168.0.141/health/operations
 ```
 
 ### 10.3 业务冒烟

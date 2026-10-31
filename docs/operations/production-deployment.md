@@ -21,8 +21,9 @@ Docker 发布端口可能绕过普通 UFW 规则，因此应在 `DOCKER-USER` �
 并从允许及不允许的网段各做一次实际访问验证。防火墙规则属于主机配置，不由仓库
 脚本自动修改，以免误断服务器连接。
 
-准备 `gncrm.local` 的内网 DNS/hosts 和受客户端信任的证书。正式证书必须包含
-`DNS:gncrm.local`；证书及私钥不能进入 Git 或镜像。
+Production 规范地址为 `https://192.168.0.141`。准备受客户端信任且包含
+`IP:192.168.0.141` SAN 的证书；若还要提供 `gncrm.local` 别名，则额外配置内网 DNS/hosts，
+并确保同一证书包含 `DNS:gncrm.local`。证书及私钥不能进入 Git 或镜像。
 
 ## 2. 首次准备
 
@@ -52,7 +53,7 @@ Redis、备份密码另存于密码管理器或离线恢复信封。SMTP 使用 
 数据和发布历史，具体见[发布管理手册](release-management.md)。
 
 把证书安装到 `/srv/gn-system/production/tls/fullchain.pem` 和 `privkey.pem`，
-私钥权限设为 `0600`。设置 `APP_URL=https://gncrm.local`、
+私钥权限设为 `0600`。设置 `APP_URL=https://192.168.0.141`、
 `LAN_BIND_ADDRESS=192.168.0.141`，并为 Production 单独生成 `APP_KEY`、数据库、
 Redis 和备份密码。先验证配置：
 

@@ -11,7 +11,7 @@ PR #67、#69 已合入 `develop`，PR #68 已合入 `main`。不可变 annotated
 `43bd4157c777353b8fa6b1aa9f101ac850567722b45176f866746208c6acdba7`；已传至 UAT `/tmp/gn-system-v0.8.0-rc.3.tar`，
 服务器副本哈希及大小一致。UAT 仓库只读核验仍为干净的 detached RC2 提交 `ce411b7700509a4322752c40c786f94b6adc9ddb`；
 本轮 `sudo -n` 要求管理员密码，故 RC3 尚未导入、备份、部署或迁移，UAT 仍待部署和重新验收。Production 未操作。
-Production URL `APP_URL` 与手册域名不一致，证书和备份也未核实；正式发布仍须补齐这些检查，并以已验收 RC3 原 digest 晋级。
+用户已于 2026-10-31 确认 Production 规范地址为 `https://192.168.0.141`，与服务器当前 `APP_URL` 一致；TLS 证书身份和生产备份仍未核实。正式发布须补齐这些检查，并以已验收 RC3 原 digest 晋级。
 
 ## 2026-10-30 v0.8.0-rc.2 UAT 验收通过，Production 晋级暂缓
 
@@ -39,9 +39,9 @@ Production 预检发现当前服务运行 `v0.6.2`，但独立仓库仍停在 `v
 `feature/production-origin-url` 纳入代码评审并补充回归测试。包含该修正的 `v0.8.0-rc.3` 已发布，
 当前等待 UAT 部署和重新验收；正式标签 `v0.8.0` 尚未创建，Production 未修改或部署。
 
-Production `.env.production` 当前为 `RELEASE_TAG=v0.6.2`、`APP_URL=https://192.168.0.141`，与运维文档中的
-`https://gncrm.local` 不同；Production `current/history.tsv` 缺失，证书身份及生产备份完整性尚未验证。
-这些项与未提交源码一起，都是恢复正式部署前必须核实的事项。
+Production `.env.production` 当前为 `RELEASE_TAG=v0.6.2`、`APP_URL=https://192.168.0.141`，该地址已由用户确认；
+Production `current/history.tsv` 缺失，当前 TLS 证书身份及生产备份完整性尚未验证。这些项与未提交源码一起，
+都是恢复正式部署前必须核实的事项。
 
 ## 2026-10-30 v0.8.0-rc.1 离线部署与业务验收记录（RC2 部署前）
 
