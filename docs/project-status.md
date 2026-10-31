@@ -10,7 +10,8 @@
   已传至 UAT `/tmp` 并通过服务器端哈希/大小核对。UAT 仓库仍是干净 detached RC2 提交
   `ce411b7700509a4322752c40c786f94b6adc9ddb`。`sudo -n` 要求管理员密码，本轮尚未导入镜像、备份、切换标签、停服或迁移；
   RC3 部署和重新业务验收待完成。Production 未操作。
-- 用户已确认 Production 规范 `APP_URL=https://192.168.0.141`，与服务器当前配置一致；TLS 证书身份、生产备份和发布台账尚待核实；
+- 用户已确认 Production 规范 `APP_URL=https://192.168.0.141`，与服务器当前配置一致。证书 IP SAN、有效期及 Windows 系统 CA 信任已核验；
+  `/up`、`/health`、`/health/operations` 均返回 200。生产备份和发布台账仍待管理员权限核实；
   正式版本只能从验收通过的 RC3 按原 digest 晋级。
 
 ## 2026-10-30 v0.8.0-rc.2 UAT 验收通过；Production 晋级暂缓
@@ -33,8 +34,9 @@
 - Production 当前容器运行 `v0.6.2` 且健康，但独立仓库停在 `v0.6.0-rc.1` 并有 3 个未提交文件。
   两个翻译/测试改动已存在于 RC2；生产 URL origin 修正不在 RC2，现已按正常流程合入并包含在 RC3。
   RC3 等待 UAT 部署和重新验收；正式标签 `v0.8.0` 尚未创建，Production 未修改或部署。
-- `.env.production` 的 `APP_URL=https://192.168.0.141` 已由用户确认为规范地址。Production `current/history.tsv` 缺失；
-  当前证书身份和生产备份完整性尚未验证。部署前须核验这些状态，不能覆盖现有源码改动。
+- `.env.production` 的 `APP_URL=https://192.168.0.141` 已由用户确认为规范地址；证书 IP SAN、有效期及 Windows 系统 CA 信任已核验，
+  Production `/up`、`/health`、`/health/operations` 均返回 200。Production `current/history.tsv` 缺失、备份完整性尚未验证；
+  部署前须核验这些状态，不能覆盖现有源码改动。
 
 ## 2026-10-30 v0.8.0-rc.1 离线部署与待验状态（RC2 部署前）
 

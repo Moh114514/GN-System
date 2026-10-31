@@ -16,9 +16,11 @@ PR #67、#69 已合入 `develop`，PR #68 已合入 `main`。annotated `v0.8.0-r
 创建部署备份、切换 RC3、修改 `.env.uat`、停服或迁移；UAT 仍待部署和 RC3 业务验收。安全恢复管理员认证后，
 从本文“更新 UAT”与[局域网离线镜像部署](offline-deployment.md)继续，先完成目标环境预检和部署前备份。
 
-Production 未操作。用户已于 2026-10-31 确认规范 `APP_URL=https://192.168.0.141`，与当前环境文件一致；
-TLS 证书身份、生产备份完整性及缺失的 `current/history.tsv` 仍未核实。正式升级前必须核对证书 SAN、有效期和信任，
-验证部署前备份并通过发布脚本建立正确发布记录；正式标签须与验收通过的 RC3 指向同一提交，镜像按 RC3 原 digest 晋级。
+Production 未修改。用户已于 2026-10-31 确认规范 `APP_URL=https://192.168.0.141`，与当前环境文件一致。只读 TLS 核验发现
+证书 `CN=gncrm.local`，SAN 含 `IP:192.168.0.141` 与 `DNS:gncrm.local`，有效期至 2027-08-11；启用 Windows 系统 CA 后验证通过。
+当前服务 `/up`、`/health`、`/health/operations` 均返回 200，队列和调度状态为 ok。Production 备份完整性及缺失的
+`current/history.tsv` 仍待管理员权限核实。正式升级前必须验证部署前备份并通过发布脚本建立正确发布记录；正式标签须与验收通过的 RC3
+指向同一提交，镜像按 RC3 原 digest 晋级。
 
 ## 2026-10-30 v0.8.0-rc.2 UAT 验收通过；Production 晋级暂缓
 
@@ -50,9 +52,9 @@ Production 预检只读确认现有服务健康，app/web/queue/scheduler 当前
 RC3 当前待 UAT 部署和重新验收；正式标签 `v0.8.0` 尚未创建，Production 未修改或部署。
 
 预检时发现环境文件使用 `https://192.168.0.141`、而文档仍写 `https://gncrm.local`；用户已于 2026-10-31 确认前者为
-Production 规范地址。Production `/srv/gn-system/production/releases/current` 与 `history.tsv` 缺失。管理员账户无法读取
-root 所有的发布目录和 TLS 证书（`sudo` 需要密码），因此当前证书身份和生产备份完整性尚未验证。正式升级前需核验证书、
-已验证的数据库/私有文件备份，并通过发布脚本建立正确发布记录；不得根据文档猜测或改写生产环境配置。
+Production 规范地址。Production `/srv/gn-system/production/releases/current` 与 `history.tsv` 缺失。已从本机通过系统 CA 核验
+当前证书 SAN、有效期及信任，但管理员账户仍无法读取 root 所有的发布目录和生产备份（`sudo` 需要密码），所以备份完整性未验证。
+正式升级前须完成数据库/私有文件备份并通过发布脚本建立正确发布记录；不得覆盖现有源码改动或猜改生产配置。
 
 ## 2026-10-30 v0.8.0-rc.1 部署与业务验收记录（RC2 部署前）
 
