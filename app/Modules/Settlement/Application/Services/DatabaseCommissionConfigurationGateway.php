@@ -25,8 +25,27 @@ final readonly class DatabaseCommissionConfigurationGateway implements Commissio
     public function configuration(): array
     {
         return [
-            'rules' => CommissionRule::query()->orderByDesc('effective_month')->orderBy('policy_grade_id')->get()->toArray(),
-            'overrides' => AgentCommissionOverride::query()->orderByDesc('effective_from')->orderBy('agent_id')->get()->toArray(),
+            'rules' => CommissionRule::query()
+                ->orderByDesc('effective_month')
+                ->orderBy('policy_grade_id')
+                ->get()
+                ->map(fn (CommissionRule $rule): array => array_merge(
+                    $rule->toArray(),
+                    ['effective_month' => $this->businessDateString($rule->effective_month)],
+                ))
+                ->all(),
+            'overrides' => AgentCommissionOverride::query()
+                ->orderByDesc('effective_from')
+                ->orderBy('agent_id')
+                ->get()
+                ->map(fn (AgentCommissionOverride $override): array => array_merge(
+                    $override->toArray(),
+                    [
+                        'effective_from' => $this->businessDateString($override->effective_from),
+                        'effective_until' => $this->businessDateString($override->effective_until),
+                    ],
+                ))
+                ->all(),
         ];
     }
 
@@ -199,5 +218,23 @@ final readonly class DatabaseCommissionConfigurationGateway implements Commissio
         }
 
         return $effectiveMonth->startOfMonth();
+    }
+
+    private function businessDateString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        if ($value instanceof \DateTimeInterface) {
+            return $value->format('Y-m-d');
+        }
+
+        $value = (string) $value;
+        $timezone = (string) config('app.timezone', 'UTC');
+
+        return preg_match('/(?:T|Z|[+-]\\d{2}:?\\d{2})/', $value) === 1
+            ? CarbonImmutable::parse($value)->setTimezone($timezone)->toDateString()
+            : CarbonImmutable::parse($value, $timezone)->toDateString();
     }
 }

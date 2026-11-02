@@ -25,6 +25,7 @@ use App\Modules\Order\Application\Data\DailyOrderData;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Settlement\Application\Contracts\CommissionConfigurationGateway;
 use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
+use App\Modules\Settlement\Application\Data\CompletedOrderCommissionCorrectionData;
 use App\Modules\Settlement\Infrastructure\Models\AgentCommissionOverride;
 use App\Modules\Settlement\Infrastructure\Models\CommissionRule;
 use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
@@ -179,6 +180,80 @@ class PhaseFourAgentCommissionTest extends TestCase
         $this->assertSame(1250, (int) $unchanged->rate_bps);
         $this->assertSame(1251, (int) $unchanged->amount_krw);
         $this->assertSame(1250, $unchanged->rule_snapshot['rate_bps']);
+    }
+
+    public function test_completed_order_correction_uses_the_confirmed_snapshot_and_half_up_rounding(): void
+    {
+        $this->actingAs($this->admin);
+        $orderId = app(DailyOrderGateway::class)->create($this->orderData('completed', 10005));
+        $before = OrderCommission::query()->where('order_id', $orderId)->firstOrFail();
+
+        $result = app(DailyCommissionGateway::class)->correctForCompletedOrder(new CompletedOrderCommissionCorrectionData(
+            orderId: $orderId,
+            agentId: (int) $this->agent->id,
+            institutionId: (int) $this->institution->id,
+            currentOrderAmountKrw: 10005,
+            newOrderAmountKrw: 10004,
+            occurredOn: CarbonImmutable::parse('2026-07-28'),
+            occurredOnChanged: false,
+            reason: '沿用确认费率修正金额',
+            actorId: (int) $this->admin->id,
+            ipAddress: null,
+        ));
+
+        $after = $before->fresh();
+        $this->assertSame(1250, $result['rate_bps']);
+        $this->assertSame(1251, $result['commission_krw']);
+        $this->assertSame(1251, (int) $after->amount_krw);
+        $this->assertSame(10004, $after->rule_snapshot['order_amount_krw']);
+        $this->assertSame(1251, $after->rule_snapshot['commission_amount_krw']);
+        $this->assertSame('confirmed_snapshot', $after->rule_snapshot['corrections'][0]['basis']);
+        $this->assertDatabaseHas('activity_log', [
+            'log_name' => 'commission',
+            'subject_id' => $before->id,
+            'event' => 'corrected',
+        ]);
+    }
+
+    public function test_incomplete_or_inconsistent_order_commission_snapshot_cannot_be_corrected(): void
+    {
+        $this->actingAs($this->admin);
+        $orderId = app(DailyOrderGateway::class)->create($this->orderData('completed', 10000));
+        $commission = OrderCommission::query()->where('order_id', $orderId)->firstOrFail();
+        $originalAmount = (int) $commission->amount_krw;
+        $originalSnapshot = $commission->rule_snapshot;
+
+        foreach ([
+            ['source' => 'historical_import'],
+            [...$originalSnapshot, 'order_amount_krw' => 9999],
+        ] as $invalidSnapshot) {
+            $commission->update(['rule_snapshot' => $invalidSnapshot]);
+
+            try {
+                app(DailyCommissionGateway::class)->correctForCompletedOrder(new CompletedOrderCommissionCorrectionData(
+                    orderId: $orderId,
+                    agentId: (int) $this->agent->id,
+                    institutionId: (int) $this->institution->id,
+                    currentOrderAmountKrw: 10000,
+                    newOrderAmountKrw: 12000,
+                    occurredOn: CarbonImmutable::parse('2026-07-28'),
+                    occurredOnChanged: false,
+                    reason: '快照异常不应被覆盖',
+                    actorId: (int) $this->admin->id,
+                    ipAddress: null,
+                ));
+                $this->fail('Expected the incomplete commission snapshot to be rejected.');
+            } catch (DomainException $exception) {
+                $this->assertSame(__('settlements.errors.commission_snapshot_invalid'), $exception->getMessage());
+            }
+
+            $this->assertSame($originalAmount, (int) $commission->fresh()->amount_krw);
+        }
+        $this->assertDatabaseMissing('activity_log', [
+            'log_name' => 'commission',
+            'subject_id' => $commission->id,
+            'event' => 'corrected',
+        ]);
     }
 
     public function test_institution_override_precedes_global_override_and_grade_rule(): void

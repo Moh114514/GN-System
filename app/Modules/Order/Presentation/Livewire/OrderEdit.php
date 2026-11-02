@@ -4,6 +4,8 @@ namespace App\Modules\Order\Presentation\Livewire;
 
 use App\Modules\Order\Application\Data\OrderUpdateData;
 use App\Modules\Order\Application\Services\OrderManagementWorkspace;
+use Brick\Math\BigDecimal;
+use Brick\Math\RoundingMode;
 use Carbon\CarbonImmutable;
 use DomainException;
 use Flux\Flux;
@@ -42,6 +44,11 @@ class OrderEdit extends Component
 
     public string $expectedUpdatedAt = '';
 
+    /** @var array<string, int|string|bool>|null */
+    public ?array $commissionPreview = null;
+
+    public string $commissionPreviewError = '';
+
     public function mount(int $order, OrderManagementWorkspace $workspace): void
     {
         $this->orderId = $order;
@@ -77,6 +84,17 @@ class OrderEdit extends Component
             ];
         }
         $this->expectedUpdatedAt = (string) ($this->orderDetails['updated_at'] ?? '');
+        $this->refreshCommissionPreview($workspace);
+    }
+
+    public function updatedOccurredOn(OrderManagementWorkspace $workspace): void
+    {
+        $this->refreshCommissionPreview($workspace);
+    }
+
+    public function updatedItems(OrderManagementWorkspace $workspace): void
+    {
+        $this->refreshCommissionPreview($workspace);
     }
 
     public function addItem(): void
@@ -178,5 +196,71 @@ class OrderEdit extends Component
     public function render(): View
     {
         return view('livewire.orders.order-edit', ['order' => $this->orderDetails])->title(__('orders.edit_title'));
+    }
+
+    private function refreshCommissionPreview(OrderManagementWorkspace $workspace): void
+    {
+        $this->commissionPreview = null;
+        $this->commissionPreviewError = '';
+        if (($this->orderDetails['status'] ?? null) !== 'completed' || ($this->orderDetails['source_type'] ?? null) !== 'agent') {
+            return;
+        }
+
+        $commission = $this->orderDetails['financial']['commission'] ?? null;
+        if (! is_array($commission) || ($commission['snapshot_valid'] ?? false) !== true) {
+            $this->commissionPreviewError = __('settlements.errors.commission_snapshot_invalid');
+
+            return;
+        }
+        if ($this->occurredOn === '') {
+            return;
+        }
+
+        $rate = [
+            'rate_bps' => (int) $commission['rate_bps'],
+            'effective_month' => (string) ($commission['effective_month'] ?? ''),
+            'rule_source' => (string) ($commission['rule_source'] ?? ''),
+        ];
+        $dateChanged = $this->occurredOn !== (string) ($this->orderDetails['occurred_on'] ?? '');
+        if ($dateChanged) {
+            try {
+                $rate = $workspace->previewCommissionCorrection(
+                    $this->orderId,
+                    CarbonImmutable::createFromFormat('!Y-m-d', $this->occurredOn),
+                );
+            } catch (DomainException $exception) {
+                $this->commissionPreviewError = $exception->getMessage();
+
+                return;
+            }
+        }
+
+        $newAmount = 0;
+        foreach ($this->items as $item) {
+            if (! is_numeric($item['amount_krw']) || (int) $item['amount_krw'] < 0) {
+                $this->commissionPreviewError = __('orders.errors.order_items_invalid');
+
+                return;
+            }
+            $newAmount += (int) $item['amount_krw'];
+        }
+        $estimatedCommission = BigDecimal::of($newAmount)
+            ->multipliedBy((int) $rate['rate_bps'])
+            ->dividedBy(10000, 0, RoundingMode::HalfUp)
+            ->toInt();
+        $oldCommission = (int) $commission['amount_krw'];
+
+        $this->commissionPreview = [
+            'old_amount_krw' => (int) $this->orderDetails['amount_krw'],
+            'new_amount_krw' => $newAmount,
+            'rate_bps' => (int) $rate['rate_bps'],
+            'rule_source' => (string) $rate['rule_source'],
+            'rule_source_label' => (string) __('settlements.rate_sources.'.(string) $rate['rule_source']),
+            'effective_month' => (string) $rate['effective_month'],
+            'old_commission_krw' => $oldCommission,
+            'new_commission_krw' => $estimatedCommission,
+            'commission_delta_krw' => $estimatedCommission - $oldCommission,
+            'date_changed' => $dateChanged,
+        ];
     }
 }

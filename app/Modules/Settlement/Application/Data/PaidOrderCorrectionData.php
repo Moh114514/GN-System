@@ -22,5 +22,11 @@ final readonly class PaidOrderCorrectionData
         public string $reason,
         public int $actorId,
         public string $correctionKey,
+        public ?string $newRuleSource = null,
+        public ?int $newRuleId = null,
+        public ?string $newEffectiveMonth = null,
+        public ?string $oldRuleSource = null,
+        public ?int $oldRuleId = null,
+        public ?string $oldEffectiveMonth = null,
     ) {}
 }

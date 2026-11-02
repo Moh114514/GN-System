@@ -13,7 +13,7 @@
         <div class="rounded-xl border border-teal-200 bg-teal-50 p-4 dark:border-teal-800 dark:bg-teal-950"><p class="text-xs text-teal-700 dark:text-teal-300">{{ __('orders.edit.related_customer') }}</p><p class="mt-1 font-semibold">{{ $order['customer']['name'] }} <span class="text-sm font-normal text-zinc-500">{{ $order['customer']['code'] }}</span></p></div>
         <form wire:submit="save" class="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <flux:input :value="$order['institution']['name'] ?? __('orders.values.unknown_institution')" :label="__('orders.fields.institution')" readonly />
-            <flux:input wire:model="occurredOn" type="date" :label="__('orders.edit.occurred_on')" :required="$order['status'] === 'completed'" />
+            <flux:input wire:model.live.debounce.300ms="occurredOn" type="date" :label="__('orders.edit.occurred_on')" :required="$order['status'] === 'completed'" />
             <flux:input wire:model="translatorName" :label="__('orders.fields.translator_name')" />
             <flux:select wire:model="translatorLanguageId" :label="__('orders.fields.translator_language')"><flux:select.option value="">{{ __('orders.fields.unselected') }}</flux:select.option>@foreach ($options['translator_languages'] as $language)<flux:select.option value="{{ $language['id'] }}">{{ $language['name'] }}</flux:select.option>@endforeach</flux:select>
             <div class="md:col-span-2"><flux:textarea wire:model="notes" :label="__('orders.fields.notes')" rows="2" /></div>
@@ -29,7 +29,7 @@
                                 <flux:input wire:model="items.{{ $index }}.project_name" :label="__('orders.fields.project_name')" required />
                                 <flux:input wire:model="items.{{ $index }}.quantity" type="number" min="0.001" step="0.001" :label="__('orders.edit.quantity')" required />
                                 <flux:input wire:model="items.{{ $index }}.unit_price_krw" type="number" min="0" step="1" :label="__('orders.edit.unit_price')" required />
-                                <flux:input wire:model="items.{{ $index }}.amount_krw" type="number" min="0" step="1" :label="__('orders.fields.amount')" required />
+                                <flux:input wire:model.live.debounce.300ms="items.{{ $index }}.amount_krw" type="number" min="0" step="1" :label="__('orders.fields.amount')" required />
                                 <flux:input wire:model="items.{{ $index }}.specification" :label="__('orders.edit.specification')" />
                                 <div class="md:col-span-2 xl:col-span-3"><flux:textarea wire:model="items.{{ $index }}.notes" :label="__('orders.edit.item_notes')" rows="2" /></div>
                             </div>
@@ -38,6 +38,27 @@
                 </div>
                 <p class="mt-3 text-right font-semibold">{{ __('orders.edit.total_amount') }}：₩ {{ number_format(collect($items)->sum(fn ($item) => (int) $item['amount_krw'])) }}</p>
             </div>
+
+            @if ($order['status'] === 'completed' && $order['source_type'] === 'agent')
+                <section class="rounded-xl border border-blue-200 bg-blue-50 p-4 dark:border-blue-900 dark:bg-blue-950 md:col-span-2 xl:col-span-3">
+                    <h3 class="font-semibold text-blue-950 dark:text-blue-100">{{ __('orders.edit.commission_preview') }}</h3>
+                    @if ($commissionPreviewError !== '')
+                        <p class="mt-2 text-sm text-red-700 dark:text-red-300">{{ $commissionPreviewError }}</p>
+                    @elseif ($commissionPreview !== null)
+                        <dl class="mt-3 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                            <div><dt class="text-zinc-500">{{ __('orders.edit.current_order_amount') }}</dt><dd class="mt-1 font-medium">₩ {{ number_format($commissionPreview['old_amount_krw']) }}</dd></div>
+                            <div><dt class="text-zinc-500">{{ __('orders.edit.new_order_amount') }}</dt><dd class="mt-1 font-medium">₩ {{ number_format($commissionPreview['new_amount_krw']) }}</dd></div>
+                            <div><dt class="text-zinc-500">{{ __('orders.edit.commission_rate_and_source') }}</dt><dd class="mt-1 font-medium">{{ number_format($commissionPreview['rate_bps'] / 100, 2) }}% · {{ $commissionPreview['rule_source_label'] }} · {{ substr($commissionPreview['effective_month'], 0, 7) }}</dd></div>
+                            <div><dt class="text-zinc-500">{{ __('orders.edit.commission_before') }}</dt><dd class="mt-1 font-medium">₩ {{ number_format($commissionPreview['old_commission_krw']) }}</dd></div>
+                            <div><dt class="text-zinc-500">{{ __('orders.edit.estimated_commission') }}</dt><dd class="mt-1 font-medium">₩ {{ number_format($commissionPreview['new_commission_krw']) }}</dd></div>
+                            <div><dt class="text-zinc-500">{{ __('orders.edit.commission_difference') }}</dt><dd class="mt-1 font-medium">₩ {{ number_format($commissionPreview['commission_delta_krw']) }}</dd></div>
+                        </dl>
+                        @if ($commissionPreview['date_changed'])
+                            <p class="mt-3 text-xs text-blue-800 dark:text-blue-200">{{ __('orders.edit.date_change_rule_note') }}</p>
+                        @endif
+                    @endif
+                </section>
+            @endif
 
             <div class="md:col-span-2 xl:col-span-3"><flux:textarea wire:model="reason" :label="__('orders.edit.reason')" rows="2" required /></div>
             <div class="flex justify-end gap-2 md:col-span-2 xl:col-span-3"><flux:button href="{{ route('orders.show', $orderId) }}" wire:navigate variant="ghost">{{ __('orders.edit.cancel') }}</flux:button><flux:button type="submit" variant="primary" wire:loading.attr="disabled">{{ __('orders.edit.save') }}</flux:button></div>
