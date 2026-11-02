@@ -1,5 +1,37 @@
 # GN-System 完整运维手册
 
+## 2026-11-03 v0.8.1-rc.1 已部署至 UAT，等待用户业务验收
+
+annotated 标签 `v0.8.1-rc.1` 指向 `93b394d4b231f6ba80f444598abaa6d79bc9de47`；
+[RC 发布工作流](https://github.com/Moh114514/GN-System/actions/runs/41474699540)门禁及 app/web 镜像构建成功。
+app/web manifest digest 分别为
+`sha256:1962dfaed3d74afd4ef828443af7d87da05d989fa4f856e201d3911da119bc2d`、
+`sha256:4a0f0431b46d26dc8f9cf501b8009889afb30e70888d0c9f6d8801bc82f02be4`。
+
+已按[局域网离线镜像部署](offline-deployment.md)下载、校验并导入 `linux/amd64` 镜像。
+本机忽略目录中的包 `docker-images/gn-system-v0.8.1-rc.1.tar` 为 369,918,464 bytes，
+SHA-256 `9ec9595f3c7c855347de0001cb5cdc980eb28ec4826add05c249d948297bdad7`；服务器
+`/tmp/gn-system-v0.8.1-rc.1.tar` 副本大小和 SHA-256 一致。导入后的 app/web 镜像 ID
+与上述 digest 一致，架构均为 `linux/amd64`。
+
+部署前备份 `/srv/gn-system/data/backups/GN-System UAT/2026-11-03-00-12-47.zip`
+大小为 71,238,483 bytes，含 255 个文件/目录，备份完整性校验通过。UAT 仓库干净且
+detached 于 `v0.8.1-rc.1`；`.env.uat` 权限为 `0600`，`COMPOSE_PROJECT_NAME=gn-system-uat`、
+`DB_DATABASE=gn_system_uat`、`APP_URL=https://gncrm-uat.local:8443`，当前 `RELEASE_TAG`
+为 `v0.8.1-rc.1`。迁移命令返回 `Nothing to migrate`，迁移状态均为 `Ran`。
+
+app、web、PostgreSQL、Redis 健康，queue 和 scheduler 正在运行；app/queue/scheduler 使用 RC1 app 镜像，
+web 使用 RC1 web 镜像。严格 TLS 下 `/up`、`/health`、`/health/operations` 均返回 HTTP 200，
+queue/scheduler 运维状态为 `ok`；HTTP 入口返回 301 并跳转至 `https://gncrm-uat.local:8443/`。
+
+部署前只读检查发现 `.env.uat` 和运行中的 app/web/queue/scheduler 都是 `v0.8.0-rc.4`，
+而 `current`/`history.tsv` 仍记录 RC3；本次将候选升级至 RC1，未改写旧发布台账。
+
+截至本记录，用户业务验收尚未完成，因此 `/srv/gn-system/releases/current` 与 `history.tsv`
+仍保留 `v0.8.0-rc.3`，这不是当前运行镜像版本；RC1 离线包也暂留服务器和本机。用户验收通过后，
+再按离线指南更新发布台账并清理传输包。Production 未修改。以下 RC3/RC2 记录为历史状态，
+不代表当前 UAT 版本。
+
 ## 2026-10-31 v0.8.0-rc.3 已构建，UAT 部署待管理员认证
 
 PR #67、#69 已合入 `develop`，PR #68 已合入 `main`。annotated `v0.8.0-rc.3` 指向
