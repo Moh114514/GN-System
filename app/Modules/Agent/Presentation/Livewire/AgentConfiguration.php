@@ -60,11 +60,14 @@ class AgentConfiguration extends Component
 
     public string $overrideListSort = 'effective_desc';
 
+    public string $defaultEffectiveMonth = '';
+
     public function mount(BusinessClock $clock): void
     {
-        $nextMonth = $clock->now()->addMonthNoOverflow()->startOfMonth()->toDateString();
-        $this->ruleEffectiveMonth = $nextMonth;
-        $this->overrideEffectiveMonth = $nextMonth;
+        $currentMonth = $clock->now()->startOfMonth()->toDateString();
+        $this->ruleEffectiveMonth = $currentMonth;
+        $this->overrideEffectiveMonth = $currentMonth;
+        $this->defaultEffectiveMonth = $currentMonth;
     }
 
     public function saveType(AgentManager $manager): void
@@ -156,7 +159,8 @@ class AgentConfiguration extends Component
             'ruleRateBps' => ['required', 'integer', 'between:0,10000'],
             'ruleEffectiveMonth' => ['required', 'date'],
         ]);
-        $this->run(fn () => $coordinator->saveRule((int) $this->ruleGradeId, (int) $this->ruleInstitutionId, (int) $this->ruleRateBps, CarbonImmutable::parse($this->ruleEffectiveMonth), (int) Auth::id(), request()->ip()), __('config.agent.toast.rate_saved'));
+        $effectiveMonth = CarbonImmutable::parse($this->ruleEffectiveMonth)->startOfMonth();
+        $this->run(fn () => $coordinator->saveRule((int) $this->ruleGradeId, (int) $this->ruleInstitutionId, (int) $this->ruleRateBps, $effectiveMonth, (int) Auth::id(), request()->ip()), __('config.agent.toast.rate_saved_for_month', ['month' => $effectiveMonth->format('Y-m')]));
     }
 
     public function saveOverride(AgentConfigurationCoordinator $coordinator): void
@@ -168,7 +172,8 @@ class AgentConfiguration extends Component
             'overrideEffectiveMonth' => ['required', 'date'],
             'overrideReason' => ['required', 'string', 'max:1000'],
         ]);
-        $this->run(fn () => $coordinator->saveOverride((int) $this->overrideAgentId, $this->overrideInstitutionId === '' ? null : (int) $this->overrideInstitutionId, (int) $this->overrideRateBps, CarbonImmutable::parse($this->overrideEffectiveMonth), $this->overrideReason, (int) Auth::id(), request()->ip()), __('config.agent.toast.override_saved'));
+        $effectiveMonth = CarbonImmutable::parse($this->overrideEffectiveMonth)->startOfMonth();
+        $this->run(fn () => $coordinator->saveOverride((int) $this->overrideAgentId, $this->overrideInstitutionId === '' ? null : (int) $this->overrideInstitutionId, (int) $this->overrideRateBps, $effectiveMonth, $this->overrideReason, (int) Auth::id(), request()->ip()), __('config.agent.toast.override_saved_for_month', ['month' => $effectiveMonth->format('Y-m')]));
     }
 
     public function render(AgentConfigurationCoordinator $coordinator): View

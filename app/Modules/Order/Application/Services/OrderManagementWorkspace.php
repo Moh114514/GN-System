@@ -14,7 +14,10 @@ use App\Modules\Order\Application\Contracts\OrderLifecycleGateway;
 use App\Modules\Order\Application\Data\OrderUpdateData;
 use App\Modules\Order\Infrastructure\Models\Order;
 use App\Modules\Reminder\Application\Contracts\OrderReminderReader;
+use App\Modules\Settlement\Application\Contracts\DailyCommissionGateway;
 use App\Modules\Settlement\Application\Contracts\OrderFinancialReader;
+use Carbon\CarbonImmutable;
+use DomainException;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -32,6 +35,7 @@ final readonly class OrderManagementWorkspace
         private AuditRecorder $audit,
         private OrderReminderReader $reminders,
         private OrderFinancialReader $financials,
+        private DailyCommissionGateway $commissions,
         private AccessContextResolver $access,
         private InternalUserReferenceReader $users,
         private ReportUserReader $userNames,
@@ -229,7 +233,7 @@ final readonly class OrderManagementWorkspace
             ]];
         }
         $context = $this->access->current();
-        $financial = $this->financials->forOrder((int) $order->id, (int) $order->customer_id);
+        $financial = $this->financials->forOrder((int) $order->id, (int) $order->customer_id, (int) $order->amount_krw);
         $settlement = $financial['settlement'] ?? null;
         $paidSettlement = is_array($settlement)
             && in_array((string) ($settlement['status'] ?? ''), ['settled', 'paid', 'reconciled'], true);
@@ -336,6 +340,23 @@ final readonly class OrderManagementWorkspace
             reason: $data->reason,
             expectedUpdatedAt: $data->expectedUpdatedAt,
         ), $actorId, $ipAddress);
+    }
+
+    /** @return array{agent_name: string, grade_name: string, rate_bps: int, effective_month: string, rule_source: string} */
+    public function previewCommissionCorrection(int $orderId, CarbonImmutable $occurredOn): array
+    {
+        $query = Order::query();
+        $this->applyScope($query);
+        $order = $query->findOrFail($orderId);
+        if ($order->status !== 'completed' || $order->source_type !== 'agent' || $order->agent_id === null) {
+            throw new DomainException(__('settlements.errors.commission_snapshot_invalid'));
+        }
+        $financial = $this->financials->forOrder((int) $order->id, (int) $order->customer_id, (int) $order->amount_krw);
+        if (($financial['commission']['snapshot_valid'] ?? false) !== true) {
+            throw new DomainException(__('settlements.errors.commission_snapshot_invalid'));
+        }
+
+        return $this->commissions->previewForOrder((int) $order->agent_id, (int) $order->institution_id, $occurredOn);
     }
 
     public function cancel(int $orderId, int $actorId, string $reason, ?string $ipAddress): int

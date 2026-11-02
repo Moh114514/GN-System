@@ -6,11 +6,14 @@ use App\Models\User;
 use App\Modules\Agent\Application\Services\AgentConfigurationCoordinator;
 use App\Modules\Agent\Infrastructure\Models\PolicyGrade;
 use App\Modules\Agent\Infrastructure\Models\PolicySystem;
+use App\Modules\Agent\Presentation\Livewire\AgentConfiguration;
 use App\Modules\Config\Infrastructure\Models\Institution;
 use App\Modules\Settlement\Infrastructure\Models\CommissionRule;
+use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Livewire\Livewire;
 use Tests\TestCase;
 
 class ConfigurationUserExperienceTest extends TestCase
@@ -124,5 +127,55 @@ class ConfigurationUserExperienceTest extends TestCase
 
         $rateDescending = $coordinator->state(ruleSort: 'rate_desc');
         $this->assertSame([1500, 500], array_column($rateDescending['rules'], 'rate_bps'));
+    }
+
+    public function test_agent_configuration_keeps_business_date_for_first_day_of_month(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $policy = PolicySystem::query()->create(['name' => '日期显示政策', 'is_active' => true]);
+        $grade = PolicyGrade::query()->create([
+            'policy_system_id' => $policy->id,
+            'name' => '日期显示等级',
+            'sort_order' => 1,
+            'is_active' => true,
+        ]);
+        $institution = Institution::query()->create([
+            'code' => 'DATE001',
+            'name' => '日期显示机构',
+            'is_active' => true,
+        ]);
+        CommissionRule::query()->create([
+            'policy_grade_id' => $grade->id,
+            'institution_id' => $institution->id,
+            'rate_bps' => 1500,
+            'effective_month' => '2026-11-01',
+            'is_active' => true,
+        ]);
+
+        $state = app(AgentConfigurationCoordinator::class)->state();
+        $this->assertSame('2026-11-01', $state['rules'][0]['effective_month']);
+
+        $this->actingAs($admin)
+            ->get(route('agent-configuration.index'))
+            ->assertOk()
+            ->assertSee('2026-11')
+            ->assertDontSee('2026-10');
+    }
+
+    public function test_agent_commission_defaults_to_current_business_month(): void
+    {
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        CarbonImmutable::setTestNow('2026-11-02 12:00:00');
+
+        try {
+            Livewire::actingAs($admin)
+                ->test(AgentConfiguration::class)
+                ->assertSet('ruleEffectiveMonth', '2026-11-01')
+                ->assertSet('overrideEffectiveMonth', '2026-11-01')
+                ->assertSet('defaultEffectiveMonth', '2026-11-01')
+                ->assertSeeText(__('config.agent.default_month_effective', ['month' => '2026-11-01']));
+        } finally {
+            CarbonImmutable::setTestNow();
+        }
     }
 }

@@ -20,6 +20,8 @@ use App\Modules\Order\Presentation\Livewire\OrderCenter;
 use App\Modules\Order\Presentation\Livewire\OrderDetail;
 use App\Modules\Order\Presentation\Livewire\OrderEdit;
 use App\Modules\Settlement\Infrastructure\Models\CommissionRule;
+use App\Modules\Settlement\Infrastructure\Models\OrderCommission;
+use App\Modules\Settlement\Infrastructure\Models\Settlement;
 use Carbon\CarbonImmutable;
 use Database\Seeders\PhaseTwoReferenceDataSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -442,6 +444,289 @@ class OrderManagementTest extends TestCase
         $this->assertStringContainsString('treatment_project_snapshot', (string) $latestAudit);
     }
 
+    public function test_completed_order_amount_correction_uses_latest_confirmed_rate_without_current_month_rule(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $owner = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent();
+        $customer = $this->customer($agent, $owner->id);
+        $gradeAssignment = AgentGradeAssignment::query()->where('agent_id', $agent->id)->firstOrFail();
+        $gradeAssignment->update(['effective_month' => '2026-07-01']);
+        CommissionRule::query()->where('policy_grade_id', $gradeAssignment->policy_grade_id)
+            ->where('institution_id', $institution->id)->delete();
+        CommissionRule::query()->create([
+            'policy_grade_id' => $gradeAssignment->policy_grade_id,
+            'institution_id' => $institution->id,
+            'rate_bps' => 2000,
+            'effective_month' => '2026-11-01',
+            'is_active' => true,
+        ]);
+        [$order, $commission] = $this->completedOrderWithHistoricalSnapshot($owner, $customer, $institution, $agent, 10000, '2026-10-15', 1500);
+
+        Livewire::actingAs($admin)
+            ->test(OrderEdit::class, ['order' => $order->id])
+            ->set('items.0.amount_krw', '12000')
+            ->set('items.0.unit_price_krw', '12000')
+            ->set('reason', '更正十月订单金额')
+            ->assertSee('15.00%')
+            ->assertSee('1,800')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertSame(12000, (int) $order->fresh()->amount_krw);
+        $this->assertSame(1500, (int) $commission->fresh()->rate_bps);
+        $this->assertSame(1800, (int) $commission->fresh()->amount_krw);
+        $this->assertSame('confirmed_snapshot', $commission->fresh()->rule_snapshot['last_correction_basis']);
+
+        Livewire::actingAs($admin)
+            ->test(OrderEdit::class, ['order' => $order->id])
+            ->set('notes', '仅补充备注')
+            ->set('reason', '只更正订单备注')
+            ->call('save')
+            ->assertHasNoErrors();
+        $this->assertCount(1, $commission->fresh()->rule_snapshot['corrections']);
+        $this->assertSame(1500, (int) $commission->fresh()->rate_bps);
+
+        Livewire::actingAs($admin)
+            ->test(OrderEdit::class, ['order' => $order->id])
+            ->set('occurredOn', '2026-11-01')
+            ->assertSee('20.00%')
+            ->set('reason', '按新消费日期重新匹配费率')
+            ->call('save')
+            ->assertHasNoErrors();
+        $this->assertSame(2000, (int) $commission->fresh()->rate_bps);
+        $this->assertSame(2400, (int) $commission->fresh()->amount_krw);
+        $this->assertSame('matched_effective_rule', $commission->fresh()->rule_snapshot['last_correction_basis']);
+
+        CommissionRule::query()->where('policy_grade_id', $gradeAssignment->policy_grade_id)
+            ->where('institution_id', $institution->id)
+            ->whereDate('effective_month', '2026-11-01')
+            ->update(['rate_bps' => 3000]);
+        Livewire::actingAs($admin)
+            ->test(OrderEdit::class, ['order' => $order->id])
+            ->set('items.0.amount_krw', '13000')
+            ->set('items.0.unit_price_krw', '13000')
+            ->set('reason', '连续更正订单金额')
+            ->call('save')
+            ->assertHasNoErrors();
+        $this->assertSame(2000, (int) $commission->fresh()->rate_bps);
+        $this->assertSame(2600, (int) $commission->fresh()->amount_krw);
+    }
+
+    public function test_completed_order_date_correction_without_a_matching_rule_rolls_back(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $owner = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent();
+        $customer = $this->customer($agent, $owner->id);
+        $gradeAssignment = AgentGradeAssignment::query()->where('agent_id', $agent->id)->firstOrFail();
+        $gradeAssignment->update(['effective_month' => '2026-07-01']);
+        CommissionRule::query()->where('policy_grade_id', $gradeAssignment->policy_grade_id)
+            ->where('institution_id', $institution->id)->delete();
+        CommissionRule::query()->create([
+            'policy_grade_id' => $gradeAssignment->policy_grade_id,
+            'institution_id' => $institution->id,
+            'rate_bps' => 2000,
+            'effective_month' => '2026-11-01',
+            'is_active' => true,
+        ]);
+        [$order, $commission] = $this->completedOrderWithHistoricalSnapshot($owner, $customer, $institution, $agent, 10000, '2026-10-15', 1500);
+        Livewire::actingAs($admin)
+            ->test(OrderEdit::class, ['order' => $order->id])
+            ->set('occurredOn', '2026-09-15')
+            ->set('reason', '缺少九月有效规则')
+            ->call('save');
+
+        $this->assertSame('2026-10-15', $order->fresh()->occurred_on->toDateString());
+        $this->assertSame(10000, (int) $order->fresh()->amount_krw);
+        $this->assertSame(1500, (int) $commission->fresh()->rate_bps);
+        $this->assertSame(1500, (int) $commission->fresh()->amount_krw);
+        $this->assertArrayNotHasKey('corrections', $commission->fresh()->rule_snapshot);
+    }
+
+    public function test_order_edit_rejects_a_stale_optimistic_lock(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $owner = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent();
+        $customer = $this->customer($agent, $owner->id);
+        $order = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'agent_id' => $agent->id,
+            'project_name' => '乐观锁测试项目',
+            'amount_krw' => 10000,
+            'status' => 'pending',
+            'owner_id' => $owner->id,
+        ]);
+        $first = Livewire::actingAs($admin)->test(OrderEdit::class, ['order' => $order->id]);
+        $stale = Livewire::actingAs($admin)->test(OrderEdit::class, ['order' => $order->id]);
+
+        $first->set('notes', '第一次保存')
+            ->set('reason', '先提交的更正')
+            ->call('save')
+            ->assertHasNoErrors();
+        $order->newQuery()->whereKey($order->id)->update(['updated_at' => now()->addSecond()]);
+        $stale->set('translatorName', '不应保存')
+            ->set('reason', '使用过期页面提交')
+            ->call('save');
+
+        $this->assertSame('第一次保存', $order->fresh()->notes);
+        $this->assertNull($order->fresh()->translator_name);
+        $this->assertSame(1, DB::table('activity_log')->where('log_name', 'order')->where('subject_id', $order->id)->where('event', 'updated')->count());
+    }
+
+    public function test_paid_order_corrections_preserve_original_bill_and_chain_deltas(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $owner = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent();
+        $customer = $this->customer($agent, $owner->id);
+        $gradeAssignment = AgentGradeAssignment::query()->where('agent_id', $agent->id)->firstOrFail();
+        $gradeAssignment->update(['effective_month' => '2026-07-01']);
+        CommissionRule::query()->where('policy_grade_id', $gradeAssignment->policy_grade_id)
+            ->where('institution_id', $institution->id)->delete();
+        CommissionRule::query()->create([
+            'policy_grade_id' => $gradeAssignment->policy_grade_id,
+            'institution_id' => $institution->id,
+            'rate_bps' => 2000,
+            'effective_month' => '2026-11-01',
+            'is_active' => true,
+        ]);
+        [$order, $commission] = $this->completedOrderWithHistoricalSnapshot($owner, $customer, $institution, $agent, 10000, '2026-10-15', 1500);
+        $settlement = Settlement::query()->create([
+            'agent_id' => $agent->id,
+            'period_start' => '2026-10-01',
+            'period_end' => '2026-10-31',
+            'status' => 'paid',
+            'generation_status' => 'generated',
+            'total_consumption_krw' => 10000,
+            'total_commission_krw' => 1500,
+            'item_count' => 1,
+        ]);
+        DB::table('settlement_items')->insert([
+            'settlement_id' => $settlement->id,
+            'order_commission_id' => $commission->id,
+            'consumption_krw' => 10000,
+            'commission_krw' => 1500,
+            'rule_snapshot' => json_encode(['source' => 'historical_import'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        foreach ([12000, 11000] as $index => $amount) {
+            Livewire::actingAs($admin)
+                ->test(OrderEdit::class, ['order' => $order->id])
+                ->set('items.0.amount_krw', (string) $amount)
+                ->set('items.0.unit_price_krw', (string) $amount)
+                ->set('reason', '已付款订单连续更正 '.($index + 1))
+                ->call('save')
+                ->assertHasNoErrors();
+            $this->assertSame($amount, (int) $order->fresh()->amount_krw);
+            $this->assertSame($index + 1, DB::table('settlement_adjustments')->where('source_order_id', $order->id)->count());
+        }
+
+        $adjustments = DB::table('settlement_adjustments')->where('source_order_id', $order->id)->orderBy('id')->get();
+        $this->assertCount(2, $adjustments);
+        $this->assertSame(300, (int) $adjustments[0]->commission_delta_krw);
+        $this->assertSame(-150, (int) $adjustments[1]->commission_delta_krw);
+        $this->assertSame(1000, (int) $adjustments->sum('consumption_delta_krw'));
+        $this->assertSame(1500, (int) $settlement->fresh()->total_commission_krw);
+        $this->assertSame(10000, (int) $settlement->fresh()->total_consumption_krw);
+        $this->assertSame(1500, (int) $commission->fresh()->amount_krw);
+        $this->assertSame(1500, (int) $commission->fresh()->rate_bps);
+        $this->assertSame(11000, (int) $order->fresh()->amount_krw);
+        $this->assertTrue((bool) $order->fresh()->settlement_excluded);
+    }
+
+    public function test_paid_order_date_correction_rematches_rate_and_amount_correction_keeps_latest_rule(): void
+    {
+        $this->seed(PhaseTwoReferenceDataSeeder::class);
+        $admin = User::factory()->superAdmin()->withTwoFactor()->create();
+        $owner = User::factory()->create();
+        $institution = Institution::query()->firstOrFail();
+        $agent = $this->agent();
+        $customer = $this->customer($agent, $owner->id);
+        $gradeAssignment = AgentGradeAssignment::query()->where('agent_id', $agent->id)->firstOrFail();
+        $gradeAssignment->update(['effective_month' => '2026-07-01']);
+        CommissionRule::query()->where('policy_grade_id', $gradeAssignment->policy_grade_id)
+            ->where('institution_id', $institution->id)->delete();
+        $novemberRule = CommissionRule::query()->create([
+            'policy_grade_id' => $gradeAssignment->policy_grade_id,
+            'institution_id' => $institution->id,
+            'rate_bps' => 2000,
+            'effective_month' => '2026-11-01',
+            'is_active' => true,
+        ]);
+        [$order, $commission] = $this->completedOrderWithHistoricalSnapshot($owner, $customer, $institution, $agent, 10000, '2026-10-15', 1500);
+        $settlement = Settlement::query()->create([
+            'agent_id' => $agent->id,
+            'period_start' => '2026-10-01',
+            'period_end' => '2026-10-31',
+            'status' => 'paid',
+            'generation_status' => 'generated',
+            'total_consumption_krw' => 10000,
+            'total_commission_krw' => 1500,
+            'item_count' => 1,
+        ]);
+        DB::table('settlement_items')->insert([
+            'settlement_id' => $settlement->id,
+            'order_commission_id' => $commission->id,
+            'consumption_krw' => 10000,
+            'commission_krw' => 1500,
+            'rule_snapshot' => json_encode(['source' => 'historical_import'], JSON_THROW_ON_ERROR),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        Livewire::actingAs($admin)
+            ->test(OrderEdit::class, ['order' => $order->id])
+            ->set('occurredOn', '2026-11-01')
+            ->set('reason', '更正消费日期至11月')
+            ->assertSeeText('20.00%')
+            ->assertSeeText('2026-11')
+            ->assertSeeText('500')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $this->assertSame('2026-11-01', $order->fresh()->occurred_on->toDateString());
+        $firstAdjustment = DB::table('settlement_adjustments')->where('source_order_id', $order->id)->firstOrFail();
+        $firstSnapshot = json_decode($firstAdjustment->snapshot, true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame(0, (int) $firstAdjustment->consumption_delta_krw);
+        $this->assertSame(500, (int) $firstAdjustment->commission_delta_krw);
+        $this->assertSame(2000, $firstSnapshot['after']['rate_bps']);
+        $this->assertSame('grade_institution_rule', $firstSnapshot['after']['rule_source']);
+        $this->assertSame($novemberRule->id, $firstSnapshot['after']['rule_id']);
+        $this->assertSame('2026-11-01', $firstSnapshot['after']['rule_effective_month']);
+
+        Livewire::actingAs($admin)
+            ->test(OrderEdit::class, ['order' => $order->id])
+            ->set('items.0.amount_krw', '12000')
+            ->set('items.0.unit_price_krw', '12000')
+            ->set('reason', '沿用最新确认费率更正金额')
+            ->call('save')
+            ->assertHasNoErrors();
+
+        $adjustments = DB::table('settlement_adjustments')->where('source_order_id', $order->id)->orderBy('id')->get();
+        $this->assertCount(2, $adjustments);
+        $secondSnapshot = json_decode($adjustments[1]->snapshot, true, 512, JSON_THROW_ON_ERROR);
+        $this->assertSame(400, (int) $adjustments[1]->commission_delta_krw);
+        $this->assertSame(2000, $secondSnapshot['after']['rate_bps']);
+        $this->assertSame('grade_institution_rule', $secondSnapshot['after']['rule_source']);
+        $this->assertSame($novemberRule->id, $secondSnapshot['after']['rule_id']);
+        $this->assertSame('2026-11-01', $secondSnapshot['after']['rule_effective_month']);
+        $this->assertSame(1500, (int) $commission->fresh()->amount_krw);
+        $this->assertSame(1500, (int) $settlement->fresh()->total_commission_krw);
+    }
+
     public function test_customer_service_cannot_open_order_edit_page(): void
     {
         $this->seed(PhaseTwoReferenceDataSeeder::class);
@@ -716,6 +1001,44 @@ class OrderManagementTest extends TestCase
         );
 
         return $agent;
+    }
+
+    /** @return array{0: Order, 1: OrderCommission} */
+    private function completedOrderWithHistoricalSnapshot(User $owner, Customer $customer, Institution $institution, Agent $agent, int $amountKrw, string $occurredOn, int $rateBps): array
+    {
+        $order = Order::query()->create([
+            'customer_id' => $customer->id,
+            'institution_id' => $institution->id,
+            'agent_id' => $agent->id,
+            'project_name' => '历史快照订单',
+            'amount_krw' => $amountKrw,
+            'status' => 'completed',
+            'owner_id' => $owner->id,
+            'occurred_on' => $occurredOn,
+            'completed_on' => $occurredOn,
+            'completed_at' => CarbonImmutable::parse($occurredOn.' 12:00:00'),
+            'completion_precision' => 'datetime',
+        ]);
+        $order->items()->create([
+            'project_snapshot' => '历史项目',
+            'quantity' => 1,
+            'unit_price_krw' => $amountKrw,
+            'amount_krw' => $amountKrw,
+        ]);
+        $commission = OrderCommission::query()->create([
+            'order_id' => $order->id,
+            'agent_id' => $agent->id,
+            'rate_bps' => $rateBps,
+            'amount_krw' => (int) round($amountKrw * $rateBps / 10000, 0, PHP_ROUND_HALF_UP),
+            'rule_snapshot' => [
+                'source' => 'historical_import',
+                'institution' => $institution->name,
+                'rate_bps' => $rateBps,
+            ],
+            'override_reason' => '保留确认的历史费率',
+        ]);
+
+        return [$order, $commission];
     }
 
     private function customer(Agent $agent, int $ownerId): Customer

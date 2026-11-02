@@ -19,7 +19,7 @@ use App\Modules\Settlement\Application\Contracts\DirectOrderCommissionGateway;
 use App\Modules\Settlement\Application\Contracts\OrderFinancialReader;
 use App\Modules\Settlement\Application\Contracts\PaidOrderCorrectionGateway;
 use App\Modules\Settlement\Application\Data\BdCommissionOrderData;
-use App\Modules\Settlement\Application\Data\CompletedOrderCommissionData;
+use App\Modules\Settlement\Application\Data\CompletedOrderCommissionCorrectionData;
 use App\Modules\Settlement\Application\Data\DirectOrderCommissionData;
 use App\Modules\Settlement\Application\Data\PaidOrderCorrectionData;
 use Brick\Math\BigDecimal;
@@ -57,7 +57,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             if ($context->isBdManager() && ! $context->canViewAgent((int) $order->agent_id)) {
                 throw new DomainException(__('orders.errors.bd_order_edit_only'));
             }
-            $financial = $this->financials->forOrder((int) $order->id, (int) $order->customer_id);
+            $financial = $this->financials->forOrder((int) $order->id, (int) $order->customer_id, (int) $order->amount_krw);
             $settlement = $financial['settlement'] ?? null;
             $paidSettlement = is_array($settlement)
                 && in_array((string) ($settlement['status'] ?? ''), ['settled', 'paid', 'reconciled'], true);
@@ -86,6 +86,8 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             $this->assertEditableReferences($data, $isDirect);
 
             $occurredOn = $data->occurredOn ?? ($order->occurred_on === null ? null : CarbonImmutable::parse($order->occurred_on));
+            $previousOccurredOn = $order->occurred_on === null ? null : CarbonImmutable::parse($order->occurred_on);
+            $occurredOnChanged = $previousOccurredOn?->toDateString() !== $occurredOn?->toDateString();
             if ($order->status === 'completed' && $occurredOn === null) {
                 throw new DomainException(__('orders.errors.occurred_on_required'));
             }
@@ -97,15 +99,26 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             if ($totalAmount !== $data->amountKrw) {
                 throw new DomainException(__('orders.errors.order_items_amount_mismatch'));
             }
+            $financialFieldsChanged = $totalAmount !== (int) $order->amount_krw || $occurredOnChanged;
 
-            if ($order->status === 'completed' && $paidAgentCorrection) {
+            if ($order->status === 'completed' && $paidAgentCorrection && $financialFieldsChanged) {
                 $commission = $financial['commission'] ?? null;
                 if (! is_array($commission) || ! isset($settlement['id'])) {
                     throw new DomainException(__('settlements.errors.paid_order_correction_context_missing'));
                 }
-                $preview = $this->commissions->previewForOrder((int) $data->agentId, $data->institutionId, $occurredOn);
+                if (($commission['snapshot_valid'] ?? false) !== true) {
+                    throw new DomainException(__('settlements.errors.commission_snapshot_invalid'));
+                }
+                $rate = $occurredOnChanged
+                    ? $this->commissions->previewForOrder((int) $data->agentId, $data->institutionId, $occurredOn)
+                    : [
+                        'rate_bps' => (int) $commission['rate_bps'],
+                        'rule_source' => (string) $commission['rule_source'],
+                        'rule_id' => $commission['rule_id'] === null ? null : (int) $commission['rule_id'],
+                        'effective_month' => $commission['effective_month'] === null ? null : (string) $commission['effective_month'],
+                    ];
                 $newCommissionAmount = BigDecimal::of($totalAmount)
-                    ->multipliedBy((int) $preview['rate_bps'])
+                    ->multipliedBy((int) $rate['rate_bps'])
                     ->dividedBy(10000, 0, RoundingMode::HalfUp)
                     ->toInt();
                 $this->paidCorrections->record(new PaidOrderCorrectionData(
@@ -119,22 +132,39 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                     oldOccurredOn: CarbonImmutable::parse($order->occurred_on),
                     newAmountKrw: $totalAmount,
                     newCommissionKrw: $newCommissionAmount,
-                    newRateBps: (int) $preview['rate_bps'],
+                    newRateBps: (int) $rate['rate_bps'],
                     newOccurredOn: $occurredOn,
                     reason: trim((string) $data->reason),
                     actorId: $actorId,
                     correctionKey: hash('sha256', 'paid-order-correction:'.$order->id.':'.$data->expectedUpdatedAt),
+                    newRuleSource: (string) $rate['rule_source'],
+                    newRuleId: $rate['rule_id'] === null ? null : (int) $rate['rule_id'],
+                    newEffectiveMonth: $rate['effective_month'] === null ? null : (string) $rate['effective_month'],
+                    oldRuleSource: (string) $commission['rule_source'],
+                    oldRuleId: $commission['rule_id'] === null ? null : (int) $commission['rule_id'],
+                    oldEffectiveMonth: $commission['effective_month'] === null ? null : (string) $commission['effective_month'],
                 ));
             }
 
-            if ($order->status === 'completed' && ! $paidAgentCorrection) {
+            if ($order->status === 'completed' && $financialFieldsChanged && ! $paidAgentCorrection) {
                 if ($isDirect) {
                     $this->directCommissions->voidForOrder((int) $order->id, $actorId, (string) $data->reason);
                 } else {
-                    $this->commissions->rollbackForOrder((int) $order->id);
+                    $this->commissions->correctForCompletedOrder(new CompletedOrderCommissionCorrectionData(
+                        orderId: (int) $order->id,
+                        agentId: (int) $order->agent_id,
+                        institutionId: (int) $order->institution_id,
+                        currentOrderAmountKrw: (int) $order->amount_krw,
+                        newOrderAmountKrw: $totalAmount,
+                        occurredOn: $occurredOn,
+                        occurredOnChanged: $occurredOnChanged,
+                        reason: trim((string) $data->reason),
+                        actorId: $actorId,
+                        ipAddress: $ipAddress,
+                    ));
                 }
             }
-            $beforeBdCommission = $order->status === 'completed' && ! $isDirect ? $this->bdCommissionData($order) : null;
+            $beforeBdCommission = $order->status === 'completed' && ! $isDirect && $financialFieldsChanged ? $this->bdCommissionData($order) : null;
 
             $beforeItems = $order->items()->orderBy('id')->get()->toArray();
             $before = $order->only([
@@ -158,7 +188,7 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             $order->update([
                 'project_name' => $projectName,
                 'amount_krw' => $data->amountKrw,
-                'settlement_excluded' => $order->settlement_excluded || $paidAgentCorrection,
+                'settlement_excluded' => $order->settlement_excluded || ($paidAgentCorrection && $financialFieldsChanged),
                 'treatment_project_snapshot' => $projectSnapshot,
                 'treatment_project_id' => $data->treatmentProjectId,
                 'translator_language_id' => $data->translatorLanguageId,
@@ -170,7 +200,8 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
                 // completed_at is the first formal registration timestamp. A business-date
                 // correction must not rewrite when the order was actually registered.
                 'completed_at' => $order->completed_at,
-                'business_attribution_snapshot' => $occurredOn === null || $isDirect
+                'updated_at' => $this->nextUpdatedAt($order->updated_at),
+                'business_attribution_snapshot' => ! $occurredOnChanged || $occurredOn === null || $isDirect
                     ? $order->business_attribution_snapshot
                     : [
                         ...((array) $order->business_attribution_snapshot),
@@ -194,23 +225,13 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             }
 
             if ($order->status === 'completed') {
-                if ($isDirect) {
+                if ($isDirect && $financialFieldsChanged) {
                     $this->directCommissions->recordForCompletedOrder(new DirectOrderCommissionData(
                         orderId: (int) $order->id,
                         ownerId: (int) $order->owner_id,
                         orderAmountKrw: (int) $order->amount_krw,
                         completedAt: $order->completed_at ?? $occurredOn->startOfDay(),
                         directChannel: data_get($order->business_attribution_snapshot, 'direct_channel'),
-                        actorId: $actorId,
-                        ipAddress: $ipAddress,
-                    ));
-                } elseif (! $paidAgentCorrection) {
-                    $this->commissions->recordForCompletedOrder(new CompletedOrderCommissionData(
-                        orderId: (int) $order->id,
-                        agentId: (int) $order->agent_id,
-                        institutionId: (int) $order->institution_id,
-                        orderAmountKrw: (int) $order->amount_krw,
-                        completedOn: $occurredOn,
                         actorId: $actorId,
                         ipAddress: $ipAddress,
                     ));
@@ -477,6 +498,18 @@ final readonly class DatabaseOrderLifecycleGateway implements OrderLifecycleGate
             agentId: $order->agent_id === null ? null : (int) $order->agent_id,
             customerOwnerId: $order->owner_id === null ? null : (int) $order->owner_id,
         ), 404);
+    }
+
+    private function nextUpdatedAt(?\DateTimeInterface $lastUpdatedAt): CarbonImmutable
+    {
+        $now = CarbonImmutable::now()->startOfSecond();
+        if ($lastUpdatedAt === null) {
+            return $now;
+        }
+
+        $last = CarbonImmutable::parse($lastUpdatedAt)->startOfSecond();
+
+        return $now->gt($last) ? $now : $last->addSecond();
     }
 
     private function bdCommissionData(Order $order): BdCommissionOrderData
