@@ -28,6 +28,9 @@ final readonly class DatabasePaidOrderCorrectionGateway implements PaidOrderCorr
                 $sameResult = (int) data_get($existing->snapshot, 'after.amount_krw') === $data->newAmountKrw
                     && (int) data_get($existing->snapshot, 'after.commission_krw') === $data->newCommissionKrw
                     && (int) data_get($existing->snapshot, 'after.rate_bps') === $data->newRateBps
+                    && data_get($existing->snapshot, 'after.rule_source') === $data->newRuleSource
+                    && (int) data_get($existing->snapshot, 'after.rule_id', 0) === (int) ($data->newRuleId ?? 0)
+                    && data_get($existing->snapshot, 'after.rule_effective_month') === $data->newEffectiveMonth
                     && (string) data_get($existing->snapshot, 'after.occurred_on') === $data->newOccurredOn->toDateString()
                     && (string) $existing->reason === trim($data->reason);
                 if (! $sameResult) {
@@ -80,12 +83,18 @@ final readonly class DatabasePaidOrderCorrectionGateway implements PaidOrderCorr
                         'amount_krw' => $data->oldAmountKrw,
                         'commission_krw' => $previousCommission,
                         'rate_bps' => $previousRate,
+                        'rule_source' => $data->oldRuleSource,
+                        'rule_id' => $data->oldRuleId,
+                        'rule_effective_month' => $data->oldEffectiveMonth,
                     ],
                     'after' => [
                         'occurred_on' => $data->newOccurredOn->toDateString(),
                         'amount_krw' => $data->newAmountKrw,
                         'commission_krw' => $data->newCommissionKrw,
                         'rate_bps' => $data->newRateBps,
+                        'rule_source' => $data->newRuleSource,
+                        'rule_id' => $data->newRuleId,
+                        'rule_effective_month' => $data->newEffectiveMonth,
                     ],
                 ],
             ]);

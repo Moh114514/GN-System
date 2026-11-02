@@ -1,5 +1,20 @@
 # GN-System CRM
 
+## 2026-10-31 v0.8.0-rc.3 已构建，UAT 部署待管理员认证
+
+PR #67、#69 已合入 `develop`，PR #68 已合入 `main`。不可变 annotated 标签
+`v0.8.0-rc.3` 指向 `ab1cb51eef90347c90d38ee4a6cb44b16e1da931`；[RC 发布工作流](https://github.com/Moh114514/GN-System/actions/runs/41083389896)
+门禁与 app/web 构建成功，manifest digest 为 `sha256:be51649457712b42030e8f707306c0f91d136fb35f43b8a5d083b96954fe3dc6`、
+`sha256:416c3c73a9cee5cebfe326012d9ceeaa7f83d0b30fa9882772fd34d9f1f65298`。
+
+本机离线包 `docker-images/gn-system-v0.8.0-rc.3.tar` 为 369,907,200 bytes，SHA-256
+`43bd4157c777353b8fa6b1aa9f101ac850567722b45176f866746208c6acdba7`；已传至 UAT `/tmp/gn-system-v0.8.0-rc.3.tar`，
+服务器副本哈希及大小一致。UAT 仓库只读核验仍为干净的 detached RC2 提交 `ce411b7700509a4322752c40c786f94b6adc9ddb`；
+本轮 `sudo -n` 要求管理员密码，故 RC3 尚未导入、备份、部署或迁移，UAT 仍待部署和重新验收。Production 未操作。
+用户已于 2026-10-31 确认 Production 规范地址为 `https://192.168.0.141`，与服务器当前 `APP_URL` 一致。证书 SAN 包含该 IP，
+有效期至 2027-08-11；Windows 系统 CA 验证通过，`/up`、`/health`、`/health/operations` 均为 HTTP 200。
+生产备份和发布台账仍待管理员权限核验；正式发布须补齐后续检查，并以已验收 RC3 原 digest 晋级。
+
 ## 2026-10-30 v0.8.0-rc.2 UAT 验收通过，Production 晋级暂缓
 
 PR #63 已将修复合入 `develop`，PR #65 同步 main 发布历史，PR #64 合入 `main`。
@@ -23,12 +38,12 @@ app/web digest 分别为 `sha256:8f1aa5c898f64d69d37edd71156ae51dd218e4c2d55709d
 
 Production 预检发现当前服务运行 `v0.6.2`，但独立仓库仍停在 `v0.6.0-rc.1` 且有 3 个未提交文件。
 其中客户看板翻译和测试已包含在 RC2；`AppServiceProvider` 中的生产 URL origin 修正未包含在 RC2，已在新分支
-`feature/production-origin-url` 纳入代码评审并补充回归测试。为保留该生产改动，须发布并重新验收包含它的新 RC，
-再创建指向同一提交的正式标签；`v0.8.0` 尚未创建，未修改或部署 Production。
+`feature/production-origin-url` 纳入代码评审并补充回归测试。包含该修正的 `v0.8.0-rc.3` 已发布，
+当前等待 UAT 部署和重新验收；正式标签 `v0.8.0` 尚未创建，Production 未修改或部署。
 
-Production `.env.production` 当前为 `RELEASE_TAG=v0.6.2`、`APP_URL=https://192.168.0.141`，与运维文档中的
-`https://gncrm.local` 不同；Production `current/history.tsv` 缺失，证书身份及生产备份完整性尚未验证。
-这些项与未提交源码一起，都是恢复正式部署前必须核实的事项。
+Production `.env.production` 当前为 `RELEASE_TAG=v0.6.2`、`APP_URL=https://192.168.0.141`，该地址已由用户确认；
+Production `current/history.tsv` 缺失，生产备份完整性仍未验证；证书 IP SAN、有效期和 Windows 系统 CA 信任已核验，
+当前服务的三个健康端点返回 200。这些项与未提交源码一起，都是恢复正式部署前必须核实的事项。
 
 ## 2026-10-30 v0.8.0-rc.1 离线部署与业务验收记录（RC2 部署前）
 

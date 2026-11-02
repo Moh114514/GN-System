@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'rate_sources' => [
+        'grade_institution_rule' => '등급별 기관 요율 규칙',
+        'agent_global_override' => '에이전시 전체 기관 특별 승인',
+        'agent_institution_override' => '에이전시 기관 특별 승인',
+        'historical_import' => '확인된 과거 가져오기 스냅샷',
+    ],
     'bd_commission' => [
         'title' => 'BD 실적 및 인센티브', 'back' => '대시보드로 돌아가기', 'eyebrow' => '오프라인 채널 · BD 실적 및 인센티브',
         'description' => '주문 발생일과 불변 업무 귀속 스냅샷으로 분기 인센티브를 집계합니다. 현재 기본값은 주문 금액 KRW와 버전별 기준점 요율입니다.',
@@ -128,6 +134,7 @@ return [
         'order_in_settlement' => '주문이 정산 상세에 포함되어 먼저 정산을 수정하거나 철회해야 상태를 되돌릴 수 있습니다.',
         'paid_order_correction_super_admin' => '지급 완료 주문의 재무 수정은 슈퍼 관리자만 할 수 있습니다.',
         'paid_order_correction_context_missing' => '지급 완료 주문의 요율 또는 원본 정산 스냅샷을 찾을 수 없어 수정을 중단했습니다.',
+        'commission_snapshot_invalid' => '과거 프로모션 비용 스냅샷이 없거나 주문 금액과 일치하지 않습니다. 과거 근거를 확인할 때까지 현재 요율을 적용하지 않았습니다.',
         'quote_must_be_positive' => 'KRW 환율은 0보다 커야 합니다.',
         'document_pdf_font_missing' => '정산 PDF 중국어 글꼴을 사용할 수 없습니다. 애플리케이션 이미지를 다시 빌드한 후 시도하세요.',
         'document_pdf_cache_unwritable' => '정산 PDF 캐시 디렉터리에 쓸 수 없습니다. storage 권한을 확인한 후 다시 시도하세요.',
@@ -139,6 +146,7 @@ return [
         'rejected' => '정산 반려', 'approved' => '정산 승인', 'settled' => '정산 완료 확인',
         'status_corrected' => '정산 상태 수동 수정', 'generation_recovered' => '정산 과거 생성 상태를 대상 제외로 검증',
         'recovery_batch_created' => '정산 복구 배치 생성 및 재생성',
+        'commission_corrected' => '주문 프로모션 비용을 과거 스냅샷 기준으로 수정했습니다',
     ],
     'documents' => [
         'title' => '에이전시 월말 정산서', 'unknown' => '알 수 없음', 'unknown_agent' => '알 수 없는 에이전시',

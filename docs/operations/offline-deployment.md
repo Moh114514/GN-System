@@ -15,7 +15,7 @@ GN-System 当前有两条发布路径：
 | 环境 | 仓库目录 | 环境文件 | Compose 文件 | Compose 项目 | 地址 |
 |---|---|---|---|---|---|
 | UAT | `/srv/gn-system/repository` | `.env.uat` | `compose.production.yaml` | `gn-system-uat` | `https://gncrm-uat.local:8443` |
-| Production | `/srv/gn-system/production/repository` | `.env.production` | `compose.production.yaml` | `gn-system-production` | `https://gncrm.local` |
+| Production | `/srv/gn-system/production/repository` | `.env.production` | `compose.production.yaml` | `gn-system-production` | `https://192.168.0.141` |
 
 本文以 UAT 为例。Production 执行时，将仓库目录、环境文件、URL 和发布状态目录替换为
 Production 的独立值，不得共用 UAT 数据、凭据、端口或发布历史。

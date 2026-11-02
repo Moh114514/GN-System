@@ -1,6 +1,12 @@
 <?php
 
 return [
+    'rate_sources' => [
+        'grade_institution_rule' => '等级机构费率规则',
+        'agent_global_override' => '代理商全机构特批',
+        'agent_institution_override' => '代理商机构特批',
+        'historical_import' => '已确认的历史导入快照',
+    ],
     'bd_commission' => [
         'title' => 'BD绩效与提成', 'back' => '返回Dashboard', 'eyebrow' => '线下渠道 · BD绩效与提成',
         'description' => '按订单发生日期和不可变业务归属快照汇总季度提成。当前版本默认以订单金额 KRW 为基数，按版本化基点费率计算。',
@@ -339,6 +345,7 @@ return [
         'order_in_settlement' => '订单已进入月结明细，必须先更正或撤回月结后才能回退订单状态。',
         'paid_order_correction_super_admin' => '已付款订单的财务更正仅限超级管理员操作。',
         'paid_order_correction_context_missing' => '找不到已付款订单的费率或原月结快照，已停止更正。',
+        'commission_snapshot_invalid' => '历史推广费快照缺失或与订单金额不一致。请先核对历史依据，系统没有套用当前费率。',
         'quote_must_be_positive' => 'KRW 汇率必须大于零。',
         'document_pdf_font_missing' => '结算 PDF 中文字体不可用，请重新构建应用镜像后重试。',
         'document_pdf_cache_unwritable' => '结算 PDF 缓存目录不可写，请检查 storage 目录权限后重试。',
@@ -350,6 +357,7 @@ return [
         'rejected' => '月结已驳回', 'approved' => '月结已审核通过', 'settled' => '月结已确认结清',
         'status_corrected' => '月结状态已人工更正', 'generation_recovered' => '月结历史生成状态已核验为不适用',
         'recovery_batch_created' => '月结已创建恢复批次并重新生成',
+        'commission_corrected' => '订单推广费已按历史快照更正',
     ],
     'history' => [
         'back' => '返回月结中心', 'description' => '历史迁移产生的旧月结记录，不参与当前月结生成和审核流程。',
