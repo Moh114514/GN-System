@@ -1,12 +1,15 @@
 # GN-System 完整运维手册
 
-## 2026-11-03 v0.8.1-rc.1 已部署至 UAT，等待用户业务验收
+## 2026-11-03 v0.8.1 已正式发布，UAT RC1 验收完成，Production 未部署
 
 annotated 标签 `v0.8.1-rc.1` 指向 `93b394d4b231f6ba80f444598abaa6d79bc9de47`；
 [RC 发布工作流](https://github.com/Moh114514/GN-System/actions/runs/41474699540)门禁及 app/web 镜像构建成功。
 app/web manifest digest 分别为
 `sha256:1962dfaed3d74afd4ef828443af7d87da05d989fa4f856e201d3911da119bc2d`、
 `sha256:4a0f0431b46d26dc8f9cf501b8009889afb30e70888d0c9f6d8801bc82f02be4`。
+用户于 2026-11-03 指示创建正式版，确认 RC1 UAT 验收完成。annotated 标签 `v0.8.1` 与 RC1 指向同一提交；
+[正式镜像晋级工作流](https://github.com/Moh114514/GN-System/actions/runs/41550188872)成功，并核对正式 app/web
+manifest digest 与 RC1 完全一致，没有重新构建镜像。
 
 已按[局域网离线镜像部署](offline-deployment.md)下载、校验并导入 `linux/amd64` 镜像。
 本机忽略目录中的包 `docker-images/gn-system-v0.8.1-rc.1.tar` 为 369,918,464 bytes，
@@ -27,10 +30,11 @@ queue/scheduler 运维状态为 `ok`；HTTP 入口返回 301 并跳转至 `https
 部署前只读检查发现 `.env.uat` 和运行中的 app/web/queue/scheduler 都是 `v0.8.0-rc.4`，
 而 `current`/`history.tsv` 仍记录 RC3；本次将候选升级至 RC1，未改写旧发布台账。
 
-截至本记录，用户业务验收尚未完成，因此 `/srv/gn-system/releases/current` 与 `history.tsv`
-仍保留 `v0.8.0-rc.3`，这不是当前运行镜像版本；RC1 离线包也暂留服务器和本机。用户验收通过后，
-再按离线指南更新发布台账并清理传输包。Production 未修改。以下 RC3/RC2 记录为历史状态，
-不代表当前 UAT 版本。
+UAT 仍运行已验收的 RC1 镜像；`.env.uat` 的 `RELEASE_TAG` 为 `v0.8.1-rc.1`，运行镜像与正式版内容相同。
+验收后已按离线指南把 `/srv/gn-system/releases/current` 更新为 `v0.8.1-rc.1`，并在
+`history.tsv` 追加从 `v0.8.0-rc.3` 升级的记录；核对 SHA-256 后删除服务器临时传输包
+`/tmp/gn-system-v0.8.1-rc.1.tar`。部署前备份继续保留。Production 未修改或部署，仍须在独立生产发布流程中
+完成备份、台账、证书、环境和维护窗口核验。以下 RC3/RC2 记录为历史状态，不代表当前 UAT 版本。
 
 ## 2026-10-31 v0.8.0-rc.3 已构建，UAT 部署待管理员认证
 
