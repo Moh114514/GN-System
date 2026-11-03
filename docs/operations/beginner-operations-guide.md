@@ -1,5 +1,24 @@
 # GN-System 小白运维指南
 
+## 2026-11-03 v0.8.1 已正式发布，UAT 验收通过，Production 未部署
+
+UAT 现在运行候选版本 `v0.8.1-rc.1`，标签指向提交
+`93b394d4b231f6ba80f444598abaa6d79bc9de47`。GitHub 发布检查和镜像构建成功；app/web
+镜像摘要分别为 `sha256:1962dfaed3d74afd4ef828443af7d87da05d989fa4f856e201d3911da119bc2d`、
+`sha256:4a0f0431b46d26dc8f9cf501b8009889afb30e70888d0c9f6d8801bc82f02be4`。
+用户于 2026-11-03 指示创建正式版，确认 RC1 UAT 验收完成。正式标签 `v0.8.1` 与 RC1 指向同一提交；正式镜像工作流
+已成功按原 digest 晋级，未重新构建。
+
+UAT app、web、PostgreSQL、Redis 健康，queue 和 scheduler 正在运行。严格 TLS 下三个健康接口
+`/up`、`/health`、`/health/operations` 都返回 200；HTTP 访问会以 301 跳转到 HTTPS。
+升级前备份已验证，位于
+`/srv/gn-system/data/backups/GN-System UAT/2026-11-03-00-12-47.zip`（71,238,483 bytes，255 个文件/目录）。
+迁移没有待执行项，`.env.uat` 为 UAT 配置且权限是 `0600`。
+
+UAT 仍运行已验收的 `v0.8.1-rc.1` 镜像，内容与正式版完全相同。验收后，发布台账 `current` 和 `history.tsv` 已更新到 RC1，
+并清理了校验过的服务器临时传输包；部署前备份继续保留。部署前曾发现容器和 `.env.uat` 指向 RC4，而旧台账停在 RC3。
+Production 没有变更或部署。下面的 RC3 和 RC2 说明是历史记录。
+
 ## 2026-10-31 v0.8.0-rc.3 已构建，等待 UAT 管理员认证后部署
 
 RC3 标签指向 `ab1cb51eef90347c90d38ee4a6cb44b16e1da931`，GitHub 发布门禁与 app/web 镜像构建均成功。
